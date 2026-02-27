@@ -863,7 +863,9 @@ def call_llm(system_prompt, user_message, conversation_history=None, max_tokens=
                 system=system_prompt,
                 messages=messages
             )
-            return response.content[0].text
+            inp = response.usage.input_tokens if response.usage else None
+            out = response.usage.output_tokens if response.usage else None
+            return response.content[0].text, inp, out
         except Exception as e:
             print(f"Anthropic call failed: {e}")
 
@@ -878,11 +880,13 @@ def call_llm(system_prompt, user_message, conversation_history=None, max_tokens=
                 max_tokens=max_tokens,
                 messages=oai_messages
             )
-            return response.choices[0].message.content
+            inp = response.usage.prompt_tokens if response.usage else None
+            out = response.usage.completion_tokens if response.usage else None
+            return response.choices[0].message.content, inp, out
         except Exception as e:
-            return f"Error calling OpenAI: {e}"
+            return f"Error calling OpenAI: {e}", None, None
 
-    return "Error: No API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable."
+    return "Error: No API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable.", None, None
 
 
 # --- Routes ---
@@ -1097,7 +1101,7 @@ def ask():
         # Use Opus for extended, Sonnet for medium/short
         llm_model = 'claude-opus-4-5-20251101' if length == 'extended' else None
         _t0 = time.time()
-        answer = call_llm(system_prompt, user_message, conversation_history, max_tokens=mode['max_tokens'], model=llm_model)
+        answer, _inp_tokens, _out_tokens = call_llm(system_prompt, user_message, conversation_history, max_tokens=mode['max_tokens'], model=llm_model)
         _duration_ms = int((time.time() - _t0) * 1000)
 
         # 5. Build sources list
@@ -1113,7 +1117,8 @@ def ask():
 
         log_query(subject, question, length, bool(file_info), cite_thinkers,
                   llm_model or 'claude-sonnet', _duration_ms, len(answer or ''),
-                  success=True, endpoint='ask')
+                  success=True, endpoint='ask',
+                  input_tokens=_inp_tokens, output_tokens=_out_tokens)
 
         return jsonify({
             "answer": answer,
@@ -1243,6 +1248,8 @@ def ask_stream():
             client = _get_anthropic_client()
             if client:
                 try:
+                    _inp_tokens = None
+                    _out_tokens = None
                     with client.messages.stream(
                         model=mode['model'],
                         max_tokens=mode['max_tokens'],
@@ -1252,9 +1259,14 @@ def ask_stream():
                         for text in stream.text_stream:
                             _response_chars += len(text)
                             yield send_event("token", {"text": text})
+                        _usage = stream.get_final_usage()
+                        if _usage:
+                            _inp_tokens = _usage.input_tokens
+                            _out_tokens = _usage.output_tokens
                     _dur = int((time.time() - _t0) * 1000)
                     log_query(subject, question, length, bool(session_id and session_id in file_sessions),
-                              cite_thinkers, _model_used, _dur, _response_chars, success=True, endpoint='ask-stream')
+                              cite_thinkers, _model_used, _dur, _response_chars, success=True, endpoint='ask-stream',
+                              input_tokens=_inp_tokens, output_tokens=_out_tokens)
                     yield send_event("done", {})
                     return
                 except Exception as e:

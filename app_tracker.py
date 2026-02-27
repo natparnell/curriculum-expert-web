@@ -29,7 +29,8 @@ _write_lock = threading.Lock()
 # ---------------------------------------------------------------------------
 
 def log_query(subject, question, length, has_file, cite_thinkers,
-              model, duration_ms, response_chars, success=True, endpoint='ask-stream'):
+              model, duration_ms, response_chars, success=True, endpoint='ask-stream',
+              input_tokens=None, output_tokens=None):
     """Append a query event to app_usage.jsonl."""
     entry = {
         "type": "query",
@@ -42,6 +43,8 @@ def log_query(subject, question, length, has_file, cite_thinkers,
         "model": model or "unknown",
         "duration_ms": int(duration_ms) if duration_ms is not None else None,
         "response_chars": int(response_chars) if response_chars is not None else None,
+        "input_tokens": int(input_tokens) if input_tokens is not None else None,
+        "output_tokens": int(output_tokens) if output_tokens is not None else None,
         "success": success,
         "endpoint": endpoint,
     }
