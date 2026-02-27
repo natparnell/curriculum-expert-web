@@ -22,6 +22,7 @@ from flask_cors import CORS
 # Add rag module to path
 sys.path.insert(0, str(Path(__file__).parent))
 from rag_pipeline import RAGPipeline
+from app_tracker import log_query, log_upload, log_infographic, get_stats as get_app_stats
 
 # Optional imports for file extraction
 try:
@@ -995,6 +996,8 @@ def upload():
     # Clean up saved file
     save_path.unlink(missing_ok=True)
 
+    log_upload(f.filename, word_count)
+
     return jsonify({
         "session_id": session_id,
         "filename": f.filename,
@@ -1093,7 +1096,9 @@ def ask():
         # 4. Call LLM (Claude if available, else GPT-4o)
         # Use Opus for extended, Sonnet for medium/short
         llm_model = 'claude-opus-4-5-20251101' if length == 'extended' else None
+        _t0 = time.time()
         answer = call_llm(system_prompt, user_message, conversation_history, max_tokens=mode['max_tokens'], model=llm_model)
+        _duration_ms = int((time.time() - _t0) * 1000)
 
         # 5. Build sources list
         sources = []
@@ -1106,6 +1111,10 @@ def ask():
                 "key_stage": meta.get('key_stage', '')
             })
 
+        log_query(subject, question, length, bool(file_info), cite_thinkers,
+                  llm_model or 'claude-sonnet', _duration_ms, len(answer or ''),
+                  success=True, endpoint='ask')
+
         return jsonify({
             "answer": answer,
             "sources": sources,
@@ -1114,6 +1123,10 @@ def ask():
         })
 
     except Exception as e:
+        log_query(subject if 'subject' in dir() else 'unknown',
+                  data.get('question', '') if 'data' in dir() else '',
+                  'unknown', False, True, 'unknown', None, None,
+                  success=False, endpoint='ask')
         return jsonify({"error": str(e)}), 500
 
 
@@ -1150,6 +1163,9 @@ def ask_stream():
 
         def generate():
             import json as _json
+            _t0 = time.time()
+            _response_chars = 0
+            _model_used = mode['model']
 
             def send_event(event_type, data_dict):
                 return f"event: {event_type}\ndata: {_json.dumps(data_dict)}\n\n"
@@ -1234,7 +1250,11 @@ def ask_stream():
                         messages=messages
                     ) as stream:
                         for text in stream.text_stream:
+                            _response_chars += len(text)
                             yield send_event("token", {"text": text})
+                    _dur = int((time.time() - _t0) * 1000)
+                    log_query(subject, question, length, bool(session_id and session_id in file_sessions),
+                              cite_thinkers, _model_used, _dur, _response_chars, success=True, endpoint='ask-stream')
                     yield send_event("done", {})
                     return
                 except Exception as e:
@@ -1246,6 +1266,7 @@ def ask_stream():
                 try:
                     oai_messages = [{"role": "system", "content": system_prompt}]
                     oai_messages.extend(messages)
+                    _model_used = 'gpt-4.1'
                     stream = oai_client.chat.completions.create(
                         model="gpt-4.1",
                         max_tokens=mode['max_tokens'],
@@ -1255,13 +1276,21 @@ def ask_stream():
                     for chunk in stream:
                         delta = chunk.choices[0].delta
                         if delta.content:
+                            _response_chars += len(delta.content)
                             yield send_event("token", {"text": delta.content})
+                    _dur = int((time.time() - _t0) * 1000)
+                    log_query(subject, question, length, bool(session_id and session_id in file_sessions),
+                              cite_thinkers, _model_used, _dur, _response_chars, success=True, endpoint='ask-stream')
                     yield send_event("done", {})
                     return
                 except Exception as e:
+                    log_query(subject, question, length, False, cite_thinkers,
+                              _model_used, None, None, success=False, endpoint='ask-stream')
                     yield send_event("error", {"error": f"OpenAI stream failed: {e}"})
                     return
 
+            log_query(subject, question, length, False, cite_thinkers,
+                      _model_used, None, None, success=False, endpoint='ask-stream')
             yield send_event("error", {"error": "No API key available"})
 
         return Response(
@@ -1274,6 +1303,21 @@ def ask_stream():
             }
         )
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/admin')
+def admin():
+    """Serve the usage analytics admin dashboard."""
+    return send_file(APP_DIR / 'admin.html')
+
+
+@app.route('/admin/stats')
+def admin_stats():
+    """Return aggregated usage stats as JSON."""
+    try:
+        return jsonify(get_app_stats())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2458,7 +2502,10 @@ def visualise():
             "setup_hint": "export OPENAI_API_KEY=sk-... or ANTHROPIC_API_KEY=sk-ant-..."
         }), 503
 
+    _t0 = time.time()
     html = call_visualise(question, answer)
+    _dur = int((time.time() - _t0) * 1000)
+    log_infographic(question, subject=None, duration_ms=_dur, success=bool(html))
     if html:
         return jsonify({"html": html})
     else:
