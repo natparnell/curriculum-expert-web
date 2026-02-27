@@ -7,13 +7,19 @@ provides aggregation for the /admin dashboard.
 """
 
 import json
+import os
 import threading
 from pathlib import Path
 from datetime import datetime, timedelta
 from collections import defaultdict
 
 APP_DIR = Path(__file__).parent
-LOG_PATH = APP_DIR / "app_usage.jsonl"
+
+# DATA_DIR env var lets Railway point this at a persistent volume.
+# Falls back to the app directory for local development.
+_data_dir = Path(os.environ.get('DATA_DIR', str(APP_DIR)))
+_data_dir.mkdir(parents=True, exist_ok=True)
+LOG_PATH = _data_dir / "app_usage.jsonl"
 
 _write_lock = threading.Lock()
 
