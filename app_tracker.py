@@ -112,25 +112,32 @@ def get_stats():
     uploads      = [e for e in entries if e.get("type") == "upload"]
     infographics = [e for e in entries if e.get("type") == "infographic"]
 
+    # All activity (queries + infographics) for time-based stats
+    all_activity = queries + infographics
+
     today = datetime.utcnow().strftime("%Y-%m-%d")
     week_ago = (datetime.utcnow() - timedelta(days=6)).strftime("%Y-%m-%d")
 
-    today_count = sum(1 for q in queries if q.get("ts", "")[:10] == today)
-    week_count  = sum(1 for q in queries if q.get("ts", "")[:10] >= week_ago)
+    today_count = sum(1 for q in all_activity if q.get("ts", "")[:10] == today)
+    week_count  = sum(1 for q in all_activity if q.get("ts", "")[:10] >= week_ago)
 
-    # --- By subject ---
+    # --- By subject (queries only — infographics don't always have subject) ---
     by_subject = defaultdict(int)
     for q in queries:
         by_subject[q.get("subject", "unknown")] += 1
 
-    # --- By day (last 14 days) ---
+    # --- By day — auto-expand range to cover all data ---
     by_day_map = defaultdict(int)
-    for q in queries:
+    for q in all_activity:
         d = q.get("ts", "")[:10]
         if d:
             by_day_map[d] += 1
+    # Find the range: at least 14 days, but stretch back to earliest entry if older
+    earliest = min(by_day_map.keys()) if by_day_map else today
+    days_back = max(13, (datetime.utcnow() - datetime.strptime(earliest, "%Y-%m-%d")).days)
+    days_back = min(days_back, 90)  # cap at 90 days
     by_day = []
-    for i in range(13, -1, -1):
+    for i in range(days_back, -1, -1):
         d = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
         by_day.append({"date": d, "count": by_day_map.get(d, 0)})
 
@@ -175,6 +182,7 @@ def get_stats():
     return {
         "summary": {
             "total":          len(queries),
+            "total_activity": len(all_activity),
             "today":          today_count,
             "this_week":      week_count,
             "uploads":        len(uploads),
