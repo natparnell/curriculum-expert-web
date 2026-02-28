@@ -19,6 +19,7 @@ COPY app_tracker.py .
 COPY curriculum-agent-config.json .
 COPY curriculum-expert.html .
 COPY admin.html .
+COPY feedback.html .
 
 # Knowledge files for RAG indexing
 COPY knowledge/ /app/knowledge/

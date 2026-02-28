@@ -76,6 +76,22 @@ def log_upload(filename, word_count, subject=None):
     _append(entry)
 
 
+def log_feedback(overall, quality, subject, role, went_well, improve, recommend):
+    """Append a feedback event to app_usage.jsonl."""
+    entry = {
+        "type": "feedback",
+        "ts": datetime.utcnow().isoformat() + "Z",
+        "overall": int(overall) if overall else None,
+        "quality": int(quality) if quality else None,
+        "subject": subject or "general",
+        "role": (role or "")[:100],
+        "went_well": (went_well or "")[:500],
+        "improve": (improve or "")[:500],
+        "recommend": recommend or "",
+    }
+    _append(entry)
+
+
 def _append(entry):
     try:
         with _write_lock:
@@ -143,6 +159,19 @@ def get_stats():
     # --- Recent activity (queries + infographics combined, last 30) ---
     activity = sorted(queries + infographics, key=lambda x: x.get("ts", ""), reverse=True)[:30]
 
+    # --- Feedback ---
+    feedback_entries = [e for e in entries if e.get("type") == "feedback"]
+    fb_overall = [f["overall"] for f in feedback_entries if f.get("overall")]
+    fb_quality = [f["quality"] for f in feedback_entries if f.get("quality")]
+    fb_recommend = defaultdict(int)
+    fb_by_subject = defaultdict(int)
+    fb_by_role = defaultdict(int)
+    for f in feedback_entries:
+        fb_recommend[f.get("recommend", "unknown")] += 1
+        fb_by_subject[f.get("subject", "general")] += 1
+        fb_by_role[f.get("role", "unknown")] += 1
+    feedback_recent = sorted(feedback_entries, key=lambda x: x.get("ts", ""), reverse=True)[:50]
+
     return {
         "summary": {
             "total":          len(queries),
@@ -159,6 +188,15 @@ def get_stats():
         "thinkers":   {"on": thinkers_on, "off": thinkers_off},
         "by_model":   dict(sorted(by_model.items(), key=lambda x: -x[1])),
         "recent":     activity,
+        "feedback": {
+            "total":       len(feedback_entries),
+            "avg_overall": round(sum(fb_overall) / len(fb_overall), 1) if fb_overall else None,
+            "avg_quality": round(sum(fb_quality) / len(fb_quality), 1) if fb_quality else None,
+            "recommend":   dict(fb_recommend),
+            "by_subject":  dict(sorted(fb_by_subject.items(), key=lambda x: -x[1])),
+            "by_role":     dict(sorted(fb_by_role.items(), key=lambda x: -x[1])),
+            "recent":      feedback_recent,
+        },
         "generated_at": datetime.utcnow().isoformat() + "Z",
     }
 

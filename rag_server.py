@@ -22,7 +22,7 @@ from flask_cors import CORS
 # Add rag module to path
 sys.path.insert(0, str(Path(__file__).parent))
 from rag_pipeline import RAGPipeline
-from app_tracker import log_query, log_upload, log_infographic, get_stats as get_app_stats
+from app_tracker import log_query, log_upload, log_infographic, log_feedback, get_stats as get_app_stats
 
 # Optional imports for file extraction
 try:
@@ -1330,6 +1330,31 @@ def admin_stats():
     """Return aggregated usage stats as JSON."""
     try:
         return jsonify(get_app_stats())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/feedback')
+def feedback_page():
+    """Serve the feedback form."""
+    return send_file(APP_DIR / 'feedback.html')
+
+
+@app.route('/feedback', methods=['POST'])
+def submit_feedback():
+    """Receive and log user feedback."""
+    try:
+        data = request.get_json(force=True)
+        log_feedback(
+            overall=data.get('overall'),
+            quality=data.get('quality'),
+            subject=data.get('subject'),
+            role=data.get('role'),
+            went_well=data.get('went_well'),
+            improve=data.get('improve'),
+            recommend=data.get('recommend'),
+        )
+        return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

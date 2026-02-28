@@ -388,6 +388,13 @@
   <div id="recent-table"><div class="empty">No queries yet</div></div>
 </div>
 
+<!-- Feedback section -->
+<div class="panel" id="panel-feedback" style="margin-top:1.25rem">
+  <h2>User Feedback</h2>
+  <div class="cards" id="feedback-cards" style="margin-bottom:1rem"></div>
+  <div id="feedback-table"><div class="empty">No feedback yet</div></div>
+</div>
+
 <script>
 const ACCENT_COLORS = {
   history:    '#92400e',
@@ -585,6 +592,64 @@ function renderRecent(rows) {
   return head + body + '</tbody></table>';
 }
 
+function fmtStars(n) {
+  if (n == null) return '—';
+  const full = Math.round(n);
+  return '<span style="color:#f6ad55;letter-spacing:1px">' + '★'.repeat(full) + '☆'.repeat(5 - full) + '</span>' +
+    ` <span style="font-size:0.72rem;color:#718096">${Number(n).toFixed(1)}</span>`;
+}
+
+function renderFeedbackCards(fb) {
+  if (!fb || !fb.total) return '';
+  const rec = fb.recommend || {};
+  const total = (rec.yes || 0) + (rec.maybe || 0) + (rec.no || 0);
+  const recPct = total > 0 ? Math.round(((rec.yes || 0) / total) * 100) : '—';
+  return [
+    { label: 'Total Feedback', value: fmt(fb.total), sub: 'responses' },
+    { label: 'Overall Rating', value: fmtStars(fb.avg_overall), sub: 'average', raw: true },
+    { label: 'Quality Rating', value: fmtStars(fb.avg_quality), sub: 'answer quality', raw: true },
+    { label: 'Would Recommend', value: recPct === '—' ? '—' : recPct + '%', sub: `${rec.yes || 0} yes · ${rec.maybe || 0} maybe · ${rec.no || 0} no` },
+  ].map(c => `
+    <div class="card">
+      <div class="label">${c.label}</div>
+      <div class="value${c.raw ? '' : ''}" style="font-size:${c.raw ? '1rem' : '2rem'}">${c.value}</div>
+      ${c.sub ? `<div class="sub">${c.sub}</div>` : ''}
+    </div>`).join('');
+}
+
+function renderFeedbackTable(items) {
+  if (!items || items.length === 0) return '<div class="empty">No feedback yet</div>';
+  const head = `<table class="recent-table">
+    <thead><tr>
+      <th>Time</th><th>Subject</th><th>Role</th>
+      <th>Overall</th><th>Quality</th><th>Recommend</th>
+      <th>What Worked</th><th>Could Improve</th>
+    </tr></thead><tbody>`;
+  const body = items.map(r => {
+    const subj = r.subject || '';
+    const subjChip = subj && subj !== 'general'
+      ? `<span class="pill" style="background:${subjectColor(subj)}18;color:${subjectColor(subj)};font-weight:600;font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:999px;text-transform:capitalize">${subj}</span>`
+      : '<span style="color:#cbd5e0">General</span>';
+    const stars = n => n ? '<span style="color:#f6ad55">' + '★'.repeat(n) + '☆'.repeat(5 - n) + '</span>' : '—';
+    const recBadge = {'yes': '<span style="color:#276749;font-weight:600">Yes</span>',
+                      'maybe': '<span style="color:#7b6000">Maybe</span>',
+                      'no': '<span style="color:#9b2c2c">No</span>'}[r.recommend] || '—';
+    const wellText = (r.went_well || '').replace(/</g, '&lt;').slice(0, 120);
+    const improveText = (r.improve || '').replace(/</g, '&lt;').slice(0, 120);
+    return `<tr>
+      <td style="white-space:nowrap;color:#a0aec0;font-size:0.75rem">${fmtDate(r.ts)}</td>
+      <td>${subjChip}</td>
+      <td style="font-size:0.75rem;color:#4a5568">${r.role || '—'}</td>
+      <td style="white-space:nowrap">${stars(r.overall)}</td>
+      <td style="white-space:nowrap">${stars(r.quality)}</td>
+      <td>${recBadge}</td>
+      <td style="max-width:180px;font-size:0.73rem">${wellText || '—'}</td>
+      <td style="max-width:180px;font-size:0.73rem">${improveText || '—'}</td>
+    </tr>`;
+  }).join('');
+  return head + body + '</tbody></table>';
+}
+
 async function load() {
   document.getElementById('genAt').textContent = 'Loading…';
   document.getElementById('error').style.display = 'none';
@@ -609,6 +674,14 @@ async function load() {
       barChart(d.by_model, modelColor);
     document.getElementById('recent-table').innerHTML =
       renderRecent(d.recent);
+
+    // Feedback section
+    if (d.feedback) {
+      document.getElementById('feedback-cards').innerHTML =
+        renderFeedbackCards(d.feedback);
+      document.getElementById('feedback-table').innerHTML =
+        renderFeedbackTable(d.feedback.recent);
+    }
 
   } catch (e) {
     const el = document.getElementById('error');
