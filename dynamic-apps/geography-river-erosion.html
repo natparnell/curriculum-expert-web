@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>River Erosion Sandbox</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#1a2a1a;--panel:#1e2d1e;--panel-border:#2a4a2a;
+  --water:#3a8fd4;--water-dark:#1a5f94;--water-light:#6bb8f0;
+  --earth:#8B6914;--earth-dark:#5a4510;--earth-light:#c49b2e;
+  --rock-hard:#7a7a7a;--rock-soft:#c4a46c;
+  --sand:#e8d5a3;--green:#4a8c3f;--green-light:#6ab85e;
+  --text:#e8e0d0;--text-dim:#9a9080;--accent:#5cb85c;
+  --danger:#d9534f;--info:#5bc0de;
+}
+html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text)}
+#app{display:grid;grid-template-columns:280px 1fr;grid-template-rows:auto 1fr;height:100vh;gap:0}
+header{grid-column:1/-1;background:linear-gradient(135deg,#1a3a2a,#0d2818);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid var(--panel-border);min-height:56px}
+header h1{font-size:1.35rem;font-weight:700;background:linear-gradient(90deg,var(--water-light),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:.5px}
+header .controls{display:flex;gap:10px;align-items:center}
+header .controls button{padding:6px 16px;border:1px solid var(--panel-border);border-radius:6px;background:var(--panel);color:var(--text);cursor:pointer;font-size:.82rem;transition:all .2s}
+header .controls button:hover{background:var(--accent);border-color:var(--accent);color:#fff}
+header .controls button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+header .controls button.reset{border-color:var(--danger);color:var(--danger)}
+header .controls button.reset:hover{background:var(--danger);color:#fff}
+.speed-group{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text-dim)}
+.speed-group button{width:30px;height:28px;padding:0;font-size:.75rem;display:flex;align-items:center;justify-content:center}
+.speed-group button.active{background:var(--water);border-color:var(--water)}
+aside{background:var(--panel);border-right:2px solid var(--panel-border);padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+aside::-webkit-scrollbar{width:6px}
+aside::-webkit-scrollbar-thumb{background:var(--panel-border);border-radius:3px}
+.slider-group{background:rgba(0,0,0,.2);border-radius:10px;padding:12px 14px}
+.slider-group label{display:flex;justify-content:space-between;font-size:.78rem;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.slider-group label span{color:var(--accent);font-weight:700;text-transform:none}
+.slider-group input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;outline:none;cursor:pointer}
+.slider-group input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;cursor:pointer;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+#rainSlider::-webkit-slider-thumb{background:var(--water)}
+#rainSlider{background:linear-gradient(90deg,#2a4a6a,var(--water-light))}
+#gradientSlider::-webkit-slider-thumb{background:var(--earth)}
+#gradientSlider{background:linear-gradient(90deg,var(--sand),var(--earth-dark))}
+#rockSlider::-webkit-slider-thumb{background:var(--rock-hard)}
+#rockSlider{background:linear-gradient(90deg,var(--rock-soft),var(--rock-hard))}
+#timeSlider::-webkit-slider-thumb{background:var(--accent)}
+#timeSlider{background:linear-gradient(90deg,#2a3a2a,var(--accent))}
+.legend-box{background:rgba(0,0,0,.2);border-radius:10px;padding:12px 14px}
+.legend-box h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);margin-bottom:8px;font-weight:600}
+.legend-item{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:.76rem;cursor:pointer;transition:color .2s}
+.legend-item:hover{color:var(--accent)}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.erosion-bar{margin-top:4px}
+.erosion-bar .bar-label{font-size:.7rem;color:var(--text-dim);display:flex;justify-content:space-between;margin-bottom:2px}
+.erosion-bar .bar-track{height:5px;background:rgba(0,0,0,.3);border-radius:3px;overflow:hidden}
+.erosion-bar .bar-fill{height:100%;border-radius:3px;transition:width .5s}
+main{position:relative;overflow:hidden;background:#0a1a0a}
+canvas{display:block;width:100%;height:100%}
+#popup{position:absolute;display:none;background:rgba(20,35,20,.96);border:1px solid var(--accent);border-radius:10px;padding:16px;max-width:300px;box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:100;backdrop-filter:blur(8px)}
+#popup h4{color:var(--accent);margin-bottom:6px;font-size:.95rem}
+#popup p{font-size:.82rem;line-height:1.5;color:var(--text)}
+#popup .close-btn{position:absolute;top:8px;right:12px;background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.1rem}
+#popup .close-btn:hover{color:var(--text)}
+.view-indicator{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(20,35,20,.8);padding:5px 16px;border-radius:20px;font-size:.75rem;color:var(--text-dim);pointer-events:none;border:1px solid var(--panel-border)}
+.time-display{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(20,35,20,.85);padding:6px 20px;border-radius:20px;font-size:.85rem;color:var(--sand);pointer-events:none;border:1px solid var(--panel-border);white-space:nowrap}
+@media(max-width:900px){
+  #app{grid-template-columns:1fr;grid-template-rows:auto auto 1fr}
+  aside{flex-direction:row;flex-wrap:wrap;overflow-x:auto;overflow-y:hidden;border-right:none;border-bottom:2px solid var(--panel-border);max-height:200px}
+  .slider-group,.legend-box{min-width:200px;flex:1}
+}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <h1>River Erosion Sandbox</h1>
+  <div class="controls">
+    <div class="speed-group">
+      <span>Speed:</span>
+      <button onclick="setSpeed(0.5)" id="sp1">0.5x</button>
+      <button onclick="setSpeed(1)" id="sp2" class="active">1x</button>
+      <button onclick="setSpeed(2)" id="sp3">2x</button>
+      <button onclick="setSpeed(5)" id="sp4">5x</button>
+    </div>
+    <button id="playBtn" onclick="togglePlay()">Pause</button>
+    <button id="crossBtn" onclick="toggleCross()">Cross-Section</button>
+    <button class="reset" onclick="resetSim()">Reset</button>
+  </div>
+</header>
+<aside>
+  <div class="slider-group">
+    <label>Rainfall Intensity <span id="rainVal">Medium</span></label>
+    <input type="range" id="rainSlider" min="0" max="100" value="50">
+  </div>
+  <div class="slider-group">
+    <label>Gradient / Slope <span id="gradVal">Moderate</span></label>
+    <input type="range" id="gradientSlider" min="0" max="100" value="50">
+  </div>
+  <div class="slider-group">
+    <label>Rock Type <span id="rockVal">Mixed</span></label>
+    <input type="range" id="rockSlider" min="0" max="100" value="50">
+  </div>
+  <div class="slider-group">
+    <label>Geological Time <span id="timeVal">0 years</span></label>
+    <input type="range" id="timeSlider" min="0" max="100" value="0">
+  </div>
+  <div class="legend-box">
+    <h3>Erosion Processes</h3>
+    <div class="erosion-bar"><div class="bar-label"><span>Hydraulic Action</span><span id="hydPct">0%</span></div><div class="bar-track"><div class="bar-fill" id="hydBar" style="width:0%;background:var(--water)"></div></div></div>
+    <div class="erosion-bar"><div class="bar-label"><span>Abrasion</span><span id="abrPct">0%</span></div><div class="bar-track"><div class="bar-fill" id="abrBar" style="width:0%;background:var(--earth)"></div></div></div>
+    <div class="erosion-bar"><div class="bar-label"><span>Attrition</span><span id="attPct">0%</span></div><div class="bar-track"><div class="bar-fill" id="attBar" style="width:0%;background:var(--rock-hard)"></div></div></div>
+    <div class="erosion-bar"><div class="bar-label"><span>Solution</span><span id="solPct">0%</span></div><div class="bar-track"><div class="bar-fill" id="solBar" style="width:0%;background:var(--green)"></div></div></div>
+  </div>
+  <div class="legend-box">
+    <h3>Transportation</h3>
+    <div class="legend-item" onclick="showInfo('traction')"><div class="legend-dot" style="background:#8B6914"></div>Traction (rolling)</div>
+    <div class="legend-item" onclick="showInfo('saltation')"><div class="legend-dot" style="background:#c49b2e"></div>Saltation (bouncing)</div>
+    <div class="legend-item" onclick="showInfo('suspension')"><div class="legend-dot" style="background:#a08050"></div>Suspension (carried)</div>
+    <div class="legend-item" onclick="showInfo('solution_t')"><div class="legend-dot" style="background:rgba(100,180,255,.5)"></div>Solution (dissolved)</div>
+  </div>
+  <div class="legend-box">
+    <h3>Features (click to learn)</h3>
+    <div class="legend-item" onclick="showInfo('vvalley')"><div class="legend-dot" style="background:#6a5a3a"></div>V-shaped Valley</div>
+    <div class="legend-item" onclick="showInfo('waterfall')"><div class="legend-dot" style="background:var(--water-light)"></div>Waterfall &amp; Gorge</div>
+    <div class="legend-item" onclick="showInfo('spurs')"><div class="legend-dot" style="background:var(--green)"></div>Interlocking Spurs</div>
+    <div class="legend-item" onclick="showInfo('meander')"><div class="legend-dot" style="background:var(--water)"></div>Meander</div>
+    <div class="legend-item" onclick="showInfo('oxbow')"><div class="legend-dot" style="background:var(--water-dark)"></div>Oxbow Lake</div>
+    <div class="legend-item" onclick="showInfo('floodplain')"><div class="legend-dot" style="background:var(--sand)"></div>Floodplain</div>
+    <div class="legend-item" onclick="showInfo('levee')"><div class="legend-dot" style="background:#a09060"></div>Levee</div>
+    <div class="legend-item" onclick="showInfo('delta')"><div class="legend-dot" style="background:#c4b48c"></div>Delta / Estuary</div>
+  </div>
+</aside>
+<main id="mainArea">
+  <canvas id="canvas"></canvas>
+  <div class="view-indicator" id="viewLabel">Top-Down View</div>
+  <div class="time-display" id="timeDisplay">Year 0 -- Present Day</div>
+  <div id="popup"><button class="close-btn" onclick="hidePopup()">&times;</button><h4 id="popTitle"></h4><p id="popBody"></p></div>
+</main>
+</div>
+
+<script>
+// ============== GLOBALS ==============
+const C = document.getElementById('canvas');
+const ctx = C.getContext('2d');
+const mainArea = document.getElementById('mainArea');
+
+let W, H;
+let playing = true;
+let speed = 1;
+let crossSection = false;
+let crossX = 0.5; // 0..1 along river
+let mouseX = 0, mouseY = 0;
+let hoverFeature = null;
+let simTime = 0; // 0..1
+let lastTS = 0;
+
+// Slider states
+let rainfall = 0.5, gradient = 0.5, rockHardness = 0.5, timeSliderVal = 0;
+
+// Derived
+let erosionRate = 0;
+let flowSpeed = 0;
+let waterVolume = 0;
+
+// Animation particles
+let waterParticles = [];
+let sedimentParticles = [];
+let raindrops = [];
+
+// Meander state
+let meanderPoints = [];
+let oxbowLakes = [];
+let featureLabels = [];
+
+// ============== INFO DATABASE ==============
+const INFO = {
+  vvalley: { title: 'V-Shaped Valley', body: 'Formed in the upper course by vertical erosion. The river cuts downward into the landscape, and weathering on the valley sides creates the distinctive V-shape. The valley is steep and narrow with the river occupying most of the valley floor.' },
+  waterfall: { title: 'Waterfall & Gorge', body: 'Forms where a band of hard rock overlies softer rock. The soft rock is eroded faster, creating an overhang of hard rock. Eventually the overhang collapses, and the waterfall retreats upstream, carving a steep-sided gorge.' },
+  spurs: { title: 'Interlocking Spurs', body: 'In the upper course, the river lacks the energy to erode laterally, so it winds around ridges of hard rock called spurs. Viewed from above, they appear to interlock like a zip from alternating sides of the valley.' },
+  meander: { title: 'Meander', body: 'A bend in the river formed by lateral erosion in the middle and lower courses. The fastest flow (thalweg) hits the outer bank causing erosion (forming a river cliff), while deposition occurs on the inner bank (forming a slip-off slope/point bar).' },
+  oxbow: { title: 'Oxbow Lake', body: 'Formed when a meander neck becomes very narrow and is eventually cut through during a flood. The river takes the shorter, straighter course, and deposition seals off the old meander loop, creating a horseshoe-shaped lake that gradually silts up.' },
+  floodplain: { title: 'Floodplain', body: 'A wide, flat area of land either side of the river in the lower course. Formed by lateral erosion widening the valley and by deposition of alluvium (silt/sand) during floods. The floodplain gets wider over time as meanders migrate.' },
+  levee: { title: 'Levee', body: 'Natural raised banks along the river channel in the lower course. When the river floods, the heaviest sediment is deposited first, right next to the channel, building up the banks over many floods. They can be several metres high.' },
+  delta: { title: 'Delta / Estuary', body: 'At the river mouth, velocity drops dramatically as the river meets the sea. Sediment is deposited in layers, building up land that splits the river into smaller channels called distributaries. An estuary forms where the river mouth is a wide tidal inlet.' },
+  traction: { title: 'Traction', body: 'The rolling of large, heavy boulders and rocks along the river bed. This occurs mainly in the upper course where the river has high energy due to steep gradients. The load moves slowly along the bed.' },
+  saltation: { title: 'Saltation', body: 'Small pebbles and stones are bounced along the river bed in a hopping motion. The force of the water is strong enough to lift them briefly before gravity pulls them back down. Common in the middle course.' },
+  suspension: { title: 'Suspension', body: 'Fine particles of silt and clay are carried within the water itself, giving the river a brown/muddy appearance. This is the most common form of transportation and carries the majority of the river\'s load.' },
+  solution_t: { title: 'Solution (Transport)', body: 'Dissolved minerals and chemicals are carried invisibly in the water. This is particularly important in areas with limestone or chalk bedrock. The dissolved load cannot be seen and is carried all the way to the sea.' }
+};
+
+// ============== RESIZE ==============
+function resize() {
+  const rect = mainArea.getBoundingClientRect();
+  W = C.width = rect.width * devicePixelRatio;
+  H = C.height = rect.height * devicePixelRatio;
+  C.style.width = rect.width + 'px';
+  C.style.height = rect.height + 'px';
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  W = rect.width;
+  H = rect.height;
+}
+window.addEventListener('resize', resize);
+
+// ============== SLIDER HANDLERS ==============
+const rainSlider = document.getElementById('rainSlider');
+const gradientSlider = document.getElementById('gradientSlider');
+const rockSlider = document.getElementById('rockSlider');
+const timeSlider = document.getElementById('timeSlider');
+
+function updateSliders() {
+  rainfall = rainSlider.value / 100;
+  gradient = gradientSlider.value / 100;
+  rockHardness = rockSlider.value / 100;
+  timeSliderVal = timeSlider.value / 100;
+
+  const rainLabels = ['Very Low','Low','Medium','High','Very High'];
+  document.getElementById('rainVal').textContent = rainLabels[Math.min(4,Math.floor(rainfall*4.99))];
+
+  const gradLabels = ['Very Gentle','Gentle','Moderate','Steep','Very Steep'];
+  document.getElementById('gradVal').textContent = gradLabels[Math.min(4,Math.floor(gradient*4.99))];
+
+  const rockLabels = ['Soft Clay','Soft Rock','Mixed','Hard Rock','Granite'];
+  document.getElementById('rockVal').textContent = rockLabels[Math.min(4,Math.floor(rockHardness*4.99))];
+
+  // Time display
+  simTime = timeSliderVal;
+  let years;
+  if (simTime < 0.3) years = Math.floor(simTime / 0.3 * 1000);
+  else if (simTime < 0.6) years = 1000 + Math.floor((simTime - 0.3) / 0.3 * 99000);
+  else years = 100000 + Math.floor((simTime - 0.6) / 0.4 * 9900000);
+  let yearStr;
+  if (years < 1000) yearStr = years + ' years';
+  else if (years < 1000000) yearStr = (years / 1000).toFixed(years < 10000 ? 1 : 0) + ' thousand years';
+  else yearStr = (years / 1000000).toFixed(1) + ' million years';
+  document.getElementById('timeVal').textContent = yearStr;
+  document.getElementById('timeDisplay').textContent = 'Geological Time: ' + yearStr;
+
+  // Derived
+  waterVolume = 0.3 + rainfall * 0.7;
+  flowSpeed = 0.3 + gradient * 0.5 + rainfall * 0.2;
+  const softness = 1 - rockHardness;
+  erosionRate = (flowSpeed * 0.4 + waterVolume * 0.3 + softness * 0.3);
+
+  // Erosion bars
+  const hyd = Math.round((rainfall * 0.5 + flowSpeed * 0.3 + (1 - rockHardness) * 0.2) * 100);
+  const abr = Math.round((gradient * 0.4 + flowSpeed * 0.3 + (1 - rockHardness) * 0.3) * 100);
+  const att = Math.round((flowSpeed * 0.5 + waterVolume * 0.2 + gradient * 0.3) * 100);
+  const sol = Math.round(((1 - rockHardness) * 0.6 + rainfall * 0.4) * 100);
+
+  document.getElementById('hydBar').style.width = hyd + '%';
+  document.getElementById('hydPct').textContent = hyd + '%';
+  document.getElementById('abrBar').style.width = abr + '%';
+  document.getElementById('abrPct').textContent = abr + '%';
+  document.getElementById('attBar').style.width = att + '%';
+  document.getElementById('attPct').textContent = att + '%';
+  document.getElementById('solBar').style.width = sol + '%';
+  document.getElementById('solPct').textContent = sol + '%';
+}
+
+rainSlider.addEventListener('input', updateSliders);
+gradientSlider.addEventListener('input', updateSliders);
+rockSlider.addEventListener('input', updateSliders);
+timeSlider.addEventListener('input', updateSliders);
+
+// ============== CONTROLS ==============
+function setSpeed(s) {
+  speed = s;
+  document.querySelectorAll('.speed-group button').forEach(b => b.classList.remove('active'));
+  const idx = [0.5,1,2,5].indexOf(s);
+  document.getElementById('sp' + (idx + 1)).classList.add('active');
+}
+
+function togglePlay() {
+  playing = !playing;
+  document.getElementById('playBtn').textContent = playing ? 'Pause' : 'Play';
+}
+
+function toggleCross() {
+  crossSection = !crossSection;
+  const btn = document.getElementById('crossBtn');
+  btn.classList.toggle('active');
+  document.getElementById('viewLabel').textContent = crossSection ? 'Cross-Section View (click along river to move)' : 'Top-Down View';
+}
+
+function resetSim() {
+  timeSlider.value = 0;
+  rainSlider.value = 50;
+  gradientSlider.value = 50;
+  rockSlider.value = 50;
+  waterParticles = [];
+  sedimentParticles = [];
+  oxbowLakes = [];
+  generateMeanders();
+  updateSliders();
+}
+
+// ============== POPUP ==============
+function showInfo(key) {
+  const info = INFO[key];
+  if (!info) return;
+  const popup = document.getElementById('popup');
+  document.getElementById('popTitle').textContent = info.title;
+  document.getElementById('popBody').textContent = info.body;
+  popup.style.display = 'block';
+  popup.style.left = Math.min(mouseX, W - 320) + 'px';
+  popup.style.top = Math.min(mouseY, H - 200) + 'px';
+}
+
+function hidePopup() {
+  document.getElementById('popup').style.display = 'none';
+}
+
+// ============== MOUSE ==============
+C.addEventListener('mousemove', e => {
+  const rect = C.getBoundingClientRect();
+  mouseX = e.clientX - rect.left;
+  mouseY = e.clientY - rect.top;
+  if (crossSection) {
+    crossX = Math.max(0, Math.min(1, mouseX / W));
+  }
+  checkFeatureHover();
+});
+
+C.addEventListener('click', e => {
+  if (hoverFeature) {
+    showInfo(hoverFeature);
+  } else {
+    hidePopup();
+  }
+});
+
+function checkFeatureHover() {
+  hoverFeature = null;
+  C.style.cursor = 'default';
+  for (const f of featureLabels) {
+    const dx = mouseX - f.x;
+    const dy = mouseY - f.y;
+    if (dx * dx + dy * dy < 900) {
+      hoverFeature = f.key;
+      C.style.cursor = 'pointer';
+      break;
+    }
+  }
+}
+
+// ============== RIVER GEOMETRY ==============
+function generateMeanders() {
+  meanderPoints = [];
+  // River path from top to bottom with meanders developing over time
+  const segments = 100;
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments; // 0 = source (top), 1 = mouth (bottom)
+    meanderPoints.push({ t, baseX: 0.5, amplitude: 0, phase: Math.random() * Math.PI * 2, freq: 2 + Math.random() * 2 });
+  }
+}
+generateMeanders();
+
+function getRiverPath() {
+  const points = [];
+  const n = meanderPoints.length;
+  for (let i = 0; i < n; i++) {
+    const mp = meanderPoints[i];
+    const t = mp.t;
+    const y = t * H;
+
+    // River course zones
+    const upperEnd = 0.3;
+    const midEnd = 0.65;
+
+    let meanderAmp = 0;
+    let width = 0;
+
+    // Time factor
+    const tf = simTime;
+
+    if (t < upperEnd) {
+      // Upper course - minimal meanders
+      const localT = t / upperEnd;
+      meanderAmp = 5 + tf * 8 * localT;
+      width = 3 + waterVolume * 4 + tf * 3 * localT;
+    } else if (t < midEnd) {
+      // Middle course - growing meanders
+      const localT = (t - upperEnd) / (midEnd - upperEnd);
+      meanderAmp = 10 + tf * 60 * (0.3 + localT * 0.7) * erosionRate;
+      width = 6 + waterVolume * 8 + tf * 12 * localT;
+    } else {
+      // Lower course - large meanders
+      const localT = (t - midEnd) / (1 - midEnd);
+      meanderAmp = 20 + tf * 90 * erosionRate * (1 - localT * 0.3);
+      width = 10 + waterVolume * 14 + tf * 20;
+    }
+
+    const x = W * mp.baseX + Math.sin(mp.phase + mp.freq * t * Math.PI * 2) * meanderAmp;
+    points.push({ x, y, t, width, amp: meanderAmp });
+  }
+  return points;
+}
+
+// ============== PARTICLES ==============
+function spawnWaterParticle() {
+  waterParticles.push({
+    progress: 0, // 0..1 along river
+    offset: (Math.random() - 0.5) * 0.8,
+    speed: (0.1 + flowSpeed * 0.15 + Math.random() * 0.05) * 0.01,
+    size: 1 + Math.random() * 2,
+    alpha: 0.3 + Math.random() * 0.4
+  });
+}
+
+function spawnSediment(type) {
+  const startProgress = type === 'traction' ? 0.05 + Math.random() * 0.3 :
+                        type === 'saltation' ? 0.2 + Math.random() * 0.4 :
+                        type === 'suspension' ? 0.1 + Math.random() * 0.5 : 0.1 + Math.random() * 0.7;
+  sedimentParticles.push({
+    progress: startProgress,
+    offset: (Math.random() - 0.5) * 0.6,
+    speed: (0.03 + flowSpeed * 0.08) * 0.01,
+    type,
+    bouncePhase: Math.random() * Math.PI * 2,
+    size: type === 'traction' ? 3 + Math.random() * 3 :
+          type === 'saltation' ? 2 + Math.random() * 2 :
+          type === 'suspension' ? 1 + Math.random() * 1.5 : 0.5 + Math.random(),
+    alpha: type === 'solution_t' ? 0.15 + Math.random() * 0.15 : 0.5 + Math.random() * 0.3
+  });
+}
+
+function spawnRaindrop() {
+  raindrops.push({
+    x: Math.random() * W,
+    y: -10,
+    speed: 4 + Math.random() * 4,
+    length: 8 + Math.random() * 12,
+    alpha: 0.1 + rainfall * 0.3
+  });
+}
+
+// ============== DRAWING HELPERS ==============
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function getPointOnPath(path, progress) {
+  const idx = clamp(progress * (path.length - 1), 0, path.length - 1);
+  const i = Math.floor(idx);
+  const f = idx - i;
+  if (i >= path.length - 1) return path[path.length - 1];
+  return {
+    x: lerp(path[i].x, path[i + 1].x, f),
+    y: lerp(path[i].y, path[i + 1].y, f),
+    t: lerp(path[i].t, path[i + 1].t, f),
+    width: lerp(path[i].width, path[i + 1].width, f),
+    amp: lerp(path[i].amp, path[i + 1].amp, f)
+  };
+}
+
+function getNormal(path, progress) {
+  const eps = 0.005;
+  const p1 = getPointOnPath(path, Math.max(0, progress - eps));
+  const p2 = getPointOnPath(path, Math.min(1, progress + eps));
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  return { nx: -dy / len, ny: dx / len };
+}
+
+// ============== DRAW FUNCTIONS ==============
+function drawBackground() {
+  // Sky / terrain gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#2a4a2a');
+  grad.addColorStop(0.3, '#3a5a30');
+  grad.addColorStop(0.65, '#4a6a3a');
+  grad.addColorStop(1, '#3a5a4a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawTerrain(path) {
+  const tf = simTime;
+
+  // Draw floodplain
+  if (tf > 0.2) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, (tf - 0.2) * 2);
+    for (let i = 0; i < path.length - 1; i++) {
+      const p = path[i];
+      if (p.t < 0.4) continue;
+      const floodWidth = p.width * (2 + tf * 6) * (p.t > 0.65 ? 1.5 : 1);
+      const n = getNormal(path, p.t);
+      ctx.fillStyle = `rgba(200,190,140,${0.15 + tf * 0.15})`;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, floodWidth, floodWidth * 0.4, Math.atan2(n.ny, n.nx), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Draw levees
+  if (tf > 0.4) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, (tf - 0.4) * 2.5);
+    ctx.strokeStyle = 'rgba(160,144,96,0.5)';
+    ctx.lineWidth = 2 + tf * 3;
+    for (let side = -1; side <= 1; side += 2) {
+      ctx.beginPath();
+      let started = false;
+      for (let i = 0; i < path.length; i++) {
+        const p = path[i];
+        if (p.t < 0.55) continue;
+        const n = getNormal(path, p.t);
+        const offset = (p.width + 3 + tf * 8) * side;
+        const lx = p.x + n.nx * offset;
+        const ly = p.y + n.ny * offset;
+        if (!started) { ctx.moveTo(lx, ly); started = true; }
+        else ctx.lineTo(lx, ly);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // V-shaped valley walls (upper course)
+  if (tf > 0.05) {
+    ctx.save();
+    const valleyAlpha = Math.min(0.6, tf * 1.5);
+    for (let side = -1; side <= 1; side += 2) {
+      const grad2 = ctx.createLinearGradient(W * 0.5 + side * 50, 0, W * 0.5 + side * 150, 0);
+      grad2.addColorStop(0, `rgba(90,70,30,${valleyAlpha})`);
+      grad2.addColorStop(1, 'rgba(90,70,30,0)');
+      ctx.fillStyle = grad2;
+      ctx.beginPath();
+      let started = false;
+      for (let i = 0; i < path.length; i++) {
+        const p = path[i];
+        if (p.t > 0.35) break;
+        const n = getNormal(path, p.t);
+        const vWidth = (10 + tf * 40 * (1 - p.t / 0.35)) * side;
+        const vx = p.x + n.nx * vWidth;
+        const vy = p.y + n.ny * vWidth;
+        if (!started) { ctx.moveTo(vx, vy); started = true; }
+        else ctx.lineTo(vx, vy);
+      }
+      for (let i = Math.min(path.length - 1, Math.floor(0.35 * path.length)); i >= 0; i--) {
+        const p = path[i];
+        if (p.t > 0.35) continue;
+        const n = getNormal(path, p.t);
+        const vx = p.x + n.nx * (p.width * 0.5) * side;
+        ctx.lineTo(vx, p.y);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Interlocking spurs
+  if (tf > 0.1) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.7, tf * 2);
+    for (let i = 0; i < 6; i++) {
+      const spurT = 0.05 + i * 0.045;
+      const p = getPointOnPath(path, spurT);
+      const side = i % 2 === 0 ? -1 : 1;
+      const n = getNormal(path, spurT);
+      const spurLen = 15 + tf * 30;
+      ctx.fillStyle = '#4a6030';
+      ctx.beginPath();
+      ctx.moveTo(p.x + n.nx * p.width * 0.6 * side, p.y + n.ny * p.width * 0.6 * side);
+      ctx.lineTo(p.x + n.nx * spurLen * side - 8, p.y + n.ny * spurLen * side - 5);
+      ctx.lineTo(p.x + n.nx * spurLen * side + 8, p.y + n.ny * spurLen * side + 5);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function drawRiver(path) {
+  // River body
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Shadow/glow
+  ctx.shadowColor = 'rgba(40,120,200,0.3)';
+  ctx.shadowBlur = 10;
+
+  // Draw river with varying width
+  for (let i = 0; i < path.length - 1; i++) {
+    const p1 = path[i];
+    const p2 = path[i + 1];
+    const n1 = getNormal(path, p1.t);
+    const n2 = getNormal(path, p2.t);
+
+    const grad = ctx.createLinearGradient(p1.x, p1.y, p2.x, p2.y);
+    const depth = 0.3 + simTime * 0.4;
+    if (p1.t < 0.3) {
+      grad.addColorStop(0, `rgba(100,170,230,${0.7 + depth * 0.3})`);
+      grad.addColorStop(1, `rgba(80,150,210,${0.7 + depth * 0.3})`);
+    } else if (p1.t < 0.65) {
+      grad.addColorStop(0, `rgba(60,130,190,${0.75 + depth * 0.25})`);
+      grad.addColorStop(1, `rgba(50,120,180,${0.75 + depth * 0.25})`);
+    } else {
+      grad.addColorStop(0, `rgba(40,110,170,${0.8 + depth * 0.2})`);
+      grad.addColorStop(1, `rgba(35,100,160,${0.8 + depth * 0.2})`);
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(p1.x + n1.nx * p1.width * 0.5, p1.y + n1.ny * p1.width * 0.5);
+    ctx.lineTo(p2.x + n2.nx * p2.width * 0.5, p2.y + n2.ny * p2.width * 0.5);
+    ctx.lineTo(p2.x - n2.nx * p2.width * 0.5, p2.y - n2.ny * p2.width * 0.5);
+    ctx.lineTo(p1.x - n1.nx * p1.width * 0.5, p1.y - n1.ny * p1.width * 0.5);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  // River highlight
+  ctx.globalAlpha = 0.15;
+  ctx.strokeStyle = '#aaddff';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < path.length; i++) {
+    const p = path[i];
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawWaterfall(path) {
+  if (simTime < 0.1 || rockHardness < 0.3) return;
+
+  const wfProgress = 0.12 + (1 - rockHardness) * 0.05;
+  const p = getPointOnPath(path, wfProgress);
+  const n = getNormal(path, wfProgress);
+  const intensity = Math.min(1, (simTime - 0.1) * 3) * rockHardness;
+
+  ctx.save();
+  // Waterfall white water
+  ctx.globalAlpha = intensity;
+  const wfWidth = p.width * 1.5;
+  ctx.fillStyle = 'rgba(200,230,255,0.8)';
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y, wfWidth, wfWidth * 0.5, Math.atan2(n.ny, n.nx), 0, Math.PI * 2);
+  ctx.fill();
+
+  // Spray
+  for (let i = 0; i < 5; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Math.random() * wfWidth * 1.3;
+    ctx.fillStyle = `rgba(220,240,255,${0.2 + Math.random() * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(p.x + Math.cos(angle) * dist, p.y + Math.sin(angle) * dist, 1 + Math.random() * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Hard/soft rock bands
+  const bandWidth = 12;
+  ctx.fillStyle = `rgba(120,120,120,${intensity * 0.6})`;
+  ctx.fillRect(p.x - wfWidth - 5, p.y - bandWidth / 2, wfWidth * 2 + 10, bandWidth * 0.4);
+  ctx.fillStyle = `rgba(180,160,120,${intensity * 0.6})`;
+  ctx.fillRect(p.x - wfWidth - 5, p.y + bandWidth * 0.4 - bandWidth / 2, wfWidth * 2 + 10, bandWidth * 0.6);
+
+  ctx.restore();
+}
+
+function drawDelta(path) {
+  if (simTime < 0.3) return;
+  const deltaIntensity = Math.min(1, (simTime - 0.3) * 2);
+
+  ctx.save();
+  ctx.globalAlpha = deltaIntensity;
+
+  const mouthP = path[path.length - 1];
+  const deltaSize = 20 + simTime * 80 * erosionRate;
+
+  // Delta fan
+  const branches = 3 + Math.floor(simTime * 5);
+  for (let b = 0; b < branches; b++) {
+    const angle = -Math.PI / 2 + (b / (branches - 1) - 0.5) * Math.PI * 0.8;
+    const endX = mouthP.x + Math.cos(angle) * deltaSize;
+    const endY = mouthP.y + Math.sin(angle) * deltaSize;
+
+    // Sediment
+    ctx.fillStyle = `rgba(196,180,140,${0.3 + simTime * 0.3})`;
+    ctx.beginPath();
+    ctx.moveTo(mouthP.x - mouthP.width * 0.3, mouthP.y);
+    ctx.lineTo(endX - 8, endY);
+    ctx.lineTo(endX + 8, endY);
+    ctx.lineTo(mouthP.x + mouthP.width * 0.3, mouthP.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Distributary channel
+    ctx.strokeStyle = `rgba(50,110,170,${0.5 + simTime * 0.3})`;
+    ctx.lineWidth = 1 + waterVolume * 2;
+    ctx.beginPath();
+    ctx.moveTo(mouthP.x, mouthP.y);
+    ctx.quadraticCurveTo(
+      mouthP.x + (endX - mouthP.x) * 0.5,
+      mouthP.y + (endY - mouthP.y) * 0.3,
+      endX, endY
+    );
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawOxbowLakes(path) {
+  // Check for oxbow formation in lower-middle course
+  if (simTime > 0.5) {
+    const oxbowTime = (simTime - 0.5) * 2;
+    const numOxbows = Math.floor(oxbowTime * 3 * erosionRate);
+
+    while (oxbowLakes.length < numOxbows && oxbowLakes.length < 4) {
+      const t = 0.55 + oxbowLakes.length * 0.08;
+      const p = getPointOnPath(path, t);
+      const n = getNormal(path, t);
+      const side = oxbowLakes.length % 2 === 0 ? 1 : -1;
+      oxbowLakes.push({
+        x: p.x + n.nx * (p.width * 2 + 10) * side,
+        y: p.y + n.ny * (p.width * 2 + 10) * side,
+        rx: 12 + Math.random() * 10,
+        ry: 8 + Math.random() * 6,
+        angle: Math.random() * Math.PI,
+        age: 0
+      });
+    }
+  }
+
+  ctx.save();
+  for (const lake of oxbowLakes) {
+    lake.age = Math.min(1, lake.age + 0.005 * speed);
+    ctx.globalAlpha = lake.age * 0.8;
+
+    // Oxbow shape
+    ctx.fillStyle = 'rgba(40,100,160,0.7)';
+    ctx.beginPath();
+    ctx.ellipse(lake.x, lake.y, lake.rx, lake.ry, lake.angle, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Highlight
+    ctx.strokeStyle = 'rgba(100,180,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(lake.x, lake.y, lake.rx * 0.7, lake.ry * 0.7, lake.angle, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Silting up over time
+    if (lake.age > 0.7) {
+      ctx.fillStyle = `rgba(160,140,100,${(lake.age - 0.7) * 1.5})`;
+      ctx.beginPath();
+      ctx.ellipse(lake.x, lake.y, lake.rx * 0.4, lake.ry * 0.4, lake.angle, 0.5, Math.PI * 1.5);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function drawParticles(path, dt) {
+  // Water particles
+  if (Math.random() < 0.3 + flowSpeed * 0.5) spawnWaterParticle();
+  if (waterParticles.length > 500) waterParticles.splice(0, 50);
+
+  ctx.save();
+  for (let i = waterParticles.length - 1; i >= 0; i--) {
+    const wp = waterParticles[i];
+    wp.progress += wp.speed * speed * (1 + flowSpeed);
+    if (wp.progress > 1) { waterParticles.splice(i, 1); continue; }
+
+    const p = getPointOnPath(path, wp.progress);
+    const n = getNormal(path, wp.progress);
+    const ox = n.nx * wp.offset * p.width * 0.5;
+    const oy = n.ny * wp.offset * p.width * 0.5;
+
+    ctx.fillStyle = `rgba(180,220,255,${wp.alpha})`;
+    ctx.beginPath();
+    ctx.arc(p.x + ox, p.y + oy, wp.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Sediment particles
+  if (simTime > 0.05 && Math.random() < 0.1 * erosionRate) {
+    const types = ['traction', 'saltation', 'suspension', 'solution_t'];
+    const weights = [0.15, 0.25, 0.4, 0.2];
+    let r = Math.random(), acc = 0;
+    for (let i = 0; i < types.length; i++) {
+      acc += weights[i];
+      if (r < acc) { spawnSediment(types[i]); break; }
+    }
+  }
+  if (sedimentParticles.length > 200) sedimentParticles.splice(0, 20);
+
+  ctx.save();
+  for (let i = sedimentParticles.length - 1; i >= 0; i--) {
+    const sp = sedimentParticles[i];
+    sp.progress += sp.speed * speed * (1 + flowSpeed * 0.5);
+    sp.bouncePhase += dt * 3 * speed;
+    if (sp.progress > 1) { sedimentParticles.splice(i, 1); continue; }
+
+    const p = getPointOnPath(path, sp.progress);
+    const n = getNormal(path, sp.progress);
+    let ox = n.nx * sp.offset * p.width * 0.5;
+    let oy = n.ny * sp.offset * p.width * 0.5;
+
+    // Bounce behavior for saltation
+    if (sp.type === 'saltation') {
+      const bounce = Math.abs(Math.sin(sp.bouncePhase * 4)) * 4;
+      ox += n.nx * bounce;
+      oy += n.ny * bounce;
+    }
+
+    // Color by type
+    let color;
+    switch (sp.type) {
+      case 'traction': color = `rgba(139,105,20,${sp.alpha})`; break;
+      case 'saltation': color = `rgba(196,155,46,${sp.alpha})`; break;
+      case 'suspension': color = `rgba(160,128,80,${sp.alpha})`; break;
+      case 'solution_t': color = `rgba(100,180,255,${sp.alpha})`; break;
+    }
+
+    ctx.fillStyle = color;
+    if (sp.type === 'traction') {
+      ctx.beginPath();
+      ctx.arc(p.x + ox, p.y + oy, sp.size, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (sp.type === 'solution_t') {
+      ctx.globalAlpha = sp.alpha;
+      ctx.beginPath();
+      ctx.arc(p.x + ox, p.y + oy, sp.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillRect(p.x + ox - sp.size / 2, p.y + oy - sp.size / 2, sp.size, sp.size);
+    }
+  }
+  ctx.restore();
+
+  // Rain
+  if (rainfall > 0.2) {
+    const rainCount = Math.floor(rainfall * 8);
+    for (let i = 0; i < rainCount; i++) spawnRaindrop();
+  }
+  if (raindrops.length > 300) raindrops.splice(0, 50);
+
+  ctx.save();
+  ctx.strokeStyle = `rgba(150,190,230,0.3)`;
+  ctx.lineWidth = 1;
+  for (let i = raindrops.length - 1; i >= 0; i--) {
+    const rd = raindrops[i];
+    rd.y += rd.speed * speed;
+    if (rd.y > H + 20) { raindrops.splice(i, 1); continue; }
+    ctx.globalAlpha = rd.alpha;
+    ctx.beginPath();
+    ctx.moveTo(rd.x, rd.y);
+    ctx.lineTo(rd.x - 1, rd.y - rd.length);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawLabels(path) {
+  featureLabels = [];
+  ctx.save();
+
+  const tf = simTime;
+  const labelStyle = (text, x, y, key, show) => {
+    if (!show) return;
+    featureLabels.push({ x, y, key });
+    const isHover = hoverFeature === key;
+    ctx.font = `${isHover ? 'bold ' : ''}${isHover ? 12 : 10}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Background pill
+    const m = ctx.measureText(text);
+    const pw = m.width + 14;
+    const ph = 20;
+    ctx.fillStyle = isHover ? 'rgba(92,184,92,0.9)' : 'rgba(30,45,30,0.85)';
+    ctx.beginPath();
+    ctx.roundRect(x - pw / 2, y - ph / 2, pw, ph, 10);
+    ctx.fill();
+    ctx.strokeStyle = isHover ? '#5cb85c' : 'rgba(100,140,100,0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = isHover ? '#fff' : '#d0dcc0';
+    ctx.fillText(text, x, y);
+  };
+
+  // Upper course features
+  const upperP = getPointOnPath(path, 0.05);
+  labelStyle('Source', upperP.x + 40, upperP.y, 'vvalley', true);
+
+  if (tf > 0.05) {
+    const vp = getPointOnPath(path, 0.15);
+    labelStyle('V-Shaped Valley', vp.x + 50, vp.y, 'vvalley', true);
+  }
+  if (tf > 0.1 && rockHardness > 0.3) {
+    const wfp = getPointOnPath(path, 0.12);
+    labelStyle('Waterfall & Gorge', wfp.x - 55, wfp.y, 'waterfall', true);
+  }
+  if (tf > 0.1) {
+    const sp = getPointOnPath(path, 0.2);
+    labelStyle('Interlocking Spurs', sp.x + 55, sp.y, 'spurs', true);
+  }
+
+  // Middle course features
+  if (tf > 0.2) {
+    const mp = getPointOnPath(path, 0.45);
+    labelStyle('Meanders', mp.x + 50, mp.y, 'meander', true);
+  }
+  if (tf > 0.35) {
+    const fp = getPointOnPath(path, 0.55);
+    labelStyle('Floodplain', fp.x - 55, fp.y, 'floodplain', true);
+  }
+
+  // Lower course features
+  if (tf > 0.5 && oxbowLakes.length > 0) {
+    const ol = oxbowLakes[0];
+    labelStyle('Oxbow Lake', ol.x, ol.y - 20, 'oxbow', true);
+  }
+  if (tf > 0.4) {
+    const lp = getPointOnPath(path, 0.75);
+    labelStyle('Levees', lp.x + 55, lp.y, 'levee', true);
+  }
+  if (tf > 0.3) {
+    const dp = getPointOnPath(path, 0.97);
+    labelStyle('Delta / Estuary', dp.x + 50, dp.y - 15, 'delta', true);
+  }
+
+  // Course labels
+  ctx.font = '11px "Segoe UI", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(200,220,200,0.4)';
+  ctx.fillText('UPPER COURSE', 10, H * 0.12);
+  ctx.fillText('Vertical erosion dominant', 10, H * 0.12 + 16);
+  ctx.fillText('MIDDLE COURSE', 10, H * 0.45);
+  ctx.fillText('Lateral erosion begins', 10, H * 0.45 + 16);
+  ctx.fillText('LOWER COURSE', 10, H * 0.78);
+  ctx.fillText('Deposition dominant', 10, H * 0.78 + 16);
+
+  // Erosion type indicators along river
+  if (tf > 0.1) {
+    ctx.font = '9px "Segoe UI", sans-serif';
+    ctx.globalAlpha = 0.5;
+    const eLabels = [
+      { t: 0.1, text: 'Hydraulic Action + Abrasion', color: '#6bb8f0' },
+      { t: 0.25, text: 'Vertical Erosion', color: '#c49b2e' },
+      { t: 0.5, text: 'Lateral Erosion', color: '#5cb85c' },
+      { t: 0.8, text: 'Deposition', color: '#e8d5a3' }
+    ];
+    for (const el of eLabels) {
+      const ep = getPointOnPath(path, el.t);
+      ctx.fillStyle = el.color;
+      ctx.textAlign = 'right';
+      ctx.fillText(el.text, W - 10, ep.y);
+    }
+  }
+
+  ctx.restore();
+}
+
+// ============== CROSS SECTION VIEW ==============
+function drawCrossSection() {
+  ctx.save();
+
+  // Background
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#b8d4e8');
+  grad.addColorStop(0.3, '#e8e0c8');
+  grad.addColorStop(0.5, '#a08858');
+  grad.addColorStop(1, '#605030');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  const tf = simTime;
+  const cx = W / 2;
+  const groundY = H * 0.4;
+
+  // Determine course based on crossX
+  let courseLabel, channelDepth, channelWidth, bankAngle, waterLevel;
+  const softness = 1 - rockHardness;
+
+  if (crossX < 0.3) {
+    courseLabel = 'Upper Course';
+    const localT = crossX / 0.3;
+    channelDepth = 30 + tf * 120 * erosionRate * (1 + gradient * 0.5);
+    channelWidth = 20 + tf * 30 * localT + waterVolume * 15;
+    bankAngle = 0.8 - tf * 0.2 * softness; // steep V
+    waterLevel = 0.3 + waterVolume * 0.4;
+  } else if (crossX < 0.65) {
+    courseLabel = 'Middle Course';
+    const localT = (crossX - 0.3) / 0.35;
+    channelDepth = 25 + tf * 60 * erosionRate;
+    channelWidth = 40 + tf * 100 * localT * erosionRate + waterVolume * 25;
+    bankAngle = 0.5 - tf * 0.15 * softness;
+    waterLevel = 0.5 + waterVolume * 0.3;
+  } else {
+    courseLabel = 'Lower Course';
+    const localT = (crossX - 0.65) / 0.35;
+    channelDepth = 15 + tf * 30 * erosionRate;
+    channelWidth = 80 + tf * 200 * erosionRate + waterVolume * 40;
+    bankAngle = 0.2 - tf * 0.05 * softness;
+    waterLevel = 0.6 + waterVolume * 0.3;
+  }
+
+  bankAngle = Math.max(0.05, bankAngle);
+  channelWidth = Math.min(channelWidth, W * 0.7);
+  channelDepth = Math.min(channelDepth, H * 0.35);
+
+  // Draw ground surface
+  ctx.fillStyle = '#6a8a4a';
+  ctx.fillRect(0, groundY - 3, W, 6);
+
+  // Floodplain
+  if (crossX > 0.4 && tf > 0.2) {
+    const fpWidth = channelWidth * (1.5 + tf * 2);
+    ctx.fillStyle = `rgba(200,190,140,${Math.min(0.6, tf)})`;
+    ctx.fillRect(cx - fpWidth, groundY - 2, fpWidth * 2, 4);
+  }
+
+  // Levees
+  if (crossX > 0.55 && tf > 0.4) {
+    const leveeH = 5 + tf * 15;
+    const leveeW = 15 + tf * 20;
+    ctx.fillStyle = '#a09060';
+    // Left levee
+    ctx.beginPath();
+    ctx.moveTo(cx - channelWidth / 2 - leveeW, groundY);
+    ctx.lineTo(cx - channelWidth / 2, groundY - leveeH);
+    ctx.lineTo(cx - channelWidth / 2, groundY);
+    ctx.closePath();
+    ctx.fill();
+    // Right levee
+    ctx.beginPath();
+    ctx.moveTo(cx + channelWidth / 2 + leveeW, groundY);
+    ctx.lineTo(cx + channelWidth / 2, groundY - leveeH);
+    ctx.lineTo(cx + channelWidth / 2, groundY);
+    ctx.closePath();
+    ctx.fill();
+    // Label
+    ctx.fillStyle = '#d0c8a0';
+    ctx.font = '11px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Levee', cx - channelWidth / 2 - leveeW / 2, groundY - leveeH - 8);
+    ctx.fillText('Levee', cx + channelWidth / 2 + leveeW / 2, groundY - leveeH - 8);
+  }
+
+  // Channel shape
+  const halfW = channelWidth / 2;
+  const bottomW = halfW * (1 - bankAngle);
+
+  // Rock layers
+  ctx.fillStyle = rockHardness > 0.5 ? '#7a7a7a' : '#c4a46c';
+  ctx.beginPath();
+  ctx.moveTo(cx - halfW - 20, groundY);
+  ctx.lineTo(cx - halfW, groundY);
+  ctx.lineTo(cx - bottomW, groundY + channelDepth);
+  ctx.lineTo(cx + bottomW, groundY + channelDepth);
+  ctx.lineTo(cx + halfW, groundY);
+  ctx.lineTo(cx + halfW + 20, groundY);
+  ctx.lineTo(cx + halfW + 20, groundY + channelDepth + 50);
+  ctx.lineTo(cx - halfW - 20, groundY + channelDepth + 50);
+  ctx.closePath();
+  ctx.fill();
+
+  // Rock layer lines
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+  ctx.lineWidth = 1;
+  for (let ly = groundY + 15; ly < groundY + channelDepth + 50; ly += 15) {
+    ctx.beginPath();
+    ctx.moveTo(cx - halfW - 20, ly);
+    ctx.lineTo(cx + halfW + 20, ly);
+    ctx.stroke();
+  }
+
+  // Channel outline
+  ctx.strokeStyle = '#4a3a20';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - halfW, groundY);
+  ctx.lineTo(cx - bottomW, groundY + channelDepth);
+  ctx.lineTo(cx + bottomW, groundY + channelDepth);
+  ctx.lineTo(cx + halfW, groundY);
+  ctx.stroke();
+
+  // Water
+  const waterH = channelDepth * waterLevel;
+  const waterTopW = halfW - (halfW - bottomW) * (1 - waterLevel);
+
+  const waterGrad = ctx.createLinearGradient(0, groundY + channelDepth - waterH, 0, groundY + channelDepth);
+  waterGrad.addColorStop(0, 'rgba(80,160,220,0.7)');
+  waterGrad.addColorStop(1, 'rgba(30,80,140,0.9)');
+  ctx.fillStyle = waterGrad;
+  ctx.beginPath();
+  ctx.moveTo(cx - waterTopW, groundY + channelDepth - waterH);
+  ctx.lineTo(cx - bottomW, groundY + channelDepth);
+  ctx.lineTo(cx + bottomW, groundY + channelDepth);
+  ctx.lineTo(cx + waterTopW, groundY + channelDepth - waterH);
+  ctx.closePath();
+  ctx.fill();
+
+  // Water surface
+  ctx.strokeStyle = 'rgba(150,210,255,0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - waterTopW, groundY + channelDepth - waterH);
+  // Wavy surface
+  for (let wx = cx - waterTopW; wx <= cx + waterTopW; wx += 5) {
+    ctx.lineTo(wx, groundY + channelDepth - waterH + Math.sin(wx * 0.1 + performance.now() * 0.003) * 2);
+  }
+  ctx.stroke();
+
+  // Sediment on bed
+  if (tf > 0.1) {
+    ctx.fillStyle = 'rgba(160,130,80,0.6)';
+    ctx.beginPath();
+    ctx.moveTo(cx - bottomW, groundY + channelDepth);
+    for (let sx = cx - bottomW; sx <= cx + bottomW; sx += 8) {
+      ctx.lineTo(sx, groundY + channelDepth - 2 - Math.random() * 3 * tf);
+    }
+    ctx.lineTo(cx + bottomW, groundY + channelDepth);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Dimension labels
+  ctx.fillStyle = '#e8e0d0';
+  ctx.font = 'bold 13px "Segoe UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(courseLabel + ' Cross-Section', cx, 30);
+
+  ctx.font = '11px "Segoe UI", sans-serif';
+  // Width arrow
+  ctx.strokeStyle = '#e8e0d0';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - halfW, groundY - 25);
+  ctx.lineTo(cx + halfW, groundY - 25);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - halfW, groundY - 30);
+  ctx.lineTo(cx - halfW, groundY - 20);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + halfW, groundY - 30);
+  ctx.lineTo(cx + halfW, groundY - 20);
+  ctx.stroke();
+  ctx.fillText('Channel Width', cx, groundY - 32);
+
+  // Depth arrow
+  ctx.beginPath();
+  ctx.moveTo(cx + halfW + 30, groundY);
+  ctx.lineTo(cx + halfW + 30, groundY + channelDepth);
+  ctx.stroke();
+  ctx.save();
+  ctx.translate(cx + halfW + 45, groundY + channelDepth / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Depth', 0, 0);
+  ctx.restore();
+
+  // Shape description
+  let shapeDesc;
+  if (crossX < 0.3) shapeDesc = bankAngle > 0.5 ? 'Narrow V-shape: steep sides, deep channel' : 'Widening V-shape';
+  else if (crossX < 0.65) shapeDesc = 'U-shape forming: wider, shallower';
+  else shapeDesc = 'Wide and shallow: flat bed, gentle banks';
+  ctx.font = '11px "Segoe UI", sans-serif';
+  ctx.fillStyle = 'rgba(200,220,200,0.7)';
+  ctx.fillText(shapeDesc, cx, groundY + channelDepth + 35);
+
+  // Position indicator
+  ctx.fillStyle = '#5cb85c';
+  ctx.font = '11px "Segoe UI", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Position: ' + Math.round(crossX * 100) + '% from source', 15, H - 20);
+  ctx.fillText('Click horizontally to move along river', 15, H - 5);
+
+  // Transport particles in cross section
+  drawCrossSectionTransport(cx, groundY, channelDepth, bottomW, waterTopW, waterH);
+
+  ctx.restore();
+}
+
+function drawCrossSectionTransport(cx, groundY, depth, bottomW, topW, waterH) {
+  const t = performance.now() * 0.001;
+  const bedY = groundY + depth;
+  const waterSurface = bedY - waterH;
+
+  // Traction - large circles rolling on bed
+  ctx.fillStyle = 'rgba(139,105,20,0.8)';
+  for (let i = 0; i < 3; i++) {
+    const px = cx + Math.sin(t * 0.3 + i * 2) * bottomW * 0.7;
+    ctx.beginPath();
+    ctx.arc(px, bedY - 4, 3 + Math.sin(t + i) * 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Saltation - bouncing
+  ctx.fillStyle = 'rgba(196,155,46,0.8)';
+  for (let i = 0; i < 4; i++) {
+    const phase = t * 2 + i * 1.5;
+    const px = cx + Math.sin(t * 0.5 + i * 1.7) * bottomW * 0.8;
+    const bounceH = Math.abs(Math.sin(phase)) * 15;
+    ctx.beginPath();
+    ctx.arc(px, bedY - 3 - bounceH, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Suspension - floating in water
+  ctx.fillStyle = 'rgba(160,128,80,0.5)';
+  for (let i = 0; i < 8; i++) {
+    const px = cx + Math.sin(t * 0.4 + i * 0.9) * topW * 0.8;
+    const py = waterSurface + (bedY - waterSurface) * (0.2 + Math.sin(t * 0.3 + i) * 0.1 + i * 0.08);
+    ctx.beginPath();
+    ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Labels
+  ctx.font = '9px "Segoe UI", sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#8B6914';
+  ctx.fillText('Traction', cx + topW + 60, bedY - 2);
+  ctx.fillStyle = '#c49b2e';
+  ctx.fillText('Saltation', cx + topW + 60, bedY - 18);
+  ctx.fillStyle = '#a08050';
+  ctx.fillText('Suspension', cx + topW + 60, waterSurface + (bedY - waterSurface) * 0.5);
+  ctx.fillStyle = 'rgba(100,180,255,0.6)';
+  ctx.fillText('Solution (dissolved)', cx + topW + 60, waterSurface + 15);
+}
+
+// ============== MAIN DRAW ==============
+function draw(timestamp) {
+  const dt = Math.min(0.05, (timestamp - lastTS) / 1000);
+  lastTS = timestamp;
+
+  resize();
+
+  if (playing && !crossSection) {
+    // Auto-advance time very slowly
+    const newVal = Math.min(100, parseFloat(timeSlider.value) + dt * speed * 0.3);
+    if (timeSlider.value < 100) {
+      timeSlider.value = newVal;
+      updateSliders();
+    }
+  }
+
+  if (crossSection) {
+    drawCrossSection();
+  } else {
+    const path = getRiverPath();
+
+    drawBackground();
+    drawTerrain(path);
+    drawOxbowLakes(path);
+    drawRiver(path);
+    drawWaterfall(path);
+    drawDelta(path);
+    drawParticles(path, dt);
+    drawLabels(path);
+
+    // Course zone dividers
+    ctx.save();
+    ctx.setLineDash([8, 8]);
+    ctx.strokeStyle = 'rgba(200,220,200,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.3);
+    ctx.lineTo(W, H * 0.3);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.65);
+    ctx.lineTo(W, H * 0.65);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  requestAnimationFrame(draw);
+}
+
+// ============== INIT ==============
+updateSliders();
+resize();
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

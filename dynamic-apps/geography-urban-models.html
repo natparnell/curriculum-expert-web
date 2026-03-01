@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Urban Land Use Models</title>
+<style>
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --text: #1a1a2e;
+  --text-muted: #5a5a7a;
+  --border: #d1d5db;
+  --header-bg: #2c3e50;
+  --header-text: #ffffff;
+  --cbd: #c0392b;
+  --cbd-light: #e74c3c;
+  --transition-zone: #e67e22;
+  --inner-suburbs: #f39c12;
+  --outer-suburbs: #27ae60;
+  --commuter: #a8d8a8;
+  --industry: #8e44ad;
+  --industry-light: #a569bd;
+  --residential-high: #d35400;
+  --residential-low: #2ecc71;
+  --education: #2980b9;
+  --retail: #e84393;
+  --accent: #3498db;
+  --accent-hover: #2980b9;
+  --panel-bg: #f8f9fa;
+  --shadow: 0 2px 8px rgba(0,0,0,0.1);
+  --radius: 8px;
+  --tab-active: #3498db;
+  --strength: #27ae60;
+  --weakness: #c0392b;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+header { position: sticky; top: 0; z-index: 100; background: var(--header-bg); color: var(--header-text); padding: 14px 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.2); }
+header h1 { font-size: 1.5rem; font-weight: 700; }
+header p { font-size: 0.85rem; opacity: 0.85; margin-top: 2px; }
+.container { max-width: 1280px; margin: 0 auto; padding: 20px; }
+.controls-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px; background: var(--surface); padding: 12px 16px; border-radius: var(--radius); box-shadow: var(--shadow); }
+.controls-bar label { font-size: 0.85rem; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.controls-bar select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.85rem; background: var(--surface); }
+.btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); cursor: pointer; font-size: 0.85rem; transition: all 0.2s; }
+.btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
+.btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+/* Model tabs for mobile */
+.model-tabs { display: none; margin-bottom: 16px; }
+.model-tabs .tab-btn { flex: 1; padding: 10px; border: none; background: var(--surface); cursor: pointer; font-size: 0.85rem; font-weight: 600; border-bottom: 3px solid transparent; transition: all 0.2s; }
+.model-tabs .tab-btn.active { border-bottom-color: var(--tab-active); color: var(--tab-active); }
+
+/* Canvas grid */
+.models-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px; }
+.model-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; transition: transform 0.2s; }
+.model-card.enlarged { grid-column: 1 / -1; }
+.model-card.enlarged canvas { width: 500px; height: 500px; }
+.model-card-header { padding: 12px 16px; background: var(--header-bg); color: white; }
+.model-card-header h3 { font-size: 1rem; }
+.model-card-header p { font-size: 0.75rem; opacity: 0.8; }
+.canvas-wrap { display: flex; justify-content: center; padding: 16px; background: var(--panel-bg); }
+.canvas-wrap canvas { cursor: crosshair; border-radius: 4px; }
+
+/* Zone info panel */
+.zone-info { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 24px; min-height: 80px; }
+.zone-info h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.zone-info .zone-color { display: inline-block; width: 16px; height: 16px; border-radius: 3px; vertical-align: middle; margin-right: 6px; border: 1px solid var(--border); }
+.zone-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 12px; }
+.zone-detail dt { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.zone-detail dd { font-size: 0.9rem; font-weight: 500; margin-bottom: 8px; }
+.zone-info .placeholder { color: var(--text-muted); font-style: italic; font-size: 0.9rem; }
+
+/* Comparison panel */
+.comparison-panel { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 24px; }
+.comparison-panel h2 { font-size: 1.2rem; margin-bottom: 16px; }
+.comparison-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.comp-col h4 { font-size: 0.95rem; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); }
+.comp-col ul { list-style: none; font-size: 0.85rem; }
+.comp-col li { padding: 4px 0; padding-left: 18px; position: relative; }
+.comp-col li::before { content: ''; position: absolute; left: 0; top: 10px; width: 10px; height: 10px; border-radius: 50%; }
+.comp-col li.str::before { background: var(--strength); }
+.comp-col li.wk::before { background: var(--weakness); }
+
+/* Real city overlay */
+.city-section { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 24px; }
+.city-section h2 { font-size: 1.2rem; margin-bottom: 12px; }
+.city-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.city-canvas-wrap { display: flex; justify-content: center; }
+.city-desc { margin-top: 12px; font-size: 0.9rem; color: var(--text-muted); }
+
+/* Info panel */
+.info-panel { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 24px; }
+.info-panel h2 { font-size: 1.2rem; margin-bottom: 12px; }
+.info-panel h3 { font-size: 1rem; margin: 16px 0 8px; color: var(--header-bg); }
+.info-panel p, .info-panel li { font-size: 0.9rem; color: var(--text-muted); }
+.info-panel ul { margin-left: 20px; margin-bottom: 12px; }
+.info-panel li { margin-bottom: 4px; }
+
+/* Legend */
+.legend { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 16px; background: var(--panel-bg); border-top: 1px solid var(--border); }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; }
+.legend-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .models-grid { grid-template-columns: 1fr; }
+  .model-tabs { display: flex; }
+  .model-card { display: none; }
+  .model-card.mobile-visible { display: block; }
+  .comparison-grid { grid-template-columns: 1fr; }
+  .canvas-wrap canvas { max-width: 100%; height: auto; }
+}
+@media (max-width: 600px) {
+  header { padding: 10px 16px; }
+  header h1 { font-size: 1.2rem; }
+  .container { padding: 12px; }
+  .controls-bar { flex-direction: column; align-items: flex-start; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Urban Land Use Models</h1>
+  <p>Compare Burgess, Hoyt, and Harris-Ullman models of urban land use interactively</p>
+</header>
+
+<div class="container">
+  <!-- Controls -->
+  <div class="controls-bar">
+    <label><input type="checkbox" id="toggleLabels" checked> Show zone labels</label>
+    <label><input type="checkbox" id="toggleLegend" checked> Show legend</label>
+    <label>Enlarge:
+      <select id="enlargeSelect">
+        <option value="none">None</option>
+        <option value="burgess">Burgess</option>
+        <option value="hoyt">Hoyt</option>
+        <option value="harris">Harris-Ullman</option>
+      </select>
+    </label>
+  </div>
+
+  <!-- Mobile tabs -->
+  <div class="model-tabs">
+    <button class="tab-btn active" data-model="burgess">Burgess</button>
+    <button class="tab-btn" data-model="hoyt">Hoyt</button>
+    <button class="tab-btn" data-model="harris">Harris-Ullman</button>
+  </div>
+
+  <!-- Model canvases -->
+  <div class="models-grid" id="modelsGrid">
+    <div class="model-card mobile-visible" id="card-burgess" data-model="burgess">
+      <div class="model-card-header">
+        <h3>Burgess Concentric Zone Model (1925)</h3>
+        <p>Ernest Burgess: zones radiate outward from CBD in concentric rings</p>
+      </div>
+      <div class="canvas-wrap"><canvas id="canvasBurgess" width="350" height="350"></canvas></div>
+      <div class="legend" id="legendBurgess"></div>
+    </div>
+    <div class="model-card" id="card-hoyt" data-model="hoyt">
+      <div class="model-card-header">
+        <h3>Hoyt Sector Model (1939)</h3>
+        <p>Homer Hoyt: zones extend outward in wedge-shaped sectors along transport routes</p>
+      </div>
+      <div class="canvas-wrap"><canvas id="canvasHoyt" width="350" height="350"></canvas></div>
+      <div class="legend" id="legendHoyt"></div>
+    </div>
+    <div class="model-card" id="card-harris" data-model="harris">
+      <div class="model-card-header">
+        <h3>Harris-Ullman Multiple Nuclei Model (1945)</h3>
+        <p>Harris and Ullman: cities develop around several distinct nuclei, not just one CBD</p>
+      </div>
+      <div class="canvas-wrap"><canvas id="canvasHarris" width="350" height="350"></canvas></div>
+      <div class="legend" id="legendHarris"></div>
+    </div>
+  </div>
+
+  <!-- Zone info -->
+  <div class="zone-info" id="zoneInfo">
+    <p class="placeholder">Click on any zone in the models above to see detailed information about that area.</p>
+  </div>
+
+  <!-- Comparison -->
+  <div class="comparison-panel">
+    <h2>Model Comparison: Strengths and Weaknesses</h2>
+    <div class="comparison-grid">
+      <div class="comp-col">
+        <h4>Burgess (Concentric Zone)</h4>
+        <ul>
+          <li class="str">Simple and easy to understand</li>
+          <li class="str">Applies well to cities with a dominant CBD (e.g. Chicago)</li>
+          <li class="str">Recognises bid-rent relationship: land values decrease with distance from centre</li>
+          <li class="str">Useful starting point for understanding urban structure</li>
+          <li class="wk">Assumes flat land with no physical barriers</li>
+          <li class="wk">Ignores transport routes and their influence</li>
+          <li class="wk">Based on 1920s American cities; less applicable to UK or modern cities</li>
+          <li class="wk">Does not account for regeneration or planning policies</li>
+        </ul>
+      </div>
+      <div class="comp-col">
+        <h4>Hoyt (Sector)</h4>
+        <ul>
+          <li class="str">Recognises the role of transport routes in shaping cities</li>
+          <li class="str">Explains why industry follows railways, rivers, and main roads</li>
+          <li class="str">Better fits cities like Manchester and Sunderland</li>
+          <li class="str">Accounts for wedge-shaped industrial or residential zones</li>
+          <li class="wk">Still assumes a single CBD</li>
+          <li class="wk">Does not account for multiple centres in large cities</li>
+          <li class="wk">Based on 1930s data and rent patterns</li>
+          <li class="wk">Physical geography (hills, rivers) can disrupt sectors</li>
+        </ul>
+      </div>
+      <div class="comp-col">
+        <h4>Harris-Ullman (Multiple Nuclei)</h4>
+        <ul>
+          <li class="str">Most realistic of the three models</li>
+          <li class="str">Recognises that cities have multiple centres of activity</li>
+          <li class="str">Accounts for edge-of-city retail parks and industrial estates</li>
+          <li class="str">Reflects modern urban development patterns</li>
+          <li class="wk">Complex and harder to generalise</li>
+          <li class="wk">Every city has a different pattern of nuclei</li>
+          <li class="wk">Difficult to predict where new nuclei will emerge</li>
+          <li class="wk">Does not explain why nuclei form where they do</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Real cities -->
+  <div class="city-section">
+    <h2>Real UK City Comparisons</h2>
+    <p style="font-size:0.9rem;color:var(--text-muted);margin-bottom:12px;">See simplified zone maps of real UK cities and consider which model best explains their structure.</p>
+    <div class="city-tabs">
+      <button class="btn active" data-city="london">London</button>
+      <button class="btn" data-city="manchester">Manchester</button>
+      <button class="btn" data-city="leeds">Leeds</button>
+    </div>
+    <div class="city-canvas-wrap"><canvas id="canvasCity" width="400" height="400"></canvas></div>
+    <div class="city-desc" id="cityDesc"></div>
+  </div>
+
+  <!-- Info panel -->
+  <div class="info-panel">
+    <h2>Understanding Urban Land Use Models</h2>
+    <h3>Why do urban models exist?</h3>
+    <p>Urban land use models are simplified representations of how cities are structured. Geographers developed them to identify patterns in land use, explain why different activities locate in different parts of a city, and predict how cities might grow. They provide a common framework for comparing urban areas around the world.</p>
+
+    <h3>Key factors affecting land use</h3>
+    <ul>
+      <li><strong>Accessibility:</strong> areas near transport links and the CBD attract businesses willing to pay higher rents.</li>
+      <li><strong>Land values (bid-rent theory):</strong> competition for central land pushes prices up; different users can afford different locations.</li>
+      <li><strong>Transport networks:</strong> roads, railways, and canals create corridors of development.</li>
+      <li><strong>Historical development:</strong> older inner-city areas were built before cars, producing dense terraced housing.</li>
+      <li><strong>Planning policies:</strong> green belts, enterprise zones, and conservation areas shape where development can occur.</li>
+      <li><strong>Physical geography:</strong> rivers, hills, and coastline constrain or channel growth.</li>
+    </ul>
+
+    <h3>How cities actually develop</h3>
+    <p>In reality, no city perfectly matches any single model. Most cities show elements of all three. UK cities typically have a historic CBD, industrial zones along rivers or canals (supporting Hoyt), suburban residential areas spreading outward (supporting Burgess), and out-of-town retail and business parks forming new nuclei (supporting Harris-Ullman). Regeneration, deindustrialisation, and gentrification continually reshape urban areas.</p>
+
+    <h3>Limitations of all models</h3>
+    <ul>
+      <li>All three models were developed for Western, industrial-era cities and may not apply to cities in lower-income countries.</li>
+      <li>They assume a free market for land; government planning heavily influences UK cities.</li>
+      <li>They do not account for vertical land use (e.g. mixed-use tower blocks).</li>
+      <li>Modern trends like remote working, online retail, and suburban office parks challenge traditional patterns.</li>
+      <li>Social and ethnic segregation create patterns not explained by economic models alone.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function() {
+  // ── Zone data ──
+  const zoneData = {
+    cbd: {
+      name: 'Central Business District (CBD)', color: '#c0392b',
+      uses: 'Offices, shops, entertainment, government buildings, financial services',
+      characteristics: 'Tallest buildings, highest land values, most accessible point, heavy pedestrian traffic, limited residential use',
+      prices: 'Highest in the city (commercial rents can exceed 50 GBP per sq ft)',
+      density: 'Very high daytime population; very low residential population'
+    },
+    transition: {
+      name: 'Zone of Transition / Inner City', color: '#e67e22',
+      uses: 'Old industrial buildings, warehouses, some converted flats, immigrant communities, light manufacturing',
+      characteristics: 'Mixed land use, often run-down but undergoing regeneration, terraced housing, high-density living, social challenges',
+      prices: 'Relatively low but rising in gentrified areas (150,000 to 250,000 GBP)',
+      density: 'High population density; often overcrowded housing'
+    },
+    innerSuburbs: {
+      name: 'Inner Suburbs', color: '#f39c12',
+      uses: 'Terraced and semi-detached housing, local shops, schools, small parks',
+      characteristics: 'Older housing stock (Victorian/Edwardian), smaller gardens, on-street parking, good bus routes',
+      prices: 'Moderate (200,000 to 350,000 GBP)',
+      density: 'Moderate to high; families and young professionals'
+    },
+    outerSuburbs: {
+      name: 'Outer Suburbs', color: '#27ae60',
+      uses: 'Detached and semi-detached houses, larger gardens, retail parks, schools, leisure centres',
+      characteristics: 'Newer housing estates, wider roads, more green space, car-dependent, quieter residential areas',
+      prices: 'Higher (300,000 to 500,000 GBP)',
+      density: 'Lower density; predominantly families'
+    },
+    commuter: {
+      name: 'Commuter Zone / Rural-Urban Fringe', color: '#a8d8a8',
+      uses: 'Villages, farmland, country parks, some new housing, park-and-ride sites',
+      characteristics: 'Edge of the built-up area, green belt pressure, commuters travel to city, mix of rural and urban features',
+      prices: 'Variable (250,000 to 600,000+ GBP depending on village)',
+      density: 'Low; scattered settlements'
+    },
+    industry: {
+      name: 'Industrial Zone', color: '#8e44ad',
+      uses: 'Factories, warehouses, distribution centres, power stations, waste processing',
+      characteristics: 'Located along transport corridors (roads, railways, canals), noisy, polluted, large footprint buildings',
+      prices: 'Low land values for residential; moderate for commercial/industrial',
+      density: 'Low residential; high employment density during working hours'
+    },
+    retailPark: {
+      name: 'Out-of-Town Retail / Business Park', color: '#e84393',
+      uses: 'Large retail stores, supermarkets, DIY stores, fast food, cinema complexes, office parks',
+      characteristics: 'Edge-of-city location, large car parks, accessible by ring road or motorway junction, modern buildings',
+      prices: 'Moderate commercial rents; surrounding residential can be high',
+      density: 'Very low residential; high visitor numbers at peak times'
+    },
+    education: {
+      name: 'Education / University Quarter', color: '#2980b9',
+      uses: 'University campus, student accommodation, libraries, research facilities',
+      characteristics: 'Often near inner city or suburbs, high student population, specialist services (cafes, bookshops)',
+      prices: 'Student housing relatively affordable; campus land very high value',
+      density: 'High during term time; lower in holidays'
+    },
+    residential_high: {
+      name: 'High-Density Residential', color: '#d35400',
+      uses: 'Tower blocks, council estates, social housing, flats',
+      characteristics: 'Built in 1950s-1970s, high-rise living, communal green spaces, often near inner city',
+      prices: 'Lower (120,000 to 220,000 GBP)',
+      density: 'Very high'
+    },
+    residential_low: {
+      name: 'Low-Density Residential', color: '#2ecc71',
+      uses: 'Detached houses, executive homes, gated communities',
+      characteristics: 'Large plots, private gardens, quiet cul-de-sacs, excellent schools nearby',
+      prices: 'High (400,000 to 800,000+ GBP)',
+      density: 'Very low'
+    }
+  };
+
+  // ── State ──
+  let showLabels = true;
+  let showLegend = true;
+  let enlargedModel = 'none';
+  let activeTab = 'burgess';
+  let activeCity = 'london';
+
+  // ── DOM refs ──
+  const cBurgess = document.getElementById('canvasBurgess');
+  const cHoyt = document.getElementById('canvasHoyt');
+  const cHarris = document.getElementById('canvasHarris');
+  const cCity = document.getElementById('canvasCity');
+  const zoneInfoEl = document.getElementById('zoneInfo');
+
+  // ── Drawing helpers ──
+  function getCenter(canvas) { return { x: canvas.width / 2, y: canvas.height / 2 }; }
+  function clearCanvas(canvas) { canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height); }
+
+  function drawLabel(ctx, text, x, y, maxWidth) {
+    if (!showLabels) return;
+    ctx.save();
+    ctx.font = 'bold 11px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lines = wrapText(ctx, text, maxWidth || 70);
+    const lh = 13;
+    const totalH = lines.length * lh;
+    const startY = y - totalH / 2 + lh / 2;
+    // Background
+    let maxW = 0;
+    lines.forEach(l => { const w = ctx.measureText(l).width; if (w > maxW) maxW = w; });
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(x - maxW/2 - 4, startY - lh/2 - 2, maxW + 8, totalH + 4);
+    ctx.fillStyle = '#1a1a2e';
+    lines.forEach((line, i) => { ctx.fillText(line, x, startY + i * lh); });
+    ctx.restore();
+  }
+
+  function wrapText(ctx, text, maxW) {
+    const words = text.split(' ');
+    const lines = [];
+    let current = '';
+    words.forEach(word => {
+      const test = current ? current + ' ' + word : word;
+      if (ctx.measureText(test).width > maxW && current) {
+        lines.push(current);
+        current = word;
+      } else { current = test; }
+    });
+    if (current) lines.push(current);
+    return lines;
+  }
+
+  // ── Burgess Model ──
+  const burgessZones = [
+    { key: 'commuter', radius: 0.95, label: 'Commuter Zone' },
+    { key: 'outerSuburbs', radius: 0.75, label: 'Outer Suburbs' },
+    { key: 'innerSuburbs', radius: 0.55, label: 'Inner Suburbs' },
+    { key: 'transition', radius: 0.37, label: 'Zone of Transition' },
+    { key: 'cbd', radius: 0.18, label: 'CBD' }
+  ];
+
+  function drawBurgess() {
+    const ctx = cBurgess.getContext('2d');
+    clearCanvas(cBurgess);
+    const c = getCenter(cBurgess);
+    const maxR = Math.min(c.x, c.y) - 10;
+    burgessZones.forEach(z => {
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, z.radius * maxR, 0, Math.PI * 2);
+      ctx.fillStyle = zoneData[z.key].color;
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+    // Labels
+    const labelPositions = [
+      { key: 'commuter', r: 0.85 },
+      { key: 'outerSuburbs', r: 0.65 },
+      { key: 'innerSuburbs', r: 0.46 },
+      { key: 'transition', r: 0.28 },
+      { key: 'cbd', r: 0 }
+    ];
+    labelPositions.forEach(lp => {
+      const z = burgessZones.find(b => b.key === lp.key);
+      const angle = lp.key === 'cbd' ? 0 : -Math.PI / 4;
+      const x = c.x + Math.cos(angle) * lp.r * maxR;
+      const y = c.y + Math.sin(angle) * lp.r * maxR;
+      drawLabel(ctx, z.label, x, y, 80);
+    });
+    buildLegend('legendBurgess', burgessZones.map(z => ({ key: z.key, label: z.label })));
+  }
+
+  function hitTestBurgess(mx, my) {
+    const c = getCenter(cBurgess);
+    const maxR = Math.min(c.x, c.y) - 10;
+    const dist = Math.sqrt((mx - c.x) ** 2 + (my - c.y) ** 2);
+    for (let i = burgessZones.length - 1; i >= 0; i--) {
+      if (dist <= burgessZones[i].radius * maxR) return burgessZones[i].key;
+    }
+    return null;
+  }
+
+  // ── Hoyt Model ──
+  const hoytSectors = [
+    { key: 'cbd', startAngle: 0, endAngle: 360, innerR: 0, outerR: 0.18, label: 'CBD' },
+    { key: 'industry', startAngle: 250, endAngle: 330, innerR: 0.18, outerR: 0.95, label: 'Industry' },
+    { key: 'transition', startAngle: 330, endAngle: 30, innerR: 0.18, outerR: 0.40, label: 'Zone of Transition' },
+    { key: 'innerSuburbs', startAngle: 30, endAngle: 140, innerR: 0.18, outerR: 0.50, label: 'Inner Suburbs' },
+    { key: 'outerSuburbs', startAngle: 30, endAngle: 140, innerR: 0.50, outerR: 0.95, label: 'Outer Suburbs' },
+    { key: 'residential_high', startAngle: 140, endAngle: 200, innerR: 0.18, outerR: 0.95, label: 'High-Density Residential' },
+    { key: 'commuter', startAngle: 330, endAngle: 30, innerR: 0.40, outerR: 0.95, label: 'Commuter Zone' },
+    { key: 'residential_low', startAngle: 200, endAngle: 250, innerR: 0.18, outerR: 0.95, label: 'Low-Density Residential' }
+  ];
+
+  function degToRad(d) { return (d - 90) * Math.PI / 180; }
+
+  function drawSector(ctx, cx, cy, maxR, s, color) {
+    const r1 = s.innerR * maxR;
+    const r2 = s.outerR * maxR;
+    const a1 = degToRad(s.startAngle);
+    const a2 = degToRad(s.endAngle);
+    ctx.beginPath();
+    if (s.startAngle === 0 && s.endAngle === 360) {
+      ctx.arc(cx, cy, r2, 0, Math.PI * 2);
+      if (r1 > 0) { ctx.moveTo(cx + r1, cy); ctx.arc(cx, cy, r1, 0, Math.PI * 2, true); }
+    } else {
+      ctx.arc(cx, cy, r2, a1, a2);
+      ctx.arc(cx, cy, r1, a2, a1, true);
+      ctx.closePath();
+    }
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  function drawHoyt() {
+    const ctx = cHoyt.getContext('2d');
+    clearCanvas(cHoyt);
+    const c = getCenter(cHoyt);
+    const maxR = Math.min(c.x, c.y) - 10;
+    // Draw outer circle bg
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 0.95 * maxR, 0, Math.PI * 2);
+    ctx.fillStyle = '#ddd';
+    ctx.fill();
+    // Draw sectors (CBD last)
+    const order = hoytSectors.filter(s => s.key !== 'cbd');
+    order.forEach(s => drawSector(ctx, c.x, c.y, maxR, s, zoneData[s.key].color));
+    const cbd = hoytSectors.find(s => s.key === 'cbd');
+    drawSector(ctx, c.x, c.y, maxR, cbd, zoneData.cbd.color);
+    // Transport route lines
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1.5;
+    [290, 0, 85, 170].forEach(angle => {
+      const a = degToRad(angle);
+      ctx.beginPath();
+      ctx.moveTo(c.x, c.y);
+      ctx.lineTo(c.x + Math.cos(a) * 0.95 * maxR, c.y + Math.sin(a) * 0.95 * maxR);
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    // Labels
+    hoytSectors.forEach(s => {
+      const midA = s.startAngle === 0 && s.endAngle === 360 ? 0 : degToRad((s.startAngle + (s.endAngle < s.startAngle ? s.endAngle + 360 : s.endAngle)) / 2);
+      const midR = ((s.innerR + s.outerR) / 2) * maxR;
+      const lx = s.key === 'cbd' ? c.x : c.x + Math.cos(midA) * midR;
+      const ly = s.key === 'cbd' ? c.y : c.y + Math.sin(midA) * midR;
+      drawLabel(ctx, s.label, lx, ly, 75);
+    });
+    buildLegend('legendHoyt', hoytSectors.map(s => ({ key: s.key, label: s.label })).filter((v, i, a) => a.findIndex(x => x.key === v.key) === i));
+  }
+
+  function hitTestHoyt(mx, my) {
+    const c = getCenter(cHoyt);
+    const maxR = Math.min(c.x, c.y) - 10;
+    const dist = Math.sqrt((mx - c.x) ** 2 + (my - c.y) ** 2);
+    let angle = Math.atan2(my - c.y, mx - c.x) * 180 / Math.PI + 90;
+    if (angle < 0) angle += 360;
+    // Check CBD first
+    if (dist <= 0.18 * maxR) return 'cbd';
+    // Check sectors (reverse for layering)
+    for (let i = hoytSectors.length - 1; i >= 0; i--) {
+      const s = hoytSectors[i];
+      if (s.key === 'cbd') continue;
+      const r1 = s.innerR * maxR;
+      const r2 = s.outerR * maxR;
+      if (dist < r1 || dist > r2) continue;
+      let sa = s.startAngle, ea = s.endAngle;
+      if (ea < sa) {
+        if (angle >= sa || angle <= ea) return s.key;
+      } else {
+        if (angle >= sa && angle <= ea) return s.key;
+      }
+    }
+    return null;
+  }
+
+  // ── Harris-Ullman Model ──
+  const harrisNuclei = [
+    { key: 'cbd', x: 0.50, y: 0.45, rx: 0.10, ry: 0.10, label: 'CBD' },
+    { key: 'industry', x: 0.25, y: 0.35, rx: 0.12, ry: 0.10, label: 'Industrial Zone' },
+    { key: 'transition', x: 0.40, y: 0.62, rx: 0.11, ry: 0.09, label: 'Inner City' },
+    { key: 'innerSuburbs', x: 0.65, y: 0.30, rx: 0.13, ry: 0.11, label: 'Inner Suburbs' },
+    { key: 'outerSuburbs', x: 0.78, y: 0.55, rx: 0.14, ry: 0.12, label: 'Outer Suburbs' },
+    { key: 'retailPark', x: 0.22, y: 0.62, rx: 0.09, ry: 0.08, label: 'Retail Park' },
+    { key: 'education', x: 0.60, y: 0.72, rx: 0.10, ry: 0.08, label: 'University' },
+    { key: 'residential_low', x: 0.82, y: 0.30, rx: 0.10, ry: 0.09, label: 'Low-Density Housing' },
+    { key: 'commuter', x: 0.35, y: 0.20, rx: 0.12, ry: 0.08, label: 'Commuter Belt' }
+  ];
+
+  function drawHarris() {
+    const ctx = cHarris.getContext('2d');
+    clearCanvas(cHarris);
+    const w = cHarris.width, h = cHarris.height;
+    // Background city shape
+    ctx.beginPath();
+    ctx.ellipse(w * 0.5, h * 0.47, w * 0.45, h * 0.43, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#e8e8e8';
+    ctx.fill();
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Nuclei
+    harrisNuclei.forEach(n => {
+      ctx.beginPath();
+      ctx.ellipse(n.x * w, n.y * h, n.rx * w, n.ry * h, 0, 0, Math.PI * 2);
+      ctx.fillStyle = zoneData[n.key].color;
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      drawLabel(ctx, n.label, n.x * w, n.y * h, 75);
+    });
+    // Transport links (dashed)
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1.5;
+    [[0, 1], [0, 2], [0, 3], [3, 4], [1, 5], [2, 6]].forEach(([a, b]) => {
+      ctx.beginPath();
+      ctx.moveTo(harrisNuclei[a].x * w, harrisNuclei[a].y * h);
+      ctx.lineTo(harrisNuclei[b].x * w, harrisNuclei[b].y * h);
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    buildLegend('legendHarris', harrisNuclei.map(n => ({ key: n.key, label: n.label })));
+  }
+
+  function hitTestHarris(mx, my) {
+    const w = cHarris.width, h = cHarris.height;
+    for (let i = harrisNuclei.length - 1; i >= 0; i--) {
+      const n = harrisNuclei[i];
+      const dx = (mx - n.x * w) / (n.rx * w);
+      const dy = (my - n.y * h) / (n.ry * h);
+      if (dx * dx + dy * dy <= 1) return n.key;
+    }
+    return null;
+  }
+
+  // ── Legend builder ──
+  function buildLegend(containerId, items) {
+    const el = document.getElementById(containerId);
+    el.style.display = showLegend ? 'flex' : 'none';
+    el.innerHTML = items.map(i =>
+      `<span class="legend-item"><span class="legend-swatch" style="background:${zoneData[i.key].color}"></span>${i.label}</span>`
+    ).join('');
+  }
+
+  // ── Zone info display ──
+  function showZoneInfo(key) {
+    if (!key || !zoneData[key]) {
+      zoneInfoEl.innerHTML = '<p class="placeholder">Click on any zone in the models above to see detailed information about that area.</p>';
+      return;
+    }
+    const z = zoneData[key];
+    zoneInfoEl.innerHTML = `
+      <h3><span class="zone-color" style="background:${z.color}"></span>${z.name}</h3>
+      <dl class="zone-detail">
+        <div><dt>Typical Land Uses</dt><dd>${z.uses}</dd></div>
+        <div><dt>Characteristics</dt><dd>${z.characteristics}</dd></div>
+        <div><dt>House Prices</dt><dd>${z.prices}</dd></div>
+        <div><dt>Population Density</dt><dd>${z.density}</dd></div>
+      </dl>
+    `;
+  }
+
+  // ── Canvas click handlers ──
+  function getCanvasCoords(canvas, e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+
+  cBurgess.addEventListener('click', e => {
+    const p = getCanvasCoords(cBurgess, e);
+    showZoneInfo(hitTestBurgess(p.x, p.y));
+  });
+  cHoyt.addEventListener('click', e => {
+    const p = getCanvasCoords(cHoyt, e);
+    showZoneInfo(hitTestHoyt(p.x, p.y));
+  });
+  cHarris.addEventListener('click', e => {
+    const p = getCanvasCoords(cHarris, e);
+    showZoneInfo(hitTestHarris(p.x, p.y));
+  });
+
+  // ── Real city maps ──
+  const cityInfo = {
+    london: {
+      desc: 'London shows elements of all three models. The City of London and West End form the CBD. Industry historically followed the Thames eastward (Hoyt). Suburban growth in concentric waves (Burgess). Canary Wharf, Stratford, and Croydon act as secondary nuclei (Harris-Ullman). The Green Belt restricts outward sprawl.',
+      zones: [
+        { type: 'ellipse', x: 0.48, y: 0.48, rx: 0.06, ry: 0.05, key: 'cbd', label: 'City/West End' },
+        { type: 'ellipse', x: 0.58, y: 0.50, rx: 0.08, ry: 0.04, key: 'industry', label: 'Docklands' },
+        { type: 'ellipse', x: 0.65, y: 0.48, rx: 0.06, ry: 0.05, key: 'retailPark', label: 'Canary Wharf' },
+        { type: 'ring', cx: 0.48, cy: 0.48, r1: 0.08, r2: 0.18, key: 'transition', label: 'Inner London' },
+        { type: 'ring', cx: 0.48, cy: 0.48, r1: 0.18, r2: 0.32, key: 'innerSuburbs', label: 'Suburbs' },
+        { type: 'ring', cx: 0.48, cy: 0.48, r1: 0.32, r2: 0.44, key: 'outerSuburbs', label: 'Outer Suburbs' },
+        { type: 'ellipse', x: 0.68, y: 0.62, rx: 0.05, ry: 0.04, key: 'education', label: 'Stratford' },
+        { type: 'ellipse', x: 0.38, y: 0.70, rx: 0.06, ry: 0.04, key: 'retailPark', label: 'Croydon' },
+        { type: 'line', x1: 0.48, y1: 0.48, x2: 0.10, y2: 0.48, label: 'Thames' }
+      ]
+    },
+    manchester: {
+      desc: 'Manchester fits the Hoyt model well. Industry developed along the Ship Canal and railway corridors to the south and east. Wealthier suburbs extend south toward Altrincham and Wilmslow. The city centre has regenerated significantly. The Trafford Centre and Media City at Salford Quays act as new nuclei.',
+      zones: [
+        { type: 'ellipse', x: 0.50, y: 0.45, rx: 0.07, ry: 0.06, key: 'cbd', label: 'City Centre' },
+        { type: 'sector', cx: 0.50, cy: 0.45, r: 0.35, a1: 220, a2: 310, key: 'industry', label: 'Industrial Corridor' },
+        { type: 'sector', cx: 0.50, cy: 0.45, r: 0.38, a1: 130, a2: 220, key: 'outerSuburbs', label: 'South Manchester' },
+        { type: 'ring', cx: 0.50, cy: 0.45, r1: 0.08, r2: 0.20, key: 'transition', label: 'Inner City' },
+        { type: 'sector', cx: 0.50, cy: 0.45, r: 0.35, a1: 310, a2: 50, key: 'innerSuburbs', label: 'North Manchester' },
+        { type: 'sector', cx: 0.50, cy: 0.45, r: 0.35, a1: 50, a2: 130, key: 'residential_high', label: 'East Manchester' },
+        { type: 'ellipse', x: 0.28, y: 0.55, rx: 0.06, ry: 0.04, key: 'retailPark', label: 'Trafford Centre' },
+        { type: 'ellipse', x: 0.32, y: 0.40, rx: 0.05, ry: 0.04, key: 'education', label: 'Salford Quays' }
+      ]
+    },
+    leeds: {
+      desc: 'Leeds combines concentric and sector patterns. The CBD has expanded with financial services. Industry follows the Aire Valley east toward the M1. The southern suburbs (Roundhay, Chapel Allerton) are more affluent. The White Rose Centre and Thorpe Park act as out-of-town nuclei. The university quarter sits north of the centre.',
+      zones: [
+        { type: 'ellipse', x: 0.48, y: 0.46, rx: 0.07, ry: 0.06, key: 'cbd', label: 'City Centre' },
+        { type: 'sector', cx: 0.48, cy: 0.46, r: 0.32, a1: 60, a2: 140, key: 'industry', label: 'Aire Valley' },
+        { type: 'ring', cx: 0.48, cy: 0.46, r1: 0.08, r2: 0.18, key: 'transition', label: 'Inner City' },
+        { type: 'sector', cx: 0.48, cy: 0.46, r: 0.38, a1: 280, a2: 360, key: 'outerSuburbs', label: 'North Leeds' },
+        { type: 'sector', cx: 0.48, cy: 0.46, r: 0.35, a1: 140, a2: 220, key: 'innerSuburbs', label: 'South Leeds' },
+        { type: 'sector', cx: 0.48, cy: 0.46, r: 0.35, a1: 220, a2: 280, key: 'residential_high', label: 'West Leeds' },
+        { type: 'ellipse', x: 0.38, y: 0.72, rx: 0.06, ry: 0.04, key: 'retailPark', label: 'White Rose' },
+        { type: 'ellipse', x: 0.46, y: 0.32, rx: 0.05, ry: 0.04, key: 'education', label: 'University' },
+        { type: 'ellipse', x: 0.72, y: 0.50, rx: 0.05, ry: 0.04, key: 'retailPark', label: 'Thorpe Park' }
+      ]
+    }
+  };
+
+  function drawCity(cityKey) {
+    const ctx = cCity.getContext('2d');
+    clearCanvas(cCity);
+    const w = cCity.width, h = cCity.height;
+    const city = cityInfo[cityKey];
+    // Background
+    ctx.beginPath();
+    ctx.ellipse(w * 0.48, h * 0.48, w * 0.44, h * 0.44, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#e8e8e8';
+    ctx.fill();
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    city.zones.forEach(z => {
+      if (z.type === 'line') {
+        ctx.beginPath();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = '#3498db';
+        ctx.lineWidth = 2;
+        ctx.moveTo(z.x1 * w, z.y1 * h);
+        ctx.lineTo(z.x2 * w, z.y2 * h);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        drawLabel(ctx, z.label, (z.x1 + z.x2) / 2 * w, (z.y1 + z.y2) / 2 * h - 10, 60);
+        return;
+      }
+      if (z.type === 'ring') {
+        ctx.beginPath();
+        ctx.arc(z.cx * w, z.cy * h, z.r2 * w, 0, Math.PI * 2);
+        ctx.arc(z.cx * w, z.cy * h, z.r1 * w, 0, Math.PI * 2, true);
+        ctx.fillStyle = zoneData[z.key].color + '88';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        const lr = (z.r1 + z.r2) / 2;
+        drawLabel(ctx, z.label, z.cx * w + lr * w * 0.7, z.cy * h - lr * h * 0.7, 70);
+        return;
+      }
+      if (z.type === 'sector') {
+        const r = z.r * w;
+        const a1 = degToRad(z.a1);
+        const a2 = degToRad(z.a2);
+        ctx.beginPath();
+        ctx.moveTo(z.cx * w, z.cy * h);
+        ctx.arc(z.cx * w, z.cy * h, r, a1, a2);
+        ctx.closePath();
+        ctx.fillStyle = zoneData[z.key].color + '88';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        const midA = degToRad((z.a1 + (z.a2 < z.a1 ? z.a2 + 360 : z.a2)) / 2);
+        drawLabel(ctx, z.label, z.cx * w + Math.cos(midA) * r * 0.6, z.cy * h + Math.sin(midA) * r * 0.6, 75);
+        return;
+      }
+      // ellipse
+      ctx.beginPath();
+      ctx.ellipse(z.x * w, z.y * h, z.rx * w, z.ry * h, 0, 0, Math.PI * 2);
+      ctx.fillStyle = zoneData[z.key].color;
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      drawLabel(ctx, z.label, z.x * w, z.y * h, 70);
+    });
+
+    document.getElementById('cityDesc').textContent = city.desc;
+  }
+
+  // ── Controls ──
+  document.getElementById('toggleLabels').addEventListener('change', function() {
+    showLabels = this.checked;
+    redrawAll();
+  });
+  document.getElementById('toggleLegend').addEventListener('change', function() {
+    showLegend = this.checked;
+    redrawAll();
+  });
+  document.getElementById('enlargeSelect').addEventListener('change', function() {
+    enlargedModel = this.value;
+    updateEnlarged();
+    redrawAll();
+  });
+
+  function updateEnlarged() {
+    ['burgess', 'hoyt', 'harris'].forEach(m => {
+      const card = document.getElementById('card-' + m);
+      card.classList.remove('enlarged');
+      if (enlargedModel === m) card.classList.add('enlarged');
+    });
+    if (enlargedModel !== 'none') {
+      const canvas = enlargedModel === 'burgess' ? cBurgess : enlargedModel === 'hoyt' ? cHoyt : cHarris;
+      canvas.width = 500;
+      canvas.height = 500;
+    } else {
+      [cBurgess, cHoyt, cHarris].forEach(c => { c.width = 350; c.height = 350; });
+    }
+  }
+
+  // Mobile tabs
+  document.querySelectorAll('.model-tabs .tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.model-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      activeTab = this.dataset.model;
+      document.querySelectorAll('.model-card').forEach(c => c.classList.remove('mobile-visible'));
+      document.getElementById('card-' + activeTab).classList.add('mobile-visible');
+    });
+  });
+
+  // City tabs
+  document.querySelectorAll('.city-tabs .btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.city-tabs .btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      activeCity = this.dataset.city;
+      drawCity(activeCity);
+    });
+  });
+
+  // ── Redraw ──
+  function redrawAll() {
+    drawBurgess();
+    drawHoyt();
+    drawHarris();
+    drawCity(activeCity);
+  }
+
+  // ── Init ──
+  redrawAll();
+})();
+</script>
+</body>
+</html>

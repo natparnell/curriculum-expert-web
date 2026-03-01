@@ -16,7 +16,7 @@ from datetime import datetime
 
 import threading
 
-from flask import Flask, request, jsonify, send_file, Response
+from flask import Flask, request, jsonify, send_file, send_from_directory, Response
 from flask_cors import CORS
 
 # Add rag module to path
@@ -1338,6 +1338,18 @@ def admin_stats():
 def feedback_page():
     """Serve the feedback form."""
     return send_file(APP_DIR / 'feedback.html')
+
+
+@app.route('/dynamic')
+def dynamic_menu():
+    """Serve the WeST educational apps menu."""
+    return send_file(APP_DIR / 'dynamic-menu.html')
+
+
+@app.route('/dynamic/apps/<path:filename>')
+def dynamic_app(filename):
+    """Serve individual educational app files."""
+    return send_from_directory(APP_DIR / 'dynamic-apps', filename)
 
 
 @app.route('/feedback', methods=['POST'])

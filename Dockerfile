@@ -20,6 +20,8 @@ COPY curriculum-agent-config.json .
 COPY curriculum-expert.html .
 COPY admin.html .
 COPY feedback.html .
+COPY dynamic-menu.html .
+COPY dynamic-apps/ ./dynamic-apps/
 
 # Knowledge files for RAG indexing
 COPY knowledge/ /app/knowledge/

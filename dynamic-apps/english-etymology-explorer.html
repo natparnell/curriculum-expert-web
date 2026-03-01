@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Etymology Explorer</title>
+<style>
+  :root {
+    --cream: #f5ecd7;
+    --cream-light: #faf6eb;
+    --cream-dark: #e8dcc4;
+    --ink: #3b2817;
+    --ink-light: #5c4033;
+    --ink-faint: #8b7355;
+    --gold: #c5972c;
+    --gold-light: #e2b84b;
+    --gold-dark: #9a7520;
+    --latin: #a63d2f;
+    --greek: #2d5f8a;
+    --anglo-saxon: #3a7a3a;
+    --french: #6b3a7a;
+    --germanic: #b8860b;
+    --proto-ie: #6b6b6b;
+    --shadow: rgba(59, 40, 23, 0.15);
+    --font-serif: Georgia, 'Times New Roman', serif;
+    --font-display: 'Palatino Linotype', Palatino, Georgia, serif;
+    --radius: 6px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-serif);
+    background: var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* Sticky Header */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: linear-gradient(180deg, var(--ink) 0%, var(--ink-light) 100%);
+    color: var(--cream);
+    padding: 16px 24px;
+    border-bottom: 4px solid var(--gold);
+    box-shadow: 0 4px 12px var(--shadow);
+  }
+
+  header h1 {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    color: var(--gold-light);
+    letter-spacing: 1px;
+  }
+
+  header p {
+    font-size: 0.9rem;
+    color: var(--cream-dark);
+    margin-top: 2px;
+  }
+
+  .header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .search-box {
+    position: relative;
+  }
+
+  .search-box input {
+    font-family: var(--font-serif);
+    font-size: 0.95rem;
+    padding: 8px 14px 8px 36px;
+    border: 2px solid var(--gold-dark);
+    border-radius: var(--radius);
+    background: var(--cream-light);
+    color: var(--ink);
+    width: 260px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-box input:focus { border-color: var(--gold-light); }
+
+  .search-box::before {
+    content: '\1F50D';
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1rem;
+  }
+
+  .search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--cream-light);
+    border: 2px solid var(--gold-dark);
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    max-height: 240px;
+    overflow-y: auto;
+    display: none;
+    z-index: 200;
+  }
+
+  .search-results.active { display: block; }
+
+  .search-result-item {
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--cream-dark);
+    transition: background 0.15s;
+  }
+
+  .search-result-item:hover { background: var(--cream-dark); }
+
+  .search-result-item .origin-tag {
+    font-size: 0.75rem;
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: #fff;
+    margin-left: 6px;
+  }
+
+  /* Main Layout */
+  .app-container {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 0;
+    min-height: calc(100vh - 90px);
+  }
+
+  /* Tree Visualisation Panel */
+  .tree-panel {
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 50% 50%, var(--cream-light) 0%, var(--cream) 70%);
+    border-right: 3px solid var(--cream-dark);
+  }
+
+  .tree-panel canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+  }
+
+  .tree-panel canvas:active { cursor: grabbing; }
+
+  .word-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 16px;
+    justify-content: center;
+  }
+
+  .word-chip {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+    font-family: var(--font-serif);
+    color: #fff;
+  }
+
+  .word-chip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 8px var(--shadow);
+  }
+
+  .word-chip.active {
+    border-color: var(--gold-light);
+    box-shadow: 0 0 0 3px rgba(197, 151, 44, 0.3);
+  }
+
+  .word-chip.latin { background: var(--latin); }
+  .word-chip.greek { background: var(--greek); }
+  .word-chip.anglo-saxon { background: var(--anglo-saxon); }
+  .word-chip.french { background: var(--french); }
+  .word-chip.germanic { background: var(--germanic); }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    padding: 10px 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    border-bottom: 2px solid var(--cream-dark);
+    background: var(--cream-light);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.8rem;
+  }
+
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid var(--shadow);
+  }
+
+  /* Side Panel */
+  .side-panel {
+    background: var(--cream-light);
+    border-left: 1px solid var(--cream-dark);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .tab-bar {
+    display: flex;
+    border-bottom: 2px solid var(--cream-dark);
+    background: var(--cream);
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: 10px 8px;
+    font-family: var(--font-serif);
+    font-size: 0.8rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--ink-faint);
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+  }
+
+  .tab-btn:hover { color: var(--ink); }
+
+  .tab-btn.active {
+    color: var(--gold-dark);
+    border-bottom-color: var(--gold);
+    font-weight: bold;
+  }
+
+  .tab-content {
+    display: none;
+    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .tab-content.active { display: block; }
+
+  /* Etymology Detail */
+  .ety-detail h2 {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    color: var(--gold-dark);
+    margin-bottom: 4px;
+  }
+
+  .ety-detail .pronunciation {
+    font-style: italic;
+    color: var(--ink-faint);
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+  }
+
+  .ety-chain {
+    position: relative;
+    padding-left: 24px;
+    margin: 16px 0;
+  }
+
+  .ety-chain::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--gold-light), var(--gold-dark));
+    border-radius: 2px;
+  }
+
+  .ety-step {
+    position: relative;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    background: var(--cream);
+    border-radius: var(--radius);
+    border: 1px solid var(--cream-dark);
+  }
+
+  .ety-step::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    top: 16px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--gold);
+    background: var(--cream-light);
+  }
+
+  .ety-step .lang-label {
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+
+  .ety-step .word-form {
+    font-size: 1.1rem;
+    font-style: italic;
+    font-weight: bold;
+  }
+
+  .ety-step .meaning {
+    font-size: 0.85rem;
+    color: var(--ink-light);
+    margin-top: 2px;
+  }
+
+  .ety-fun-fact {
+    background: linear-gradient(135deg, rgba(197, 151, 44, 0.1), rgba(197, 151, 44, 0.05));
+    border-left: 4px solid var(--gold);
+    padding: 12px 14px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    margin-top: 16px;
+    font-size: 0.9rem;
+  }
+
+  .ety-fun-fact strong {
+    color: var(--gold-dark);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .ety-related {
+    margin-top: 16px;
+  }
+
+  .ety-related h4 {
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    margin-bottom: 6px;
+  }
+
+  .related-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .related-chip {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    background: var(--cream-dark);
+    border: 1px solid var(--ink-faint);
+    color: var(--ink);
+    transition: all 0.15s;
+    font-family: var(--font-serif);
+  }
+
+  .related-chip:hover { background: var(--gold-light); color: #fff; }
+
+  /* Statistics Tab */
+  .stats-section { margin-bottom: 20px; }
+
+  .stats-section h3 {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    color: var(--gold-dark);
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--cream-dark);
+    padding-bottom: 4px;
+  }
+
+  .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .bar-label {
+    width: 100px;
+    font-size: 0.8rem;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 22px;
+    background: var(--cream);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid var(--cream-dark);
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 6px;
+    font-size: 0.7rem;
+    color: #fff;
+    font-weight: bold;
+  }
+
+  /* History Tab */
+  .history-content { font-size: 0.9rem; }
+
+  .history-content h3 {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    color: var(--gold-dark);
+    margin: 16px 0 8px;
+  }
+
+  .history-content h3:first-child { margin-top: 0; }
+
+  .history-content p { margin-bottom: 10px; }
+
+  .history-timeline {
+    position: relative;
+    padding-left: 20px;
+    margin: 12px 0;
+  }
+
+  .history-timeline::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--gold);
+  }
+
+  .timeline-event {
+    position: relative;
+    margin-bottom: 14px;
+    padding-left: 8px;
+  }
+
+  .timeline-event::before {
+    content: '';
+    position: absolute;
+    left: -18px;
+    top: 6px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 2px solid var(--cream-light);
+  }
+
+  .timeline-date {
+    font-weight: bold;
+    color: var(--gold-dark);
+    font-size: 0.85rem;
+  }
+
+  .timeline-text {
+    font-size: 0.85rem;
+    color: var(--ink-light);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--ink-faint);
+  }
+
+  .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+
+  .empty-state p { font-size: 0.95rem; }
+
+  /* Responsive */
+  @media (max-width: 860px) {
+    .app-container {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+    }
+
+    .tree-panel {
+      border-right: none;
+      border-bottom: 3px solid var(--cream-dark);
+    }
+
+    .side-panel {
+      border-left: none;
+      max-height: 50vh;
+    }
+
+    header h1 { font-size: 1.4rem; }
+
+    .search-box input { width: 200px; }
+  }
+
+  @media (max-width: 500px) {
+    .header-row { flex-direction: column; align-items: flex-start; }
+    .search-box input { width: 100%; }
+    header { padding: 12px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-row">
+    <div>
+      <h1>Etymology Explorer</h1>
+      <p>Trace how English words evolved through Latin, Greek, Anglo-Saxon, and Norman French roots</p>
+    </div>
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Search for a word..." autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+  </div>
+</header>
+
+<div class="app-container">
+  <div class="tree-panel">
+    <div class="legend" id="legend"></div>
+    <div class="word-grid" id="wordGrid"></div>
+    <canvas id="treeCanvas"></canvas>
+  </div>
+
+  <div class="side-panel">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="detail">Word Detail</button>
+      <button class="tab-btn" data-tab="stats">Statistics</button>
+      <button class="tab-btn" data-tab="history">History</button>
+    </div>
+
+    <div class="tab-content active" id="tab-detail">
+      <div class="empty-state" id="emptyState">
+        <div class="icon">&#x1F4DC;</div>
+        <p>Select a word above to explore its etymology</p>
+      </div>
+      <div class="ety-detail" id="etyDetail" style="display:none;"></div>
+    </div>
+
+    <div class="tab-content" id="tab-stats">
+      <div class="stats-section">
+        <h3>Origins of English Vocabulary</h3>
+        <p style="font-size:0.85rem;color:var(--ink-light);margin-bottom:12px;">
+          Approximate breakdown of Modern English word origins based on scholarly estimates.
+        </p>
+        <div class="bar-chart" id="originChart"></div>
+      </div>
+      <div class="stats-section">
+        <h3>Words in This Explorer</h3>
+        <div class="bar-chart" id="localChart"></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-history">
+      <div class="history-content">
+        <h3>Why Is English So Mixed?</h3>
+        <p>
+          English is remarkable among European languages for drawing vocabulary from so many
+          different sources. This diversity arose from wave after wave of cultural contact,
+          invasion, and intellectual exchange over more than 1,500 years.
+        </p>
+
+        <h3>Key Moments in the History of English</h3>
+        <div class="history-timeline">
+          <div class="timeline-event">
+            <div class="timeline-date">43 - 410 AD: Roman Britain</div>
+            <div class="timeline-text">
+              Latin arrived with the Roman occupation. Words like "street" (strata), "wall"
+              (vallum), and "wine" (vinum) entered the language of the Celtic and later
+              Germanic inhabitants.
+            </div>
+          </div>
+          <div class="timeline-event">
+            <div class="timeline-date">450 - 600 AD: Anglo-Saxon Settlement</div>
+            <div class="timeline-text">
+              Angles, Saxons, and Jutes brought Germanic dialects that became Old English.
+              Core vocabulary (house, water, bread, love, fight) has Anglo-Saxon roots.
+              This remains the backbone of everyday English.
+            </div>
+          </div>
+          <div class="timeline-event">
+            <div class="timeline-date">793 - 1066 AD: Viking Influence</div>
+            <div class="timeline-text">
+              Norse settlers contributed words like "sky", "egg", "window" (vindauga),
+              "husband", and "they/them/their". Old English and Old Norse were similar
+              enough that speakers could partially understand each other.
+            </div>
+          </div>
+          <div class="timeline-event">
+            <div class="timeline-date">1066 AD: The Norman Conquest</div>
+            <div class="timeline-text">
+              William the Conqueror's victory introduced Norman French as the language of
+              the ruling class. For 300 years, French dominated law, government, and
+              culture while English persisted among common people. This created
+              famous doublets: "cow" (Anglo-Saxon farmer) vs "beef" (French table).
+            </div>
+          </div>
+          <div class="timeline-event">
+            <div class="timeline-date">1300 - 1500 AD: Middle English</div>
+            <div class="timeline-text">
+              English re-emerged as the prestige language, now heavily enriched with French
+              and Latin vocabulary. Chaucer wrote in this hybrid tongue. The Great Vowel
+              Shift began transforming pronunciation.
+            </div>
+          </div>
+          <div class="timeline-event">
+            <div class="timeline-date">1500 - 1700 AD: Renaissance and Early Modern</div>
+            <div class="timeline-text">
+              Scholars deliberately borrowed from Latin and Greek to create learned
+              vocabulary. Words like "democracy", "anatomy", "education", and "gravity"
+              entered English directly from classical sources. Shakespeare alone coined
+              over 1,700 words.
+            </div>
+          </div>
+          <div class="timeline-event">
+            <div class="timeline-date">1700 AD onwards: Global English</div>
+            <div class="timeline-text">
+              Through colonialism, trade, science, and technology, English absorbed words
+              from languages worldwide: "jungle" (Hindi), "tsunami" (Japanese),
+              "banana" (West African), "algorithm" (Arabic).
+            </div>
+          </div>
+        </div>
+
+        <h3>The Result</h3>
+        <p>
+          Modern English has one of the largest vocabularies of any language, estimated
+          at over 170,000 words in current use. Roughly 29% derive from Latin, 29% from
+          French, 26% from Germanic languages, and 6% from Greek, with the remainder
+          from other world languages.
+        </p>
+        <p>
+          This layered history means English often has multiple words for the same concept,
+          each carrying different connotations. "Ask" (Anglo-Saxon) feels informal; "question"
+          (French) feels neutral; "interrogate" (Latin) feels formal. The richness of
+          English vocabulary is a direct consequence of its turbulent history.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ===== DATA ===== */
+  const LANG_COLORS = {
+    'Latin': '#a63d2f',
+    'Greek': '#2d5f8a',
+    'Anglo-Saxon': '#3a7a3a',
+    'Norman French': '#6b3a7a',
+    'Old French': '#6b3a7a',
+    'Germanic': '#b8860b',
+    'Old Norse': '#7a6320',
+    'Proto-Indo-European': '#6b6b6b',
+    'Old English': '#3a7a3a',
+    'Middle English': '#5a6a3a',
+    'Arabic': '#c04040',
+    'Sanskrit': '#2a6a6a',
+  };
+
+  const LANG_CSS = {
+    'Latin': 'latin',
+    'Greek': 'greek',
+    'Anglo-Saxon': 'anglo-saxon',
+    'Norman French': 'french',
+    'Old French': 'french',
+    'Germanic': 'germanic',
+    'Old Norse': 'germanic',
+    'Old English': 'anglo-saxon',
+  };
+
+  const words = [
+    {
+      word: 'school',
+      primaryOrigin: 'Greek',
+      chain: [
+        { lang: 'Greek', form: 'skhole', meaning: 'leisure, rest, free time for learning' },
+        { lang: 'Latin', form: 'schola', meaning: 'lecture, school' },
+        { lang: 'Old English', form: 'scol', meaning: 'place of instruction' },
+        { lang: 'Middle English', form: 'scole', meaning: 'school' },
+      ],
+      funFact: 'The Greeks believed true education required leisure. "School" literally comes from a word meaning free time, reflecting the idea that only those with leisure could pursue knowledge.',
+      related: ['scholar', 'scholastic'],
+    },
+    {
+      word: 'salary',
+      primaryOrigin: 'Latin',
+      chain: [
+        { lang: 'Latin', form: 'sal', meaning: 'salt' },
+        { lang: 'Latin', form: 'salarium', meaning: 'salt money, stipend paid to soldiers' },
+        { lang: 'Norman French', form: 'salarie', meaning: 'payment, wages' },
+      ],
+      funFact: 'Roman soldiers were sometimes paid in salt or given an allowance to buy it. Salt was so valuable it served as currency. Someone "worth their salt" is worth their pay.',
+      related: ['saline', 'sauce', 'sausage', 'salad'],
+    },
+    {
+      word: 'mortgage',
+      primaryOrigin: 'Norman French',
+      chain: [
+        { lang: 'Latin', form: 'mortuus', meaning: 'dead' },
+        { lang: 'Norman French', form: 'mort', meaning: 'death' },
+        { lang: 'Norman French', form: 'gage', meaning: 'pledge' },
+        { lang: 'Norman French', form: 'mortgage', meaning: 'death pledge' },
+      ],
+      funFact: 'A mortgage is literally a "death pledge." The deal "dies" either when the debt is paid off or when payment fails and the property is seized. The term entered English law after the Norman Conquest.',
+      related: ['mortal', 'mortuary', 'engage', 'gauge'],
+    },
+    {
+      word: 'whiskey',
+      primaryOrigin: 'Anglo-Saxon',
+      chain: [
+        { lang: 'Latin', form: 'aqua vitae', meaning: 'water of life' },
+        { lang: 'Anglo-Saxon', form: 'uisce beatha', meaning: 'water of life (Gaelic)' },
+        { lang: 'Middle English', form: 'usquebaugh', meaning: 'the spirit drink' },
+      ],
+      funFact: 'Both "whiskey" (from Gaelic uisce beatha) and "vodka" (Russian diminutive of voda, water) mean "water of life" in their respective languages. Medieval alchemists called distilled spirits aqua vitae.',
+      related: ['aquatic', 'vodka'],
+    },
+    {
+      word: 'disaster',
+      primaryOrigin: 'Greek',
+      chain: [
+        { lang: 'Greek', form: 'astron', meaning: 'star' },
+        { lang: 'Latin', form: 'astrum', meaning: 'star, celestial body' },
+        { lang: 'Latin', form: 'dis-', meaning: 'bad, apart' },
+        { lang: 'Old French', form: 'desastre', meaning: 'ill-starred event' },
+      ],
+      funFact: 'A disaster is literally a "bad star." The ancients believed catastrophic events were caused by unfavourable positions of the stars and planets. "Consider" (con + sidus) also comes from star-gazing.',
+      related: ['astronomy', 'asterisk', 'consider'],
+    },
+    {
+      word: 'companion',
+      primaryOrigin: 'Latin',
+      chain: [
+        { lang: 'Latin', form: 'com-', meaning: 'together, with' },
+        { lang: 'Latin', form: 'panis', meaning: 'bread' },
+        { lang: 'Latin', form: 'companio', meaning: 'one who shares bread' },
+        { lang: 'Old French', form: 'compaignon', meaning: 'fellow, mate' },
+      ],
+      funFact: 'A companion is literally someone you share bread with. The word preserves the ancient importance of breaking bread together as a bond of fellowship. "Company" shares the same root.',
+      related: ['company', 'pantry', 'pannier'],
+    },
+    {
+      word: 'muscle',
+      primaryOrigin: 'Latin',
+      chain: [
+        { lang: 'Latin', form: 'mus', meaning: 'mouse' },
+        { lang: 'Latin', form: 'musculus', meaning: 'little mouse' },
+        { lang: 'Old French', form: 'muscle', meaning: 'muscle, shellfish' },
+      ],
+      funFact: 'The Romans thought a flexing muscle looked like a little mouse running under the skin. The same root gives us "mussel" (the shellfish), also thought to resemble a tiny mouse.',
+      related: ['mussel', 'mouse'],
+    },
+    {
+      word: 'window',
+      primaryOrigin: 'Old Norse',
+      chain: [
+        { lang: 'Old Norse', form: 'vindauga', meaning: 'wind-eye' },
+        { lang: 'Middle English', form: 'windoge', meaning: 'window' },
+      ],
+      funFact: 'Before glass was common, a window was literally a hole in the wall for wind. The Norse "wind-eye" replaced the Old English "eagthyrl" (eye-hole). Both cultures saw windows as eyes of the house.',
+      related: ['wind', 'eye'],
+    },
+    {
+      word: 'clue',
+      primaryOrigin: 'Anglo-Saxon',
+      chain: [
+        { lang: 'Greek', form: 'mythos', meaning: 'the myth of Theseus and the Minotaur' },
+        { lang: 'Anglo-Saxon', form: 'clew', meaning: 'ball of thread or yarn' },
+        { lang: 'Middle English', form: 'clewe', meaning: 'ball of thread; guiding thread' },
+      ],
+      funFact: 'In Greek myth, Theseus used a ball of thread (a "clew") to find his way out of the Minotaur\'s labyrinth. By the 1600s, "clew" had shifted to mean anything that guides you to a solution.',
+      related: ['clueless'],
+    },
+    {
+      word: 'nice',
+      primaryOrigin: 'Latin',
+      chain: [
+        { lang: 'Latin', form: 'nescius', meaning: 'ignorant, not knowing' },
+        { lang: 'Old French', form: 'nice', meaning: 'foolish, silly, simple' },
+        { lang: 'Middle English', form: 'nice', meaning: 'foolish, then timid, then fussy' },
+      ],
+      funFact: '"Nice" originally meant ignorant or foolish in Latin. Over centuries it drifted through meanings including timid, fussy, dainty, and precise before settling on its current meaning of pleasant. It is one of the most dramatically shifted words in English.',
+      related: ['nescient'],
+    },
+    {
+      word: 'beef',
+      primaryOrigin: 'Norman French',
+      chain: [
+        { lang: 'Latin', form: 'bos, bovis', meaning: 'ox, cow' },
+        { lang: 'Norman French', form: 'buef', meaning: 'ox, beef' },
+        { lang: 'Middle English', form: 'beef', meaning: 'meat of cattle' },
+      ],
+      funFact: 'After 1066, Anglo-Saxon farmers raised the animals (cow, pig, sheep) while French-speaking nobles ate the meat (beef, pork, mutton). This split is one of the clearest traces of the Norman Conquest in English.',
+      related: ['bovine', 'cow', 'pork', 'mutton'],
+    },
+    {
+      word: 'pork',
+      primaryOrigin: 'Norman French',
+      chain: [
+        { lang: 'Latin', form: 'porcus', meaning: 'pig, domesticated swine' },
+        { lang: 'Norman French', form: 'porc', meaning: 'pig, pork' },
+        { lang: 'Middle English', form: 'pork', meaning: 'flesh of swine' },
+      ],
+      funFact: 'Like beef/cow and mutton/sheep, pork/pig reflects the class divide after 1066. The servant tending the animal used the English word; the master eating the meat used the French one.',
+      related: ['porcupine', 'porcine', 'pig'],
+    },
+    {
+      word: 'galaxy',
+      primaryOrigin: 'Greek',
+      chain: [
+        { lang: 'Greek', form: 'gala', meaning: 'milk' },
+        { lang: 'Greek', form: 'galaxias kyklos', meaning: 'milky circle' },
+        { lang: 'Latin', form: 'galaxia', meaning: 'the Milky Way' },
+      ],
+      funFact: 'Galaxy and the Milky Way are doublets: "galaxy" comes from Greek gala (milk) while "Milky Way" is the Latin via lactea translated into English. Both describe the milky band of stars in the night sky.',
+      related: ['galactic', 'lactose', 'lactic'],
+    },
+    {
+      word: 'salary',
+      primaryOrigin: 'Latin',
+      skip: true,
+    },
+    {
+      word: 'verdict',
+      primaryOrigin: 'Norman French',
+      chain: [
+        { lang: 'Latin', form: 'verus', meaning: 'true' },
+        { lang: 'Latin', form: 'dictum', meaning: 'something said' },
+        { lang: 'Norman French', form: 'verdit', meaning: 'a true saying, judgement' },
+      ],
+      funFact: 'A verdict is literally a "true saying." Almost all English legal terminology came from Norman French after 1066: judge, jury, plaintiff, defendant, attorney, court, crime, prison, and justice are all French imports.',
+      related: ['verify', 'dictionary', 'predict', 'contradict'],
+    },
+    {
+      word: 'captain',
+      primaryOrigin: 'Latin',
+      chain: [
+        { lang: 'Latin', form: 'caput', meaning: 'head' },
+        { lang: 'Latin', form: 'capitaneus', meaning: 'chief, head person' },
+        { lang: 'Old French', form: 'capitaine', meaning: 'captain, leader' },
+      ],
+      funFact: 'Latin "caput" (head) produced an enormous family: captain, capital, chapter, cattle, chattel, chef, chief, and even "cadet." The word branched differently through French and Italian.',
+      related: ['capital', 'chapter', 'chef', 'chief', 'decapitate'],
+    },
+    {
+      word: 'education',
+      primaryOrigin: 'Latin',
+      chain: [
+        { lang: 'Latin', form: 'ex-', meaning: 'out of' },
+        { lang: 'Latin', form: 'ducere', meaning: 'to lead' },
+        { lang: 'Latin', form: 'educere', meaning: 'to lead out, draw forth' },
+      ],
+      funFact: 'Education literally means "to lead out." The Romans saw teaching not as pouring information in, but as drawing out the potential already within the student. "Duke," "produce," and "conduct" share the root ducere.',
+      related: ['duke', 'conduct', 'produce', 'reduce', 'introduce'],
+    },
+    {
+      word: 'democracy',
+      primaryOrigin: 'Greek',
+      chain: [
+        { lang: 'Greek', form: 'demos', meaning: 'the people, the common people' },
+        { lang: 'Greek', form: 'kratos', meaning: 'power, rule, strength' },
+        { lang: 'Greek', form: 'demokratia', meaning: 'rule by the people' },
+      ],
+      funFact: 'Greek gave English its political vocabulary: democracy (people-power), aristocracy (rule by the best), plutocracy (rule by the wealthy), and bureaucracy (rule by desk, from French bureau).',
+      related: ['demographic', 'aristocracy', 'plutocracy', 'bureaucracy'],
+    },
+    {
+      word: 'husband',
+      primaryOrigin: 'Old Norse',
+      chain: [
+        { lang: 'Old Norse', form: 'hus', meaning: 'house' },
+        { lang: 'Old Norse', form: 'bondi', meaning: 'occupier, dweller, tiller of soil' },
+        { lang: 'Old Norse', form: 'husbondi', meaning: 'master of the house' },
+        { lang: 'Middle English', form: 'husbonde', meaning: 'male spouse' },
+      ],
+      funFact: '"Husband" originally meant householder or farmer, not spouse. "Husbandry" (farming, careful management) preserves the older meaning. The marital sense developed because the householder was typically married.',
+      related: ['husbandry', 'house', 'bond'],
+    },
+    {
+      word: 'algorithm',
+      primaryOrigin: 'Arabic',
+      chain: [
+        { lang: 'Arabic', form: 'al-Khwarizmi', meaning: 'name of the Persian mathematician (from Khwarezm)' },
+        { lang: 'Latin', form: 'algorismus', meaning: 'the decimal number system' },
+        { lang: 'Middle English', form: 'algorisme', meaning: 'arithmetic using Arabic numerals' },
+      ],
+      funFact: 'The word "algorithm" comes from al-Khwarizmi, a 9th-century Persian scholar whose book on arithmetic introduced Hindu-Arabic numerals to Europe. His other book title gave us "algebra" (al-jabr, restoration).',
+      related: ['algebra', 'zero', 'cipher'],
+    },
+    {
+      word: 'planet',
+      primaryOrigin: 'Greek',
+      chain: [
+        { lang: 'Greek', form: 'planetes', meaning: 'wanderer' },
+        { lang: 'Greek', form: 'planasthai', meaning: 'to wander, to roam' },
+        { lang: 'Latin', form: 'planeta', meaning: 'a wandering star' },
+      ],
+      funFact: 'The Greeks called planets "wandering stars" because they moved across the sky while fixed stars stayed in place. The five visible planets (Mercury to Saturn) were each named after Roman gods.',
+      related: ['planetary', 'plan'],
+    },
+    {
+      word: 'knight',
+      primaryOrigin: 'Anglo-Saxon',
+      chain: [
+        { lang: 'Anglo-Saxon', form: 'cniht', meaning: 'boy, servant, attendant' },
+        { lang: 'Middle English', form: 'kniht', meaning: 'young soldier, mounted warrior' },
+      ],
+      funFact: 'A "knight" started as just a boy or servant in Old English. As feudalism developed, the word was elevated to mean a mounted warrior of noble rank. The silent "k" preserves the original pronunciation.',
+      related: ['knave', 'knecht (German)'],
+    },
+    {
+      word: 'travel',
+      primaryOrigin: 'Norman French',
+      chain: [
+        { lang: 'Latin', form: 'tres', meaning: 'three' },
+        { lang: 'Latin', form: 'palus', meaning: 'stake' },
+        { lang: 'Latin', form: 'trepalium', meaning: 'three-staked instrument of torture' },
+        { lang: 'Old French', form: 'travaillier', meaning: 'to toil, to suffer' },
+        { lang: 'Middle English', form: 'travelen', meaning: 'to labour, to journey' },
+      ],
+      funFact: '"Travel" comes from an instrument of torture. Medieval journeys were so gruelling that the French word for suffering (travailler) became the English word for making a journey. French kept the toil meaning in "travail."',
+      related: ['travail'],
+    },
+    {
+      word: 'trivial',
+      primaryOrigin: 'Latin',
+      chain: [
+        { lang: 'Latin', form: 'tres', meaning: 'three' },
+        { lang: 'Latin', form: 'via', meaning: 'road, way' },
+        { lang: 'Latin', form: 'trivium', meaning: 'place where three roads meet, crossroads' },
+        { lang: 'Latin', form: 'trivialis', meaning: 'commonplace, ordinary (found at any crossroads)' },
+      ],
+      funFact: '"Trivial" originally described the kind of common chatter you might hear at a crossroads where three roads met. The trivium was also the three foundational subjects of medieval education: grammar, logic, and rhetoric.',
+      related: ['trivia', 'trivium'],
+    },
+    {
+      word: 'sarcasm',
+      primaryOrigin: 'Greek',
+      chain: [
+        { lang: 'Greek', form: 'sarx', meaning: 'flesh' },
+        { lang: 'Greek', form: 'sarkazein', meaning: 'to tear flesh, to bite the lips in rage' },
+        { lang: 'Greek', form: 'sarkasmos', meaning: 'a sneering or mocking remark' },
+        { lang: 'Latin', form: 'sarcasmus', meaning: 'sarcasm' },
+      ],
+      funFact: 'Sarcasm literally means "to tear flesh." The Greeks saw biting mockery as verbally ripping someone apart. The related word "sarcophagus" means "flesh-eater," because limestone coffins were believed to dissolve bodies.',
+      related: ['sarcophagus', 'sarcoma'],
+    },
+  ].filter(w => !w.skip);
+
+  /* ===== LEGEND ===== */
+  const legendEl = document.getElementById('legend');
+  const legendLangs = ['Latin', 'Greek', 'Anglo-Saxon', 'Norman French', 'Germanic', 'Old Norse'];
+  legendLangs.forEach(lang => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    const dot = document.createElement('div');
+    dot.className = 'legend-dot';
+    dot.style.background = LANG_COLORS[lang] || '#999';
+    const label = document.createElement('span');
+    label.textContent = lang;
+    item.appendChild(dot);
+    item.appendChild(label);
+    legendEl.appendChild(item);
+  });
+
+  /* ===== WORD CHIPS ===== */
+  const wordGrid = document.getElementById('wordGrid');
+  let activeWord = null;
+
+  function renderWordGrid() {
+    wordGrid.innerHTML = '';
+    words.forEach((w, idx) => {
+      const chip = document.createElement('button');
+      chip.className = 'word-chip ' + (LANG_CSS[w.primaryOrigin] || 'latin');
+      if (activeWord === idx) chip.classList.add('active');
+      chip.textContent = w.word;
+      chip.addEventListener('click', () => selectWord(idx));
+      wordGrid.appendChild(chip);
+    });
+  }
+
+  renderWordGrid();
+
+  /* ===== TREE CANVAS ===== */
+  const canvas = document.getElementById('treeCanvas');
+  const ctx = canvas.getContext('2d');
+  let canvasW, canvasH;
+  const dpr = window.devicePixelRatio || 1;
+
+  function resizeCanvas() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const legendH = document.getElementById('legend').offsetHeight;
+    const gridH = wordGrid.offsetHeight;
+    canvasW = rect.width;
+    canvasH = rect.height - legendH - gridH;
+    if (canvasH < 200) canvasH = 200;
+    canvas.width = canvasW * dpr;
+    canvas.height = canvasH * dpr;
+    canvas.style.width = canvasW + 'px';
+    canvas.style.height = canvasH + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawTree();
+  }
+
+  function drawTree() {
+    ctx.clearRect(0, 0, canvasW, canvasH);
+
+    if (activeWord === null) {
+      drawAllRootsPreview();
+      return;
+    }
+
+    const w = words[activeWord];
+    const chain = w.chain;
+    if (!chain || chain.length === 0) return;
+
+    const nodeH = 56;
+    const gap = 30;
+    const totalH = chain.length * nodeH + (chain.length - 1) * gap;
+    const startY = (canvasH - totalH) / 2;
+    const centerX = canvasW / 2;
+
+    const nodes = chain.map((step, i) => ({
+      x: centerX,
+      y: startY + i * (nodeH + gap) + nodeH / 2,
+      step,
+      w: 0,
+    }));
+
+    /* Final modern word at bottom */
+    const modernNode = {
+      x: centerX,
+      y: nodes[nodes.length - 1].y + nodeH + gap,
+      step: { lang: 'Modern English', form: w.word, meaning: '' },
+      w: 0,
+    };
+    if (modernNode.y + 30 < canvasH) {
+      nodes.push(modernNode);
+    }
+
+    /* Measure widths */
+    ctx.font = 'italic 16px Georgia';
+    nodes.forEach(n => {
+      const tw = ctx.measureText(n.step.form).width;
+      n.w = Math.max(tw + 40, 120);
+    });
+
+    /* Draw connections */
+    for (let i = 0; i < nodes.length - 1; i++) {
+      const a = nodes[i];
+      const b = nodes[i + 1];
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y + nodeH / 2 - 4);
+      const cpY = (a.y + b.y) / 2;
+      ctx.bezierCurveTo(a.x + 30, cpY, b.x - 30, cpY, b.x, b.y - nodeH / 2 + 4);
+      ctx.strokeStyle = LANG_COLORS[b.step.lang] || '#999';
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.5;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      /* Arrow */
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      const ax = b.x - Math.cos(angle) * (nodeH / 2);
+      const ay = b.y - Math.sin(angle) * (nodeH / 2);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(ax - 8 * Math.cos(angle - 0.4), ay - 8 * Math.sin(angle - 0.4));
+      ctx.lineTo(ax - 8 * Math.cos(angle + 0.4), ay - 8 * Math.sin(angle + 0.4));
+      ctx.closePath();
+      ctx.fillStyle = LANG_COLORS[b.step.lang] || '#999';
+      ctx.globalAlpha = 0.7;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    /* Draw nodes */
+    nodes.forEach(n => {
+      const col = LANG_COLORS[n.step.lang] || '#999';
+      const rx = n.x - n.w / 2;
+      const ry = n.y - nodeH / 2;
+
+      /* Shadow */
+      ctx.shadowColor = 'rgba(0,0,0,0.15)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 3;
+
+      /* Rounded rect */
+      roundRect(ctx, rx, ry, n.w, nodeH, 10);
+      ctx.fillStyle = '#faf6eb';
+      ctx.fill();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+
+      /* Language label */
+      ctx.font = 'bold 10px Georgia';
+      ctx.fillStyle = col;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(n.step.lang.toUpperCase(), n.x, ry + 6);
+
+      /* Word */
+      ctx.font = 'italic 15px Georgia';
+      ctx.fillStyle = '#3b2817';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(n.step.form, n.x, ry + nodeH - 8);
+
+      /* Meaning (small, below if room) */
+      if (n.step.meaning) {
+        ctx.font = '10px Georgia';
+        ctx.fillStyle = '#8b7355';
+        ctx.textBaseline = 'top';
+        const mt = n.step.meaning.length > 40 ? n.step.meaning.slice(0, 38) + '...' : n.step.meaning;
+        ctx.fillText('"' + mt + '"', n.x, ry + nodeH + 2);
+      }
+    });
+  }
+
+  function drawAllRootsPreview() {
+    ctx.font = '14px Georgia';
+    ctx.fillStyle = '#8b7355';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Select a word above to trace its etymological journey', canvasW / 2, canvasH / 2 - 20);
+
+    ctx.font = 'italic 12px Georgia';
+    ctx.fillStyle = '#b0a080';
+    ctx.fillText('Each word chip is colour-coded by its primary language of origin', canvasW / 2, canvasH / 2 + 10);
+
+    /* Decorative dots */
+    const langs = Object.entries(LANG_COLORS).slice(0, 6);
+    const dotY = canvasH / 2 + 45;
+    const totalWidth = langs.length * 60;
+    const startX = (canvasW - totalWidth) / 2 + 30;
+    langs.forEach(([name, col], i) => {
+      const x = startX + i * 60;
+      ctx.beginPath();
+      ctx.arc(x, dotY, 6, 0, Math.PI * 2);
+      ctx.fillStyle = col;
+      ctx.globalAlpha = 0.6;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.lineTo(x + w - r, y);
+    c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r);
+    c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h);
+    c.quadraticCurveTo(x, y + h, x, y + h - r);
+    c.lineTo(x, y + r);
+    c.quadraticCurveTo(x, y, x + r, y);
+    c.closePath();
+  }
+
+  /* ===== SELECT WORD ===== */
+  function selectWord(idx) {
+    activeWord = idx;
+    renderWordGrid();
+    drawTree();
+    showDetail(idx);
+    /* Switch to detail tab */
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('[data-tab="detail"]').classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-detail').classList.add('active');
+  }
+
+  function showDetail(idx) {
+    const w = words[idx];
+    const det = document.getElementById('etyDetail');
+    const empty = document.getElementById('emptyState');
+    empty.style.display = 'none';
+    det.style.display = 'block';
+
+    let html = '<h2>' + w.word + '</h2>';
+    html += '<div class="pronunciation">Primary origin: ' + w.primaryOrigin + '</div>';
+
+    html += '<div class="ety-chain">';
+    w.chain.forEach(step => {
+      const col = LANG_COLORS[step.lang] || '#999';
+      html += '<div class="ety-step">';
+      html += '<div class="lang-label" style="color:' + col + '">' + step.lang + '</div>';
+      html += '<div class="word-form">' + step.form + '</div>';
+      html += '<div class="meaning">"' + step.meaning + '"</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+
+    if (w.funFact) {
+      html += '<div class="ety-fun-fact"><strong>Did you know?</strong>' + w.funFact + '</div>';
+    }
+
+    if (w.related && w.related.length) {
+      html += '<div class="ety-related"><h4>Related Words</h4><div class="related-chips">';
+      w.related.forEach(r => {
+        const rIdx = words.findIndex(x => x.word === r);
+        if (rIdx >= 0) {
+          html += '<button class="related-chip" onclick="window._selectWord(' + rIdx + ')">' + r + '</button>';
+        } else {
+          html += '<span class="related-chip" style="cursor:default;">' + r + '</span>';
+        }
+      });
+      html += '</div></div>';
+    }
+
+    det.innerHTML = html;
+  }
+
+  window._selectWord = selectWord;
+
+  /* ===== SEARCH ===== */
+  const searchInput = document.getElementById('searchInput');
+  const searchResults = document.getElementById('searchResults');
+
+  searchInput.addEventListener('input', function() {
+    const q = this.value.trim().toLowerCase();
+    if (q.length === 0) {
+      searchResults.classList.remove('active');
+      return;
+    }
+
+    const matches = [];
+    words.forEach((w, idx) => {
+      if (w.word.toLowerCase().includes(q)) {
+        matches.push({ word: w.word, origin: w.primaryOrigin, idx });
+      }
+      /* Also search chain forms and related words */
+      if (w.chain) {
+        w.chain.forEach(step => {
+          if (step.form.toLowerCase().includes(q) && !matches.find(m => m.idx === idx)) {
+            matches.push({ word: w.word, origin: w.primaryOrigin, idx, via: step.form });
+          }
+        });
+      }
+      if (w.related) {
+        w.related.forEach(r => {
+          if (r.toLowerCase().includes(q) && !matches.find(m => m.idx === idx)) {
+            matches.push({ word: w.word, origin: w.primaryOrigin, idx, via: r });
+          }
+        });
+      }
+    });
+
+    if (matches.length === 0) {
+      searchResults.innerHTML = '<div class="search-result-item" style="color:var(--ink-faint);">No matches found</div>';
+    } else {
+      searchResults.innerHTML = matches.map(m => {
+        const cssClass = LANG_CSS[m.origin] || 'latin';
+        const col = LANG_COLORS[m.origin] || '#999';
+        let text = m.word;
+        if (m.via) text += ' (via "' + m.via + '")';
+        return '<div class="search-result-item" data-idx="' + m.idx + '">' +
+          text +
+          '<span class="origin-tag" style="background:' + col + '">' + m.origin + '</span>' +
+          '</div>';
+      }).join('');
+    }
+
+    searchResults.classList.add('active');
+  });
+
+  searchResults.addEventListener('click', function(e) {
+    const item = e.target.closest('.search-result-item');
+    if (!item || item.dataset.idx === undefined) return;
+    selectWord(parseInt(item.dataset.idx));
+    searchInput.value = '';
+    searchResults.classList.remove('active');
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.search-box')) {
+      searchResults.classList.remove('active');
+    }
+  });
+
+  /* ===== TABS ===== */
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + this.dataset.tab).classList.add('active');
+    });
+  });
+
+  /* ===== STATS ===== */
+  function renderStats() {
+    /* Global origin stats (scholarly estimates for all of English) */
+    const globalStats = [
+      { lang: 'Latin', pct: 29, col: LANG_COLORS['Latin'] },
+      { lang: 'French', pct: 29, col: LANG_COLORS['Norman French'] },
+      { lang: 'Germanic', pct: 26, col: LANG_COLORS['Germanic'] },
+      { lang: 'Greek', pct: 6, col: LANG_COLORS['Greek'] },
+      { lang: 'Other', pct: 10, col: '#888' },
+    ];
+
+    const globalChart = document.getElementById('originChart');
+    globalChart.innerHTML = globalStats.map(s =>
+      '<div class="bar-row">' +
+      '<div class="bar-label">' + s.lang + '</div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + s.pct + '%;background:' + s.col + '">' + s.pct + '%</div></div>' +
+      '</div>'
+    ).join('');
+
+    /* Local stats from our dataset */
+    const counts = {};
+    words.forEach(w => {
+      const o = w.primaryOrigin;
+      counts[o] = (counts[o] || 0) + 1;
+    });
+    const total = words.length;
+    const localStats = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([lang, count]) => ({
+        lang,
+        count,
+        pct: Math.round(count / total * 100),
+        col: LANG_COLORS[lang] || '#888',
+      }));
+
+    const localChart = document.getElementById('localChart');
+    localChart.innerHTML = localStats.map(s =>
+      '<div class="bar-row">' +
+      '<div class="bar-label">' + s.lang + ' (' + s.count + ')</div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + s.pct + '%;background:' + s.col + '">' + s.pct + '%</div></div>' +
+      '</div>'
+    ).join('');
+  }
+
+  renderStats();
+
+  /* ===== RESIZE ===== */
+  window.addEventListener('resize', resizeCanvas);
+  setTimeout(resizeCanvas, 50);
+
+})();
+</script>
+</body>
+</html>

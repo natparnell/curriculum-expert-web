@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dialogue &amp; Speech Tagger</title>
+<style>
+:root {
+    --parchment: #f5f0e8;
+    --parchment-dark: #e8e0d0;
+    --burgundy: #7b2d3b;
+    --burgundy-light: #9e4a5a;
+    --burgundy-pale: #f0dde1;
+    --gold: #c9a84c;
+    --gold-light: #e8d9a0;
+    --gold-dark: #9a7a2e;
+    --ink: #2c2420;
+    --ink-light: #5a4e46;
+    --cream: #faf8f4;
+    --direct-speech: #3a6fa8;
+    --direct-speech-bg: rgba(58, 111, 168, 0.18);
+    --indirect-speech: #4a8c5e;
+    --indirect-speech-bg: rgba(74, 140, 94, 0.18);
+    --fid: #7b4ea0;
+    --fid-bg: rgba(123, 78, 160, 0.18);
+    --narrative: #6b6560;
+    --narrative-bg: rgba(107, 101, 96, 0.15);
+    --shadow: rgba(44, 36, 32, 0.12);
+    --radius: 6px;
+    --font-body: Georgia, 'Times New Roman', serif;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: var(--font-body);
+    background: var(--parchment);
+    color: var(--ink);
+    line-height: 1.7;
+    min-height: 100vh;
+}
+
+header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: linear-gradient(135deg, var(--burgundy) 0%, var(--burgundy-light) 100%);
+    color: var(--parchment);
+    padding: 1rem 1.5rem;
+    box-shadow: 0 3px 12px var(--shadow);
+    border-bottom: 3px solid var(--gold);
+}
+
+header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+header p {
+    font-family: var(--font-ui);
+    font-size: 0.82rem;
+    opacity: 0.88;
+    margin-top: 0.15rem;
+}
+
+.app-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 1.5rem;
+}
+
+/* Toolbar */
+.toolbar {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+    background: var(--cream);
+    padding: 0.8rem 1rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--parchment-dark);
+    box-shadow: 0 1px 4px var(--shadow);
+}
+
+.toolbar label {
+    font-family: var(--font-ui);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--ink-light);
+    margin-right: 0.2rem;
+}
+
+.toolbar select {
+    font-family: var(--font-ui);
+    font-size: 0.85rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--parchment-dark);
+    border-radius: var(--radius);
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+}
+
+.tag-buttons {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.tag-btn {
+    font-family: var(--font-ui);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.35rem 0.75rem;
+    border: 2px solid;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: transparent;
+}
+
+.tag-btn.active { color: #fff; }
+
+.tag-btn[data-tag="direct"] {
+    color: var(--direct-speech);
+    border-color: var(--direct-speech);
+}
+.tag-btn[data-tag="direct"].active,
+.tag-btn[data-tag="direct"]:hover {
+    background: var(--direct-speech);
+    color: #fff;
+}
+
+.tag-btn[data-tag="indirect"] {
+    color: var(--indirect-speech);
+    border-color: var(--indirect-speech);
+}
+.tag-btn[data-tag="indirect"].active,
+.tag-btn[data-tag="indirect"]:hover {
+    background: var(--indirect-speech);
+    color: #fff;
+}
+
+.tag-btn[data-tag="fid"] {
+    color: var(--fid);
+    border-color: var(--fid);
+}
+.tag-btn[data-tag="fid"].active,
+.tag-btn[data-tag="fid"]:hover {
+    background: var(--fid);
+    color: #fff;
+}
+
+.tag-btn[data-tag="narrative"] {
+    color: var(--narrative);
+    border-color: var(--narrative);
+}
+.tag-btn[data-tag="narrative"].active,
+.tag-btn[data-tag="narrative"]:hover {
+    background: var(--narrative);
+    color: #fff;
+}
+
+.action-btn {
+    font-family: var(--font-ui);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.35rem 0.75rem;
+    border: 2px solid var(--gold-dark);
+    border-radius: var(--radius);
+    background: var(--gold);
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-left: auto;
+}
+
+.action-btn:hover { background: var(--gold-dark); }
+
+.action-btn.check-btn {
+    background: var(--burgundy);
+    border-color: var(--burgundy);
+}
+.action-btn.check-btn:hover { background: var(--burgundy-light); }
+
+.action-btn.clear-btn {
+    background: transparent;
+    color: var(--ink-light);
+    border-color: var(--parchment-dark);
+    margin-left: 0;
+}
+.action-btn.clear-btn:hover { background: var(--parchment-dark); }
+
+/* Passage area */
+.passage-panel {
+    background: var(--cream);
+    border: 1px solid var(--parchment-dark);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px var(--shadow);
+    overflow: hidden;
+}
+
+.passage-header {
+    background: var(--parchment-dark);
+    padding: 0.6rem 1rem;
+    font-family: var(--font-ui);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--ink-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.passage-meta {
+    font-weight: 400;
+    font-style: italic;
+    font-size: 0.78rem;
+}
+
+.passage-text {
+    padding: 1.2rem 1.5rem;
+    font-size: 1.02rem;
+    line-height: 1.85;
+    cursor: text;
+    min-height: 200px;
+}
+
+.passage-text span[data-tag] {
+    border-radius: 2px;
+    padding: 1px 0;
+    cursor: pointer;
+    position: relative;
+    transition: opacity 0.15s;
+}
+
+.passage-text span[data-tag]:hover { opacity: 0.75; }
+
+.passage-text span[data-tag="direct"] {
+    background: var(--direct-speech-bg);
+    border-bottom: 2px solid var(--direct-speech);
+}
+.passage-text span[data-tag="indirect"] {
+    background: var(--indirect-speech-bg);
+    border-bottom: 2px solid var(--indirect-speech);
+}
+.passage-text span[data-tag="fid"] {
+    background: var(--fid-bg);
+    border-bottom: 2px solid var(--fid);
+}
+.passage-text span[data-tag="narrative"] {
+    background: var(--narrative-bg);
+    border-bottom: 2px solid var(--narrative);
+}
+
+/* Sidebar */
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+}
+
+.panel {
+    background: var(--cream);
+    border: 1px solid var(--parchment-dark);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px var(--shadow);
+    overflow: hidden;
+}
+
+.panel-title {
+    background: var(--parchment-dark);
+    padding: 0.5rem 0.8rem;
+    font-family: var(--font-ui);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--ink-light);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.panel-body { padding: 0.8rem; }
+
+/* Chart */
+.chart-container {
+    width: 100%;
+    height: 160px;
+    position: relative;
+}
+
+.chart-container canvas { width: 100%; height: 100%; }
+
+.chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-family: var(--font-ui);
+    font-size: 0.72rem;
+    color: var(--ink-light);
+}
+
+.legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+}
+
+/* Score */
+.score-display {
+    text-align: centre;
+    padding: 0.4rem;
+}
+
+.score-value {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: var(--burgundy);
+    font-family: var(--font-ui);
+}
+
+.score-label {
+    font-family: var(--font-ui);
+    font-size: 0.78rem;
+    color: var(--ink-light);
+}
+
+.score-breakdown {
+    margin-top: 0.5rem;
+    font-family: var(--font-ui);
+    font-size: 0.75rem;
+    color: var(--ink-light);
+    line-height: 1.6;
+}
+
+.score-breakdown .correct { color: var(--indirect-speech); font-weight: 600; }
+.score-breakdown .incorrect { color: #c0392b; font-weight: 600; }
+.score-hidden { display: none; }
+
+/* Info panel */
+.info-content {
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+
+.info-content h4 {
+    font-family: var(--font-ui);
+    font-size: 0.82rem;
+    margin: 0.6rem 0 0.25rem;
+    padding-left: 0.4rem;
+}
+
+.info-content h4:first-child { margin-top: 0; }
+
+.info-content h4.direct-label { border-left: 3px solid var(--direct-speech); color: var(--direct-speech); }
+.info-content h4.indirect-label { border-left: 3px solid var(--indirect-speech); color: var(--indirect-speech); }
+.info-content h4.fid-label { border-left: 3px solid var(--fid); color: var(--fid); }
+.info-content h4.narrative-label { border-left: 3px solid var(--narrative); color: var(--narrative); }
+
+.info-content p {
+    font-size: 0.8rem;
+    color: var(--ink-light);
+    margin-bottom: 0.3rem;
+    padding-left: 0.4rem;
+}
+
+.info-content .example {
+    font-style: italic;
+    background: var(--parchment);
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    display: block;
+    margin: 0.2rem 0 0.4rem 0.4rem;
+    font-size: 0.78rem;
+}
+
+/* Instructions */
+.instructions {
+    font-family: var(--font-ui);
+    font-size: 0.78rem;
+    color: var(--ink-light);
+    line-height: 1.6;
+}
+
+.instructions ol {
+    padding-left: 1.2rem;
+    margin: 0.3rem 0;
+}
+
+.instructions li { margin-bottom: 0.2rem; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .app-container {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+        gap: 1rem;
+    }
+
+    header { padding: 0.8rem 1rem; }
+    header h1 { font-size: 1.25rem; }
+
+    .toolbar { flex-direction: column; align-items: stretch; }
+    .tag-buttons { justify-content: center; }
+    .action-btn { margin-left: 0; }
+
+    .passage-text {
+        padding: 0.8rem 1rem;
+        font-size: 0.95rem;
+    }
+
+    .sidebar { order: 2; }
+}
+
+/* Tooltip for removing tags */
+.tag-tooltip {
+    position: absolute;
+    background: var(--ink);
+    color: var(--parchment);
+    font-family: var(--font-ui);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    z-index: 50;
+    cursor: pointer;
+    white-space: nowrap;
+    pointer-events: auto;
+}
+
+.tag-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: var(--ink);
+}
+
+/* Feedback flash */
+.feedback-flash {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--burgundy);
+    color: #fff;
+    font-family: var(--font-ui);
+    font-size: 0.85rem;
+    padding: 0.5rem 1.2rem;
+    border-radius: var(--radius);
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+}
+
+.feedback-flash.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>Dialogue &amp; Speech Tagger</h1>
+    <p>Highlight spans of direct speech, indirect speech, free indirect discourse, and narrative voice</p>
+</header>
+
+<div class="app-container">
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <label for="passage-select">Passage:</label>
+        <select id="passage-select"></select>
+        <div class="tag-buttons">
+            <button class="tag-btn active" data-tag="direct">Direct Speech</button>
+            <button class="tag-btn" data-tag="indirect">Indirect Speech</button>
+            <button class="tag-btn" data-tag="fid">Free Indirect Discourse</button>
+            <button class="tag-btn" data-tag="narrative">Narrative Voice</button>
+        </div>
+        <button class="action-btn clear-btn" id="clear-btn">Clear Tags</button>
+        <button class="action-btn check-btn" id="check-btn">Check Answers</button>
+    </div>
+
+    <!-- Passage -->
+    <div class="passage-panel">
+        <div class="passage-header">
+            <span id="passage-title"></span>
+            <span class="passage-meta" id="passage-meta"></span>
+        </div>
+        <div class="passage-text" id="passage-text"></div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <!-- How to use -->
+        <div class="panel">
+            <div class="panel-title">How to Use</div>
+            <div class="panel-body instructions">
+                <ol>
+                    <li>Choose a tagging mode from the buttons above.</li>
+                    <li>Click and drag across text in the passage to highlight it.</li>
+                    <li>Click any tagged span to remove the tag.</li>
+                    <li>Press "Check Answers" to see your accuracy score.</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="panel">
+            <div class="panel-title">Proportions</div>
+            <div class="panel-body">
+                <div class="chart-container">
+                    <canvas id="chart-canvas"></canvas>
+                </div>
+                <div class="chart-legend">
+                    <div class="legend-item"><span class="legend-swatch" style="background:var(--direct-speech)"></span>Direct</div>
+                    <div class="legend-item"><span class="legend-swatch" style="background:var(--indirect-speech)"></span>Indirect</div>
+                    <div class="legend-item"><span class="legend-swatch" style="background:var(--fid)"></span>FID</div>
+                    <div class="legend-item"><span class="legend-swatch" style="background:var(--narrative)"></span>Narrative</div>
+                    <div class="legend-item"><span class="legend-swatch" style="background:#ddd"></span>Untagged</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Score -->
+        <div class="panel score-hidden" id="score-panel">
+            <div class="panel-title">Score</div>
+            <div class="panel-body score-display">
+                <div class="score-value" id="score-value">0%</div>
+                <div class="score-label">accuracy</div>
+                <div class="score-breakdown" id="score-breakdown"></div>
+            </div>
+        </div>
+
+        <!-- Info -->
+        <div class="panel">
+            <div class="panel-title">Speech Types</div>
+            <div class="panel-body info-content">
+                <h4 class="direct-label">Direct Speech</h4>
+                <p>The exact words spoken, enclosed in quotation marks, with a reporting clause.</p>
+                <span class="example">"I shall never come back," she said firmly.</span>
+
+                <h4 class="indirect-label">Indirect Speech</h4>
+                <p>Reported speech filtered through the narrator, without quotation marks, often with "that".</p>
+                <span class="example">She told him that she would never come back.</span>
+
+                <h4 class="fid-label">Free Indirect Discourse</h4>
+                <p>Blends character thought or speech into the narrator's voice: no quotation marks, third person, but the character's idiom and feeling.</p>
+                <span class="example">She would never come back. It was simply impossible.</span>
+
+                <h4 class="narrative-label">Narrative Voice</h4>
+                <p>The narrator's own description, commentary, or scene-setting, with no character speech blended in.</p>
+                <span class="example">The sun had long since set over the moor.</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="feedback-flash" id="feedback">Tagged!</div>
+
+<script>
+(function() {
+    'use strict';
+
+    // ===== PASSAGE DATA =====
+    const passages = [
+        {
+            id: 'austen',
+            title: 'Pride and Prejudice (adapted)',
+            author: 'After Jane Austen',
+            genre: 'Regency novel',
+            // Each segment: [text, correctTag]
+            // correctTag: 'direct' | 'indirect' | 'fid' | 'narrative'
+            segments: [
+                ["Elizabeth walked briskly along the lane, her boots muddied from the morning rain. ", "narrative"],
+                ["The hedgerows glistened in the pale light. ", "narrative"],
+                ["She had resolved that nothing in the world would induce her to accept him. ", "fid"],
+                ["Such arrogance! Such unbearable presumption! ", "fid"],
+                ["Her mother, upon hearing the intelligence, reported that Mr Collins had told her that he would renew his addresses on the morrow. ", "indirect"],
+                ["\"I am determined,\" said Elizabeth, \"that no consideration shall tempt me to accept a man so wholly disagreeable.\" ", "direct"],
+                ["Mrs Bennet declared that her daughter would surely come to her senses. ", "indirect"],
+                ["\"You must accept him, Lizzy!\" she cried. \"Think of what is at stake!\" ", "direct"],
+                ["Elizabeth looked out across the park. How could her mother not see it? The man was insufferable. ", "fid"],
+                ["The carriage passed slowly beneath the avenue of elms.", "narrative"]
+            ]
+        },
+        {
+            id: 'dickens',
+            title: 'Hard Times (adapted)',
+            author: 'After Charles Dickens',
+            genre: 'Victorian social novel',
+            segments: [
+                ["The schoolroom was a plain, bare, monotonous vault of brick. ", "narrative"],
+                ["\"Now, what I want is Facts,\" said Mr Gradgrind. \"Facts alone are wanted in life.\" ", "direct"],
+                ["He told the children that they were to remember nothing but Facts at all times. ", "indirect"],
+                ["The speaker's square forefinger emphasised his observations by underscoring every sentence with a line on the schoolmaster's sleeve. ", "narrative"],
+                ["Girl number twenty could not define a horse? ", "fid"],
+                ["How utterly ridiculous. He would teach her. He would teach them all. ", "fid"],
+                ["He explained to the class that a horse was a graminivorous quadruped, and that they must never call it anything else. ", "indirect"],
+                ["\"Bitzer,\" said Mr Gradgrind, \"your definition of a horse.\" ", "direct"],
+                ["\"Quadruped. Graminivorous. Forty teeth,\" recited the boy without hesitation. ", "direct"],
+                ["The sunlight crept across the dusty floorboards, indifferent to the instruction being dispensed.", "narrative"]
+            ]
+        },
+        {
+            id: 'woolf',
+            title: 'Mrs Dalloway (adapted)',
+            author: 'After Virginia Woolf',
+            genre: 'Modernist novel',
+            segments: [
+                ["Mrs Dalloway said she would buy the flowers herself. ", "indirect"],
+                ["What a morning! Fresh as if issued to children on a beach. ", "fid"],
+                ["She felt very young; at the same time unspeakably aged. ", "fid"],
+                ["The doors were taken off their hinges at Bourton and the morning air flooded the room. ", "narrative"],
+                ["\"I love walking in London,\" said Clarissa. \"Really, it is better than walking in the country.\" ", "direct"],
+                ["Peter Walsh had told her once that she would marry a prime minister. ", "indirect"],
+                ["She stiffened a little on the kerb, waiting for the van to pass. ", "narrative"],
+                ["But what was she going to do? That was the question. She was not old yet. She had just turned fifty-one. ", "fid"],
+                ["\"Remember my party tonight!\" she called to Hugh Whitbread as he strode away. ", "direct"],
+                ["Big Ben struck the half-hour, its leaden circles dissolving in the June air.", "narrative"]
+            ]
+        },
+        {
+            id: 'bronte',
+            title: 'Jane Eyre (adapted)',
+            author: 'After Charlotte Bronte',
+            genre: 'Gothic romance',
+            segments: [
+                ["The red-room was square and dark, hung with curtains of deep crimson. ", "narrative"],
+                ["Jane pressed her face to the cold window pane. ", "narrative"],
+                ["\"You have no business reading books meant for gentlemen's children,\" snapped John Reed. ", "direct"],
+                ["He told her that she was a dependent and had no money of her own. ", "indirect"],
+                ["She ought not to live with gentlemen's children. She was not worthy. She was less than a servant. ", "fid"],
+                ["But something stirred inside her. She would not submit to this cruelty, not any longer. ", "fid"],
+                ["\"You are a wicked, cruel boy!\" Jane cried. \"You are like a murderer!\" ", "direct"],
+                ["Mrs Reed informed the company that the child was deceitful by nature and must be watched. ", "indirect"],
+                ["The evening shadows grew long upon the landing. ", "narrative"],
+                ["She sat alone on the window seat, the curtain drawn about her like a shroud.", "narrative"]
+            ]
+        },
+        {
+            id: 'orwell',
+            title: 'Nineteen Eighty-Four (adapted)',
+            author: 'After George Orwell',
+            genre: 'Dystopian fiction',
+            segments: [
+                ["It was a bright cold day in April, and the clocks were striking thirteen. ", "narrative"],
+                ["Winston Smith, his chin nuzzled into his breast, slipped quickly through the glass doors. ", "narrative"],
+                ["\"Freedom is Slavery,\" the telescreen announced. \"Ignorance is Strength.\" ", "direct"],
+                ["He had been told by the Party that Oceania had always been at war with Eastasia. ", "indirect"],
+                ["Was it true? Had they always been at war? He could not remember. Nobody could remember. ", "fid"],
+                ["The flat was seven flights up and he felt the varicose ulcer above his ankle throbbing at every step. ", "narrative"],
+                ["O'Brien murmured that he believed they shared the same understanding. ", "indirect"],
+                ["\"You are thinking,\" said O'Brien, \"that my face is old and tired.\" ", "direct"],
+                ["Perhaps the Party was right. Perhaps two and two did make five. Perhaps one simply had to try harder to see it. ", "fid"],
+                ["The telescreen received and transmitted simultaneously, its glass surface flickering in the half-light.", "narrative"]
+            ]
+        }
+    ];
+
+    // ===== STATE =====
+    let activeTag = 'direct';
+    let currentPassageIndex = 0;
+    let userAnnotations = []; // array of { segIndex, tag }
+    let checkedMode = false;
+
+    // ===== DOM REFS =====
+    const passageSelect = document.getElementById('passage-select');
+    const passageTitle = document.getElementById('passage-title');
+    const passageMeta = document.getElementById('passage-meta');
+    const passageText = document.getElementById('passage-text');
+    const chartCanvas = document.getElementById('chart-canvas');
+    const ctx = chartCanvas.getContext('2d');
+    const checkBtn = document.getElementById('check-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const scorePanel = document.getElementById('score-panel');
+    const scoreValue = document.getElementById('score-value');
+    const scoreBreakdown = document.getElementById('score-breakdown');
+    const feedbackEl = document.getElementById('feedback');
+    const tagButtons = document.querySelectorAll('.tag-btn');
+
+    // ===== INITIALISE PASSAGE SELECT =====
+    passages.forEach(function(p, i) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = p.title;
+        passageSelect.appendChild(opt);
+    });
+
+    passageSelect.addEventListener('change', function() {
+        currentPassageIndex = parseInt(this.value, 10);
+        loadPassage();
+    });
+
+    // ===== TAG BUTTON SELECTION =====
+    tagButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            tagButtons.forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            activeTag = btn.getAttribute('data-tag');
+        });
+    });
+
+    // ===== LOAD PASSAGE =====
+    function loadPassage() {
+        checkedMode = false;
+        scorePanel.classList.add('score-hidden');
+        const p = passages[currentPassageIndex];
+        passageTitle.textContent = p.title;
+        passageMeta.textContent = p.genre + ' \u2014 ' + p.author;
+
+        userAnnotations = p.segments.map(function() { return null; });
+
+        renderPassage();
+        updateChart();
+    }
+
+    // ===== RENDER PASSAGE =====
+    function renderPassage() {
+        const p = passages[currentPassageIndex];
+        passageText.innerHTML = '';
+
+        p.segments.forEach(function(seg, i) {
+            var span = document.createElement('span');
+            span.setAttribute('data-seg', i);
+            span.textContent = seg[0];
+
+            if (userAnnotations[i]) {
+                span.setAttribute('data-tag', userAnnotations[i]);
+            }
+
+            passageText.appendChild(span);
+        });
+    }
+
+    // ===== TEXT SELECTION / TAGGING =====
+    passageText.addEventListener('mouseup', function(e) {
+        if (checkedMode) return;
+
+        // Check if clicked on an already-tagged span to remove it
+        var target = e.target;
+        if (target.hasAttribute('data-tag') && target.hasAttribute('data-seg')) {
+            var sel = window.getSelection();
+            if (!sel || sel.toString().trim().length === 0) {
+                var idx = parseInt(target.getAttribute('data-seg'), 10);
+                userAnnotations[idx] = null;
+                target.removeAttribute('data-tag');
+                updateChart();
+                showFeedback('Tag removed');
+                return;
+            }
+        }
+
+        var selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0 || selection.toString().trim().length === 0) return;
+
+        var range = selection.getRangeAt(0);
+
+        // Find all segment spans that overlap with the selection
+        var startNode = range.startContainer;
+        var endNode = range.endContainer;
+
+        var startSeg = findSegSpan(startNode);
+        var endSeg = findSegSpan(endNode);
+
+        if (!startSeg || !endSeg) {
+            selection.removeAllRanges();
+            return;
+        }
+
+        var startIdx = parseInt(startSeg.getAttribute('data-seg'), 10);
+        var endIdx = parseInt(endSeg.getAttribute('data-seg'), 10);
+
+        if (startIdx > endIdx) {
+            var tmp = startIdx;
+            startIdx = endIdx;
+            endIdx = tmp;
+        }
+
+        // Tag all segments in range
+        var tagged = 0;
+        for (var i = startIdx; i <= endIdx; i++) {
+            userAnnotations[i] = activeTag;
+            tagged++;
+        }
+
+        selection.removeAllRanges();
+        renderPassage();
+        updateChart();
+
+        var tagNames = { direct: 'Direct Speech', indirect: 'Indirect Speech', fid: 'FID', narrative: 'Narrative' };
+        showFeedback(tagNames[activeTag] + ' (' + tagged + (tagged === 1 ? ' segment' : ' segments') + ')');
+    });
+
+    function findSegSpan(node) {
+        var el = node.nodeType === 3 ? node.parentElement : node;
+        while (el && el !== passageText) {
+            if (el.hasAttribute && el.hasAttribute('data-seg')) return el;
+            el = el.parentElement;
+        }
+        return null;
+    }
+
+    // ===== FEEDBACK FLASH =====
+    function showFeedback(msg) {
+        feedbackEl.textContent = msg;
+        feedbackEl.classList.add('show');
+        setTimeout(function() { feedbackEl.classList.remove('show'); }, 1200);
+    }
+
+    // ===== CHART =====
+    function updateChart() {
+        var p = passages[currentPassageIndex];
+        var counts = { direct: 0, indirect: 0, fid: 0, narrative: 0, untagged: 0 };
+        var totalChars = 0;
+
+        p.segments.forEach(function(seg, i) {
+            var len = seg[0].length;
+            totalChars += len;
+            var tag = userAnnotations[i];
+            if (tag && counts.hasOwnProperty(tag)) {
+                counts[tag] += len;
+            } else {
+                counts.untagged += len;
+            }
+        });
+
+        drawChart(counts, totalChars);
+    }
+
+    function drawChart(counts, total) {
+        var dpr = window.devicePixelRatio || 1;
+        var rect = chartCanvas.parentElement.getBoundingClientRect();
+        chartCanvas.width = rect.width * dpr;
+        chartCanvas.height = rect.height * dpr;
+        chartCanvas.style.width = rect.width + 'px';
+        chartCanvas.style.height = rect.height + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        var w = rect.width;
+        var h = rect.height;
+        var barHeight = 32;
+        var barY = 20;
+        var padding = 10;
+        var barWidth = w - padding * 2;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Title
+        ctx.font = '600 11px -apple-system, sans-serif';
+        ctx.fillStyle = '#5a4e46';
+        ctx.fillText('Tagged text proportions', padding, 14);
+
+        if (total === 0) return;
+
+        var colours = {
+            direct: '#3a6fa8',
+            indirect: '#4a8c5e',
+            fid: '#7b4ea0',
+            narrative: '#6b6560',
+            untagged: '#ddd'
+        };
+
+        var order = ['direct', 'indirect', 'fid', 'narrative', 'untagged'];
+        var x = padding;
+
+        // Rounded rect background
+        ctx.fillStyle = '#eee';
+        roundRect(ctx, padding, barY, barWidth, barHeight, 4);
+        ctx.fill();
+
+        // Draw segments
+        order.forEach(function(key, idx) {
+            var segW = (counts[key] / total) * barWidth;
+            if (segW < 0.5) return;
+            ctx.fillStyle = colours[key];
+
+            if (idx === 0 && segW > 0) {
+                // First segment: round left corners
+                ctx.beginPath();
+                ctx.moveTo(x + 4, barY);
+                ctx.arcTo(x, barY, x, barY + barHeight, 4);
+                ctx.arcTo(x, barY + barHeight, x + segW, barY + barHeight, 4);
+                ctx.lineTo(x + segW, barY + barHeight);
+                ctx.lineTo(x + segW, barY);
+                ctx.closePath();
+                ctx.fill();
+            } else {
+                ctx.fillRect(x, barY, segW, barHeight);
+            }
+
+            x += segW;
+        });
+
+        // Last segment round right corners overlay
+        ctx.save();
+        ctx.beginPath();
+        roundRect(ctx, padding, barY, barWidth, barHeight, 4);
+        ctx.clip();
+        x = padding;
+        order.forEach(function(key) {
+            var segW = (counts[key] / total) * barWidth;
+            if (segW < 0.5) { x += segW; return; }
+            ctx.fillStyle = colours[key];
+            ctx.fillRect(x, barY, segW, barHeight);
+            x += segW;
+        });
+        ctx.restore();
+
+        // Percentage labels below bar
+        var labelY = barY + barHeight + 18;
+        ctx.font = '600 10px -apple-system, sans-serif';
+        var labelX = padding;
+        var labels = [
+            { key: 'direct', name: 'D' },
+            { key: 'indirect', name: 'I' },
+            { key: 'fid', name: 'F' },
+            { key: 'narrative', name: 'N' }
+        ];
+
+        labels.forEach(function(lbl, i) {
+            var pct = Math.round((counts[lbl.key] / total) * 100);
+            if (pct === 0) return;
+            ctx.fillStyle = colours[lbl.key];
+            var text = lbl.name + ': ' + pct + '%';
+            ctx.fillText(text, labelX, labelY);
+            labelX += ctx.measureText(text).width + 14;
+        });
+
+        var untaggedPct = Math.round((counts.untagged / total) * 100);
+        if (untaggedPct > 0) {
+            ctx.fillStyle = '#999';
+            ctx.fillText('Untagged: ' + untaggedPct + '%', labelX, labelY);
+        }
+
+        // Model answer bar (if checked)
+        if (checkedMode) {
+            var modelBarY = labelY + 14;
+            ctx.font = '600 11px -apple-system, sans-serif';
+            ctx.fillStyle = '#5a4e46';
+            ctx.fillText('Model answer proportions', padding, modelBarY);
+
+            modelBarY += 8;
+            var p = passages[currentPassageIndex];
+            var modelCounts = { direct: 0, indirect: 0, fid: 0, narrative: 0, untagged: 0 };
+            p.segments.forEach(function(seg) {
+                modelCounts[seg[1]] += seg[0].length;
+            });
+
+            ctx.fillStyle = '#eee';
+            roundRect(ctx, padding, modelBarY, barWidth, barHeight, 4);
+            ctx.fill();
+
+            ctx.save();
+            ctx.beginPath();
+            roundRect(ctx, padding, modelBarY, barWidth, barHeight, 4);
+            ctx.clip();
+            x = padding;
+            order.forEach(function(key) {
+                var segW = (modelCounts[key] / total) * barWidth;
+                if (segW < 0.5) { x += segW; return; }
+                ctx.fillStyle = colours[key];
+                ctx.fillRect(x, modelBarY, segW, barHeight);
+                x += segW;
+            });
+            ctx.restore();
+
+            var modelLabelY = modelBarY + barHeight + 18;
+            ctx.font = '600 10px -apple-system, sans-serif';
+            labelX = padding;
+            labels.forEach(function(lbl) {
+                var pct = Math.round((modelCounts[lbl.key] / total) * 100);
+                if (pct === 0) return;
+                ctx.fillStyle = colours[lbl.key];
+                var text = lbl.name + ': ' + pct + '%';
+                ctx.fillText(text, labelX, modelLabelY);
+                labelX += ctx.measureText(text).width + 14;
+            });
+        }
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    }
+
+    // ===== CHECK ANSWERS =====
+    checkBtn.addEventListener('click', function() {
+        var p = passages[currentPassageIndex];
+        var correct = 0;
+        var total = p.segments.length;
+        var tagged = 0;
+        var details = { direct: { c: 0, t: 0 }, indirect: { c: 0, t: 0 }, fid: { c: 0, t: 0 }, narrative: { c: 0, t: 0 } };
+
+        p.segments.forEach(function(seg, i) {
+            var expected = seg[1];
+            var given = userAnnotations[i];
+            details[expected].t++;
+            if (given) {
+                tagged++;
+                if (given === expected) {
+                    correct++;
+                    details[expected].c++;
+                }
+            }
+        });
+
+        if (tagged === 0) {
+            showFeedback('Tag some text first!');
+            return;
+        }
+
+        checkedMode = true;
+
+        // Highlight correct/incorrect on passage
+        var spans = passageText.querySelectorAll('span[data-seg]');
+        spans.forEach(function(span) {
+            var idx = parseInt(span.getAttribute('data-seg'), 10);
+            var expected = p.segments[idx][1];
+            var given = userAnnotations[idx];
+            if (given) {
+                if (given === expected) {
+                    span.style.outline = '2px solid #27ae60';
+                    span.style.outlineOffset = '1px';
+                } else {
+                    span.style.outline = '2px solid #c0392b';
+                    span.style.outlineOffset = '1px';
+                    span.style.textDecoration = 'line-through';
+                    span.style.textDecorationColor = '#c0392b';
+                }
+            }
+        });
+
+        var pct = Math.round((correct / tagged) * 100);
+        scoreValue.textContent = pct + '%';
+        scorePanel.classList.remove('score-hidden');
+
+        var bdHtml = '<strong>' + correct + '</strong> of <strong>' + tagged + '</strong> tagged segments correct';
+        if (tagged < total) {
+            bdHtml += ' (' + (total - tagged) + ' untagged)';
+        }
+        bdHtml += '<br><br>';
+
+        var tagNames = { direct: 'Direct Speech', indirect: 'Indirect Speech', fid: 'FID', narrative: 'Narrative' };
+        Object.keys(details).forEach(function(key) {
+            var d = details[key];
+            if (d.t > 0) {
+                var status = d.c === d.t ? 'correct' : (d.c > 0 ? 'incorrect' : 'incorrect');
+                bdHtml += tagNames[key] + ': <span class="' + (d.c === d.t ? 'correct' : 'incorrect') + '">' + d.c + '/' + d.t + '</span><br>';
+            }
+        });
+
+        scoreBreakdown.innerHTML = bdHtml;
+        updateChart();
+    });
+
+    // ===== CLEAR TAGS =====
+    clearBtn.addEventListener('click', function() {
+        var p = passages[currentPassageIndex];
+        userAnnotations = p.segments.map(function() { return null; });
+        checkedMode = false;
+        scorePanel.classList.add('score-hidden');
+        renderPassage();
+        updateChart();
+        showFeedback('All tags cleared');
+    });
+
+    // ===== RESIZE HANDLING =====
+    window.addEventListener('resize', function() {
+        updateChart();
+    });
+
+    // ===== KEYBOARD SHORTCUTS =====
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+        switch (e.key) {
+            case '1':
+                setActiveTag('direct');
+                break;
+            case '2':
+                setActiveTag('indirect');
+                break;
+            case '3':
+                setActiveTag('fid');
+                break;
+            case '4':
+                setActiveTag('narrative');
+                break;
+        }
+    });
+
+    function setActiveTag(tag) {
+        activeTag = tag;
+        tagButtons.forEach(function(b) {
+            b.classList.toggle('active', b.getAttribute('data-tag') === tag);
+        });
+    }
+
+    // ===== BOOT =====
+    loadPassage();
+
+})();
+</script>
+</body>
+</html>

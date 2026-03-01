@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Storm Hydrograph Builder</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#121e1e;--panel:#152626;--panel-border:#1f3d3d;
+  --teal:#2a9d8f;--teal-light:#52c7b8;--teal-dark:#1a6b60;
+  --earth:#c8a45a;--earth-dark:#8a7030;--earth-light:#e0c87a;
+  --water:#4aa8d8;--water-light:#7ec8f0;--water-dark:#2670a0;
+  --rain:#5b9bd5;--rain-light:#8abde8;
+  --text:#e0e8e6;--text-dim:#8a9e9c;--text-muted:#5a7270;
+  --accent:#2a9d8f;--accent-light:#40c4b0;
+  --danger:#d45d56;--compare:#d4a04a;
+  --radius:10px;
+}
+html,body{height:100%;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text)}
+body{overflow-x:hidden}
+
+/* Header */
+header{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#0e2020,#132828);padding:12px 24px;border-bottom:2px solid var(--panel-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+header h1{font-size:1.3rem;font-weight:700;background:linear-gradient(90deg,var(--teal-light),var(--earth));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:.5px}
+header p{font-size:.78rem;color:var(--text-dim);margin-top:2px}
+.header-btns{display:flex;gap:8px;align-items:center}
+.header-btns button{padding:6px 14px;border:1px solid var(--panel-border);border-radius:6px;background:var(--panel);color:var(--text);cursor:pointer;font-size:.8rem;transition:all .2s}
+.header-btns button:hover{background:var(--teal-dark);border-color:var(--teal)}
+.header-btns button.active{background:var(--teal);border-color:var(--teal);color:#fff}
+.header-btns button.compare-btn.active{background:var(--compare);border-color:var(--compare)}
+
+/* Layout */
+#app{display:grid;grid-template-columns:300px 1fr;grid-template-rows:1fr;min-height:calc(100vh - 60px)}
+
+/* Sidebar */
+aside{background:var(--panel);border-right:2px solid var(--panel-border);padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+aside::-webkit-scrollbar{width:6px}
+aside::-webkit-scrollbar-thumb{background:var(--panel-border);border-radius:3px}
+
+.section-title{font-size:.72rem;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);font-weight:700;padding:4px 0 2px}
+
+.slider-group{background:rgba(0,0,0,.2);border-radius:var(--radius);padding:10px 12px}
+.slider-group label{display:flex;justify-content:space-between;font-size:.76rem;color:var(--text-dim);margin-bottom:5px;font-weight:600}
+.slider-group label span{color:var(--teal-light);font-weight:700}
+.slider-group input[type=range]{-webkit-appearance:none;width:100%;height:5px;border-radius:3px;outline:none;cursor:pointer;background:linear-gradient(90deg,var(--panel-border),var(--teal-dark))}
+.slider-group input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--teal);cursor:pointer;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+
+.preset-group{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.preset-btn{padding:7px 6px;border:1px solid var(--panel-border);border-radius:6px;background:rgba(0,0,0,.2);color:var(--text-dim);cursor:pointer;font-size:.72rem;text-align:center;transition:all .2s;font-weight:600}
+.preset-btn:hover{border-color:var(--teal);color:var(--text)}
+.preset-btn.active{border-color:var(--teal);background:var(--teal-dark);color:#fff}
+
+.compare-label{display:flex;align-items:center;gap:8px;font-size:.76rem;color:var(--text-dim);padding:6px 12px;background:rgba(0,0,0,.2);border-radius:var(--radius)}
+.compare-label .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.dot-primary{background:var(--teal)}
+.dot-compare{background:var(--compare)}
+
+/* Main area */
+main{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);position:relative}
+
+.canvas-area{flex:1;position:relative;min-height:0}
+.canvas-area canvas{display:block;width:100%;height:100%}
+
+/* Stats bar */
+.stats-bar{display:flex;gap:0;border-top:1px solid var(--panel-border);background:var(--panel);flex-shrink:0}
+.stat-item{flex:1;padding:8px 12px;text-align:center;border-right:1px solid var(--panel-border)}
+.stat-item:last-child{border-right:none}
+.stat-item .stat-label{font-size:.65rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:2px}
+.stat-item .stat-value{font-size:.95rem;font-weight:700;color:var(--teal-light)}
+.stat-item .stat-value.compare-val{color:var(--compare)}
+
+/* Info panel */
+.info-toggle{position:absolute;top:10px;right:10px;z-index:20;padding:6px 12px;border:1px solid var(--panel-border);border-radius:6px;background:var(--panel);color:var(--text-dim);cursor:pointer;font-size:.75rem;transition:all .2s}
+.info-toggle:hover{border-color:var(--teal);color:var(--text)}
+.info-panel{position:absolute;top:0;right:0;width:380px;height:100%;background:rgba(18,30,30,.97);border-left:2px solid var(--panel-border);padding:20px;overflow-y:auto;z-index:15;transform:translateX(100%);transition:transform .3s ease;backdrop-filter:blur(6px)}
+.info-panel.open{transform:translateX(0)}
+.info-panel h3{color:var(--teal-light);font-size:.95rem;margin:14px 0 6px;font-weight:700}
+.info-panel h3:first-child{margin-top:0}
+.info-panel p,.info-panel li{font-size:.8rem;line-height:1.6;color:var(--text-dim)}
+.info-panel ul{padding-left:18px;margin:4px 0 10px}
+.info-panel .close-info{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.2rem}
+.info-panel .close-info:hover{color:var(--text)}
+
+/* Responsive */
+@media(max-width:768px){
+  #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  aside{flex-direction:row;flex-wrap:wrap;overflow-x:auto;overflow-y:hidden;border-right:none;border-bottom:2px solid var(--panel-border);max-height:240px;padding:10px}
+  .slider-group{min-width:180px;flex:1}
+  .preset-group{min-width:180px}
+  .section-title{min-width:100%;flex-basis:100%}
+  .info-panel{width:100%}
+  header{padding:10px 16px}
+  header h1{font-size:1.1rem}
+  .stats-bar{flex-wrap:wrap}
+  .stat-item{min-width:33%}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Storm Hydrograph Builder</h1>
+    <p>Adjust catchment characteristics and watch the hydrograph respond in real time</p>
+  </div>
+  <div class="header-btns">
+    <button class="compare-btn" id="compareBtn" onclick="toggleCompare()">Compare Mode</button>
+    <button onclick="resetAll()">Reset</button>
+  </div>
+</header>
+
+<div id="app">
+<aside>
+  <div class="section-title">Rainfall</div>
+  <div class="slider-group">
+    <label>Rainfall Intensity <span id="rainVal">30 mm/hr</span></label>
+    <input type="range" id="rainSlider" min="5" max="80" value="30" step="1">
+  </div>
+  <div class="slider-group">
+    <label>Storm Duration <span id="durationVal">3 hrs</span></label>
+    <input type="range" id="durationSlider" min="1" max="8" value="3" step="0.5">
+  </div>
+
+  <div class="section-title">Basin Characteristics</div>
+  <div class="slider-group">
+    <label>Impermeable Surfaces <span id="impermVal">25%</span></label>
+    <input type="range" id="impermSlider" min="0" max="100" value="25" step="1">
+  </div>
+  <div class="slider-group">
+    <label>Slope Angle <span id="slopeVal">10&deg;</span></label>
+    <input type="range" id="slopeSlider" min="1" max="45" value="10" step="1">
+  </div>
+  <div class="slider-group">
+    <label>Vegetation Cover <span id="vegVal">50%</span></label>
+    <input type="range" id="vegSlider" min="0" max="100" value="50" step="1">
+  </div>
+  <div class="slider-group">
+    <label>Drainage Density <span id="drainVal">Medium</span></label>
+    <input type="range" id="drainSlider" min="1" max="10" value="5" step="1">
+  </div>
+  <div class="slider-group">
+    <label>Antecedent Moisture <span id="moistureVal">40%</span></label>
+    <input type="range" id="moistureSlider" min="0" max="100" value="40" step="1">
+  </div>
+
+  <div class="section-title">Presets</div>
+  <div class="preset-group">
+    <button class="preset-btn" onclick="applyPreset('urban')">Urban Catchment</button>
+    <button class="preset-btn" onclick="applyPreset('rural')">Rural Forested</button>
+    <button class="preset-btn" onclick="applyPreset('moorland')">Moorland</button>
+    <button class="preset-btn" onclick="applyPreset('clay')">Clay Soil</button>
+  </div>
+
+  <div id="compareLegend" class="compare-label" style="display:none">
+    <span class="dot dot-primary"></span> Current
+    <span class="dot dot-compare"></span> Saved Comparison
+  </div>
+</aside>
+
+<main>
+  <div class="canvas-area">
+    <canvas id="canvas"></canvas>
+    <button class="info-toggle" onclick="toggleInfo()">&#9432; Info</button>
+    <div class="info-panel" id="infoPanel">
+      <button class="close-info" onclick="toggleInfo()">&times;</button>
+      <h3>What is a Storm Hydrograph?</h3>
+      <p>A storm hydrograph shows how a river's discharge changes over time in response to a rainfall event. It plots time on the x-axis against discharge (cumecs, or m&sup3;/s) on the y-axis, revealing how quickly water reaches the river channel after a storm.</p>
+
+      <h3>Key Features</h3>
+      <ul>
+        <li><strong>Peak discharge:</strong> the highest point on the hydrograph, representing maximum river flow.</li>
+        <li><strong>Lag time:</strong> the delay between peak rainfall and peak discharge. Shorter lag times indicate a flashier response, increasing flood risk.</li>
+        <li><strong>Rising limb:</strong> the steep section showing discharge increasing as water reaches the channel.</li>
+        <li><strong>Falling limb (recession limb):</strong> the gentler slope as discharge returns to normal after the peak.</li>
+        <li><strong>Base flow:</strong> the normal level of discharge fed by groundwater between storms.</li>
+        <li><strong>Storm flow (overland flow):</strong> the additional discharge above base flow caused by the rainfall event.</li>
+      </ul>
+
+      <h3>Factors Affecting Flood Risk</h3>
+      <ul>
+        <li><strong>Impermeable surfaces:</strong> concrete and tarmac prevent infiltration, increasing surface runoff and producing a shorter lag time with higher peak discharge.</li>
+        <li><strong>Slope angle:</strong> steeper slopes encourage faster overland flow, reducing lag time.</li>
+        <li><strong>Vegetation cover:</strong> trees and plants intercept rainfall and promote infiltration through root networks, flattening the hydrograph.</li>
+        <li><strong>Drainage density:</strong> a dense network of tributaries moves water to the main channel faster.</li>
+        <li><strong>Antecedent moisture:</strong> saturated soil from prior rainfall cannot absorb as much water, increasing runoff.</li>
+        <li><strong>Rainfall intensity and duration:</strong> heavier, longer storms produce more runoff and higher peaks.</li>
+        <li><strong>Soil type:</strong> clay soils are less permeable than sandy soils, so runoff increases.</li>
+      </ul>
+
+      <h3>River Management Strategies</h3>
+      <ul>
+        <li><strong>Afforestation:</strong> planting trees to intercept rainfall and slow throughflow.</li>
+        <li><strong>Flood plains:</strong> allowing rivers to flood onto natural plains to store excess water.</li>
+        <li><strong>Sustainable urban drainage (SuDS):</strong> permeable paving, rain gardens, and retention ponds to mimic natural drainage.</li>
+        <li><strong>Channel engineering:</strong> widening, deepening, or straightening channels to increase capacity.</li>
+        <li><strong>Flood barriers and embankments:</strong> physical structures to prevent floodwater reaching settlements.</li>
+      </ul>
+
+      <h3>Interpreting the Hydrograph</h3>
+      <p>A "flashy" hydrograph has a steep rising limb, a high peak, a short lag time, and a steep falling limb. This is typical of urban catchments with lots of impermeable surfaces. A "flat" hydrograph has a gentle rising limb, lower peak, long lag time, and a gradual recession. This is typical of rural, well-vegetated catchments with permeable soils.</p>
+
+      <h3>Runoff Coefficient</h3>
+      <p>The runoff coefficient represents the proportion of rainfall that becomes direct surface runoff (between 0 and 1). A coefficient of 0.8 means 80% of rainfall runs off the surface rather than infiltrating. Urban areas typically have coefficients above 0.7, whilst forested areas may be below 0.3.</p>
+
+      <h3>Using Compare Mode</h3>
+      <p>Click "Compare Mode" to freeze the current hydrograph as a reference (shown in gold). Then adjust the sliders to see how changes affect the shape. This is especially useful for comparing urban versus rural catchments, or examining the effect of a single variable such as vegetation cover.</p>
+
+      <h3>Exam Tips</h3>
+      <ul>
+        <li>Always refer to specific features by name: lag time, peak discharge, rising limb, falling limb, base flow.</li>
+        <li>When explaining flood risk, link physical factors (e.g. impermeable surfaces) to hydrograph shape (e.g. shorter lag time, higher peak).</li>
+        <li>Use data from the stats bar to support your descriptions with precise figures.</li>
+        <li>Compare two contrasting scenarios (e.g. before and after urbanisation) using compare mode to build evaluation paragraphs.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-item"><div class="stat-label">Peak Discharge</div><div class="stat-value" id="statPeak">--</div></div>
+    <div class="stat-item"><div class="stat-label">Lag Time</div><div class="stat-value" id="statLag">--</div></div>
+    <div class="stat-item"><div class="stat-label">Time to Peak</div><div class="stat-value" id="statTimePeak">--</div></div>
+    <div class="stat-item"><div class="stat-label">Base Flow</div><div class="stat-value" id="statBase">--</div></div>
+    <div class="stat-item"><div class="stat-label">Runoff Coeff.</div><div class="stat-value" id="statRunoff">--</div></div>
+    <div class="stat-item"><div class="stat-label">Flood Risk</div><div class="stat-value" id="statRisk">--</div></div>
+  </div>
+</main>
+</div>
+
+<script>
+/* ── State ─────────────────────────────────────────────── */
+const sliders = {
+  rain: document.getElementById('rainSlider'),
+  duration: document.getElementById('durationSlider'),
+  imperm: document.getElementById('impermSlider'),
+  slope: document.getElementById('slopeSlider'),
+  veg: document.getElementById('vegSlider'),
+  drain: document.getElementById('drainSlider'),
+  moisture: document.getElementById('moistureSlider')
+};
+const labels = {
+  rain: document.getElementById('rainVal'),
+  duration: document.getElementById('durationVal'),
+  imperm: document.getElementById('impermVal'),
+  slope: document.getElementById('slopeVal'),
+  veg: document.getElementById('vegVal'),
+  drain: document.getElementById('drainVal'),
+  moisture: document.getElementById('moistureVal')
+};
+
+let compareMode = false;
+let savedHydrograph = null;
+let savedRainfall = null;
+let savedStats = null;
+let activePreset = null;
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+const presets = {
+  urban:    { rain: 40, duration: 2, imperm: 85, slope: 5, veg: 10, drain: 8, moisture: 60 },
+  rural:    { rain: 25, duration: 4, imperm: 5, slope: 15, veg: 90, drain: 3, moisture: 30 },
+  moorland: { rain: 35, duration: 5, imperm: 10, slope: 25, veg: 40, drain: 6, moisture: 70 },
+  clay:     { rain: 30, duration: 3, imperm: 15, slope: 8, veg: 55, drain: 5, moisture: 75 }
+};
+
+const drainLabels = ['','Very Low','Low','Low-Med','Medium-Low','Medium','Medium-High','High-Med','High','Very High','Extreme'];
+
+/* ── Helpers ───────────────────────────────────────────── */
+function getValues() {
+  return {
+    rain: +sliders.rain.value,
+    duration: +sliders.duration.value,
+    imperm: +sliders.imperm.value,
+    slope: +sliders.slope.value,
+    veg: +sliders.veg.value,
+    drain: +sliders.drain.value,
+    moisture: +sliders.moisture.value
+  };
+}
+
+function updateLabels(v) {
+  labels.rain.textContent = v.rain + ' mm/hr';
+  labels.duration.textContent = v.duration + ' hrs';
+  labels.imperm.textContent = v.imperm + '%';
+  labels.slope.innerHTML = v.slope + '&deg;';
+  labels.veg.textContent = v.veg + '%';
+  labels.drain.textContent = drainLabels[v.drain] || 'Medium';
+  labels.moisture.textContent = v.moisture + '%';
+}
+
+/* ── Hydrograph Model ──────────────────────────────────── */
+function computeHydrograph(v) {
+  const totalHours = 24;
+  const dt = 0.1;
+  const steps = Math.round(totalHours / dt);
+
+  /* Base flow: 2-8 cumecs depending on catchment wetness */
+  const baseFlow = 2 + (v.moisture / 100) * 6;
+
+  /* Runoff coefficient: how much rainfall becomes direct runoff (0-1) */
+  const impermeableFactor = v.imperm / 100;
+  const vegFactor = 1 - (v.veg / 100) * 0.6;
+  const moistureFactor = 0.3 + (v.moisture / 100) * 0.7;
+  const runoffCoeff = Math.min(0.95, impermeableFactor * 0.5 + (1 - impermeableFactor) * vegFactor * moistureFactor * 0.6 + 0.05);
+
+  /* Time to peak: affected by slope, drainage density, impermeable surfaces, vegetation */
+  const slopeFactor = 1 - (v.slope / 45) * 0.5;
+  const drainFactor = 1 - (v.drain / 10) * 0.4;
+  const impermTimeFactor = 1 - (v.imperm / 100) * 0.5;
+  const vegTimeFactor = 1 + (v.veg / 100) * 0.6;
+  const baseLag = 3.0; /* hours base lag time */
+  const lagTime = baseLag * slopeFactor * drainFactor * impermTimeFactor * vegTimeFactor;
+  const timeToPeak = (v.duration / 2) + lagTime;
+
+  /* Peak discharge */
+  const peakStormFlow = v.rain * v.duration * runoffCoeff * (1 + v.drain / 20) * 0.08;
+  const peakDischarge = baseFlow + peakStormFlow;
+
+  /* Rising limb shape parameter (steeper = flashier) */
+  const riseRate = 2.5 / lagTime;
+
+  /* Recession constant (smaller = slower recession) */
+  const recessionK = 0.15 + (v.imperm / 100) * 0.15 - (v.veg / 100) * 0.08;
+  const recK = Math.max(0.08, Math.min(0.4, recessionK));
+
+  /* Build the hydrograph curve */
+  const points = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i * dt;
+    let discharge;
+
+    if (t <= timeToPeak) {
+      /* Rising limb: smooth S-curve */
+      const progress = t / timeToPeak;
+      const sCurve = progress * progress * (3 - 2 * progress);
+      discharge = baseFlow + peakStormFlow * sCurve;
+    } else {
+      /* Falling limb: exponential decay back to base flow */
+      const elapsed = t - timeToPeak;
+      const decay = Math.exp(-recK * elapsed);
+      discharge = baseFlow + peakStormFlow * decay;
+    }
+    points.push({ t, discharge });
+  }
+
+  /* Rainfall bars (per half-hour intervals during storm) */
+  const rainfallBars = [];
+  const barInterval = 0.5;
+  const numBars = Math.ceil(v.duration / barInterval);
+  for (let i = 0; i < numBars; i++) {
+    const tStart = i * barInterval;
+    /* Bell-shaped distribution of rainfall intensity */
+    const mid = v.duration / 2;
+    const dist = Math.abs(tStart + barInterval / 2 - mid) / (v.duration / 2);
+    const intensity = v.rain * (0.5 + 0.5 * Math.cos(dist * Math.PI * 0.8));
+    rainfallBars.push({ tStart, tEnd: tStart + barInterval, intensity });
+  }
+
+  /* Peak rainfall time */
+  let peakRainTime = v.duration / 2;
+  let maxRainIntensity = 0;
+  rainfallBars.forEach(b => {
+    if (b.intensity > maxRainIntensity) {
+      maxRainIntensity = b.intensity;
+      peakRainTime = (b.tStart + b.tEnd) / 2;
+    }
+  });
+
+  return {
+    points,
+    rainfallBars,
+    baseFlow,
+    peakDischarge,
+    peakStormFlow,
+    timeToPeak,
+    lagTime,
+    peakRainTime,
+    totalHours,
+    maxRainIntensity,
+    runoffCoeff
+  };
+}
+
+function assessFloodRisk(data) {
+  const score = (data.peakStormFlow / 20) + (1 / data.lagTime) * 3;
+  if (score > 4) return { text: 'Very High', colour: '#e05050' };
+  if (score > 2.5) return { text: 'High', colour: '#e08040' };
+  if (score > 1.5) return { text: 'Moderate', colour: '#d4a04a' };
+  if (score > 0.8) return { text: 'Low', colour: '#60b060' };
+  return { text: 'Very Low', colour: '#40a0a0' };
+}
+
+/* ── Canvas Drawing ────────────────────────────────────── */
+function resizeCanvas() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  canvas._w = rect.width;
+  canvas._h = rect.height;
+}
+
+function drawAll() {
+  resizeCanvas();
+  const W = canvas._w;
+  const H = canvas._h;
+  if (W < 50 || H < 50) return;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const v = getValues();
+  const data = computeHydrograph(v);
+
+  /* Layout regions */
+  const margin = { top: 16, right: 30, bottom: 50, left: 65 };
+  const rainHeight = Math.min(H * 0.18, 100);
+  const gap = 12;
+  const plotTop = margin.top + rainHeight + gap;
+  const plotW = W - margin.left - margin.right;
+  const plotH = H - plotTop - margin.bottom;
+
+  if (plotW < 20 || plotH < 20) return;
+
+  /* Scales */
+  const xMin = 0;
+  const xMax = data.totalHours;
+  const xScale = t => margin.left + (t / xMax) * plotW;
+  const xInv = px => ((px - margin.left) / plotW) * xMax;
+
+  /* Discharge scale */
+  let yMaxDischarge = data.peakDischarge * 1.15;
+  if (savedHydrograph && compareMode) {
+    yMaxDischarge = Math.max(yMaxDischarge, savedHydrograph.peakDischarge * 1.15);
+  }
+  const yScale = d => plotTop + plotH - (d / yMaxDischarge) * plotH;
+
+  /* Rain scale */
+  let rainMax = data.maxRainIntensity * 1.3;
+  if (savedRainfall && compareMode) {
+    const sMax = Math.max(...savedRainfall.map(b => b.intensity));
+    rainMax = Math.max(rainMax, sMax * 1.3);
+  }
+  const rainScale = intensity => margin.top + (intensity / rainMax) * rainHeight;
+
+  /* ── Grid lines ──────────────────────────────────────── */
+  ctx.strokeStyle = 'rgba(42,157,143,0.1)';
+  ctx.lineWidth = 1;
+
+  /* Horizontal grid (discharge) */
+  const yTicks = niceTicksFor(0, yMaxDischarge, 5);
+  yTicks.forEach(val => {
+    const y = yScale(val);
+    ctx.beginPath();
+    ctx.moveTo(margin.left, y);
+    ctx.lineTo(W - margin.right, y);
+    ctx.stroke();
+  });
+
+  /* Vertical grid (time) */
+  const xTicks = [];
+  for (let t = 0; t <= xMax; t += 2) xTicks.push(t);
+  xTicks.forEach(t => {
+    const x = xScale(t);
+    ctx.beginPath();
+    ctx.moveTo(x, plotTop);
+    ctx.lineTo(x, plotTop + plotH);
+    ctx.stroke();
+  });
+
+  /* ── Axes ────────────────────────────────────────────── */
+  ctx.strokeStyle = 'rgba(138,158,156,0.5)';
+  ctx.lineWidth = 1;
+  /* X axis */
+  ctx.beginPath();
+  ctx.moveTo(margin.left, plotTop + plotH);
+  ctx.lineTo(W - margin.right, plotTop + plotH);
+  ctx.stroke();
+  /* Y axis */
+  ctx.beginPath();
+  ctx.moveTo(margin.left, plotTop);
+  ctx.lineTo(margin.left, plotTop + plotH);
+  ctx.stroke();
+
+  /* Axis labels */
+  ctx.fillStyle = 'rgba(138,158,156,0.7)';
+  ctx.font = '11px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  xTicks.forEach(t => {
+    ctx.fillText(t + 'h', xScale(t), plotTop + plotH + 18);
+  });
+  ctx.fillText('Time (hours)', margin.left + plotW / 2, H - 8);
+
+  ctx.textAlign = 'right';
+  yTicks.forEach(val => {
+    ctx.fillText(val.toFixed(1), margin.left - 8, yScale(val) + 4);
+  });
+
+  ctx.save();
+  ctx.translate(14, plotTop + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillText('Discharge (m\u00B3/s)', 0, 0);
+  ctx.restore();
+
+  /* Rainfall axis label */
+  ctx.save();
+  ctx.translate(14, margin.top + rainHeight / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.font = '10px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('Rainfall (mm/hr)', 0, 0);
+  ctx.restore();
+
+  /* ── Rainfall chart background ─────────────────────────── */
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.fillRect(margin.left, margin.top, plotW, rainHeight);
+
+  /* Rainfall chart title */
+  ctx.fillStyle = 'rgba(138,158,156,0.5)';
+  ctx.font = '10px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Rainfall', margin.left + 6, margin.top + 12);
+
+  /* Separator line between rainfall and hydrograph */
+  ctx.strokeStyle = 'rgba(42,157,143,0.2)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin.left, margin.top + rainHeight + gap / 2);
+  ctx.lineTo(W - margin.right, margin.top + rainHeight + gap / 2);
+  ctx.stroke();
+
+  /* ── Rainfall bars ───────────────────────────────────── */
+  function drawRainBars(bars, baseColour, highlightColour, alpha) {
+    bars.forEach(b => {
+      const x1 = xScale(b.tStart);
+      const x2 = xScale(b.tEnd);
+      const barH = (b.intensity / rainMax) * rainHeight;
+      const barTop = margin.top + rainHeight - barH;
+      /* Gradient fill for each bar */
+      const grad = ctx.createLinearGradient(0, barTop, 0, margin.top + rainHeight);
+      grad.addColorStop(0, highlightColour);
+      grad.addColorStop(1, baseColour);
+      ctx.globalAlpha = parseFloat(alpha);
+      ctx.fillStyle = grad;
+      ctx.fillRect(x1 + 1, barTop, x2 - x1 - 2, barH);
+      ctx.globalAlpha = 1.0;
+    });
+  }
+
+  if (savedRainfall && compareMode) {
+    drawRainBars(savedRainfall, '#8a6020', '#d4a04a', '0.45');
+  }
+  drawRainBars(data.rainfallBars, '#2670a0', '#7ec8f0', '0.7');
+
+  /* ── Base flow line ──────────────────────────────────── */
+  ctx.setLineDash([6, 4]);
+  ctx.strokeStyle = 'rgba(42,157,143,0.4)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin.left, yScale(data.baseFlow));
+  ctx.lineTo(W - margin.right, yScale(data.baseFlow));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  /* ── Storm flow shading ──────────────────────────────── */
+  function fillStormFlow(pts, baseY, colour) {
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    ctx.moveTo(xScale(pts[0].t), baseY);
+    pts.forEach(p => ctx.lineTo(xScale(p.t), yScale(p.discharge)));
+    ctx.lineTo(xScale(pts[pts.length - 1].t), baseY);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  if (savedHydrograph && compareMode) {
+    fillStormFlow(savedHydrograph.points, yScale(savedHydrograph.baseFlow), 'rgba(212,160,74,0.08)');
+  }
+  fillStormFlow(data.points, yScale(data.baseFlow), 'rgba(42,157,143,0.12)');
+
+  /* ── Hydrograph curves ───────────────────────────────── */
+  function drawCurve(pts, colour, lineWidth) {
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const x = xScale(p.t);
+      const y = yScale(p.discharge);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  if (savedHydrograph && compareMode) {
+    drawCurve(savedHydrograph.points, 'rgba(212,160,74,0.7)', 2);
+  }
+  drawCurve(data.points, '#2a9d8f', 2.5);
+
+  /* ── Annotations ─────────────────────────────────────── */
+  const peakX = xScale(data.timeToPeak);
+  const peakY = yScale(data.peakDischarge);
+
+  /* Peak discharge dot and label */
+  ctx.fillStyle = '#52c7b8';
+  ctx.beginPath();
+  ctx.arc(peakX, peakY, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  drawAnnotation(peakX, peakY - 14, 'Peak Discharge', data.peakDischarge.toFixed(1) + ' m\u00B3/s', '#52c7b8', -1);
+
+  /* Lag time arrow */
+  const rainPeakX = xScale(data.peakRainTime);
+  const arrowY = plotTop + 20;
+  ctx.strokeStyle = '#e0c87a';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 3]);
+  /* Vertical dashed lines from peaks */
+  ctx.beginPath();
+  ctx.moveTo(rainPeakX, margin.top + rainHeight);
+  ctx.lineTo(rainPeakX, arrowY);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(peakX, peakY);
+  ctx.lineTo(peakX, arrowY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  /* Horizontal lag time bracket */
+  if (Math.abs(peakX - rainPeakX) > 20) {
+    ctx.strokeStyle = '#e0c87a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(rainPeakX, arrowY);
+    ctx.lineTo(peakX, arrowY);
+    ctx.stroke();
+    /* Arrow heads */
+    drawArrowHead(ctx, rainPeakX, arrowY, 1);
+    drawArrowHead(ctx, peakX, arrowY, -1);
+
+    ctx.fillStyle = '#e0c87a';
+    ctx.font = 'bold 11px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Lag Time: ' + data.lagTime.toFixed(1) + ' hrs', (rainPeakX + peakX) / 2, arrowY - 6);
+  }
+
+  /* Rising limb label */
+  const riseMidT = data.timeToPeak * 0.5;
+  const riseMidPt = data.points[Math.round(riseMidT / 0.1)] || data.points[0];
+  const riseMidX = xScale(riseMidT);
+  const riseMidY = yScale(riseMidPt.discharge);
+  drawAnnotation(riseMidX - 40, riseMidY - 10, 'Rising Limb', '', 'rgba(138,158,156,0.6)', 0);
+
+  /* Falling limb label */
+  const fallT = data.timeToPeak + data.lagTime * 0.8;
+  const fallIdx = Math.min(Math.round(fallT / 0.1), data.points.length - 1);
+  const fallPt = data.points[fallIdx];
+  const fallX = xScale(fallT);
+  const fallY = yScale(fallPt.discharge);
+  drawAnnotation(fallX + 10, fallY - 10, 'Falling Limb', '', 'rgba(138,158,156,0.6)', 0);
+
+  /* Base flow label */
+  const baseY = yScale(data.baseFlow);
+  ctx.fillStyle = 'rgba(42,157,143,0.6)';
+  ctx.font = '10px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Base Flow: ' + data.baseFlow.toFixed(1) + ' m\u00B3/s', W - margin.right - 150, baseY - 6);
+
+  /* Storm flow label */
+  const stormFlowMidY = (peakY + baseY) / 2;
+  if (baseY - peakY > 30) {
+    ctx.fillStyle = 'rgba(42,157,143,0.35)';
+    ctx.font = '10px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Storm Flow', peakX + 30, stormFlowMidY);
+  }
+
+  /* ── Store layout for hover tooltip ────────────────────── */
+  canvas._layout = { margin, plotTop, plotW, plotH, xMax, yMaxDischarge, data, xScale, yScale };
+
+  /* ── Stats bar ───────────────────────────────────────── */
+  const risk = assessFloodRisk(data);
+  document.getElementById('statPeak').textContent = data.peakDischarge.toFixed(1) + ' m\u00B3/s';
+  document.getElementById('statLag').textContent = data.lagTime.toFixed(1) + ' hrs';
+  document.getElementById('statTimePeak').textContent = data.timeToPeak.toFixed(1) + ' hrs';
+  document.getElementById('statBase').textContent = data.baseFlow.toFixed(1) + ' m\u00B3/s';
+  document.getElementById('statRunoff').textContent = (data.runoffCoeff * 100).toFixed(0) + '%';
+  const riskEl = document.getElementById('statRisk');
+  riskEl.textContent = risk.text;
+  riskEl.style.color = risk.colour;
+}
+
+/* ── Annotation helper ─────────────────────────────────── */
+function drawAnnotation(x, y, title, subtitle, colour, align) {
+  ctx.fillStyle = colour;
+  ctx.font = 'bold 10px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = align < 0 ? 'right' : align > 0 ? 'left' : 'center';
+  ctx.fillText(title, x, y);
+  if (subtitle) {
+    ctx.font = '10px "Segoe UI", system-ui, sans-serif';
+    ctx.fillText(subtitle, x, y + 13);
+  }
+}
+
+/* ── Arrow head ────────────────────────────────────────── */
+function drawArrowHead(c, x, y, dir) {
+  c.fillStyle = '#e0c87a';
+  c.beginPath();
+  c.moveTo(x, y);
+  c.lineTo(x + dir * 7, y - 4);
+  c.lineTo(x + dir * 7, y + 4);
+  c.closePath();
+  c.fill();
+}
+
+/* ── Nice tick values ──────────────────────────────────── */
+function niceTicksFor(min, max, count) {
+  const range = max - min;
+  const rough = range / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  let step;
+  const norm = rough / mag;
+  if (norm < 1.5) step = mag;
+  else if (norm < 3) step = 2 * mag;
+  else if (norm < 7) step = 5 * mag;
+  else step = 10 * mag;
+  const ticks = [];
+  for (let v = 0; v <= max + step * 0.01; v += step) {
+    if (v >= min - step * 0.01) ticks.push(v);
+  }
+  return ticks;
+}
+
+/* ── Presets ────────────────────────────────────────────── */
+function applyPreset(name) {
+  const p = presets[name];
+  if (!p) return;
+  activePreset = name;
+  Object.keys(p).forEach(k => {
+    if (sliders[k]) sliders[k].value = p[k];
+  });
+  updateLabels(getValues());
+  highlightPreset(name);
+  drawAll();
+}
+
+function highlightPreset(name) {
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.toLowerCase().includes(name));
+  });
+}
+
+function clearPresetHighlight() {
+  document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+  activePreset = null;
+}
+
+/* ── Compare mode ──────────────────────────────────────── */
+function toggleCompare() {
+  const btn = document.getElementById('compareBtn');
+  const legend = document.getElementById('compareLegend');
+  if (!compareMode) {
+    /* Save current hydrograph as comparison */
+    const v = getValues();
+    const data = computeHydrograph(v);
+    savedHydrograph = data;
+    savedRainfall = data.rainfallBars;
+    savedStats = {
+      peak: data.peakDischarge,
+      lag: data.lagTime,
+      timeToPeak: data.timeToPeak,
+      base: data.baseFlow
+    };
+    compareMode = true;
+    btn.classList.add('active');
+    legend.style.display = 'flex';
+  } else {
+    compareMode = false;
+    savedHydrograph = null;
+    savedRainfall = null;
+    savedStats = null;
+    btn.classList.remove('active');
+    legend.style.display = 'none';
+  }
+  drawAll();
+}
+
+/* ── Reset ─────────────────────────────────────────────── */
+function resetAll() {
+  sliders.rain.value = 30;
+  sliders.duration.value = 3;
+  sliders.imperm.value = 25;
+  sliders.slope.value = 10;
+  sliders.veg.value = 50;
+  sliders.drain.value = 5;
+  sliders.moisture.value = 40;
+  compareMode = false;
+  savedHydrograph = null;
+  savedRainfall = null;
+  savedStats = null;
+  document.getElementById('compareBtn').classList.remove('active');
+  document.getElementById('compareLegend').style.display = 'none';
+  clearPresetHighlight();
+  updateLabels(getValues());
+  drawAll();
+}
+
+/* ── Info panel ────────────────────────────────────────── */
+function toggleInfo() {
+  document.getElementById('infoPanel').classList.toggle('open');
+}
+
+/* ── Event listeners ───────────────────────────────────── */
+Object.values(sliders).forEach(s => {
+  s.addEventListener('input', () => {
+    clearPresetHighlight();
+    updateLabels(getValues());
+    drawAll();
+  });
+});
+
+window.addEventListener('resize', drawAll);
+
+/* ── Canvas hover tooltip ──────────────────────────────── */
+let tooltipRAF = null;
+canvas.addEventListener('mousemove', function(e) {
+  if (tooltipRAF) cancelAnimationFrame(tooltipRAF);
+  tooltipRAF = requestAnimationFrame(function() {
+    if (!canvas._layout) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const L = canvas._layout;
+
+    /* Check if mouse is within the hydrograph plot area */
+    if (mx < L.margin.left || mx > L.margin.left + L.plotW ||
+        my < L.plotTop || my > L.plotTop + L.plotH) {
+      canvas.style.cursor = 'default';
+      drawAll();
+      return;
+    }
+    canvas.style.cursor = 'crosshair';
+
+    /* Find the time value at mouse position */
+    const t = ((mx - L.margin.left) / L.plotW) * L.xMax;
+    const idx = Math.round(t / 0.1);
+    if (idx < 0 || idx >= L.data.points.length) return;
+
+    const pt = L.data.points[idx];
+    const px = L.xScale(pt.t);
+    const py = L.yScale(pt.discharge);
+
+    /* Redraw then overlay tooltip elements */
+    drawAll();
+
+    /* Vertical crosshair line */
+    ctx.strokeStyle = 'rgba(82,199,184,0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(px, L.plotTop);
+    ctx.lineTo(px, L.plotTop + L.plotH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* Highlight dot */
+    ctx.fillStyle = '#52c7b8';
+    ctx.beginPath();
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    /* Tooltip box */
+    const tooltipW = 130;
+    const tooltipH = 42;
+    let tx = px + 12;
+    let ty = py - tooltipH - 8;
+    /* Keep within bounds */
+    if (tx + tooltipW > L.margin.left + L.plotW) tx = px - tooltipW - 12;
+    if (ty < L.plotTop) ty = py + 12;
+
+    ctx.fillStyle = 'rgba(18,30,30,0.92)';
+    ctx.strokeStyle = 'rgba(42,157,143,0.5)';
+    ctx.lineWidth = 1;
+    roundRect(ctx, tx, ty, tooltipW, tooltipH, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#e0e8e6';
+    ctx.font = '10px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Time: ' + pt.t.toFixed(1) + ' hrs', tx + 8, ty + 16);
+    ctx.fillStyle = '#52c7b8';
+    ctx.font = 'bold 11px "Segoe UI", system-ui, sans-serif';
+    ctx.fillText(pt.discharge.toFixed(2) + ' m\u00B3/s', tx + 8, ty + 32);
+  });
+});
+
+canvas.addEventListener('mouseleave', function() {
+  canvas.style.cursor = 'default';
+  if (tooltipRAF) cancelAnimationFrame(tooltipRAF);
+  drawAll();
+});
+
+/* ── Rounded rectangle helper ──────────────────────────── */
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.lineTo(x + w - r, y);
+  c.quadraticCurveTo(x + w, y, x + w, y + r);
+  c.lineTo(x + w, y + h - r);
+  c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  c.lineTo(x + r, y + h);
+  c.quadraticCurveTo(x, y + h, x, y + h - r);
+  c.lineTo(x, y + r);
+  c.quadraticCurveTo(x, y, x + r, y);
+  c.closePath();
+}
+
+/* ── Initial render ────────────────────────────────────── */
+updateLabels(getValues());
+requestAnimationFrame(drawAll);
+</script>
+</body>
+</html>

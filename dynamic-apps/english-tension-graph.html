@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tension Curve Builder</title>
+<style>
+  :root {
+    --burgundy: #6b1a2a;
+    --burgundy-dark: #4a0f1c;
+    --burgundy-light: #8c2d3f;
+    --gold: #c9973a;
+    --gold-light: #e4b95a;
+    --gold-pale: #f5e6c8;
+    --cream: #faf6ef;
+    --warm-white: #fffdf9;
+    --text-dark: #2a1a10;
+    --text-mid: #5a3a28;
+    --text-light: #8a6a50;
+    --border: #d4b896;
+    --shadow: rgba(107, 26, 42, 0.15);
+    --canvas-bg: #fffdf9;
+    --grid-line: #ede4d4;
+    --curve-color: #6b1a2a;
+    --point-color: #c9973a;
+    --event-color: #4a0f1c;
+    --panel-bg: #fdf8f2;
+    --tab-active: #6b1a2a;
+    --tab-inactive: #e8d8c4;
+    --sidebar-width: 280px;
+    --header-height: 60px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Georgia', serif;
+    background: var(--cream);
+    color: var(--text-dark);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* HEADER */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--burgundy-dark);
+    color: var(--gold-pale);
+    height: var(--header-height);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+
+  header h1 {
+    font-size: 1.3rem;
+    font-weight: normal;
+    letter-spacing: 0.03em;
+    flex: 1;
+  }
+
+  header h1 span {
+    color: var(--gold-light);
+    font-style: italic;
+  }
+
+  .header-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    background: var(--burgundy-light);
+    color: var(--gold-pale);
+    border: 1px solid var(--gold);
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+    font-family: Georgia, serif;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn:hover {
+    background: var(--gold);
+    color: var(--burgundy-dark);
+  }
+
+  .btn.btn-gold {
+    background: var(--gold);
+    color: var(--burgundy-dark);
+    font-weight: bold;
+  }
+
+  .btn.btn-gold:hover {
+    background: var(--gold-light);
+  }
+
+  .btn.btn-ghost {
+    background: transparent;
+    color: var(--gold-pale);
+    border-color: rgba(201,151,58,0.4);
+  }
+
+  .btn.btn-ghost:hover {
+    background: rgba(201,151,58,0.15);
+    border-color: var(--gold);
+  }
+
+  /* LAYOUT */
+  .app-layout {
+    display: flex;
+    height: calc(100vh - var(--header-height));
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: var(--sidebar-width);
+    min-width: 220px;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-tab {
+    flex: 1;
+    padding: 10px 6px;
+    font-size: 0.78rem;
+    text-align: center;
+    cursor: pointer;
+    background: var(--tab-inactive);
+    color: var(--text-mid);
+    border: none;
+    border-right: 1px solid var(--border);
+    font-family: Georgia, serif;
+    transition: background 0.15s;
+  }
+
+  .sidebar-tab:last-child { border-right: none; }
+
+  .sidebar-tab.active {
+    background: var(--panel-bg);
+    color: var(--burgundy);
+    font-weight: bold;
+    border-bottom: 2px solid var(--burgundy);
+  }
+
+  .sidebar-tab:hover:not(.active) {
+    background: var(--gold-pale);
+  }
+
+  .sidebar-panel {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+  }
+
+  .sidebar-panel.active { display: block; }
+
+  /* CONTROLS PANEL */
+  .control-section {
+    margin-bottom: 16px;
+  }
+
+  .control-section h3 {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-light);
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .preset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .preset-btn {
+    background: var(--cream);
+    color: var(--text-dark);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 6px;
+    font-size: 0.78rem;
+    font-family: Georgia, serif;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s, border-color 0.15s;
+    line-height: 1.3;
+  }
+
+  .preset-btn:hover {
+    background: var(--gold-pale);
+    border-color: var(--gold);
+  }
+
+  .preset-btn.active {
+    background: var(--burgundy);
+    color: var(--gold-pale);
+    border-color: var(--burgundy-dark);
+  }
+
+  .example-select {
+    width: 100%;
+    padding: 7px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: white;
+    font-family: Georgia, serif;
+    font-size: 0.83rem;
+    color: var(--text-dark);
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+
+  .example-select:focus {
+    outline: none;
+    border-color: var(--gold);
+  }
+
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-mid);
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+
+  input[type="text"], textarea {
+    width: 100%;
+    padding: 7px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: Georgia, serif;
+    font-size: 0.83rem;
+    color: var(--text-dark);
+    background: white;
+    resize: vertical;
+  }
+
+  input[type="text"]:focus, textarea:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(201,151,58,0.15);
+  }
+
+  .mode-btns {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .mode-btn {
+    flex: 1;
+    padding: 7px 4px;
+    font-size: 0.78rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: center;
+    font-family: Georgia, serif;
+    background: var(--cream);
+    color: var(--text-dark);
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .mode-btn.active {
+    background: var(--burgundy);
+    color: var(--gold-pale);
+    border-color: var(--burgundy-dark);
+  }
+
+  .mode-btn:hover:not(.active) {
+    background: var(--gold-pale);
+    border-color: var(--gold);
+  }
+
+  /* EVENT LIST */
+  .event-list {
+    list-style: none;
+    margin-top: 6px;
+  }
+
+  .event-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 6px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+    background: var(--cream);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+
+  .event-item:hover {
+    background: var(--gold-pale);
+  }
+
+  .event-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--event-color);
+    flex-shrink: 0;
+  }
+
+  .event-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-dark);
+  }
+
+  .event-pos {
+    color: var(--text-light);
+    font-size: 0.72rem;
+    flex-shrink: 0;
+  }
+
+  .event-del {
+    color: var(--text-light);
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 1px 4px;
+    border-radius: 2px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .event-del:hover {
+    background: #e0c8c8;
+    color: var(--burgundy);
+  }
+
+  /* INFO PANEL */
+  .info-section {
+    margin-bottom: 18px;
+  }
+
+  .info-section h3 {
+    font-size: 0.95rem;
+    color: var(--burgundy);
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .info-section p, .info-section li {
+    font-size: 0.82rem;
+    color: var(--text-mid);
+    line-height: 1.6;
+    margin-bottom: 6px;
+  }
+
+  .info-section ul {
+    padding-left: 16px;
+    margin-bottom: 6px;
+  }
+
+  .info-tag {
+    display: inline-block;
+    background: var(--gold-pale);
+    color: var(--burgundy);
+    border: 1px solid var(--gold);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 0.75rem;
+    margin: 2px 2px 2px 0;
+  }
+
+  /* MAIN CANVAS AREA */
+  .main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--canvas-bg);
+  }
+
+  .canvas-toolbar {
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .toolbar-label {
+    font-size: 0.78rem;
+    color: var(--text-light);
+    margin-right: 4px;
+  }
+
+  .canvas-wrap {
+    flex: 1;
+    padding: 20px;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--canvas-bg);
+  }
+
+  canvas {
+    display: block;
+    border-radius: 6px;
+    box-shadow: 0 2px 12px var(--shadow);
+    cursor: crosshair;
+    touch-action: none;
+    max-width: 100%;
+  }
+
+  canvas.drag-mode { cursor: grab; }
+  canvas.drag-mode.dragging { cursor: grabbing; }
+  canvas.event-mode { cursor: cell; }
+
+  /* TOOLTIP */
+  .canvas-tooltip {
+    position: fixed;
+    background: var(--burgundy-dark);
+    color: var(--gold-pale);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    pointer-events: none;
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.1s;
+    white-space: nowrap;
+  }
+
+  .canvas-tooltip.visible { opacity: 1; }
+
+  /* STATUS BAR */
+  .status-bar {
+    background: var(--panel-bg);
+    border-top: 1px solid var(--border);
+    padding: 5px 16px;
+    font-size: 0.76rem;
+    color: var(--text-light);
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+
+  .status-item strong { color: var(--text-mid); }
+
+  /* EVENT LABEL DIALOG */
+  .dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(42,26,16,0.45);
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+  }
+
+  .dialog-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .dialog {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    width: 340px;
+    box-shadow: 0 8px 32px rgba(107,26,42,0.25);
+  }
+
+  .dialog h3 {
+    font-size: 1rem;
+    color: var(--burgundy);
+    margin-bottom: 14px;
+  }
+
+  .dialog-btns {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    justify-content: flex-end;
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--cream); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    :root { --sidebar-width: 230px; }
+    header h1 { font-size: 1rem; }
+    .header-controls .btn { padding: 5px 8px; font-size: 0.76rem; }
+    .canvas-wrap { padding: 10px; }
+    .preset-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 580px) {
+    .app-layout { flex-direction: column; }
+    .sidebar {
+      width: 100%;
+      height: 200px;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .main-area { flex: 1; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Tension Curve <span>Builder</span></h1>
+  <div class="header-controls">
+    <button class="btn btn-ghost" onclick="resetCurve()">Reset Curve</button>
+    <button class="btn btn-ghost" onclick="clearEvents()">Clear Events</button>
+    <button class="btn btn-gold" onclick="exportPNG()">Export PNG</button>
+  </div>
+</header>
+
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-tabs">
+      <button class="sidebar-tab active" onclick="switchTab('controls', this)">Controls</button>
+      <button class="sidebar-tab" onclick="switchTab('events', this)">Events</button>
+      <button class="sidebar-tab" onclick="switchTab('info', this)">Theory</button>
+    </div>
+
+    <!-- CONTROLS TAB -->
+    <div class="sidebar-panel active" id="tab-controls">
+      <div class="control-section">
+        <h3>Narrative Structure</h3>
+        <div class="preset-grid">
+          <button class="preset-btn" onclick="loadPreset('freytag')">Freytag's<br>Pyramid</button>
+          <button class="preset-btn" onclick="loadPreset('threeact')">3-Act<br>Structure</button>
+          <button class="preset-btn" onclick="loadPreset('fiveact')">5-Act<br>Structure</button>
+          <button class="preset-btn" onclick="loadPreset('hero')">Hero's<br>Journey</button>
+          <button class="preset-btn" onclick="loadPreset('kishoto')">Kishoten<br>Ketsu</button>
+          <button class="preset-btn" onclick="loadPreset('freeform')">Blank /<br>Free-form</button>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h3>Example Texts</h3>
+        <select class="example-select" onchange="loadExample(this.value)">
+          <option value="">-- Choose a text --</option>
+          <option value="macbeth">Macbeth (Shakespeare)</option>
+          <option value="greatexpectations">Great Expectations (Dickens)</option>
+          <option value="romeoandJuliet">Romeo and Juliet (Shakespeare)</option>
+          <option value="jekyllandHyde">Jekyll and Hyde (Stevenson)</option>
+          <option value="lordoftheflies">Lord of the Flies (Golding)</option>
+          <option value="animalfarm">Animal Farm (Orwell)</option>
+          <option value="1984">Nineteen Eighty-Four (Orwell)</option>
+          <option value="theassistant">The Handmaid's Tale (Atwood)</option>
+        </select>
+      </div>
+
+      <div class="control-section">
+        <h3>Mode</h3>
+        <div class="mode-btns">
+          <button class="mode-btn active" id="mode-curve" onclick="setMode('curve')">Edit Curve</button>
+          <button class="mode-btn" id="mode-event" onclick="setMode('event')">Place Event</button>
+        </div>
+        <div id="event-input-area" style="display:none;">
+          <label>Event label:</label>
+          <input type="text" id="event-label-input" placeholder="e.g. Climax" maxlength="40">
+          <div style="font-size:0.76rem;color:var(--text-light);margin-top:4px;">Click on the canvas to place the event.</div>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h3>Canvas Title</h3>
+        <input type="text" id="canvas-title-input" placeholder="e.g. Macbeth Tension Curve" maxlength="60" oninput="drawAll()">
+      </div>
+
+      <div class="control-section">
+        <h3>Display Options</h3>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:0;">
+          <input type="checkbox" id="show-grid" checked onchange="drawAll()"> Show grid
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;">
+          <input type="checkbox" id="show-labels" checked onchange="drawAll()"> Show axis labels
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;">
+          <input type="checkbox" id="show-fill" checked onchange="drawAll()"> Fill under curve
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;">
+          <input type="checkbox" id="show-points" checked onchange="drawAll()"> Show control points
+        </label>
+      </div>
+    </div>
+
+    <!-- EVENTS TAB -->
+    <div class="sidebar-panel" id="tab-events">
+      <div class="control-section">
+        <h3>Placed Events</h3>
+        <ul class="event-list" id="event-list">
+          <li style="font-size:0.8rem;color:var(--text-light);padding:6px;">No events placed yet. Switch to &ldquo;Place Event&rdquo; mode and click the canvas.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- INFO TAB -->
+    <div class="sidebar-panel" id="tab-info">
+      <div class="info-section">
+        <h3>What is narrative tension?</h3>
+        <p>Tension is the reader's sense of uncertainty, anticipation or anxiety about what will happen next. Skilled authors deliberately modulate tension throughout a text to keep readers engaged.</p>
+        <p>A tension graph maps the emotional intensity of a narrative over time, making structural patterns visible.</p>
+      </div>
+
+      <div class="info-section">
+        <h3>Freytag's Pyramid (1863)</h3>
+        <p>Gustav Freytag identified five stages in classical drama:</p>
+        <ul>
+          <li><strong>Exposition</strong> - setting, character introduction</li>
+          <li><strong>Rising action</strong> - complications and conflict build</li>
+          <li><strong>Climax</strong> - the turning point, peak tension</li>
+          <li><strong>Falling action</strong> - consequences unfold</li>
+          <li><strong>Denouement</strong> - resolution, new equilibrium</li>
+        </ul>
+        <p>Works well for: Macbeth, Romeo and Juliet, Greek tragedy.</p>
+      </div>
+
+      <div class="info-section">
+        <h3>Three-Act Structure</h3>
+        <p>Widely used in film and fiction. Tension rises across Act 1 and 2, peaks at the end of Act 2 (the darkest moment), then resolves in Act 3.</p>
+        <p>Key moments: <span class="info-tag">Inciting incident</span> <span class="info-tag">Midpoint</span> <span class="info-tag">All is lost</span> <span class="info-tag">Climax</span></p>
+      </div>
+
+      <div class="info-section">
+        <h3>Five-Act Structure</h3>
+        <p>Used by Shakespeare. Similar to Freytag but with distinct Acts, allowing for sub-climaxes and a more complex rising/falling pattern.</p>
+        <p>Each act typically ends with a significant event that propels the next stage.</p>
+      </div>
+
+      <div class="info-section">
+        <h3>The Hero's Journey (Campbell)</h3>
+        <p>Joseph Campbell's monomyth describes a cycle: the hero leaves their ordinary world, faces escalating trials, reaches a supreme ordeal, and returns transformed.</p>
+        <p>Tension dips briefly after the threshold crossing, builds steeply through trials, peaks at the ordeal, then resolves on the return.</p>
+        <p>Works well for: Lord of the Rings, Harry Potter, The Odyssey.</p>
+      </div>
+
+      <div class="info-section">
+        <h3>Kishoten Ketsu (Japanese structure)</h3>
+        <p>A four-part structure from East Asian narrative tradition:</p>
+        <ul>
+          <li><strong>Ki</strong> - introduction</li>
+          <li><strong>Sho</strong> - development</li>
+          <li><strong>Ten</strong> - unexpected twist/turn (high tension)</li>
+          <li><strong>Ketsu</strong> - conclusion, harmony restored</li>
+        </ul>
+        <p>The <em>ten</em> is often the most dramatic structural element.</p>
+      </div>
+
+      <div class="info-section">
+        <h3>Techniques authors use</h3>
+        <ul>
+          <li><strong>Foreshadowing</strong> - hints create anticipatory tension</li>
+          <li><strong>Dramatic irony</strong> - audience knows more than characters</li>
+          <li><strong>Cliffhangers</strong> - unresolved danger at chapter/act ends</li>
+          <li><strong>Pacing</strong> - short sentences, fragmented syntax accelerate tension</li>
+          <li><strong>Withholding information</strong> - mystery sustains reader engagement</li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CANVAS -->
+  <main class="main-area">
+    <div class="canvas-toolbar">
+      <span class="toolbar-label">Curve smoothness:</span>
+      <input type="range" id="smoothness" min="0" max="100" value="60" style="width:90px;" oninput="drawAll()">
+      <span class="toolbar-label" style="margin-left:8px;">Curve weight:</span>
+      <input type="range" id="lineweight" min="1" max="8" value="3" style="width:70px;" oninput="drawAll()">
+      <span style="flex:1;"></span>
+      <span id="coord-display" class="toolbar-label"></span>
+    </div>
+    <div class="canvas-wrap" id="canvas-wrap">
+      <canvas id="mainCanvas"></canvas>
+    </div>
+    <div class="status-bar">
+      <span><strong>Mode:</strong> <span id="status-mode">Edit Curve</span></span>
+      <span><strong>Control points:</strong> <span id="status-points">0</span></span>
+      <span><strong>Events:</strong> <span id="status-events">0</span></span>
+      <span style="flex:1;"></span>
+      <span style="color:var(--text-light);font-style:italic;">Drag points to adjust tension &mdash; double-click a point to remove it</span>
+    </div>
+  </main>
+</div>
+
+<!-- Tooltip -->
+<div class="canvas-tooltip" id="tooltip"></div>
+
+<!-- Event label dialog -->
+<div class="dialog-overlay" id="dialog-overlay" onclick="closeDialogIfBg(event)">
+  <div class="dialog">
+    <h3>Label this event</h3>
+    <label>Event name:</label>
+    <input type="text" id="dialog-event-name" placeholder="e.g. Climax, Inciting incident..." maxlength="50" onkeydown="if(event.key==='Enter')confirmEvent()">
+    <div class="dialog-btns">
+      <button class="btn btn-ghost" onclick="cancelEvent()">Cancel</button>
+      <button class="btn btn-gold" onclick="confirmEvent()">Place Event</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+
+let controlPoints = []; // [{x, y}] in data space [0..1]
+let events = [];        // [{x, y, label}] in data space
+let mode = 'curve';     // 'curve' | 'event'
+let dragIndex = -1;
+let isDragging = false;
+let pendingEventPos = null;
+let hoveredIndex = -1;
+let activePreset = '';
+
+// Canvas dimensions (logical, before devicePixelRatio)
+let W = 800, H = 480;
+const PAD = { top: 60, right: 40, bottom: 70, left: 68 };
+
+// ============================================================
+// PRESETS
+// ============================================================
+const PRESETS = {
+  freytag: {
+    name: "Freytag's Pyramid",
+    points: [
+      {x:0, y:0.05}, {x:0.12, y:0.1}, {x:0.28, y:0.28},
+      {x:0.45, y:0.55}, {x:0.56, y:0.82}, {x:0.62, y:0.97},
+      {x:0.72, y:0.75}, {x:0.84, y:0.42}, {x:0.94, y:0.15}, {x:1.0, y:0.08}
+    ],
+    events: [
+      {x:0.02, y:0.05, label:'Exposition'},
+      {x:0.62, y:0.97, label:'Climax'},
+      {x:0.98, y:0.08, label:'Dénouement'}
+    ]
+  },
+  threeact: {
+    name: '3-Act Structure',
+    points: [
+      {x:0, y:0.05}, {x:0.1, y:0.12}, {x:0.2, y:0.28},
+      {x:0.3, y:0.22}, {x:0.4, y:0.45}, {x:0.5, y:0.55},
+      {x:0.6, y:0.62}, {x:0.7, y:0.82}, {x:0.78, y:0.95},
+      {x:0.85, y:0.72}, {x:0.93, y:0.35}, {x:1.0, y:0.1}
+    ],
+    events: [
+      {x:0.02, y:0.05, label:'Act 1 opens'},
+      {x:0.25, y:0.3, label:'Inciting incident'},
+      {x:0.5, y:0.55, label:'Midpoint'},
+      {x:0.77, y:0.95, label:'Climax'},
+      {x:0.98, y:0.1, label:'Resolution'}
+    ]
+  },
+  fiveact: {
+    name: '5-Act Structure',
+    points: [
+      {x:0, y:0.05}, {x:0.1, y:0.18}, {x:0.18, y:0.32},
+      {x:0.25, y:0.25}, {x:0.35, y:0.48}, {x:0.45, y:0.65},
+      {x:0.52, y:0.58}, {x:0.62, y:0.82}, {x:0.68, y:0.97},
+      {x:0.78, y:0.72}, {x:0.88, y:0.42}, {x:0.95, y:0.25},
+      {x:1.0, y:0.1}
+    ],
+    events: [
+      {x:0.02, y:0.05, label:'Act 1: Exposition'},
+      {x:0.25, y:0.25, label:'Act 2: Rising action'},
+      {x:0.52, y:0.58, label:'Act 3: Climax'},
+      {x:0.78, y:0.72, label:'Act 4: Falling action'},
+      {x:0.98, y:0.1, label:'Act 5: Dénouement'}
+    ]
+  },
+  hero: {
+    name: "Hero's Journey",
+    points: [
+      {x:0, y:0.08}, {x:0.1, y:0.12}, {x:0.18, y:0.22},
+      {x:0.25, y:0.15}, {x:0.33, y:0.35}, {x:0.42, y:0.5},
+      {x:0.5, y:0.62}, {x:0.58, y:0.75}, {x:0.65, y:0.92},
+      {x:0.72, y:0.98}, {x:0.8, y:0.7}, {x:0.88, y:0.35},
+      {x:0.95, y:0.18}, {x:1.0, y:0.1}
+    ],
+    events: [
+      {x:0.02, y:0.08, label:'Ordinary world'},
+      {x:0.18, y:0.22, label:'Call to adventure'},
+      {x:0.25, y:0.15, label:'Threshold crossed'},
+      {x:0.5, y:0.62, label:'Tests and allies'},
+      {x:0.72, y:0.98, label:'Supreme ordeal'},
+      {x:0.88, y:0.35, label:'Road back'},
+      {x:0.98, y:0.1, label:'Return transformed'}
+    ]
+  },
+  kishoto: {
+    name: 'Kishoten Ketsu',
+    points: [
+      {x:0, y:0.08}, {x:0.15, y:0.22}, {x:0.28, y:0.35},
+      {x:0.42, y:0.48}, {x:0.52, y:0.45}, {x:0.62, y:0.88},
+      {x:0.7, y:0.97}, {x:0.82, y:0.55}, {x:0.92, y:0.25},
+      {x:1.0, y:0.1}
+    ],
+    events: [
+      {x:0.02, y:0.08, label:'Ki: Introduction'},
+      {x:0.28, y:0.35, label:'Sho: Development'},
+      {x:0.7, y:0.97, label:'Ten: Twist'},
+      {x:0.98, y:0.1, label:'Ketsu: Resolution'}
+    ]
+  },
+  freeform: {
+    name: 'Free-form',
+    points: [
+      {x:0, y:0.1}, {x:0.25, y:0.3}, {x:0.5, y:0.6},
+      {x:0.75, y:0.8}, {x:1.0, y:0.2}
+    ],
+    events: []
+  }
+};
+
+// ============================================================
+// EXAMPLE TEXTS
+// ============================================================
+const EXAMPLES = {
+  macbeth: {
+    title: 'Macbeth — Tension Curve',
+    preset: 'freytag',
+    events: [
+      {x:0.04, y:0.1, label:'Witches\' prophecy'},
+      {x:0.18, y:0.32, label:'Murder of Duncan'},
+      {x:0.35, y:0.52, label:'Banquo\'s ghost'},
+      {x:0.52, y:0.72, label:'Macduff\'s family killed'},
+      {x:0.63, y:0.97, label:'Macbeth\'s downfall'},
+      {x:0.78, y:0.6, label:'Malcolm\'s army'},
+      {x:0.96, y:0.1, label:'Order restored'}
+    ]
+  },
+  greatexpectations: {
+    title: 'Great Expectations — Tension Curve',
+    preset: 'threeact',
+    events: [
+      {x:0.04, y:0.12, label:'Pip meets Magwitch'},
+      {x:0.2, y:0.28, label:'Pip visits Satis House'},
+      {x:0.35, y:0.38, label:'Pip\'s expectations'},
+      {x:0.52, y:0.55, label:'London life & shame'},
+      {x:0.68, y:0.85, label:'Magwitch returns'},
+      {x:0.8, y:0.75, label:'Escape attempt fails'},
+      {x:0.95, y:0.2, label:'Reconciliation'}
+    ]
+  },
+  romeoandJuliet: {
+    title: 'Romeo and Juliet — Tension Curve',
+    preset: 'fiveact',
+    events: [
+      {x:0.04, y:0.1, label:'Capulet/Montague brawl'},
+      {x:0.18, y:0.3, label:'Romeo meets Juliet'},
+      {x:0.3, y:0.48, label:'Secret marriage'},
+      {x:0.48, y:0.72, label:'Tybalt/Mercutio deaths'},
+      {x:0.62, y:0.9, label:'Romeo exiled'},
+      {x:0.75, y:0.82, label:'Juliet takes potion'},
+      {x:0.88, y:0.97, label:'Double death in tomb'},
+      {x:0.97, y:0.12, label:'Families reconcile'}
+    ]
+  },
+  jekyllandHyde: {
+    title: 'Jekyll and Hyde — Tension Curve',
+    preset: 'threeact',
+    events: [
+      {x:0.05, y:0.15, label:'Utterson\'s unease'},
+      {x:0.22, y:0.42, label:'Hyde\'s violence'},
+      {x:0.42, y:0.6, label:'Jekyll\'s confession'},
+      {x:0.6, y:0.78, label:'Murder of Carew'},
+      {x:0.75, y:0.92, label:'Jekyll losing control'},
+      {x:0.9, y:0.97, label:'Hyde discovered dead'},
+      {x:0.97, y:0.2, label:'Letters reveal truth'}
+    ]
+  },
+  lordoftheflies: {
+    title: 'Lord of the Flies — Tension Curve',
+    preset: 'hero',
+    events: [
+      {x:0.04, y:0.1, label:'Crash on the island'},
+      {x:0.2, y:0.28, label:'Ralph elected chief'},
+      {x:0.35, y:0.42, label:'Beast fears emerge'},
+      {x:0.5, y:0.62, label:'Jack\'s tribe forms'},
+      {x:0.65, y:0.82, label:'Simon\'s murder'},
+      {x:0.78, y:0.95, label:'Piggy\'s death'},
+      {x:0.88, y:0.88, label:'Ralph hunted'},
+      {x:0.96, y:0.12, label:'Naval officer arrives'}
+    ]
+  },
+  animalfarm: {
+    title: 'Animal Farm — Tension Curve',
+    preset: 'threeact',
+    events: [
+      {x:0.04, y:0.12, label:'Old Major\'s speech'},
+      {x:0.18, y:0.35, label:'Rebellion'},
+      {x:0.32, y:0.45, label:'Battle of Cowshed'},
+      {x:0.48, y:0.6, label:'Snowball expelled'},
+      {x:0.65, y:0.82, label:'Show trials'},
+      {x:0.78, y:0.9, label:'Massacre of animals'},
+      {x:0.92, y:0.78, label:'Pigs walk upright'},
+      {x:0.97, y:0.85, label:'Pigs become humans'}
+    ]
+  },
+  '1984': {
+    title: 'Nineteen Eighty-Four — Tension Curve',
+    preset: 'threeact',
+    events: [
+      {x:0.04, y:0.2, label:'Winston\'s diary'},
+      {x:0.22, y:0.38, label:'Julia\'s note'},
+      {x:0.38, y:0.52, label:'Meeting O\'Brien'},
+      {x:0.52, y:0.65, label:'Golden Country dream'},
+      {x:0.65, y:0.82, label:'Arrest'},
+      {x:0.78, y:0.97, label:'Room 101'},
+      {x:0.92, y:0.3, label:'He loved Big Brother'}
+    ]
+  },
+  theassistant: {
+    title: "The Handmaid's Tale — Tension Curve",
+    preset: 'threeact',
+    events: [
+      {x:0.04, y:0.35, label:'Gilead established'},
+      {x:0.2, y:0.48, label:'Nick relationship'},
+      {x:0.38, y:0.58, label:'Jezebel\'s visit'},
+      {x:0.55, y:0.72, label:'Offred\'s confession tape'},
+      {x:0.7, y:0.88, label:'Mayday contact'},
+      {x:0.85, y:0.82, label:'Offred taken away'},
+      {x:0.96, y:0.4, label:'Historical epilogue'}
+    ]
+  }
+};
+
+// ============================================================
+// CANVAS SIZING
+// ============================================================
+function resizeCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  const dpr = window.devicePixelRatio || 1;
+  const availW = Math.max(wrap.clientWidth - 40, 400);
+  const availH = Math.max(wrap.clientHeight - 40, 300);
+  const aspect = 16/9;
+  let cw = Math.min(availW, 900);
+  let ch = Math.round(cw / aspect);
+  if (ch > availH) {
+    ch = availH;
+    cw = Math.round(ch * aspect);
+  }
+  cw = Math.max(cw, 400);
+  ch = Math.max(ch, 260);
+  W = cw; H = ch;
+  canvas.width = cw * dpr;
+  canvas.height = ch * dpr;
+  canvas.style.width = cw + 'px';
+  canvas.style.height = ch + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawAll();
+}
+
+// ============================================================
+// DATA <-> CANVAS COORDINATE TRANSFORMS
+// ============================================================
+function dataToCanvas(dx, dy) {
+  const gw = W - PAD.left - PAD.right;
+  const gh = H - PAD.top - PAD.bottom;
+  return {
+    x: PAD.left + dx * gw,
+    y: PAD.top + (1 - dy) * gh
+  };
+}
+
+function canvasToData(cx, cy) {
+  const gw = W - PAD.left - PAD.right;
+  const gh = H - PAD.top - PAD.bottom;
+  return {
+    x: Math.max(0, Math.min(1, (cx - PAD.left) / gw)),
+    y: Math.max(0, Math.min(1, 1 - (cy - PAD.top) / gh))
+  };
+}
+
+// ============================================================
+// DRAWING
+// ============================================================
+function drawAll() {
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+  if (document.getElementById('show-grid').checked) drawGrid();
+  if (document.getElementById('show-labels').checked) drawAxisLabels();
+  drawTitle();
+  if (controlPoints.length >= 2) {
+    if (document.getElementById('show-fill').checked) drawFill();
+    drawCurve();
+  }
+  drawEvents();
+  if (document.getElementById('show-points').checked) drawControlPoints();
+}
+
+function drawBackground() {
+  // Canvas background
+  ctx.fillStyle = '#fffdf9';
+  ctx.fillRect(0, 0, W, H);
+  // Plot area
+  const gw = W - PAD.left - PAD.right;
+  const gh = H - PAD.top - PAD.bottom;
+  ctx.fillStyle = '#fff9f2';
+  ctx.fillRect(PAD.left, PAD.top, gw, gh);
+  // Border
+  ctx.strokeStyle = '#c8b090';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(PAD.left, PAD.top, gw, gh);
+}
+
+function drawGrid() {
+  const gw = W - PAD.left - PAD.right;
+  const gh = H - PAD.top - PAD.bottom;
+  ctx.strokeStyle = '#ede4d4';
+  ctx.lineWidth = 0.8;
+  ctx.setLineDash([4, 4]);
+  // Horizontal lines
+  for (let i = 1; i < 5; i++) {
+    const y = PAD.top + (i / 5) * gh;
+    ctx.beginPath();
+    ctx.moveTo(PAD.left, y);
+    ctx.lineTo(PAD.left + gw, y);
+    ctx.stroke();
+  }
+  // Vertical lines
+  for (let i = 1; i < 10; i++) {
+    const x = PAD.left + (i / 10) * gw;
+    ctx.beginPath();
+    ctx.moveTo(x, PAD.top);
+    ctx.lineTo(x, PAD.top + gh);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+
+function drawAxisLabels() {
+  const gw = W - PAD.left - PAD.right;
+  const gh = H - PAD.top - PAD.bottom;
+  ctx.fillStyle = '#8a6a50';
+  ctx.textAlign = 'center';
+
+  // X axis label
+  ctx.font = 'italic 13px Georgia, serif';
+  ctx.fillText('Story Progress', PAD.left + gw / 2, H - 8);
+
+  // X axis ticks
+  ctx.font = '11px Georgia, serif';
+  const xLabels = ['Opening','','','','','','','','','','Ending'];
+  for (let i = 0; i <= 10; i++) {
+    const x = PAD.left + (i / 10) * gw;
+    const label = xLabels[i];
+    if (label) {
+      ctx.fillText(label, x, PAD.top + gh + 18);
+    }
+    // small tick
+    ctx.strokeStyle = '#c8b090';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, PAD.top + gh);
+    ctx.lineTo(x, PAD.top + gh + 5);
+    ctx.stroke();
+  }
+
+  // Y axis label
+  ctx.save();
+  ctx.translate(14, PAD.top + gh / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.font = 'italic 13px Georgia, serif';
+  ctx.fillStyle = '#8a6a50';
+  ctx.fillText('Tension Level', 0, 0);
+  ctx.restore();
+
+  // Y axis ticks
+  ctx.textAlign = 'right';
+  ctx.font = '11px Georgia, serif';
+  const yLabels = ['Low','','','','High'];
+  for (let i = 0; i <= 4; i++) {
+    const y = PAD.top + ((4 - i) / 4) * gh;
+    if (yLabels[i]) {
+      ctx.fillText(yLabels[i], PAD.left - 8, y + 4);
+    }
+    ctx.strokeStyle = '#c8b090';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD.left, y);
+    ctx.lineTo(PAD.left - 5, y);
+    ctx.stroke();
+  }
+}
+
+function drawTitle() {
+  const title = document.getElementById('canvas-title-input').value.trim();
+  if (!title) return;
+  ctx.fillStyle = '#4a0f1c';
+  ctx.font = 'bold 16px Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(title, W / 2, 34);
+}
+
+function getCatmullRomPoints() {
+  if (controlPoints.length < 2) return [];
+  const sorted = [...controlPoints].sort((a, b) => a.x - b.x);
+  const smooth = parseFloat(document.getElementById('smoothness').value) / 100;
+  const pts = sorted.map(p => dataToCanvas(p.x, p.y));
+  const curve = [];
+  const steps = 200;
+
+  for (let seg = 0; seg < pts.length - 1; seg++) {
+    const p0 = pts[Math.max(seg - 1, 0)];
+    const p1 = pts[seg];
+    const p2 = pts[seg + 1];
+    const p3 = pts[Math.min(seg + 2, pts.length - 1)];
+    for (let t = 0; t <= steps; t++) {
+      const s = t / steps;
+      const x = catmullRom(p0.x, p1.x, p2.x, p3.x, s, smooth);
+      const y = catmullRom(p0.y, p1.y, p2.y, p3.y, s, smooth);
+      if (seg === 0 && t === 0) curve.push({x, y});
+      else if (t > 0) curve.push({x, y});
+    }
+  }
+  return curve;
+}
+
+function catmullRom(p0, p1, p2, p3, t, alpha) {
+  const a = alpha * 0.5;
+  return (
+    (2 * p1) +
+    (-p0 + p2) * a * t +
+    (2*p0 - 5*p1 + 4*p2 - p3) * a * t*t +
+    (-p0 + 3*p1 - 3*p2 + p3) * a * t*t*t
+  );
+}
+
+function drawCurve() {
+  const pts = getCatmullRomPoints();
+  if (pts.length < 2) return;
+  const lw = parseFloat(document.getElementById('lineweight').value);
+  ctx.strokeStyle = '#6b1a2a';
+  ctx.lineWidth = lw;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) {
+    ctx.lineTo(pts[i].x, pts[i].y);
+  }
+  ctx.stroke();
+}
+
+function drawFill() {
+  const pts = getCatmullRomPoints();
+  if (pts.length < 2) return;
+  const gh = H - PAD.top - PAD.bottom;
+  const baseline = PAD.top + gh;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, baseline);
+  for (const p of pts) ctx.lineTo(p.x, p.y);
+  ctx.lineTo(pts[pts.length - 1].x, baseline);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, PAD.top, 0, baseline);
+  grad.addColorStop(0, 'rgba(107,26,42,0.18)');
+  grad.addColorStop(1, 'rgba(107,26,42,0.03)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+}
+
+function drawControlPoints() {
+  const sorted = [...controlPoints].sort((a, b) => a.x - b.x);
+  sorted.forEach((p, i) => {
+    const {x, y} = dataToCanvas(p.x, p.y);
+    const isHovered = controlPoints.indexOf(p) === hoveredIndex;
+    const isDragged = controlPoints.indexOf(p) === dragIndex;
+
+    ctx.beginPath();
+    ctx.arc(x, y, isDragged ? 9 : isHovered ? 8 : 6, 0, Math.PI * 2);
+    ctx.fillStyle = isDragged ? '#e4b95a' : isHovered ? '#c9973a' : '#c9973a';
+    ctx.fill();
+    ctx.strokeStyle = '#4a0f1c';
+    ctx.lineWidth = isDragged ? 2.5 : 1.5;
+    ctx.stroke();
+  });
+}
+
+function drawEvents() {
+  events.forEach((ev, i) => {
+    const {x, y} = dataToCanvas(ev.x, ev.y);
+    // Line
+    ctx.strokeStyle = '#4a0f1c';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([3, 3]);
+    const gh = H - PAD.top - PAD.bottom;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, PAD.top + gh);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Diamond marker
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = '#4a0f1c';
+    ctx.fillRect(-5, -5, 10, 10);
+    ctx.restore();
+
+    // Label
+    ctx.fillStyle = '#4a0f1c';
+    ctx.font = 'bold 11px Georgia, serif';
+    ctx.textAlign = 'center';
+
+    const labelX = x;
+    let labelY = y - 14;
+    // Alternate above/below to avoid stacking
+    if (y - 14 < PAD.top + 10) labelY = y + 22;
+
+    // Background for readability
+    const metrics = ctx.measureText(ev.label);
+    const tw = metrics.width + 8;
+    ctx.fillStyle = 'rgba(255,253,249,0.88)';
+    ctx.fillRect(labelX - tw/2, labelY - 12, tw, 15);
+    ctx.fillStyle = '#4a0f1c';
+    ctx.fillText(ev.label, labelX, labelY);
+  });
+}
+
+// ============================================================
+// CANVAS INTERACTION
+// ============================================================
+function getCanvasPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  let clientX, clientY;
+  if (e.touches && e.touches.length > 0) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+  } else {
+    clientX = e.clientX;
+    clientY = e.clientY;
+  }
+  return {
+    x: (clientX - rect.left),
+    y: (clientY - rect.top)
+  };
+}
+
+function findNearestPoint(cx, cy, threshold = 16) {
+  let nearest = -1, minDist = threshold;
+  controlPoints.forEach((p, i) => {
+    const {x, y} = dataToCanvas(p.x, p.y);
+    const d = Math.hypot(cx - x, cy - y);
+    if (d < minDist) { minDist = d; nearest = i; }
+  });
+  return nearest;
+}
+
+function isInPlotArea(cx, cy) {
+  const gw = W - PAD.left - PAD.right;
+  const gh = H - PAD.top - PAD.bottom;
+  return cx >= PAD.left && cx <= PAD.left + gw && cy >= PAD.top && cy <= PAD.top + gh;
+}
+
+canvas.addEventListener('mousedown', onDown);
+canvas.addEventListener('mousemove', onMove);
+canvas.addEventListener('mouseup', onUp);
+canvas.addEventListener('mouseleave', onLeave);
+canvas.addEventListener('dblclick', onDblClick);
+canvas.addEventListener('touchstart', e => { e.preventDefault(); onDown(e); }, {passive:false});
+canvas.addEventListener('touchmove', e => { e.preventDefault(); onMove(e); }, {passive:false});
+canvas.addEventListener('touchend', e => { e.preventDefault(); onUp(e); }, {passive:false});
+
+function onDown(e) {
+  const {x, y} = getCanvasPos(e);
+  if (!isInPlotArea(x, y)) return;
+
+  if (mode === 'curve') {
+    const nearest = findNearestPoint(x, y);
+    if (nearest >= 0) {
+      dragIndex = nearest;
+      isDragging = true;
+      canvas.classList.add('dragging');
+    } else {
+      // Add new point
+      const d = canvasToData(x, y);
+      controlPoints.push(d);
+      dragIndex = controlPoints.length - 1;
+      isDragging = true;
+      canvas.classList.add('dragging');
+      updateStatus();
+      drawAll();
+    }
+  } else if (mode === 'event') {
+    const d = canvasToData(x, y);
+    pendingEventPos = d;
+    openDialog();
+  }
+}
+
+function onMove(e) {
+  const {x, y} = getCanvasPos(e);
+  const coordEl = document.getElementById('coord-display');
+
+  if (isDragging && dragIndex >= 0) {
+    if (isInPlotArea(x, y)) {
+      const d = canvasToData(x, y);
+      controlPoints[dragIndex] = d;
+      drawAll();
+    }
+  } else {
+    // Hover detection
+    const prev = hoveredIndex;
+    hoveredIndex = findNearestPoint(x, y, 14);
+    if (hoveredIndex !== prev) drawAll();
+  }
+
+  if (isInPlotArea(x, y)) {
+    const d = canvasToData(x, y);
+    coordEl.textContent = `Position: ${Math.round(d.x * 100)}% | Tension: ${Math.round(d.y * 100)}%`;
+    showTooltip(e, hoveredIndex >= 0 ? 'Drag to adjust. Double-click to remove.' : (mode === 'event' ? 'Click to place event' : 'Click to add point'));
+  } else {
+    coordEl.textContent = '';
+    hideTooltip();
+  }
+}
+
+function onUp() {
+  isDragging = false;
+  dragIndex = -1;
+  canvas.classList.remove('dragging');
+  updateStatus();
+  drawAll();
+}
+
+function onLeave() {
+  hoveredIndex = -1;
+  hideTooltip();
+  document.getElementById('coord-display').textContent = '';
+  if (isDragging) onUp();
+}
+
+function onDblClick(e) {
+  if (mode !== 'curve') return;
+  const {x, y} = getCanvasPos(e);
+  const nearest = findNearestPoint(x, y, 18);
+  if (nearest >= 0) {
+    controlPoints.splice(nearest, 1);
+    hoveredIndex = -1;
+    updateStatus();
+    drawAll();
+  }
+}
+
+// ============================================================
+// TOOLTIP
+// ============================================================
+const tooltip = document.getElementById('tooltip');
+function showTooltip(e, text) {
+  tooltip.textContent = text;
+  tooltip.style.left = (e.clientX + 14) + 'px';
+  tooltip.style.top = (e.clientY - 28) + 'px';
+  tooltip.classList.add('visible');
+}
+function hideTooltip() {
+  tooltip.classList.remove('visible');
+}
+
+// ============================================================
+// MODES & TABS
+// ============================================================
+function setMode(m) {
+  mode = m;
+  document.getElementById('mode-curve').classList.toggle('active', m === 'curve');
+  document.getElementById('mode-event').classList.toggle('active', m === 'event');
+  document.getElementById('event-input-area').style.display = m === 'event' ? 'block' : 'none';
+  document.getElementById('status-mode').textContent = m === 'curve' ? 'Edit Curve' : 'Place Event';
+  canvas.className = m === 'event' ? 'event-mode' : 'drag-mode';
+  if (m !== 'event') canvas.style.cursor = '';
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.sidebar-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ============================================================
+// PRESETS
+// ============================================================
+function loadPreset(key) {
+  const preset = PRESETS[key];
+  if (!preset) return;
+  controlPoints = preset.points.map(p => ({...p}));
+  events = preset.events ? preset.events.map(e => ({...e})) : [];
+  activePreset = key;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  const btns = document.querySelectorAll('.preset-btn');
+  const keys = ['freytag','threeact','fiveact','hero','kishoto','freeform'];
+  const idx = keys.indexOf(key);
+  if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
+  updateStatus();
+  renderEventList();
+  drawAll();
+}
+
+// ============================================================
+// EXAMPLES
+// ============================================================
+function loadExample(key) {
+  if (!key) return;
+  const ex = EXAMPLES[key];
+  if (!ex) return;
+  document.getElementById('canvas-title-input').value = ex.title;
+  loadPreset(ex.preset);
+  events = ex.events.map(e => ({...e}));
+  updateStatus();
+  renderEventList();
+  drawAll();
+}
+
+// ============================================================
+// EVENTS
+// ============================================================
+function openDialog() {
+  document.getElementById('dialog-event-name').value =
+    document.getElementById('event-label-input').value.trim() || '';
+  document.getElementById('dialog-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('dialog-event-name').focus(), 80);
+}
+
+function closeDialogIfBg(e) {
+  if (e.target === document.getElementById('dialog-overlay')) cancelEvent();
+}
+
+function cancelEvent() {
+  pendingEventPos = null;
+  document.getElementById('dialog-overlay').classList.remove('open');
+}
+
+function confirmEvent() {
+  const name = document.getElementById('dialog-event-name').value.trim();
+  if (!name || !pendingEventPos) { cancelEvent(); return; }
+  events.push({ x: pendingEventPos.x, y: pendingEventPos.y, label: name });
+  pendingEventPos = null;
+  document.getElementById('dialog-overlay').classList.remove('open');
+  document.getElementById('event-label-input').value = '';
+  updateStatus();
+  renderEventList();
+  drawAll();
+}
+
+function deleteEvent(i) {
+  events.splice(i, 1);
+  updateStatus();
+  renderEventList();
+  drawAll();
+}
+
+function renderEventList() {
+  const list = document.getElementById('event-list');
+  if (events.length === 0) {
+    list.innerHTML = '<li style="font-size:0.8rem;color:var(--text-light);padding:6px;">No events placed yet.</li>';
+    return;
+  }
+  list.innerHTML = '';
+  const sorted = events.map((e, i) => ({...e, i})).sort((a, b) => a.x - b.x);
+  sorted.forEach(ev => {
+    const li = document.createElement('li');
+    li.className = 'event-item';
+    li.innerHTML = `
+      <span class="event-dot"></span>
+      <span class="event-name" title="${ev.label}">${ev.label}</span>
+      <span class="event-pos">${Math.round(ev.x * 100)}%</span>
+      <span class="event-del" title="Remove" onclick="deleteEvent(${ev.i})">&times;</span>
+    `;
+    list.appendChild(li);
+  });
+}
+
+function clearEvents() {
+  if (events.length === 0) return;
+  events = [];
+  updateStatus();
+  renderEventList();
+  drawAll();
+}
+
+// ============================================================
+// STATUS
+// ============================================================
+function updateStatus() {
+  document.getElementById('status-points').textContent = controlPoints.length;
+  document.getElementById('status-events').textContent = events.length;
+}
+
+// ============================================================
+// TOOLS
+// ============================================================
+function resetCurve() {
+  controlPoints = [{x:0, y:0.1}, {x:0.5, y:0.6}, {x:1, y:0.15}];
+  updateStatus();
+  drawAll();
+}
+
+function exportPNG() {
+  // Temporarily draw without UI chrome
+  const link = document.createElement('a');
+  link.download = (document.getElementById('canvas-title-input').value.trim() || 'tension-curve') + '.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+window.addEventListener('resize', () => { clearTimeout(window._rt); window._rt = setTimeout(resizeCanvas, 80); });
+
+// Initial load
+loadPreset('freytag');
+resizeCanvas();
+setMode('curve');
+</script>
+</body>
+</html>

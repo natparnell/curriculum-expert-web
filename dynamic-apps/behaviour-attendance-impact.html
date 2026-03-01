@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Impact Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg: #f8f9fa;
+            --surface: #ffffff;
+            --text: #1a1a2e;
+            --text-muted: #5a5a7a;
+            --border: #e2e4e9;
+            --green: #16a34a;
+            --green-light: #4ade80;
+            --green-bg: #dcfce7;
+            --amber: #d97706;
+            --amber-bg: #fef3c7;
+            --red: #dc2626;
+            --red-bg: #fee2e2;
+            --blue: #2563eb;
+            --blue-bg: #dbeafe;
+            --header-bg: #1e293b;
+            --header-text: #f1f5f9;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+            --radius: 10px;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--header-bg);
+            color: var(--header-text);
+            padding: 16px 24px;
+            box-shadow: var(--shadow-md);
+        }
+
+        header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; }
+        header p { font-size: 0.85rem; opacity: 0.8; margin-top: 2px; }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: var(--text);
+        }
+
+        /* Slider Section */
+        .slider-section { text-align: center; padding: 32px 24px; }
+
+        .attendance-display {
+            font-size: 3.2rem;
+            font-weight: 800;
+            margin-bottom: 4px;
+            transition: color 0.3s;
+        }
+
+        .rag-label {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+
+        .rag-excellent { background: var(--green-bg); color: var(--green); }
+        .rag-good { background: #ecfdf5; color: #15803d; }
+        .rag-concern { background: var(--amber-bg); color: var(--amber); }
+        .rag-poor { background: var(--red-bg); color: var(--red); }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            max-width: 600px;
+            height: 8px;
+            border-radius: 4px;
+            background: var(--border);
+            outline: none;
+            margin: 12px 0;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--blue);
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(37,99,235,0.4);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--blue);
+            cursor: pointer;
+            border: none;
+        }
+
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            max-width: 600px;
+            margin: 0 auto;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+        }
+
+        .stat-card {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .stat-highlight .stat-value { color: var(--red); }
+        .stat-accent .stat-value { color: var(--amber); }
+
+        /* Equivalence Banner */
+        .equivalence-banner {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: #f1f5f9;
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .equivalence-banner .big-number {
+            font-size: 2.4rem;
+            font-weight: 800;
+            color: #fbbf24;
+        }
+
+        .equivalence-banner p { font-size: 0.95rem; opacity: 0.9; margin-top: 6px; }
+
+        /* Charts */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chart-card { padding: 20px; }
+        .chart-card h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 12px; }
+        .chart-card canvas { max-height: 280px; }
+
+        .chart-full { grid-column: 1 / -1; }
+
+        /* Info Sections */
+        .impact-statements { list-style: none; }
+
+        .impact-statements li {
+            padding: 10px 0 10px 28px;
+            position: relative;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        .impact-statements li:last-child { border-bottom: none; }
+
+        .impact-statements li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 14px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .impact-statements li.g::before { background: var(--green); }
+        .impact-statements li.a::before { background: var(--amber); }
+        .impact-statements li.r::before { background: var(--red); }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .info-block h3 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+
+        .info-block p, .info-block li {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.7;
+        }
+
+        .info-block ul { padding-left: 18px; margin-top: 6px; }
+        .info-block ul li { margin-bottom: 4px; }
+
+        .legal-note {
+            background: var(--red-bg);
+            border-left: 4px solid var(--red);
+            padding: 12px 16px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 12px;
+            font-size: 0.85rem;
+            color: var(--red);
+        }
+
+        footer {
+            text-align: center;
+            padding: 24px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 768px) {
+            .charts-grid { grid-template-columns: 1fr; }
+            .info-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .attendance-display { font-size: 2.4rem; }
+            .equivalence-banner .big-number { font-size: 1.8rem; }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            header { padding: 12px 16px; }
+            .container { padding: 16px 12px 40px; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Attendance Impact Calculator</h1>
+    <p>Visualise how attendance percentage translates to missed learning across a school career</p>
+</header>
+
+<div class="container">
+
+    <!-- Slider -->
+    <div class="card slider-section">
+        <div class="attendance-display" id="attendanceDisplay">95.0%</div>
+        <div class="rag-label rag-good" id="ragLabel">Good</div>
+        <br>
+        <input type="range" id="slider" min="80" max="100" step="0.5" value="95">
+        <div class="slider-labels">
+            <span>80%</span>
+            <span>85%</span>
+            <span>90%</span>
+            <span>95%</span>
+            <span>100%</span>
+        </div>
+    </div>
+
+    <!-- Stats Dashboard -->
+    <div class="card">
+        <h2>Key Statistics</h2>
+        <div class="stats-grid">
+            <div class="stat-card stat-highlight">
+                <div class="stat-value" id="daysMissedYear">9.5</div>
+                <div class="stat-label">Days missed this year (of 190)</div>
+            </div>
+            <div class="stat-card stat-accent">
+                <div class="stat-value" id="hoursMissedYear">47.5</div>
+                <div class="stat-label">Hours of learning missed this year</div>
+            </div>
+            <div class="stat-card stat-accent">
+                <div class="stat-value" id="lessonsMissedYear">47.5</div>
+                <div class="stat-label">Lessons missed this year</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="daysMissedPrimary">66.5</div>
+                <div class="stat-label">Days missed over primary (7 years)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="daysMissedSecondary">47.5</div>
+                <div class="stat-label">Days missed over secondary (5 years)</div>
+            </div>
+            <div class="stat-card stat-highlight">
+                <div class="stat-value" id="daysMissedCareer">123.5</div>
+                <div class="stat-label">Total days missed (13-year career)</div>
+            </div>
+            <div class="stat-card" style="grid-column: 1 / -1;">
+                <div class="stat-value" id="weeksMissed">24.7</div>
+                <div class="stat-label">Equivalent full school weeks missed over entire school career</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Equivalence Banner -->
+    <div class="equivalence-banner" id="equivalenceBanner">
+        <p>At <strong>95.0%</strong> attendance, you miss the equivalent of</p>
+        <div class="big-number" id="equivWeeks">24.7 weeks</div>
+        <p id="equivStatement">That is like missing more than an entire school year.</p>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+        <div class="card chart-card">
+            <h3>Days Missed This Year: Your Attendance vs 100%</h3>
+            <canvas id="barChart"></canvas>
+        </div>
+        <div class="card chart-card">
+            <h3>Cumulative Career Impact: Side-by-Side Comparison</h3>
+            <canvas id="comparisonChart"></canvas>
+        </div>
+        <div class="card chart-card chart-full">
+            <h3>Cumulative Days Missed Over 13 Years of Schooling</h3>
+            <canvas id="lineChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Impact on Learning -->
+    <div class="card">
+        <h2>Impact on Learning: What the Research Shows</h2>
+        <ul class="impact-statements">
+            <li class="g">Students with 97%+ attendance are <strong>5 times more likely</strong> to achieve grade 5 or above in English and Maths GCSEs than those below 90%.</li>
+            <li class="g">Each additional day of absence is associated with a measurable drop in attainment. Even a 1% decrease in attendance can affect outcomes.</li>
+            <li class="a">A pupil with 90% attendance over their school career misses <strong>the equivalent of an entire school year</strong> of learning.</li>
+            <li class="a">At 90% attendance, pupils miss around 50 lessons every year, including key introductions to new topics, revision sessions, and assessments.</li>
+            <li class="r">Pupils who are persistently absent (below 90%) are significantly less likely to achieve expected grades and are more likely to become NEET (Not in Education, Employment, or Training) after Year 11.</li>
+            <li class="r">National data consistently shows that the attainment gap between persistent absentees and regular attenders is <strong>equivalent to two full GCSE grades</strong> across every subject.</li>
+            <li class="a">Absence has a compounding effect: missed lessons create knowledge gaps that make subsequent lessons harder to access, leading to disengagement.</li>
+            <li class="g">Schools with the strongest attendance cultures typically see higher attainment, better behaviour, and improved wellbeing outcomes across all year groups.</li>
+        </ul>
+    </div>
+
+    <!-- Info Panel -->
+    <div class="card">
+        <h2>Understanding Attendance</h2>
+        <div class="info-grid">
+            <div class="info-block">
+                <h3>Why Every Day Matters</h3>
+                <p>Each school day builds on the last. Lessons are carefully sequenced so that missing even one day means missing the foundation for what comes next. Unlike a job where tasks can wait, learning moves forward every day. Catch-up is possible, but it takes significantly more effort than simply being present in the first place.</p>
+            </div>
+            <div class="info-block">
+                <h3>Persistent Absence</h3>
+                <p>A pupil is classified as a <strong>persistent absentee</strong> if their attendance drops below 90%. This means missing 19 or more days in a year. Nationally, around 1 in 5 pupils falls into this category. Despite the name, it does not require long continuous absence; frequent odd days off can quickly add up past the threshold.</p>
+                <div class="legal-note">Below 90% attendance triggers additional monitoring and may lead to formal action by the local authority.</div>
+            </div>
+            <div class="info-block">
+                <h3>Legal Requirements</h3>
+                <p>Parents and carers have a legal duty under the Education Act 1996 to ensure their child attends school regularly. Failure to do so can result in:</p>
+                <ul>
+                    <li>Fixed penalty notices (currently up to &pound;160 per parent, per child)</li>
+                    <li>Education Supervision Orders</li>
+                    <li>Prosecution, with fines of up to &pound;2,500 or a custodial sentence in severe cases</li>
+                </ul>
+                <p style="margin-top:8px;">Term-time holidays are not an entitlement. Headteachers may only authorise leave in exceptional circumstances.</p>
+            </div>
+            <div class="info-block">
+                <h3>Tips for Improving Attendance</h3>
+                <ul>
+                    <li>Establish a consistent morning routine and prepare the night before.</li>
+                    <li>Seek medical appointments outside school hours where possible.</li>
+                    <li>Communicate early with school if barriers to attendance emerge.</li>
+                    <li>Recognise and celebrate good attendance at home.</li>
+                    <li>Access pastoral or wellbeing support if anxiety is a factor.</li>
+                    <li>Avoid booking holidays during term time.</li>
+                    <li>If your child is unwell, speak with school to understand when they can return; many minor illnesses do not require a full day off.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>Attendance Impact Calculator | Data based on a 190-day school year, 5 hours and 5 lessons per day</footer>
+
+<script>
+(function () {
+    const SCHOOL_DAYS = 190;
+    const HOURS_PER_DAY = 5;
+    const LESSONS_PER_DAY = 5;
+    const PRIMARY_YEARS = 7;
+    const SECONDARY_YEARS = 5;
+    const TOTAL_YEARS = 13;
+    const DAYS_PER_WEEK = 5;
+
+    const slider = document.getElementById('slider');
+    const display = document.getElementById('attendanceDisplay');
+    const ragLabel = document.getElementById('ragLabel');
+
+    const daysMissedYearEl = document.getElementById('daysMissedYear');
+    const hoursMissedYearEl = document.getElementById('hoursMissedYear');
+    const lessonsMissedYearEl = document.getElementById('lessonsMissedYear');
+    const daysMissedPrimaryEl = document.getElementById('daysMissedPrimary');
+    const daysMissedSecondaryEl = document.getElementById('daysMissedSecondary');
+    const daysMissedCareerEl = document.getElementById('daysMissedCareer');
+    const weeksMissedEl = document.getElementById('weeksMissed');
+    const equivWeeksEl = document.getElementById('equivWeeks');
+    const equivStatementEl = document.getElementById('equivStatement');
+    const equivalenceBanner = document.getElementById('equivalenceBanner');
+
+    // Colour helpers
+    const colors = {
+        green: '#16a34a', greenLight: '#4ade80', greenBg: 'rgba(22,163,74,0.12)',
+        amber: '#d97706', amberBg: 'rgba(217,119,6,0.12)',
+        red: '#dc2626', redBg: 'rgba(220,38,38,0.12)',
+        blue: '#2563eb', blueBg: 'rgba(37,99,235,0.12)',
+        grey: '#94a3b8', greyBg: 'rgba(148,163,184,0.12)'
+    };
+
+    function getRag(pct) {
+        if (pct >= 97) return { cls: 'rag-excellent', label: 'Excellent', color: colors.green };
+        if (pct >= 95) return { cls: 'rag-good', label: 'Good', color: colors.greenLight };
+        if (pct >= 90) return { cls: 'rag-concern', label: 'Cause for Concern', color: colors.amber };
+        return { cls: 'rag-poor', label: 'Persistent Absence', color: colors.red };
+    }
+
+    function fmt(n) {
+        return n % 1 === 0 ? n.toString() : n.toFixed(1);
+    }
+
+    // Charts
+    let barChart, compChart, lineChart;
+
+    function initCharts() {
+        const barCtx = document.getElementById('barChart').getContext('2d');
+        barChart = new Chart(barCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Your Attendance', '100% Attendance'],
+                datasets: [{
+                    label: 'Days Missed',
+                    data: [9.5, 0],
+                    backgroundColor: [colors.amber, colors.green],
+                    borderRadius: 6,
+                    barPercentage: 0.5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Days Missed' } }
+                }
+            }
+        });
+
+        const compCtx = document.getElementById('comparisonChart').getContext('2d');
+        const compLevels = [85, 90, 95, 100];
+        compChart = new Chart(compCtx, {
+            type: 'bar',
+            data: {
+                labels: compLevels.map(l => l + '%'),
+                datasets: [{
+                    label: 'Days Missed (13-year career)',
+                    data: compLevels.map(l => +(((100 - l) / 100) * SCHOOL_DAYS * TOTAL_YEARS).toFixed(1)),
+                    backgroundColor: [colors.red, colors.amber, colors.greenLight, colors.green],
+                    borderRadius: 6,
+                    barPercentage: 0.55
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Total Days Missed' } }
+                }
+            }
+        });
+
+        const lineCtx = document.getElementById('lineChart').getContext('2d');
+        const years = Array.from({ length: TOTAL_YEARS }, (_, i) => 'Year ' + (i + 1));
+        lineChart = new Chart(lineCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    makeLineDS('Your Attendance', 95, colors.blue, false),
+                    makeLineDS('90%', 90, colors.amber, true),
+                    makeLineDS('85%', 85, colors.red, true)
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } }
+                },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Cumulative Days Missed' } },
+                    x: { title: { display: true, text: 'School Year' } }
+                }
+            }
+        });
+    }
+
+    function makeLineDS(label, pct, color, dashed) {
+        const missedPerYear = ((100 - pct) / 100) * SCHOOL_DAYS;
+        const data = Array.from({ length: TOTAL_YEARS }, (_, i) => +((i + 1) * missedPerYear).toFixed(1));
+        return {
+            label: label,
+            data: data,
+            borderColor: color,
+            backgroundColor: color + '22',
+            fill: false,
+            tension: 0.3,
+            pointRadius: 3,
+            borderWidth: dashed ? 2 : 3,
+            borderDash: dashed ? [6, 3] : []
+        };
+    }
+
+    function update() {
+        const pct = parseFloat(slider.value);
+        const absPct = (100 - pct) / 100;
+        const missedYear = +(absPct * SCHOOL_DAYS).toFixed(1);
+        const hoursYear = +(missedYear * HOURS_PER_DAY).toFixed(1);
+        const lessonsYear = +(missedYear * LESSONS_PER_DAY).toFixed(1);
+        const missedPrimary = +(missedYear * PRIMARY_YEARS).toFixed(1);
+        const missedSecondary = +(missedYear * SECONDARY_YEARS).toFixed(1);
+        const missedCareer = +(missedYear * TOTAL_YEARS).toFixed(1);
+        const weeksMissed = +(missedCareer / DAYS_PER_WEEK).toFixed(1);
+
+        const rag = getRag(pct);
+
+        // Display
+        display.textContent = fmt(pct) + '%';
+        display.style.color = rag.color;
+        ragLabel.className = 'rag-label ' + rag.cls;
+        ragLabel.textContent = rag.label;
+
+        // Stats
+        daysMissedYearEl.textContent = fmt(missedYear);
+        hoursMissedYearEl.textContent = fmt(hoursYear);
+        lessonsMissedYearEl.textContent = fmt(lessonsYear);
+        daysMissedPrimaryEl.textContent = fmt(missedPrimary);
+        daysMissedSecondaryEl.textContent = fmt(missedSecondary);
+        daysMissedCareerEl.textContent = fmt(missedCareer);
+        weeksMissedEl.textContent = fmt(weeksMissed);
+
+        // Equivalence
+        equivWeeksEl.textContent = fmt(weeksMissed) + ' weeks';
+        equivalenceBanner.querySelector('strong').textContent = fmt(pct) + '%';
+
+        if (weeksMissed >= 38) {
+            equivStatementEl.textContent = 'That is like missing more than an entire school year.';
+        } else if (weeksMissed >= 26) {
+            equivStatementEl.textContent = 'That is like missing more than two full school terms.';
+        } else if (weeksMissed >= 13) {
+            equivStatementEl.textContent = 'That is like missing an entire school term.';
+        } else if (weeksMissed >= 6) {
+            equivStatementEl.textContent = 'That is like missing a full half-term of school.';
+        } else if (weeksMissed > 0) {
+            equivStatementEl.textContent = 'Even small amounts of absence add up across a school career.';
+        } else {
+            equivStatementEl.textContent = 'Perfect attendance: no learning time lost.';
+        }
+
+        // Bar chart
+        barChart.data.datasets[0].data = [missedYear, 0];
+        barChart.data.datasets[0].backgroundColor = [rag.color, colors.green];
+        barChart.update('none');
+
+        // Comparison chart (static levels, no change needed)
+
+        // Line chart: update "Your Attendance" dataset
+        const missedPerYr = absPct * SCHOOL_DAYS;
+        lineChart.data.datasets[0].label = fmt(pct) + '% (your attendance)';
+        lineChart.data.datasets[0].data = Array.from({ length: TOTAL_YEARS }, (_, i) => +((i + 1) * missedPerYr).toFixed(1));
+        lineChart.data.datasets[0].borderColor = rag.color;
+        lineChart.update('none');
+    }
+
+    slider.addEventListener('input', update);
+
+    initCharts();
+    update();
+})();
+</script>
+
+</body>
+</html>

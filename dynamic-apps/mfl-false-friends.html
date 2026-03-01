@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>False Friends Explorer</title>
+<style>
+:root {
+  --purple-900: #2d1b4e;
+  --purple-800: #3b2667;
+  --purple-700: #4c3380;
+  --purple-600: #5e3f99;
+  --purple-500: #7251b5;
+  --purple-400: #8b6ec7;
+  --purple-300: #a78fd9;
+  --purple-200: #c4b3e8;
+  --purple-100: #e3daf4;
+  --purple-50: #f3eefb;
+  --violet-500: #8b5cf6;
+  --violet-400: #a78bfa;
+  --warm-orange: #f59e0b;
+  --warm-coral: #f87171;
+  --warm-rose: #fb7185;
+  --green-500: #22c55e;
+  --green-100: #dcfce7;
+  --red-500: #ef4444;
+  --red-100: #fee2e2;
+  --blue-100: #dbeafe;
+  --blue-500: #3b82f6;
+  --text-primary: #1e1b2e;
+  --text-secondary: #5a5270;
+  --text-light: #8a82a0;
+  --bg-body: #f8f6fc;
+  --bg-card: #ffffff;
+  --bg-card-hover: #faf8ff;
+  --shadow-sm: 0 1px 3px rgba(45,27,78,0.08);
+  --shadow-md: 0 4px 12px rgba(45,27,78,0.1);
+  --shadow-lg: 0 8px 24px rgba(45,27,78,0.14);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --transition: 0.25s ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-body);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: linear-gradient(135deg, var(--purple-800), var(--purple-600));
+  color: #fff;
+  padding: 16px 24px;
+  box-shadow: var(--shadow-lg);
+}
+
+header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
+header p { font-size: 0.88rem; opacity: 0.85; margin-top: 2px; }
+
+.app-container { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+
+/* Language Tabs */
+.lang-tabs {
+  display: flex; gap: 6px; margin-bottom: 16px;
+  background: var(--bg-card); border-radius: var(--radius-md);
+  padding: 6px; box-shadow: var(--shadow-sm);
+}
+.lang-tab {
+  flex: 1; padding: 10px 16px; border: none; border-radius: var(--radius-sm);
+  background: transparent; cursor: pointer; font-size: 0.95rem; font-weight: 600;
+  color: var(--text-secondary); transition: var(--transition);
+}
+.lang-tab:hover { background: var(--purple-50); color: var(--purple-700); }
+.lang-tab.active { background: var(--purple-600); color: #fff; }
+
+/* Mode Tabs */
+.mode-tabs {
+  display: flex; gap: 6px; margin-bottom: 20px;
+  background: var(--bg-card); border-radius: var(--radius-md);
+  padding: 6px; box-shadow: var(--shadow-sm);
+}
+.mode-tab {
+  flex: 1; padding: 10px 14px; border: 2px solid transparent; border-radius: var(--radius-sm);
+  background: transparent; cursor: pointer; font-size: 0.88rem; font-weight: 600;
+  color: var(--text-secondary); transition: var(--transition); text-align: center;
+}
+.mode-tab:hover { background: var(--purple-50); color: var(--purple-700); }
+.mode-tab.active { border-color: var(--purple-500); background: var(--purple-50); color: var(--purple-700); }
+
+/* Score Bar */
+.score-bar-container {
+  background: var(--bg-card); border-radius: var(--radius-md);
+  padding: 14px 18px; margin-bottom: 20px; box-shadow: var(--shadow-sm);
+  display: none;
+}
+.score-bar-container.visible { display: block; }
+.score-bar-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.88rem; font-weight: 600; }
+.score-bar-track { height: 10px; background: var(--purple-100); border-radius: 5px; overflow: hidden; }
+.score-bar-fill { height: 100%; background: linear-gradient(90deg, var(--purple-500), var(--violet-500)); border-radius: 5px; transition: width 0.4s ease; width: 0; }
+
+/* Flip Cards Grid */
+.cards-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.flip-card {
+  perspective: 800px; height: 200px; cursor: pointer;
+}
+.flip-card-inner {
+  position: relative; width: 100%; height: 100%;
+  transition: transform 0.5s ease; transform-style: preserve-3d;
+}
+.flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+.flip-card-front, .flip-card-back {
+  position: absolute; inset: 0; backface-visibility: hidden;
+  border-radius: var(--radius-md); padding: 20px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-md); text-align: center;
+}
+.flip-card-front {
+  background: linear-gradient(145deg, var(--purple-700), var(--purple-500));
+  color: #fff;
+}
+.flip-card-front .word { font-size: 1.5rem; font-weight: 700; margin-bottom: 6px; }
+.flip-card-front .lang-label { font-size: 0.78rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; }
+.flip-card-front .tap-hint { font-size: 0.75rem; opacity: 0.5; margin-top: 12px; }
+.flip-card-back {
+  background: var(--bg-card); transform: rotateY(180deg);
+}
+.flip-card-back .actual-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--green-500); font-weight: 700; margin-bottom: 4px; }
+.flip-card-back .actual-meaning { font-size: 1.15rem; font-weight: 700; color: var(--purple-700); margin-bottom: 10px; }
+.flip-card-back .false-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--red-500); font-weight: 700; margin-bottom: 4px; }
+.flip-card-back .false-meaning { font-size: 0.95rem; color: var(--text-secondary); text-decoration: line-through; margin-bottom: 10px; }
+.flip-card-back .note { font-size: 0.78rem; color: var(--text-light); font-style: italic; }
+
+/* Sorting Game */
+.sort-area { display: none; }
+.sort-area.visible { display: block; }
+.sort-columns {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; min-height: 200px;
+}
+.sort-column {
+  background: var(--bg-card); border: 2px dashed var(--purple-200); border-radius: var(--radius-lg);
+  padding: 16px; min-height: 180px; transition: var(--transition);
+}
+.sort-column.drag-over { border-color: var(--purple-500); background: var(--purple-50); }
+.sort-column h3 {
+  font-size: 0.92rem; font-weight: 700; text-align: center; margin-bottom: 12px;
+  padding-bottom: 10px; border-bottom: 2px solid var(--purple-100);
+}
+.sort-column.true-col h3 { color: var(--green-500); }
+.sort-column.false-col h3 { color: var(--warm-coral); }
+.sort-column .drop-zone { min-height: 100px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-content: flex-start; }
+
+.sort-card {
+  display: inline-block; padding: 10px 18px; border-radius: var(--radius-sm);
+  background: linear-gradient(145deg, var(--purple-600), var(--purple-500));
+  color: #fff; font-weight: 600; font-size: 0.92rem; cursor: grab;
+  user-select: none; box-shadow: var(--shadow-sm); transition: var(--transition);
+}
+.sort-card:active { cursor: grabbing; transform: scale(1.05); }
+.sort-card.correct { background: var(--green-500); }
+.sort-card.incorrect { background: var(--red-500); }
+
+.sort-pool {
+  display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+  padding: 16px; background: var(--bg-card); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm); margin-bottom: 16px; min-height: 60px;
+}
+
+.sort-feedback {
+  text-align: center; padding: 12px; border-radius: var(--radius-sm);
+  font-weight: 600; margin-top: 12px; display: none;
+}
+.sort-feedback.visible { display: block; }
+
+.btn {
+  display: inline-block; padding: 10px 24px; border: none; border-radius: var(--radius-sm);
+  font-size: 0.92rem; font-weight: 600; cursor: pointer; transition: var(--transition);
+}
+.btn-primary { background: var(--purple-600); color: #fff; }
+.btn-primary:hover { background: var(--purple-700); }
+.btn-secondary { background: var(--purple-100); color: var(--purple-700); }
+.btn-secondary:hover { background: var(--purple-200); }
+.btn-row { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+
+/* Quiz Mode */
+.quiz-area { display: none; }
+.quiz-area.visible { display: block; }
+.quiz-card {
+  background: var(--bg-card); border-radius: var(--radius-lg); padding: 30px;
+  box-shadow: var(--shadow-md); text-align: center; max-width: 600px; margin: 0 auto;
+}
+.quiz-card .q-number { font-size: 0.8rem; color: var(--text-light); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+.quiz-card .q-word { font-size: 1.8rem; font-weight: 700; color: var(--purple-700); margin-bottom: 8px; }
+.quiz-card .q-context { font-size: 0.95rem; color: var(--text-secondary); font-style: italic; margin-bottom: 24px; padding: 10px 16px; background: var(--purple-50); border-radius: var(--radius-sm); }
+.quiz-options { display: flex; flex-direction: column; gap: 10px; }
+.quiz-option {
+  padding: 14px 20px; border: 2px solid var(--purple-200); border-radius: var(--radius-sm);
+  background: var(--bg-card); cursor: pointer; font-size: 0.95rem; font-weight: 500;
+  transition: var(--transition); text-align: left;
+}
+.quiz-option:hover:not(.disabled) { border-color: var(--purple-400); background: var(--purple-50); }
+.quiz-option.selected-correct { border-color: var(--green-500); background: var(--green-100); }
+.quiz-option.selected-wrong { border-color: var(--red-500); background: var(--red-100); }
+.quiz-option.reveal-correct { border-color: var(--green-500); background: var(--green-100); }
+.quiz-option.disabled { cursor: default; opacity: 0.7; }
+.quiz-explanation {
+  margin-top: 18px; padding: 12px 16px; border-radius: var(--radius-sm);
+  font-size: 0.88rem; display: none;
+}
+.quiz-explanation.visible { display: block; }
+.quiz-explanation.correct-exp { background: var(--green-100); color: #166534; }
+.quiz-explanation.wrong-exp { background: var(--red-100); color: #991b1b; }
+
+/* Info Panel */
+.info-panel {
+  background: var(--bg-card); border-radius: var(--radius-lg); padding: 24px;
+  box-shadow: var(--shadow-sm); margin-top: 24px; display: none;
+}
+.info-panel.visible { display: block; }
+.info-toggle {
+  display: flex; align-items: center; gap: 8px; background: none; border: none;
+  cursor: pointer; font-size: 0.92rem; font-weight: 600; color: var(--purple-600);
+  margin: 16px auto 0; padding: 8px 16px;
+}
+.info-toggle:hover { color: var(--purple-800); }
+.info-panel h3 { font-size: 1.1rem; color: var(--purple-700); margin-bottom: 14px; }
+.info-panel h4 { font-size: 0.95rem; color: var(--purple-600); margin: 14px 0 6px; }
+.info-panel p { font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 8px; }
+
+.results-overlay {
+  position: fixed; inset: 0; background: rgba(45,27,78,0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 200;
+  opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+}
+.results-overlay.visible { opacity: 1; pointer-events: auto; }
+.results-box {
+  background: var(--bg-card); border-radius: var(--radius-lg); padding: 36px;
+  text-align: center; max-width: 400px; width: 90%; box-shadow: var(--shadow-lg);
+}
+.results-box .emoji { font-size: 3rem; margin-bottom: 12px; }
+.results-box h2 { font-size: 1.3rem; color: var(--purple-700); margin-bottom: 8px; }
+.results-box p { font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 18px; }
+
+@media (max-width: 600px) {
+  .cards-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .flip-card { height: 170px; }
+  .flip-card-front .word { font-size: 1.2rem; }
+  .sort-columns { grid-template-columns: 1fr; }
+  .quiz-card { padding: 20px; }
+  .quiz-card .q-word { font-size: 1.4rem; }
+  header h1 { font-size: 1.2rem; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>False Friends Explorer</h1>
+  <p>Explore deceptive cognates between French, Spanish, German and English</p>
+</header>
+
+<div class="app-container">
+  <div class="lang-tabs" id="langTabs">
+    <button class="lang-tab active" data-lang="french">French</button>
+    <button class="lang-tab" data-lang="spanish">Spanish</button>
+    <button class="lang-tab" data-lang="german">German</button>
+  </div>
+
+  <div class="mode-tabs" id="modeTabs">
+    <button class="mode-tab active" data-mode="cards">Flip Cards</button>
+    <button class="mode-tab" data-mode="sort">Sorting Game</button>
+    <button class="mode-tab" data-mode="quiz">Quiz Mode</button>
+  </div>
+
+  <div class="score-bar-container" id="scoreBar">
+    <div class="score-bar-header">
+      <span id="scoreLabel">Score: 0/0</span>
+      <span id="scorePercent">0%</span>
+    </div>
+    <div class="score-bar-track"><div class="score-bar-fill" id="scoreFill"></div></div>
+  </div>
+
+  <div id="cardsArea" class="cards-grid"></div>
+
+  <div id="sortArea" class="sort-area">
+    <div class="sort-pool" id="sortPool"></div>
+    <div class="sort-columns">
+      <div class="sort-column true-col" id="trueCol">
+        <h3>True Cognates</h3>
+        <div class="drop-zone" id="trueZone"></div>
+      </div>
+      <div class="sort-column false-col" id="falseCol">
+        <h3>False Friends</h3>
+        <div class="drop-zone" id="falseZone"></div>
+      </div>
+    </div>
+    <div class="sort-feedback" id="sortFeedback"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="checkSortBtn" onclick="checkSort()">Check Answers</button>
+      <button class="btn btn-secondary" onclick="startSort()">Reset</button>
+    </div>
+  </div>
+
+  <div id="quizArea" class="quiz-area">
+    <div class="quiz-card" id="quizCard"></div>
+    <div class="btn-row" id="quizNav" style="display:none">
+      <button class="btn btn-primary" id="nextQuizBtn" onclick="nextQuizQuestion()">Next Question</button>
+    </div>
+  </div>
+
+  <button class="info-toggle" onclick="toggleInfo()">
+    <span id="infoArrow">&#9654;</span> Why do false friends exist?
+  </button>
+  <div class="info-panel" id="infoPanel">
+    <h3>Why Do False Friends Exist?</h3>
+    <h4>1. Shared Latin and Greek Roots</h4>
+    <p>Many European languages borrowed heavily from Latin and Greek. When two languages take the same root word but apply it to slightly different concepts over centuries, false friends emerge. For example, French "actuellement" and English "actually" both come from Latin "actualis", but French retained the sense of "at this time" while English shifted to mean "in truth".</p>
+    <h4>2. Language Divergence</h4>
+    <p>Languages that share a common ancestor (like French, Spanish, and Italian from Latin, or English and German from Proto-Germanic) started with similar vocabularies. As communities separated geographically and culturally, words evolved independently, sometimes keeping the same form but developing different meanings.</p>
+    <h4>3. Semantic Shift</h4>
+    <p>Over time, words naturally broaden, narrow, or shift in meaning. English "gift" meant a payment or dowry in Old English, while German "Gift" narrowed to mean "poison" (something given, but with harmful intent). These shifts happen at different rates and in different directions across languages.</p>
+    <h4>4. Borrowing and Re-borrowing</h4>
+    <p>English borrowed thousands of words from French after the Norman Conquest in 1066. Sometimes both languages later shifted the meaning. The word "demand" in English became forceful, while French "demander" simply means "to ask". The shared origin masks the divergent evolution.</p>
+  </div>
+</div>
+
+<div class="results-overlay" id="resultsOverlay">
+  <div class="results-box">
+    <div class="emoji" id="resultsEmoji"></div>
+    <h2 id="resultsTitle"></h2>
+    <p id="resultsText"></p>
+    <button class="btn btn-primary" onclick="closeResults()">Try Again</button>
+  </div>
+</div>
+
+<script>
+const DATA = {
+  french: {
+    label: "French",
+    falseFriends: [
+      { word: "actuellement", actual: "currently, at present", falseEn: "actually", context: "Il travaille actuellement a Paris.", note: "Both from Latin 'actualis'; French kept the temporal sense." },
+      { word: "bras", actual: "arm", falseEn: "bra", context: "Elle s'est casse le bras en tombant.", note: "From Latin 'bracchium' (arm)." },
+      { word: "coin", actual: "corner, wedge", falseEn: "coin (money)", context: "Il y a un cafe au coin de la rue.", note: "From Latin 'cuneus' (wedge)." },
+      { word: "librairie", actual: "bookshop", falseEn: "library", context: "J'ai achete ce roman a la librairie.", note: "A library is 'bibliotheque' in French." },
+      { word: "assister", actual: "to attend, to witness", falseEn: "to assist", context: "Nous allons assister au concert ce soir.", note: "To assist is 'aider' in French." },
+      { word: "demander", actual: "to ask", falseEn: "to demand", context: "Je vais demander le chemin a quelqu'un.", note: "To demand forcefully is 'exiger'." },
+      { word: "blesser", actual: "to injure, wound", falseEn: "to bless", context: "Il a ete blesse dans l'accident.", note: "To bless is 'benir' in French." },
+      { word: "raisin", actual: "grape", falseEn: "raisin (dried grape)", context: "Le vin est fait avec du raisin.", note: "A raisin is 'raisin sec' in French." },
+      { word: "journee", actual: "daytime, day (duration)", falseEn: "journey", context: "J'ai passe une bonne journee.", note: "A journey is 'voyage' in French." },
+      { word: "monnaie", actual: "change, currency", falseEn: "money", context: "Avez-vous de la monnaie?", note: "Money in general is 'argent'." },
+      { word: "figure", actual: "face", falseEn: "figure (shape)", context: "Elle a une jolie figure.", note: "Both from Latin 'figura', but French narrowed to face." },
+      { word: "attendre", actual: "to wait", falseEn: "to attend", context: "Attendez-moi ici, s'il vous plait.", note: "To attend is 'assister a' in French." },
+      { word: "entrainer", actual: "to train, coach", falseEn: "to entertain", context: "Il entraine l'equipe de football.", note: "To entertain is 'divertir'." },
+      { word: "photographe", actual: "photographer", falseEn: "photograph", context: "Le photographe a pris de belles images.", note: "A photograph is 'photographie' or 'photo'." },
+      { word: "location", actual: "rental, hire", falseEn: "location (place)", context: "La location de l'appartement coute cher.", note: "Location (place) is 'endroit' or 'lieu'." },
+      { word: "chair", actual: "flesh, meat", falseEn: "chair (furniture)", context: "J'ai la chair de poule.", note: "A chair is 'chaise' in French." },
+      { word: "prune", actual: "plum", falseEn: "prune (dried plum)", context: "J'ai cueilli des prunes dans le jardin.", note: "A prune is 'pruneau' in French." },
+      { word: "regarder", actual: "to watch, to look at", falseEn: "to regard (consider)", context: "Regarde ce beau coucher de soleil!", note: "To regard/consider is 'considerer'." },
+      { word: "sang", actual: "blood", falseEn: "sang (past tense of sing)", context: "Il a perdu beaucoup de sang.", note: "From Latin 'sanguis' (blood)." },
+      { word: "patron", actual: "boss, employer", falseEn: "patron (customer)", context: "Mon patron est tres gentil.", note: "A patron/customer is 'client'." },
+      { word: "formidable", actual: "wonderful, tremendous", falseEn: "formidable (intimidating)", context: "C'etait une experience formidable!", note: "French sense shifted to positive, English stayed negative." }
+    ],
+    trueCognates: [
+      { word: "animal", meaning: "animal" },
+      { word: "garage", meaning: "garage" },
+      { word: "orange", meaning: "orange" },
+      { word: "table", meaning: "table" },
+      { word: "avenue", meaning: "avenue" },
+      { word: "restaurant", meaning: "restaurant" }
+    ]
+  },
+  spanish: {
+    label: "Spanish",
+    falseFriends: [
+      { word: "embarazada", actual: "pregnant", falseEn: "embarrassed", context: "Mi hermana esta embarazada de seis meses.", note: "Embarrassed is 'avergonzado/a' in Spanish." },
+      { word: "carpeta", actual: "folder, binder", falseEn: "carpet", context: "Pon los documentos en la carpeta.", note: "A carpet is 'alfombra' in Spanish." },
+      { word: "exito", actual: "success", falseEn: "exit", context: "La pelicula fue un gran exito.", note: "Exit is 'salida' in Spanish." },
+      { word: "constipado", actual: "having a cold", falseEn: "constipated", context: "Estoy constipado, me duele la garganta.", note: "Constipated is 'estrenido' in Spanish." },
+      { word: "molestar", actual: "to bother, annoy", falseEn: "to molest", context: "No me molestes ahora, estoy ocupado.", note: "Much weaker meaning than the English word." },
+      { word: "sensible", actual: "sensitive", falseEn: "sensible", context: "Es una persona muy sensible.", note: "Sensible (reasonable) is 'sensato'." },
+      { word: "recordar", actual: "to remember", falseEn: "to record", context: "No puedo recordar su nombre.", note: "To record is 'grabar' in Spanish." },
+      { word: "contestar", actual: "to answer", falseEn: "to contest", context: "Contesta el telefono, por favor.", note: "To contest is 'impugnar' or 'disputar'." },
+      { word: "largo", actual: "long", falseEn: "large", context: "El rio Amazonas es muy largo.", note: "Large is 'grande' in Spanish." },
+      { word: "realizar", actual: "to carry out, accomplish", falseEn: "to realize", context: "Vamos a realizar el proyecto manana.", note: "To realize (understand) is 'darse cuenta'." },
+      { word: "pretender", actual: "to try, to aim for", falseEn: "to pretend", context: "Pretendo terminar el libro hoy.", note: "To pretend is 'fingir' in Spanish." },
+      { word: "actual", actual: "current, present", falseEn: "actual", context: "El presidente actual es muy popular.", note: "Same Latin root as French 'actuellement'." },
+      { word: "asistir", actual: "to attend", falseEn: "to assist", context: "Voy a asistir a la conferencia.", note: "To assist is 'ayudar' in Spanish." },
+      { word: "delito", actual: "crime, offence", falseEn: "delight", context: "Robar es un delito grave.", note: "Delight is 'deleite' or 'placer'." },
+      { word: "eventual", actual: "possible, conditional", falseEn: "eventual (certain)", context: "Un eventual cambio de planes.", note: "Eventual (certain to happen) is 'final' or 'definitivo'." },
+      { word: "lectura", actual: "reading", falseEn: "lecture", context: "La lectura es mi pasatiempo favorito.", note: "A lecture is 'conferencia'." },
+      { word: "sopa", actual: "soup", falseEn: "soap", context: "La sopa esta muy caliente.", note: "Soap is 'jabon' in Spanish." },
+      { word: "ropa", actual: "clothes, clothing", falseEn: "rope", context: "Necesito comprar ropa nueva.", note: "Rope is 'cuerda' in Spanish." },
+      { word: "libreria", actual: "bookshop", falseEn: "library", context: "Compre el libro en la libreria.", note: "Library is 'biblioteca' in Spanish." },
+      { word: "tuna", actual: "prickly pear fruit", falseEn: "tuna (fish)", context: "La tuna es una fruta del cactus.", note: "Tuna fish is 'atun' in Spanish." },
+      { word: "suceso", actual: "event, occurrence", falseEn: "success", context: "Fue un suceso inesperado.", note: "Success is 'exito' in Spanish." }
+    ],
+    trueCognates: [
+      { word: "hotel", meaning: "hotel" },
+      { word: "hospital", meaning: "hospital" },
+      { word: "chocolate", meaning: "chocolate" },
+      { word: "doctor", meaning: "doctor" },
+      { word: "natural", meaning: "natural" },
+      { word: "idea", meaning: "idea" }
+    ]
+  },
+  german: {
+    label: "German",
+    falseFriends: [
+      { word: "Gift", actual: "poison", falseEn: "gift (present)", context: "Vorsicht, das ist Gift!", note: "From Old High German 'gift' (something given). English kept the positive sense, German shifted to negative." },
+      { word: "bekommen", actual: "to receive, to get", falseEn: "to become", context: "Ich bekomme ein neues Buch.", note: "To become is 'werden' in German." },
+      { word: "Handy", actual: "mobile phone", falseEn: "handy (convenient)", context: "Wo ist mein Handy?", note: "A pseudo-anglicism, borrowed from English but with a new meaning." },
+      { word: "Rat", actual: "advice, counsel", falseEn: "rat (animal)", context: "Ich brauche deinen Rat.", note: "Rat (animal) is 'Ratte' in German." },
+      { word: "Chef", actual: "boss, manager", falseEn: "chef (cook)", context: "Mein Chef ist sehr streng.", note: "Chef (cook) is 'Koch' or 'Kuchenchef'." },
+      { word: "Fabrik", actual: "factory", falseEn: "fabric (cloth)", context: "Er arbeitet in einer Fabrik.", note: "Fabric is 'Stoff' in German." },
+      { word: "brav", actual: "well-behaved, good", falseEn: "brave", context: "Das Kind war heute sehr brav.", note: "Brave is 'tapfer' or 'mutig'." },
+      { word: "Gymnasium", actual: "grammar school, secondary school", falseEn: "gymnasium (sports hall)", context: "Mein Sohn geht aufs Gymnasium.", note: "A gymnasium/sports hall is 'Turnhalle'." },
+      { word: "Karte", actual: "card, map, ticket", falseEn: "cart", context: "Ich habe eine Karte fur das Konzert.", note: "Cart is 'Wagen' or 'Karren'." },
+      { word: "Rezept", actual: "recipe or prescription", falseEn: "receipt", context: "Hast du ein Rezept fur Kuchen?", note: "Receipt is 'Quittung' in German." },
+      { word: "See", actual: "lake (der See) / sea (die See)", falseEn: "see (to look)", context: "Wir fahren an den See.", note: "To see is 'sehen' in German." },
+      { word: "Mist", actual: "manure, rubbish", falseEn: "mist (fog)", context: "So ein Mist!", note: "A common expletive. Mist (fog) is 'Nebel'." },
+      { word: "Billion", actual: "trillion (1,000,000,000,000)", falseEn: "billion (1,000,000,000)", context: "Eine Billion Euro ist sehr viel Geld.", note: "German uses the long scale; English uses the short scale." },
+      { word: "also", actual: "so, therefore", falseEn: "also (as well)", context: "Also, was machen wir jetzt?", note: "Also (as well) is 'auch' in German." },
+      { word: "eventuell", actual: "possibly, perhaps", falseEn: "eventually", context: "Ich komme eventuell spater.", note: "Eventually is 'schliesslich' in German." },
+      { word: "Smoking", actual: "tuxedo, dinner jacket", falseEn: "smoking (tobacco)", context: "Er trug einen eleganten Smoking.", note: "A pseudo-anglicism. Smoking (tobacco) is 'Rauchen'." },
+      { word: "fast", actual: "almost, nearly", falseEn: "fast (quick)", context: "Ich bin fast fertig.", note: "Fast (quick) is 'schnell' in German." },
+      { word: "Wand", actual: "wall (interior)", falseEn: "wand (magic stick)", context: "Das Bild hangt an der Wand.", note: "A wand is 'Zauberstab' in German." },
+      { word: "spenden", actual: "to donate", falseEn: "to spend", context: "Er spendet Geld fur die Schule.", note: "To spend is 'ausgeben' in German." },
+      { word: "Kind", actual: "child", falseEn: "kind (nice)", context: "Das Kind spielt im Garten.", note: "Kind (nice) is 'nett' or 'freundlich'." },
+      { word: "Oldtimer", actual: "classic/vintage car", falseEn: "old-timer (elderly person)", context: "Er sammelt Oldtimer.", note: "A pseudo-anglicism coined in German." }
+    ],
+    trueCognates: [
+      { word: "Butter", meaning: "butter" },
+      { word: "Finger", meaning: "finger" },
+      { word: "Hammer", meaning: "hammer" },
+      { word: "Ring", meaning: "ring" },
+      { word: "Wasser", meaning: "water" },
+      { word: "Kindergarten", meaning: "kindergarten" }
+    ]
+  }
+};
+
+let currentLang = "french";
+let currentMode = "cards";
+let quizQuestions = [];
+let quizIndex = 0;
+let quizScore = 0;
+let sortScore = 0;
+let sortTotal = 0;
+let draggedEl = null;
+
+// --- Init ---
+function init() {
+  document.querySelectorAll('.lang-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.lang-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentLang = tab.dataset.lang;
+      renderMode();
+    });
+  });
+  document.querySelectorAll('.mode-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentMode = tab.dataset.mode;
+      renderMode();
+    });
+  });
+  renderMode();
+}
+
+function renderMode() {
+  document.getElementById('cardsArea').style.display = currentMode === 'cards' ? 'grid' : 'none';
+  document.getElementById('sortArea').classList.toggle('visible', currentMode === 'sort');
+  document.getElementById('quizArea').classList.toggle('visible', currentMode === 'quiz');
+  document.getElementById('scoreBar').classList.toggle('visible', currentMode === 'quiz' || currentMode === 'sort');
+
+  if (currentMode === 'cards') renderCards();
+  else if (currentMode === 'sort') startSort();
+  else if (currentMode === 'quiz') startQuiz();
+}
+
+// --- Flip Cards ---
+function renderCards() {
+  const grid = document.getElementById('cardsArea');
+  const items = DATA[currentLang].falseFriends;
+  grid.innerHTML = items.map((item, i) => `
+    <div class="flip-card" onclick="this.classList.toggle('flipped')">
+      <div class="flip-card-inner">
+        <div class="flip-card-front">
+          <div class="lang-label">${DATA[currentLang].label}</div>
+          <div class="word">${item.word}</div>
+          <div class="tap-hint">Click to reveal</div>
+        </div>
+        <div class="flip-card-back">
+          <div class="actual-label">Actually means</div>
+          <div class="actual-meaning">${item.actual}</div>
+          <div class="false-label">Not</div>
+          <div class="false-meaning">${item.falseEn}</div>
+          <div class="note">${item.note}</div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// --- Sorting Game ---
+function startSort() {
+  const lang = DATA[currentLang];
+  const falseItems = shuffle([...lang.falseFriends]).slice(0, 6).map(f => ({ word: f.word, type: 'false', meaning: f.actual }));
+  const trueItems = shuffle([...lang.trueCognates]).slice(0, 4).map(t => ({ word: t.word, type: 'true', meaning: t.meaning }));
+  const allItems = shuffle([...falseItems, ...trueItems]);
+
+  sortScore = 0;
+  sortTotal = allItems.length;
+  updateScore(0, sortTotal);
+
+  const pool = document.getElementById('sortPool');
+  pool.innerHTML = '';
+  allItems.forEach((item, i) => {
+    const card = document.createElement('div');
+    card.className = 'sort-card';
+    card.textContent = item.word;
+    card.draggable = true;
+    card.dataset.type = item.type;
+    card.dataset.meaning = item.meaning;
+    card.dataset.index = i;
+    card.addEventListener('dragstart', onDragStart);
+    card.addEventListener('dragend', onDragEnd);
+    card.addEventListener('touchstart', onTouchStart, { passive: false });
+    pool.appendChild(card);
+  });
+
+  document.getElementById('trueZone').innerHTML = '';
+  document.getElementById('falseZone').innerHTML = '';
+  document.getElementById('sortFeedback').classList.remove('visible');
+
+  [document.getElementById('trueZone'), document.getElementById('falseZone')].forEach(zone => {
+    zone.addEventListener('dragover', onDragOver);
+    zone.addEventListener('dragleave', onDragLeave);
+    zone.addEventListener('drop', onDrop);
+  });
+  [document.getElementById('trueCol'), document.getElementById('falseCol')].forEach(col => {
+    col.addEventListener('dragover', onDragOver);
+    col.addEventListener('dragleave', onDragLeave);
+    col.addEventListener('drop', onDrop);
+  });
+}
+
+function onDragStart(e) {
+  draggedEl = e.target;
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(() => e.target.style.opacity = '0.4', 0);
+}
+function onDragEnd(e) {
+  e.target.style.opacity = '1';
+  document.querySelectorAll('.sort-column').forEach(c => c.classList.remove('drag-over'));
+}
+function onDragOver(e) {
+  e.preventDefault();
+  const col = e.target.closest('.sort-column');
+  if (col) col.classList.add('drag-over');
+}
+function onDragLeave(e) {
+  const col = e.target.closest('.sort-column');
+  if (col) col.classList.remove('drag-over');
+}
+function onDrop(e) {
+  e.preventDefault();
+  const col = e.target.closest('.sort-column');
+  if (!col || !draggedEl) return;
+  col.classList.remove('drag-over');
+  const zone = col.querySelector('.drop-zone');
+  zone.appendChild(draggedEl);
+  draggedEl.style.opacity = '1';
+  draggedEl = null;
+}
+
+// Touch fallback for sorting
+function onTouchStart(e) {
+  const card = e.target.closest('.sort-card');
+  if (!card) return;
+  const touch = e.touches[0];
+  const clone = card.cloneNode(true);
+  clone.style.position = 'fixed';
+  clone.style.zIndex = '999';
+  clone.style.pointerEvents = 'none';
+  clone.style.opacity = '0.85';
+  clone.style.width = card.offsetWidth + 'px';
+  document.body.appendChild(clone);
+
+  function onMove(ev) {
+    ev.preventDefault();
+    const t = ev.touches[0];
+    clone.style.left = (t.clientX - card.offsetWidth / 2) + 'px';
+    clone.style.top = (t.clientY - 20) + 'px';
+  }
+  function onEnd(ev) {
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onEnd);
+    clone.remove();
+    const t = ev.changedTouches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const col = el ? el.closest('.sort-column') : null;
+    if (col) {
+      col.querySelector('.drop-zone').appendChild(card);
+    }
+  }
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend', onEnd);
+}
+
+function checkSort() {
+  const trueCards = document.getElementById('trueZone').querySelectorAll('.sort-card');
+  const falseCards = document.getElementById('falseZone').querySelectorAll('.sort-card');
+  let correct = 0;
+  let total = 0;
+
+  trueCards.forEach(card => {
+    total++;
+    if (card.dataset.type === 'true') { card.classList.add('correct'); correct++; }
+    else card.classList.add('incorrect');
+  });
+  falseCards.forEach(card => {
+    total++;
+    if (card.dataset.type === 'false') { card.classList.add('correct'); correct++; }
+    else card.classList.add('incorrect');
+  });
+
+  const pool = document.getElementById('sortPool').querySelectorAll('.sort-card');
+  pool.forEach(card => { total++; card.classList.add('incorrect'); });
+
+  sortScore = correct;
+  updateScore(correct, sortTotal);
+
+  const fb = document.getElementById('sortFeedback');
+  fb.classList.add('visible');
+  if (correct === sortTotal) {
+    fb.style.background = 'var(--green-100)';
+    fb.style.color = '#166534';
+    fb.textContent = 'Perfect! All ' + sortTotal + ' sorted correctly.';
+  } else {
+    fb.style.background = 'var(--red-100)';
+    fb.style.color = '#991b1b';
+    fb.textContent = correct + ' of ' + sortTotal + ' correct. Incorrect cards are highlighted in red.';
+  }
+}
+
+// --- Quiz Mode ---
+function startQuiz() {
+  const lang = DATA[currentLang];
+  const items = shuffle([...lang.falseFriends]).slice(0, 10);
+  quizQuestions = items.map(item => {
+    const wrong1 = item.falseEn;
+    const others = lang.falseFriends.filter(f => f.word !== item.word);
+    const wrong2 = shuffle(others)[0].actual;
+    const options = shuffle([
+      { text: item.actual, correct: true },
+      { text: wrong1, correct: false },
+      { text: wrong2, correct: false }
+    ]);
+    return { ...item, options };
+  });
+  quizIndex = 0;
+  quizScore = 0;
+  updateScore(0, quizQuestions.length);
+  renderQuizQuestion();
+}
+
+function renderQuizQuestion() {
+  if (quizIndex >= quizQuestions.length) {
+    showResults(quizScore, quizQuestions.length);
+    return;
+  }
+  const q = quizQuestions[quizIndex];
+  const card = document.getElementById('quizCard');
+  card.innerHTML = `
+    <div class="q-number">Question ${quizIndex + 1} of ${quizQuestions.length}</div>
+    <div class="q-word">${q.word}</div>
+    <div class="q-context">${q.context}</div>
+    <div class="quiz-options">
+      ${q.options.map((opt, i) => `
+        <div class="quiz-option" data-idx="${i}" data-correct="${opt.correct}" onclick="selectQuizOption(this)">${opt.text}</div>
+      `).join('')}
+    </div>
+    <div class="quiz-explanation" id="quizExp"></div>
+  `;
+  document.getElementById('quizNav').style.display = 'none';
+}
+
+function selectQuizOption(el) {
+  if (el.classList.contains('disabled')) return;
+  const options = el.parentElement.querySelectorAll('.quiz-option');
+  options.forEach(o => o.classList.add('disabled'));
+
+  const isCorrect = el.dataset.correct === 'true';
+  if (isCorrect) {
+    el.classList.add('selected-correct');
+    quizScore++;
+  } else {
+    el.classList.add('selected-wrong');
+    options.forEach(o => { if (o.dataset.correct === 'true') o.classList.add('reveal-correct'); });
+  }
+
+  updateScore(quizScore, quizQuestions.length);
+
+  const exp = document.getElementById('quizExp');
+  const q = quizQuestions[quizIndex];
+  exp.classList.add('visible');
+  exp.classList.add(isCorrect ? 'correct-exp' : 'wrong-exp');
+  if (isCorrect) {
+    exp.textContent = 'Correct! "' + q.word + '" means "' + q.actual + '" (not "' + q.falseEn + '"). ' + q.note;
+  } else {
+    exp.textContent = 'Not quite. "' + q.word + '" actually means "' + q.actual + '", not "' + q.falseEn + '". ' + q.note;
+  }
+
+  document.getElementById('quizNav').style.display = 'flex';
+  document.getElementById('nextQuizBtn').textContent = quizIndex === quizQuestions.length - 1 ? 'See Results' : 'Next Question';
+}
+
+function nextQuizQuestion() {
+  quizIndex++;
+  renderQuizQuestion();
+}
+
+// --- Score ---
+function updateScore(score, total) {
+  document.getElementById('scoreLabel').textContent = 'Score: ' + score + '/' + total;
+  const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+  document.getElementById('scorePercent').textContent = pct + '%';
+  document.getElementById('scoreFill').style.width = pct + '%';
+}
+
+// --- Results Overlay ---
+function showResults(score, total) {
+  const pct = Math.round((score / total) * 100);
+  let emoji, title;
+  if (pct === 100) { emoji = '&#127942;'; title = 'Perfect Score!'; }
+  else if (pct >= 70) { emoji = '&#11088;'; title = 'Great Work!'; }
+  else if (pct >= 40) { emoji = '&#128170;'; title = 'Good Effort!'; }
+  else { emoji = '&#128218;'; title = 'Keep Practising!'; }
+
+  document.getElementById('resultsEmoji').innerHTML = emoji;
+  document.getElementById('resultsTitle').textContent = title;
+  document.getElementById('resultsText').textContent = 'You scored ' + score + ' out of ' + total + ' (' + pct + '%)';
+  document.getElementById('resultsOverlay').classList.add('visible');
+}
+function closeResults() {
+  document.getElementById('resultsOverlay').classList.remove('visible');
+  startQuiz();
+}
+
+// --- Info Panel ---
+function toggleInfo() {
+  const panel = document.getElementById('infoPanel');
+  const arrow = document.getElementById('infoArrow');
+  const vis = panel.classList.toggle('visible');
+  arrow.innerHTML = vis ? '&#9660;' : '&#9654;';
+}
+
+// --- Util ---
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+init();
+</script>
+</body>
+</html>

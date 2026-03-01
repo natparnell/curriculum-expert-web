@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Climate Graph Builder</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --earth-dark: #3b2f1e;
+    --earth-mid: #6b5b3e;
+    --earth-light: #c4a96a;
+    --earth-pale: #f5f0e1;
+    --earth-bg: #faf8f2;
+    --precip-blue: #2e86c1;
+    --precip-light: rgba(46, 134, 193, 0.45);
+    --temp-red: #c0392b;
+    --temp-light: rgba(192, 57, 43, 0.15);
+    --green-accent: #27ae60;
+    --green-pale: #e8f8f0;
+    --text-primary: #2c2417;
+    --text-secondary: #6b5b3e;
+    --border: #d6cbb8;
+    --card-bg: #ffffff;
+    --radius: 10px;
+    --shadow: 0 2px 8px rgba(59, 47, 30, 0.10);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--earth-bg); color: var(--text-primary); line-height: 1.6; }
+  header { position: sticky; top: 0; z-index: 100; background: var(--earth-dark); color: var(--earth-pale); padding: 14px 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.2); }
+  header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.3px; }
+  header p { font-size: 0.85rem; opacity: 0.8; margin-top: 2px; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 20px 16px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tab-btn { padding: 9px 20px; border: 2px solid var(--border); background: var(--card-bg); color: var(--text-secondary); border-radius: var(--radius); cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; }
+  .tab-btn:hover { border-color: var(--earth-mid); color: var(--earth-dark); }
+  .tab-btn.active { background: var(--earth-dark); color: var(--earth-pale); border-color: var(--earth-dark); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow); }
+  .card h2 { font-size: 1.15rem; color: var(--earth-dark); margin-bottom: 12px; }
+  .card h3 { font-size: 1rem; color: var(--earth-mid); margin-bottom: 8px; }
+  .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  select, input[type="text"], input[type="number"] { padding: 8px 12px; border: 2px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: var(--card-bg); color: var(--text-primary); }
+  select:focus, input:focus { outline: none; border-color: var(--precip-blue); }
+  .chart-wrap { position: relative; width: 100%; max-height: 400px; }
+  .chart-wrap canvas { width: 100% !important; }
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 12px; }
+  .stat-box { background: var(--earth-pale); border-radius: 8px; padding: 12px; text-align: center; }
+  .stat-box .label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .stat-box .value { font-size: 1.3rem; font-weight: 700; color: var(--earth-dark); margin-top: 4px; }
+  .stat-box .sub { font-size: 0.8rem; color: var(--text-secondary); }
+  .koppen-badge { display: inline-block; background: var(--green-accent); color: #fff; padding: 5px 14px; border-radius: 20px; font-weight: 700; font-size: 0.95rem; margin-right: 8px; }
+  .koppen-name { font-size: 0.95rem; color: var(--text-secondary); }
+  .loc-desc { background: var(--earth-pale); border-left: 4px solid var(--earth-light); padding: 12px 16px; border-radius: 0 8px 8px 0; margin-bottom: 14px; font-size: 0.9rem; color: var(--text-primary); }
+  .loc-desc strong { color: var(--earth-dark); }
+  .custom-grid { display: grid; grid-template-columns: auto repeat(12, 1fr); gap: 4px; align-items: center; margin-bottom: 14px; }
+  .custom-grid label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); text-align: center; }
+  .custom-grid input { width: 100%; padding: 6px 4px; text-align: center; font-size: 0.85rem; }
+  .btn { padding: 9px 22px; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  .btn-primary { background: var(--precip-blue); color: #fff; }
+  .btn-primary:hover { background: #2472a4; }
+  .btn-secondary { background: var(--earth-mid); color: #fff; }
+  .btn-secondary:hover { background: var(--earth-dark); }
+  .info-section { margin-bottom: 22px; }
+  .info-section h3 { color: var(--earth-dark); margin-bottom: 8px; font-size: 1.05rem; border-bottom: 2px solid var(--earth-light); padding-bottom: 4px; }
+  .info-section p, .info-section li { font-size: 0.92rem; color: var(--text-primary); }
+  .info-section ul { margin-left: 20px; margin-top: 6px; }
+  .info-section ul li { margin-bottom: 6px; }
+  .info-section .note { background: var(--green-pale); border-left: 4px solid var(--green-accent); padding: 10px 14px; border-radius: 0 6px 6px 0; margin-top: 10px; font-size: 0.88rem; }
+  .koppen-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 10px; }
+  .koppen-table th { background: var(--earth-dark); color: var(--earth-pale); padding: 8px 10px; text-align: left; }
+  .koppen-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  .koppen-table tr:nth-child(even) { background: var(--earth-pale); }
+  .hemisphere-toggle { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .hemisphere-toggle label { font-weight: 600; font-size: 0.9rem; color: var(--text-secondary); }
+  @media (max-width: 768px) {
+    .compare-grid { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .custom-grid { font-size: 0.75rem; }
+    .custom-grid input { padding: 4px 2px; font-size: 0.75rem; }
+    header h1 { font-size: 1.15rem; }
+  }
+  @media (max-width: 480px) {
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .tabs { gap: 4px; }
+    .tab-btn { padding: 7px 12px; font-size: 0.82rem; }
+    .container { padding: 12px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Climate Graph Builder</h1>
+  <p>Build and compare climate graphs for world locations and biomes</p>
+</header>
+
+<div class="container">
+
+  <!-- Tab navigation -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="single">Single Location</button>
+    <button class="tab-btn" data-tab="compare">Compare Locations</button>
+    <button class="tab-btn" data-tab="custom">Build Your Own</button>
+    <button class="tab-btn" data-tab="info">How to Read Climate Graphs</button>
+  </div>
+
+  <!-- ============ SINGLE LOCATION ============ -->
+  <div id="tab-single" class="tab-content active">
+    <div class="card">
+      <div class="controls">
+        <label for="loc-select" style="font-weight:600;">Location:</label>
+        <select id="loc-select"></select>
+      </div>
+      <div id="loc-description" class="loc-desc"></div>
+      <div class="chart-wrap">
+        <canvas id="chart-single"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Climate Classification</h2>
+      <div id="koppen-single"></div>
+    </div>
+    <div class="card">
+      <h2>Statistics</h2>
+      <div id="stats-single" class="stats-grid"></div>
+    </div>
+  </div>
+
+  <!-- ============ COMPARE ============ -->
+  <div id="tab-compare" class="tab-content">
+    <div class="card">
+      <div class="controls">
+        <label style="font-weight:600;">Location A:</label>
+        <select id="loc-a"></select>
+        <label style="font-weight:600; margin-left:12px;">Location B:</label>
+        <select id="loc-b"></select>
+      </div>
+    </div>
+    <div class="compare-grid">
+      <div>
+        <div class="card">
+          <h2 id="title-a"></h2>
+          <div class="chart-wrap"><canvas id="chart-a"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Classification</h3>
+          <div id="koppen-a"></div>
+        </div>
+        <div class="card">
+          <h3>Statistics</h3>
+          <div id="stats-a" class="stats-grid"></div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <h2 id="title-b"></h2>
+          <div class="chart-wrap"><canvas id="chart-b"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Classification</h3>
+          <div id="koppen-b"></div>
+        </div>
+        <div class="card">
+          <h3>Statistics</h3>
+          <div id="stats-b" class="stats-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ BUILD YOUR OWN ============ -->
+  <div id="tab-custom" class="tab-content">
+    <div class="card">
+      <h2>Build Your Own Climate Graph</h2>
+      <p style="margin-bottom:12px; color:var(--text-secondary); font-size:0.9rem;">
+        Enter monthly temperature (degrees C) and precipitation (mm) values for all 12 months.
+        The Koppen classification will adjust based on the hemisphere you select.
+      </p>
+      <div class="controls" style="margin-bottom:8px;">
+        <label style="font-weight:600;">Location name:</label>
+        <input type="text" id="custom-name" placeholder="e.g. My City" value="Custom Location" style="width:200px;">
+      </div>
+      <div class="hemisphere-toggle">
+        <label>Hemisphere:</label>
+        <select id="custom-hemisphere">
+          <option value="north">Northern Hemisphere</option>
+          <option value="south">Southern Hemisphere</option>
+        </select>
+      </div>
+      <div class="custom-grid" id="custom-inputs"></div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="buildCustomGraph()">Build Graph</button>
+        <button class="btn btn-secondary" onclick="clearCustom()">Clear</button>
+        <button class="btn btn-secondary" onclick="loadExample()">Load Example (Anchorage)</button>
+      </div>
+    </div>
+    <div class="card" id="custom-chart-card" style="display:none;">
+      <h2 id="custom-title">Custom Location</h2>
+      <div class="chart-wrap">
+        <canvas id="chart-custom"></canvas>
+      </div>
+    </div>
+    <div class="card" id="custom-stats-card" style="display:none;">
+      <h3>Classification</h3>
+      <div id="koppen-custom" style="margin-bottom:14px;"></div>
+      <h3>Statistics</h3>
+      <div id="stats-custom" class="stats-grid"></div>
+    </div>
+  </div>
+
+  <!-- ============ INFO ============ -->
+  <div id="tab-info" class="tab-content">
+    <div class="card">
+      <div class="info-section">
+        <h3>How to Read a Climate Graph</h3>
+        <p>A climate graph (sometimes called a climatograph) displays two types of data for a single
+          location across all 12 months of the year:</p>
+        <ul>
+          <li><strong style="color:var(--precip-blue);">Blue bars</strong> represent monthly
+            precipitation (rainfall, snow, hail) in millimetres (mm). Read the value from the
+            <strong>left-hand axis</strong>.</li>
+          <li><strong style="color:var(--temp-red);">Red line</strong> represents the mean monthly
+            temperature in degrees Celsius. Read the value from the <strong>right-hand axis</strong>.</li>
+        </ul>
+        <p style="margin-top:10px;">When analysing a climate graph, consider the following questions:</p>
+        <ul>
+          <li>What is the annual temperature range (difference between the hottest and coldest months)?</li>
+          <li>When does the wet season occur? Is there a clear dry season?</li>
+          <li>Does precipitation peak at the same time as temperature, or at the opposite time?</li>
+          <li>Is precipitation spread evenly across the year, or heavily concentrated in a few months?</li>
+          <li>Are there any months where temperature drops below 0 degrees C (freezing point)?</li>
+        </ul>
+        <div class="note">
+          <strong>Tip:</strong> In tropical locations, you will often see high, even temperatures
+          with seasonal rainfall variation. In continental locations, expect a wide temperature
+          range with summer rainfall peaks. Mediterranean climates have the unusual pattern of
+          dry, hot summers and wet, mild winters.
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h3>Koppen Climate Classification System</h3>
+        <p>The Koppen classification system, developed by Wladimir Koppen in 1884 and later modified
+          by Rudolf Geiger, is the most widely used climate classification scheme. It uses monthly
+          temperature and precipitation thresholds to assign a code of two or three letters.</p>
+        <p style="margin-top:8px;">The five main climate groups are:</p>
+        <table class="koppen-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Group</th>
+              <th>Key Criteria</th>
+              <th>Example Locations</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>A</strong></td>
+              <td>Tropical</td>
+              <td>Coldest month above 18 degrees C. High rainfall year-round or with a short dry season.</td>
+              <td>Manaus, Singapore, Mumbai</td>
+            </tr>
+            <tr>
+              <td><strong>B</strong></td>
+              <td>Arid</td>
+              <td>Evaporation exceeds precipitation. Subdivided into desert (BW) and steppe (BS).</td>
+              <td>Cairo, Alice Springs</td>
+            </tr>
+            <tr>
+              <td><strong>C</strong></td>
+              <td>Temperate</td>
+              <td>Coldest month between -3 and 18 degrees C; at least one month above 10 degrees C.</td>
+              <td>London, Cape Town, Bergen</td>
+            </tr>
+            <tr>
+              <td><strong>D</strong></td>
+              <td>Continental</td>
+              <td>Coldest month below -3 degrees C; warmest month above 10 degrees C. Large seasonal range.</td>
+              <td>Moscow, Beijing</td>
+            </tr>
+            <tr>
+              <td><strong>E</strong></td>
+              <td>Polar</td>
+              <td>Warmest month below 10 degrees C. Subdivided into tundra (ET) and ice cap (EF).</td>
+              <td>Reykjavik (borderline ET)</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="margin-top:10px;">The second letter indicates the precipitation pattern:</p>
+        <ul>
+          <li><strong>f</strong> = no dry season (precipitation fairly evenly distributed)</li>
+          <li><strong>s</strong> = dry summer (least rainfall in summer months)</li>
+          <li><strong>w</strong> = dry winter (least rainfall in winter months)</li>
+          <li><strong>m</strong> = monsoon (short dry season offset by heavy monsoon rains)</li>
+        </ul>
+        <p style="margin-top:10px;">The third letter indicates the temperature regime:</p>
+        <ul>
+          <li><strong>a</strong> = hot summer (warmest month 22 degrees C or above)</li>
+          <li><strong>b</strong> = warm summer (warmest month below 22 degrees C, at least four months above 10 degrees C)</li>
+          <li><strong>c</strong> = cool summer (fewer than four months above 10 degrees C)</li>
+          <li><strong>h</strong> = hot (mean annual temperature 18 degrees C or above; used in B climates)</li>
+          <li><strong>k</strong> = cold (mean annual temperature below 18 degrees C; used in B climates)</li>
+        </ul>
+      </div>
+
+      <div class="info-section">
+        <h3>Factors Affecting Climate</h3>
+        <p>Several key factors determine the climate experienced at any given location on Earth.</p>
+        <ul>
+          <li><strong>Latitude:</strong> Areas near the equator receive the most direct solar
+            radiation, resulting in consistently high temperatures. As you move poleward, the
+            sun's angle decreases and temperatures fall. Latitude also controls day length,
+            which varies dramatically between summer and winter at higher latitudes.</li>
+          <li><strong>Altitude (Elevation):</strong> Temperature drops roughly 6.5 degrees C per
+            1,000 m of elevation (the environmental lapse rate). Mountain peaks can be
+            snow-capped even near the equator. Nairobi at 1,700 m is much cooler than lowland
+            equatorial cities at the same latitude.</li>
+          <li><strong>Continentality (Distance from the Sea):</strong> Water heats and cools more
+            slowly than land. Coastal locations have moderate, maritime climates with smaller
+            temperature ranges. Inland locations experience greater extremes. Compare London
+            (range of roughly 14 degrees C) with Moscow (roughly 28 degrees C).</li>
+          <li><strong>Ocean Currents:</strong> Warm currents (e.g. the Gulf Stream / North Atlantic
+            Drift) carry tropical heat poleward, raising coastal temperatures. Bergen at
+            60 degrees N has mild winters because of this. Cold currents (e.g. the Benguela
+            Current) lower coastal temperatures and suppress convection, reducing rainfall.</li>
+          <li><strong>Prevailing Winds:</strong> Wind direction determines whether a location
+            receives moist maritime or dry continental air. The UK's south-westerly winds bring
+            Atlantic moisture. Global pressure belts (ITCZ, subtropical high, polar front)
+            control seasonal wind and rainfall patterns.</li>
+          <li><strong>Aspect and Rain Shadow:</strong> Mountains force air to rise on the windward
+            side (orographic lift), cooling it and releasing moisture as relief rainfall. The
+            leeward side is drier (rain shadow). Western Scotland receives over 3,000 mm
+            annually, while areas east of the Highlands may get fewer than 700 mm.</li>
+        </ul>
+        <div class="note">
+          <strong>Key concept:</strong> Climate is the long-term average of weather conditions
+          (typically measured over 30 years). Weather is what happens day to day. A climate graph
+          shows the averaged pattern, not individual years.
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h3>Activities to Try</h3>
+        <ul>
+          <li>Use the <strong>Single Location</strong> tab to examine each of the 12 pre-loaded
+            locations. Can you identify the climate type before checking the classification?</li>
+          <li>Switch to <strong>Compare Locations</strong> and place London next to Moscow. How does
+            continentality affect the temperature range and precipitation pattern?</li>
+          <li>Compare Mumbai and Singapore. Both are tropical, but Mumbai has a dramatic monsoon
+            season. What differences can you spot in their precipitation bars?</li>
+          <li>Use <strong>Build Your Own</strong> to enter climate data for your local area. You can
+            find monthly averages from the Met Office or weather websites. How does your area
+            compare to the pre-loaded locations?</li>
+          <li>Try creating an imaginary climate: what would a location look like with constant
+            25 degrees C temperature but 0 mm rainfall every month? What Koppen code does it
+            receive?</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const LOCATIONS = {
+  "London, UK": {
+    lat: 51.5,
+    desc: "Temperate maritime",
+    detail: "London sits on the Thames estuary in southeast England at 51.5 degrees N. The North Atlantic Drift (Gulf Stream) keeps winters mild for the latitude. Rainfall is spread fairly evenly across the year, with a slight autumn peak. Summers are warm but rarely hot.",
+    temp: [5, 5, 7, 10, 13, 16, 19, 18, 16, 12, 8, 5],
+    precip: [55, 41, 42, 44, 49, 45, 45, 50, 49, 69, 59, 55]
+  },
+  "Cairo, Egypt": {
+    lat: 30.0,
+    desc: "Hot desert",
+    detail: "Cairo lies in the subtropical desert belt at 30 degrees N, on the edge of the Sahara. The descending air of the Hadley Cell suppresses rainfall almost entirely. Summer temperatures regularly exceed 35 degrees C. The Nile provides the only significant water source for the region.",
+    temp: [14, 15, 18, 21, 25, 28, 29, 29, 27, 24, 19, 15],
+    precip: [5, 4, 4, 1, 1, 0, 0, 0, 0, 1, 3, 5]
+  },
+  "Manaus, Brazil": {
+    lat: -3.1,
+    desc: "Tropical rainforest",
+    detail: "Manaus is located in the heart of the Amazon basin at 3 degrees S, where the ITCZ brings convectional rainfall throughout the year. Temperatures barely vary between months. Annual precipitation exceeds 2,200 mm, supporting the world's largest tropical rainforest.",
+    temp: [27, 27, 27, 27, 27, 27, 28, 28, 29, 29, 28, 27],
+    precip: [260, 288, 314, 300, 256, 114, 88, 58, 83, 126, 183, 217]
+  },
+  "Moscow, Russia": {
+    lat: 55.8,
+    desc: "Continental",
+    detail: "Moscow's inland location at 55.8 degrees N gives it a classic continental climate. Far from the moderating influence of the ocean, winter temperatures plunge well below freezing while summers can be warm. The annual temperature range of roughly 28 degrees C reflects this continentality.",
+    temp: [-8, -6, 0, 8, 14, 18, 20, 18, 12, 6, -1, -6],
+    precip: [42, 36, 34, 44, 51, 75, 85, 82, 68, 60, 56, 51]
+  },
+  "Singapore": {
+    lat: 1.3,
+    desc: "Equatorial",
+    detail: "Singapore sits almost on the equator at 1.3 degrees N. It receives heavy convectional rainfall throughout the year with no true dry season. Temperatures are consistently high (26 to 28 degrees C) with minimal seasonal variation. Humidity is very high year-round.",
+    temp: [26, 27, 27, 28, 28, 28, 28, 28, 27, 27, 27, 26],
+    precip: [234, 165, 186, 186, 172, 162, 159, 176, 170, 197, 254, 269]
+  },
+  "Reykjavik, Iceland": {
+    lat: 64.1,
+    desc: "Subarctic / tundra fringe",
+    detail: "Reykjavik at 64.1 degrees N is warmed by the North Atlantic Drift, giving it milder winters than its latitude would suggest. However, the warmest month barely reaches 11 degrees C, placing it on the tundra/subarctic boundary. Precipitation falls year-round, often as snow in winter.",
+    temp: [0, 0, 1, 3, 7, 9, 11, 11, 8, 4, 2, 0],
+    precip: [76, 72, 82, 58, 44, 50, 52, 62, 67, 86, 73, 79]
+  },
+  "Mumbai, India": {
+    lat: 19.1,
+    desc: "Tropical monsoon",
+    detail: "Mumbai on India's west coast at 19.1 degrees N experiences a dramatic monsoon climate. The southwest monsoon brings extreme rainfall from June to September (over 800 mm in July alone), while the winter months are virtually dry. Annual rainfall exceeds 2,400 mm.",
+    temp: [25, 25, 27, 29, 30, 29, 27, 27, 27, 28, 28, 26],
+    precip: [1, 1, 0, 1, 20, 530, 840, 585, 341, 117, 14, 3]
+  },
+  "Beijing, China": {
+    lat: 39.9,
+    desc: "Continental monsoon",
+    detail: "Beijing at 39.9 degrees N has a continental monsoon climate. The East Asian monsoon brings most rainfall in July and August, while winter is cold and dry due to the Siberian high-pressure system. The annual temperature range exceeds 30 degrees C.",
+    temp: [-3, 0, 6, 14, 20, 25, 27, 26, 20, 13, 5, -2],
+    precip: [3, 6, 9, 26, 34, 78, 185, 160, 46, 22, 8, 3]
+  },
+  "Cape Town, South Africa": {
+    lat: -33.9,
+    desc: "Mediterranean",
+    detail: "Cape Town at 33.9 degrees S has a Mediterranean climate with dry, warm summers and mild, wet winters (reversed seasons in the Southern Hemisphere). Winter rainfall comes from mid-latitude cyclones tracking further north. The cold Benguela Current moderates summer temperatures.",
+    temp: [21, 21, 20, 17, 14, 12, 12, 12, 13, 16, 18, 20],
+    precip: [15, 12, 18, 48, 79, 84, 77, 68, 40, 31, 18, 12]
+  },
+  "Nairobi, Kenya": {
+    lat: -1.3,
+    desc: "Tropical highland",
+    detail: "Nairobi lies at roughly 1,700 m above sea level near the equator (1.3 degrees S). The high altitude significantly reduces temperatures compared to lowland equatorial stations. There are two rainy seasons (the 'long rains' in March to May and 'short rains' in October to December) linked to the passage of the ITCZ.",
+    temp: [19, 19, 20, 19, 18, 16, 16, 16, 18, 19, 18, 18],
+    precip: [58, 50, 95, 200, 158, 36, 18, 24, 28, 61, 150, 90]
+  },
+  "Alice Springs, Australia": {
+    lat: -23.7,
+    desc: "Hot arid (outback)",
+    detail: "Alice Springs at 23.7 degrees S sits in the arid heart of the Australian outback. Surrounded by desert, it receives very little rainfall (under 300 mm annually). Summer temperatures often exceed 35 degrees C, while winter nights can be cold. The great distance from the ocean drives large diurnal temperature ranges.",
+    temp: [29, 28, 25, 20, 15, 12, 12, 14, 18, 23, 26, 28],
+    precip: [39, 42, 30, 15, 17, 14, 13, 9, 8, 22, 28, 37]
+  },
+  "Bergen, Norway": {
+    lat: 60.4,
+    desc: "Oceanic",
+    detail: "Bergen at 60.4 degrees N on Norway's west coast is one of Europe's wettest cities, with over 2,100 mm of annual rainfall. The North Atlantic Drift keeps winters remarkably mild for the latitude (rarely below freezing on the coast). Orographic rainfall from the nearby mountains contributes to the high precipitation totals.",
+    temp: [2, 2, 4, 7, 11, 13, 15, 15, 12, 8, 5, 3],
+    precip: [190, 152, 170, 114, 106, 132, 148, 190, 203, 261, 230, 235]
+  }
+};
+
+let chartSingle = null, chartA = null, chartB = null, chartCustom = null;
+
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab-btn').forEach(function(b) {
+      b.classList.remove('active');
+    });
+    document.querySelectorAll('.tab-content').forEach(function(c) {
+      c.classList.remove('active');
+    });
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// Populate dropdown selects
+function populateSelect(sel, selectedIdx) {
+  var keys = Object.keys(LOCATIONS);
+  sel.innerHTML = keys.map(function(k, i) {
+    var selected = (i === selectedIdx) ? 'selected' : '';
+    return '<option value="' + k + '" ' + selected + '>' +
+           k + ' (' + LOCATIONS[k].desc + ')</option>';
+  }).join('');
+}
+
+var selSingle = document.getElementById('loc-select');
+var selA = document.getElementById('loc-a');
+var selB = document.getElementById('loc-b');
+
+populateSelect(selSingle, 0);
+populateSelect(selA, 0);
+populateSelect(selB, 1);
+
+// Chart creation (dual-axis: precip bars + temp line)
+function createClimateChart(canvas, locOrData) {
+  var ctx = canvas.getContext('2d');
+  var data = (typeof locOrData === 'string') ? LOCATIONS[locOrData] : locOrData;
+
+  var maxPrecip = Math.max.apply(null, data.precip.concat([50]));
+  var precipMax = Math.ceil(maxPrecip / 50) * 50 + 50;
+
+  var minT = Math.min.apply(null, data.temp);
+  var maxT = Math.max.apply(null, data.temp);
+  var tempMin = Math.floor((minT - 5) / 5) * 5;
+  var tempMax = Math.ceil((maxT + 5) / 5) * 5;
+
+  return new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: MONTHS,
+      datasets: [
+        {
+          label: 'Precipitation (mm)',
+          data: data.precip,
+          backgroundColor: 'rgba(46, 134, 193, 0.55)',
+          borderColor: 'rgba(46, 134, 193, 0.9)',
+          borderWidth: 1,
+          yAxisID: 'yPrecip',
+          order: 2
+        },
+        {
+          label: 'Temperature (\u00B0C)',
+          data: data.temp,
+          type: 'line',
+          borderColor: '#c0392b',
+          backgroundColor: 'rgba(192, 57, 43, 0.1)',
+          pointBackgroundColor: '#c0392b',
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          borderWidth: 2.5,
+          tension: 0.3,
+          fill: false,
+          yAxisID: 'yTemp',
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            usePointStyle: true,
+            padding: 16,
+            font: { size: 12 }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              if (context.dataset.yAxisID === 'yPrecip') {
+                return 'Precipitation: ' + context.raw + ' mm';
+              }
+              return 'Temperature: ' + context.raw + '\u00B0C';
+            }
+          }
+        }
+      },
+      scales: {
+        yPrecip: {
+          type: 'linear',
+          position: 'left',
+          beginAtZero: true,
+          max: precipMax,
+          title: {
+            display: true,
+            text: 'Precipitation (mm)',
+            color: '#2e86c1',
+            font: { weight: 'bold' }
+          },
+          ticks: { color: '#2e86c1' },
+          grid: { color: 'rgba(46, 134, 193, 0.1)' }
+        },
+        yTemp: {
+          type: 'linear',
+          position: 'right',
+          min: tempMin,
+          max: tempMax,
+          title: {
+            display: true,
+            text: 'Temperature (\u00B0C)',
+            color: '#c0392b',
+            font: { weight: 'bold' }
+          },
+          ticks: { color: '#c0392b' },
+          grid: { drawOnChartArea: false }
+        },
+        x: {
+          grid: { display: false }
+        }
+      }
+    }
+  });
+}
+
+function destroyChart(chart) {
+  if (chart) {
+    chart.destroy();
+  }
+  return null;
+}
+
+// Statistics calculation
+function calcStats(data) {
+  var totalPrecip = data.precip.reduce(function(a, b) { return a + b; }, 0);
+  var meanTemp = data.temp.reduce(function(a, b) { return a + b; }, 0) / 12;
+  var maxTemp = Math.max.apply(null, data.temp);
+  var minTemp = Math.min.apply(null, data.temp);
+  var range = maxTemp - minTemp;
+  var hottestIdx = data.temp.indexOf(maxTemp);
+  var coldestIdx = data.temp.indexOf(minTemp);
+  var maxPrecip = Math.max.apply(null, data.precip);
+  var minPrecip = Math.min.apply(null, data.precip);
+  var wettestIdx = data.precip.indexOf(maxPrecip);
+  var driestIdx = data.precip.indexOf(minPrecip);
+
+  return {
+    totalPrecip: totalPrecip,
+    meanTemp: meanTemp,
+    maxTemp: maxTemp,
+    minTemp: minTemp,
+    range: range,
+    hottestIdx: hottestIdx,
+    coldestIdx: coldestIdx,
+    maxPrecip: maxPrecip,
+    minPrecip: minPrecip,
+    wettestIdx: wettestIdx,
+    driestIdx: driestIdx
+  };
+}
+
+function renderStats(container, data) {
+  var s = calcStats(data);
+  container.innerHTML =
+    '<div class="stat-box">' +
+      '<div class="label">Annual Precipitation</div>' +
+      '<div class="value">' + s.totalPrecip + ' mm</div>' +
+    '</div>' +
+    '<div class="stat-box">' +
+      '<div class="label">Mean Temperature</div>' +
+      '<div class="value">' + s.meanTemp.toFixed(1) + '\u00B0C</div>' +
+    '</div>' +
+    '<div class="stat-box">' +
+      '<div class="label">Temperature Range</div>' +
+      '<div class="value">' + s.range.toFixed(1) + '\u00B0C</div>' +
+    '</div>' +
+    '<div class="stat-box">' +
+      '<div class="label">Hottest Month</div>' +
+      '<div class="value">' + s.maxTemp + '\u00B0C</div>' +
+      '<div class="sub">' + MONTHS[s.hottestIdx] + '</div>' +
+    '</div>' +
+    '<div class="stat-box">' +
+      '<div class="label">Coldest Month</div>' +
+      '<div class="value">' + s.minTemp + '\u00B0C</div>' +
+      '<div class="sub">' + MONTHS[s.coldestIdx] + '</div>' +
+    '</div>' +
+    '<div class="stat-box">' +
+      '<div class="label">Wettest Month</div>' +
+      '<div class="value">' + s.maxPrecip + ' mm</div>' +
+      '<div class="sub">' + MONTHS[s.wettestIdx] + '</div>' +
+    '</div>' +
+    '<div class="stat-box">' +
+      '<div class="label">Driest Month</div>' +
+      '<div class="value">' + s.minPrecip + ' mm</div>' +
+      '<div class="sub">' + MONTHS[s.driestIdx] + '</div>' +
+    '</div>';
+}
+
+// Koppen Climate Classification
+function classifyKoppen(data) {
+  var t = data.temp;
+  var p = data.precip;
+  var tMax = Math.max.apply(null, t);
+  var tMin = Math.min.apply(null, t);
+  var meanT = t.reduce(function(a, b) { return a + b; }, 0) / 12;
+  var totalP = p.reduce(function(a, b) { return a + b; }, 0);
+
+  // Determine summer/winter months based on hemisphere
+  var isSouth = (data.lat !== undefined && data.lat < 0);
+  var summerMonths = isSouth ? [9, 10, 11, 0, 1, 2] : [3, 4, 5, 6, 7, 8];
+  var winterMonths = isSouth ? [3, 4, 5, 6, 7, 8] : [9, 10, 11, 0, 1, 2];
+
+  var summerP = summerMonths.reduce(function(a, i) { return a + p[i]; }, 0);
+  var winterP = winterMonths.reduce(function(a, i) { return a + p[i]; }, 0);
+
+  var pDryS = Math.min.apply(null, summerMonths.map(function(i) { return p[i]; }));
+  var pDryW = Math.min.apply(null, winterMonths.map(function(i) { return p[i]; }));
+  var pWetS = Math.max.apply(null, summerMonths.map(function(i) { return p[i]; }));
+  var pWetW = Math.max.apply(null, winterMonths.map(function(i) { return p[i]; }));
+
+  // Group E: Polar
+  if (tMax < 10) {
+    if (tMax < 0) return { code: 'EF', name: 'Polar (Ice cap)' };
+    return { code: 'ET', name: 'Polar (Tundra)' };
+  }
+
+  // Group B: Arid
+  var threshold = meanT * 20;
+  if (summerP > 0.7 * totalP) {
+    threshold = meanT * 20 + 280;
+  } else if (winterP > 0.7 * totalP) {
+    threshold = meanT * 20;
+  } else {
+    threshold = meanT * 20 + 140;
+  }
+
+  if (totalP < threshold) {
+    if (totalP < threshold / 2) {
+      if (meanT >= 18) return { code: 'BWh', name: 'Hot desert' };
+      return { code: 'BWk', name: 'Cold desert' };
+    }
+    if (meanT >= 18) return { code: 'BSh', name: 'Hot semi-arid (steppe)' };
+    return { code: 'BSk', name: 'Cold semi-arid (steppe)' };
+  }
+
+  // Group A: Tropical (coldest month >= 18 degrees C)
+  if (tMin >= 18) {
+    var dryMonth = Math.min.apply(null, p);
+    if (dryMonth >= 60) return { code: 'Af', name: 'Tropical rainforest' };
+    if (totalP >= 25 * (100 - dryMonth)) return { code: 'Am', name: 'Tropical monsoon' };
+    return { code: 'Aw', name: 'Tropical savanna (wet and dry)' };
+  }
+
+  // Groups C and D
+  var isC = (tMin >= -3);
+  var prefix = isC ? 'C' : 'D';
+  var groupName = isC ? 'Temperate' : 'Continental';
+
+  // Second letter: precipitation pattern
+  var second, secName;
+  if (pDryS < 40 && pDryS < pWetW / 3) {
+    second = 's';
+    secName = 'dry summer';
+  } else if (pDryW < pWetS / 10) {
+    second = 'w';
+    secName = 'dry winter';
+  } else {
+    second = 'f';
+    secName = 'no dry season';
+  }
+
+  // Third letter: temperature
+  var third, thirdName;
+  if (tMax >= 22) {
+    third = 'a';
+    thirdName = 'hot summer';
+  } else if (t.filter(function(v) { return v >= 10; }).length >= 4) {
+    third = 'b';
+    thirdName = 'warm summer';
+  } else if (!isC && tMin < -38) {
+    third = 'd';
+    thirdName = 'very cold winter';
+  } else {
+    third = 'c';
+    thirdName = 'cool summer';
+  }
+
+  var code = prefix + second + third;
+  var name = groupName + ' (' + secName + ', ' + thirdName + ')';
+  return { code: code, name: name };
+}
+
+function renderKoppen(container, data) {
+  var k = classifyKoppen(data);
+  container.innerHTML =
+    '<span class="koppen-badge">' + k.code + '</span>' +
+    '<span class="koppen-name">' + k.name + '</span>';
+}
+
+// Location description panel
+function renderDescription(locName) {
+  var loc = LOCATIONS[locName];
+  var el = document.getElementById('loc-description');
+  if (loc && loc.detail) {
+    el.innerHTML = '<strong>' + locName + '</strong> (' +
+      loc.lat + '\u00B0' + (loc.lat >= 0 ? 'N' : 'S') +
+      '): ' + loc.detail;
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+// Update single location view
+function updateSingle() {
+  var loc = selSingle.value;
+  var data = LOCATIONS[loc];
+
+  chartSingle = destroyChart(chartSingle);
+  chartSingle = createClimateChart(
+    document.getElementById('chart-single'), loc
+  );
+  renderStats(document.getElementById('stats-single'), data);
+  renderKoppen(document.getElementById('koppen-single'), data);
+  renderDescription(loc);
+}
+
+selSingle.addEventListener('change', updateSingle);
+
+// Update compare view
+function updateCompare() {
+  var locA = selA.value;
+  var locB = selB.value;
+  var dA = LOCATIONS[locA];
+  var dB = LOCATIONS[locB];
+
+  document.getElementById('title-a').textContent = locA;
+  document.getElementById('title-b').textContent = locB;
+
+  chartA = destroyChart(chartA);
+  chartB = destroyChart(chartB);
+  chartA = createClimateChart(document.getElementById('chart-a'), locA);
+  chartB = createClimateChart(document.getElementById('chart-b'), locB);
+
+  renderStats(document.getElementById('stats-a'), dA);
+  renderStats(document.getElementById('stats-b'), dB);
+  renderKoppen(document.getElementById('koppen-a'), dA);
+  renderKoppen(document.getElementById('koppen-b'), dB);
+}
+
+selA.addEventListener('change', updateCompare);
+selB.addEventListener('change', updateCompare);
+
+// Custom climate graph: input grid setup
+function initCustomInputs() {
+  var grid = document.getElementById('custom-inputs');
+  var html = '<div></div>';
+
+  MONTHS.forEach(function(m) {
+    html += '<label>' + m + '</label>';
+  });
+
+  html += '<label style="text-align:right; padding-right:6px; ' +
+          'color:var(--temp-red);">Temp (\u00B0C)</label>';
+  MONTHS.forEach(function(m, i) {
+    html += '<input type="number" id="ct' + i + '" step="0.1" value="">';
+  });
+
+  html += '<label style="text-align:right; padding-right:6px; ' +
+          'color:var(--precip-blue);">Precip (mm)</label>';
+  MONTHS.forEach(function(m, i) {
+    html += '<input type="number" id="cp' + i + '" step="1" min="0" value="">';
+  });
+
+  grid.innerHTML = html;
+}
+
+initCustomInputs();
+
+// Build custom climate graph from user input
+function buildCustomGraph() {
+  var temp = [];
+  var precip = [];
+
+  for (var i = 0; i < 12; i++) {
+    var t = parseFloat(document.getElementById('ct' + i).value);
+    var p = parseFloat(document.getElementById('cp' + i).value);
+    if (isNaN(t) || isNaN(p)) {
+      alert('Please enter values for all 12 months.');
+      return;
+    }
+    temp.push(t);
+    precip.push(Math.max(0, p));
+  }
+
+  var name = document.getElementById('custom-name').value || 'Custom Location';
+  var hemisphere = document.getElementById('custom-hemisphere').value;
+  var lat = (hemisphere === 'south') ? -10 : 10;
+
+  var data = { temp: temp, precip: precip, lat: lat };
+
+  document.getElementById('custom-chart-card').style.display = 'block';
+  document.getElementById('custom-stats-card').style.display = 'block';
+  document.getElementById('custom-title').textContent = name;
+
+  chartCustom = destroyChart(chartCustom);
+  chartCustom = createClimateChart(
+    document.getElementById('chart-custom'), data
+  );
+  renderStats(document.getElementById('stats-custom'), data);
+  renderKoppen(document.getElementById('koppen-custom'), data);
+}
+
+// Clear custom inputs
+function clearCustom() {
+  for (var i = 0; i < 12; i++) {
+    document.getElementById('ct' + i).value = '';
+    document.getElementById('cp' + i).value = '';
+  }
+  document.getElementById('custom-name').value = 'Custom Location';
+  document.getElementById('custom-chart-card').style.display = 'none';
+  document.getElementById('custom-stats-card').style.display = 'none';
+  chartCustom = destroyChart(chartCustom);
+}
+
+// Load example dataset into custom inputs
+function loadExample() {
+  var exTemp = [-8, -5, -2, 4, 10, 14, 16, 15, 10, 3, -5, -8];
+  var exPrecip = [20, 18, 15, 12, 17, 28, 48, 66, 66, 42, 28, 25];
+
+  for (var i = 0; i < 12; i++) {
+    document.getElementById('ct' + i).value = exTemp[i];
+    document.getElementById('cp' + i).value = exPrecip[i];
+  }
+  document.getElementById('custom-name').value = 'Anchorage, Alaska';
+  document.getElementById('custom-hemisphere').value = 'north';
+}
+
+// Initialise on page load
+updateSingle();
+updateCompare();
+</script>
+</body>
+</html>

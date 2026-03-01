@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pilgrimage Explorer</title>
+<style>
+:root {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-panel: #1e2a45;
+  --bg-card: #243154;
+  --text-primary: #e8e8f0;
+  --text-secondary: #a0a8c0;
+  --accent-gold: #d4a037;
+  --accent-gold-light: #f0c86e;
+  --accent-gold-dim: rgba(212, 160, 55, 0.25);
+  --color-christianity: #5b9bd5;
+  --color-islam: #3dba6f;
+  --color-hinduism: #e87d3e;
+  --color-buddhism: #d4a037;
+  --color-judaism: #8b7ec8;
+  --color-sikhism: #e05a7a;
+  --border-radius: 10px;
+  --shadow: 0 4px 20px rgba(0,0,0,0.35);
+  --transition: 0.3s ease;
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: linear-gradient(135deg, var(--bg-secondary), #1a1632);
+  border-bottom: 2px solid var(--accent-gold-dim);
+  padding: 14px 24px;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+}
+header h1 {
+  font-size: 1.5rem; color: var(--accent-gold); font-weight: 700; letter-spacing: 0.5px;
+}
+header p { font-size: 0.85rem; color: var(--text-secondary); }
+.header-left { display: flex; flex-direction: column; }
+.nav-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.nav-tab {
+  padding: 7px 16px; border-radius: 20px; border: 1px solid var(--accent-gold-dim);
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+  font-size: 0.8rem; transition: var(--transition);
+}
+.nav-tab:hover { border-color: var(--accent-gold); color: var(--text-primary); }
+.nav-tab.active { background: var(--accent-gold); color: var(--bg-primary); font-weight: 600; border-color: var(--accent-gold); }
+
+main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+
+/* Filters */
+.filter-bar {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center;
+}
+.filter-bar span { font-size: 0.8rem; color: var(--text-secondary); margin-right: 4px; }
+.filter-btn {
+  padding: 5px 14px; border-radius: 16px; border: 2px solid; background: transparent;
+  color: var(--text-primary); cursor: pointer; font-size: 0.78rem; transition: var(--transition);
+  opacity: 0.55;
+}
+.filter-btn.active { opacity: 1; }
+.filter-btn[data-religion="Christianity"] { border-color: var(--color-christianity); }
+.filter-btn[data-religion="Christianity"].active { background: var(--color-christianity); color: #fff; }
+.filter-btn[data-religion="Islam"] { border-color: var(--color-islam); }
+.filter-btn[data-religion="Islam"].active { background: var(--color-islam); color: #fff; }
+.filter-btn[data-religion="Hinduism"] { border-color: var(--color-hinduism); }
+.filter-btn[data-religion="Hinduism"].active { background: var(--color-hinduism); color: #fff; }
+.filter-btn[data-religion="Buddhism"] { border-color: var(--color-buddhism); }
+.filter-btn[data-religion="Buddhism"].active { background: var(--color-buddhism); color: #fff; }
+.filter-btn[data-religion="Judaism"] { border-color: var(--color-judaism); }
+.filter-btn[data-religion="Judaism"].active { background: var(--color-judaism); color: #fff; }
+.filter-btn[data-religion="Sikhism"] { border-color: var(--color-sikhism); }
+.filter-btn[data-religion="Sikhism"].active { background: var(--color-sikhism); color: #fff; }
+
+/* Map section */
+.view { display: none; }
+.view.active { display: block; }
+.map-area { position: relative; }
+.map-wrapper {
+  background: var(--bg-secondary); border-radius: var(--border-radius); overflow: hidden;
+  box-shadow: var(--shadow); position: relative;
+}
+canvas#mapCanvas { width: 100%; display: block; cursor: pointer; }
+.map-tooltip {
+  position: absolute; display: none; padding: 8px 14px; border-radius: 8px;
+  background: var(--bg-card); border: 1px solid var(--accent-gold-dim);
+  color: var(--text-primary); font-size: 0.8rem; pointer-events: none;
+  box-shadow: var(--shadow); white-space: nowrap; z-index: 10;
+}
+
+/* Detail panel */
+.detail-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200;
+  display: none; align-items: center; justify-content: center;
+}
+.detail-overlay.open { display: flex; }
+.detail-panel {
+  background: var(--bg-panel); border-radius: var(--border-radius); padding: 28px;
+  max-width: 560px; width: 92%; max-height: 85vh; overflow-y: auto;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5); border-left: 4px solid var(--accent-gold);
+  animation: slideIn 0.3s ease;
+}
+@keyframes slideIn { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.detail-panel .close-btn {
+  float: right; background: none; border: none; color: var(--text-secondary);
+  font-size: 1.4rem; cursor: pointer; line-height: 1;
+}
+.detail-panel .close-btn:hover { color: var(--accent-gold); }
+.detail-panel h2 { font-size: 1.35rem; margin-bottom: 4px; }
+.detail-religion {
+  display: inline-block; padding: 3px 12px; border-radius: 12px; font-size: 0.75rem;
+  margin-bottom: 14px; color: #fff; font-weight: 600;
+}
+.detail-section { margin-bottom: 16px; }
+.detail-section h3 {
+  font-size: 0.85rem; color: var(--accent-gold); text-transform: uppercase;
+  letter-spacing: 1px; margin-bottom: 6px;
+}
+.detail-section p, .detail-section ul { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; }
+.detail-section ul { padding-left: 18px; }
+.detail-section li { margin-bottom: 4px; }
+.detail-meta { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 14px; }
+.detail-meta-item { font-size: 0.8rem; color: var(--text-secondary); }
+.detail-meta-item strong { color: var(--accent-gold-light); display: block; font-size: 0.72rem; text-transform: uppercase; }
+
+/* Compare view */
+.compare-controls { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+.compare-select {
+  padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent-gold-dim);
+  background: var(--bg-card); color: var(--text-primary); font-size: 0.85rem;
+  flex: 1; min-width: 180px;
+}
+.compare-select option { background: var(--bg-card); }
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.compare-card {
+  background: var(--bg-card); border-radius: var(--border-radius); padding: 22px;
+  box-shadow: var(--shadow); border-top: 3px solid var(--accent-gold-dim);
+}
+.compare-card h3 { font-size: 1.1rem; margin-bottom: 10px; }
+.compare-card .religion-tag {
+  display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 0.72rem;
+  color: #fff; margin-bottom: 12px; font-weight: 600;
+}
+.compare-row { margin-bottom: 12px; }
+.compare-row label { font-size: 0.72rem; text-transform: uppercase; color: var(--accent-gold); letter-spacing: 0.8px; display: block; margin-bottom: 3px; }
+.compare-row p { font-size: 0.84rem; color: var(--text-secondary); line-height: 1.55; }
+.compare-placeholder {
+  grid-column: 1 / -1; text-align: center; padding: 60px 20px;
+  color: var(--text-secondary); font-size: 0.95rem;
+}
+
+/* Info sections */
+.info-section {
+  background: var(--bg-card); border-radius: var(--border-radius); padding: 28px;
+  margin-bottom: 20px; box-shadow: var(--shadow);
+}
+.info-section h2 { font-size: 1.2rem; color: var(--accent-gold); margin-bottom: 14px; }
+.info-section p { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.7; margin-bottom: 12px; }
+.motivation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 14px; }
+.motivation-card {
+  background: var(--bg-panel); border-radius: 8px; padding: 18px;
+  border-left: 3px solid var(--accent-gold); transition: var(--transition);
+}
+.motivation-card:hover { transform: translateY(-2px); }
+.motivation-card h4 { font-size: 0.92rem; margin-bottom: 6px; color: var(--text-primary); }
+.motivation-card p { font-size: 0.82rem; margin-bottom: 0; }
+
+@media (max-width: 768px) {
+  header { padding: 10px 14px; }
+  header h1 { font-size: 1.2rem; }
+  .compare-grid { grid-template-columns: 1fr; }
+  .detail-panel { padding: 20px; }
+  main { padding: 10px; }
+}
+@media (max-width: 480px) {
+  .nav-tabs { gap: 4px; }
+  .nav-tab { padding: 5px 10px; font-size: 0.72rem; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>Pilgrimage Explorer</h1>
+    <p>Explore major pilgrimage routes and sacred sites across world religions</p>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-view="map">Map</button>
+    <button class="nav-tab" data-view="compare">Compare</button>
+    <button class="nav-tab" data-view="motivations">Motivations</button>
+    <button class="nav-tab" data-view="about">About Pilgrimage</button>
+  </div>
+</header>
+
+<main>
+  <!-- Map View -->
+  <div id="view-map" class="view active">
+    <div class="filter-bar">
+      <span>Filter by religion:</span>
+    </div>
+    <div class="map-area">
+      <div class="map-wrapper">
+        <canvas id="mapCanvas"></canvas>
+        <div class="map-tooltip" id="mapTooltip"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Compare View -->
+  <div id="view-compare" class="view">
+    <div class="compare-controls">
+      <select class="compare-select" id="compareA"><option value="">Select first pilgrimage site...</option></select>
+      <span style="color:var(--accent-gold); font-weight:700;">vs</span>
+      <select class="compare-select" id="compareB"><option value="">Select second pilgrimage site...</option></select>
+    </div>
+    <div class="compare-grid" id="compareGrid">
+      <div class="compare-placeholder">Select two pilgrimage sites above to compare them side by side.</div>
+    </div>
+  </div>
+
+  <!-- Motivations View -->
+  <div id="view-motivations" class="view">
+    <div class="info-section">
+      <h2>Why Do People Go on Pilgrimage?</h2>
+      <p>Pilgrimage is one of the oldest and most widespread religious practices, found in nearly every faith tradition. The decision to undertake a pilgrimage is deeply personal, yet common threads of motivation appear across cultures, centuries, and religions. Below are some of the key reasons pilgrims have historically set out on their journeys.</p>
+      <div class="motivation-grid" id="motivationGrid"></div>
+    </div>
+  </div>
+
+  <!-- About View -->
+  <div id="view-about" class="view">
+    <div class="info-section">
+      <h2>What Is Pilgrimage?</h2>
+      <p>A pilgrimage is a journey to a sacred place undertaken for religious or spiritual purposes. The word comes from the Latin "peregrinus," meaning a traveller or foreigner. Pilgrimages have been practised for thousands of years across every major world religion and many indigenous spiritual traditions.</p>
+      <p>Unlike ordinary travel, pilgrimage is defined by its intention: the pilgrim travels not simply to arrive at a destination, but to undergo transformation along the way. The physical act of travelling, often involving hardship and sacrifice, mirrors an inner spiritual journey of reflection, devotion, and renewal.</p>
+    </div>
+    <div class="info-section">
+      <h2>Pilgrimage Across Religions</h2>
+      <p>While the specific practices and destinations differ, pilgrimage serves remarkably similar functions across faiths. In Christianity, pilgrims visit sites connected to the life of Jesus, the saints, or reported miracles. In Islam, the Hajj to Mecca is one of the Five Pillars, a duty for every able Muslim at least once in their lifetime. Hindu pilgrimage, or tirtha yatra, involves visiting sacred rivers, temples, and mountains believed to be dwelling places of the divine.</p>
+      <p>In Buddhism, the four main pilgrimage sites mark key events in the life of the Buddha. Jewish pilgrimage centres on Jerusalem and the Western Wall, the last remnant of the Second Temple. Sikh pilgrims visit gurdwaras of historical significance, with the Golden Temple in Amritsar holding the greatest importance.</p>
+    </div>
+    <div class="info-section">
+      <h2>The Spiritual vs Physical Journey</h2>
+      <p>One of the most important concepts in understanding pilgrimage is the relationship between the outward, physical journey and the inward, spiritual one. Many pilgrims describe the physical challenges of travel (walking long distances, enduring discomfort, leaving behind daily routines) as essential to the spiritual experience. The body's effort creates space for the mind and spirit to open.</p>
+      <p>Some theologians argue that the true pilgrimage is always internal: a journey towards God, self-knowledge, or enlightenment. The external journey simply provides the structure and discipline to make that inner transformation possible. In this sense, every person's life can be understood as a kind of pilgrimage, a journey towards meaning and purpose.</p>
+      <p>Today, many people undertake pilgrimages for a mixture of religious, cultural, and personal reasons. Whether motivated by deep faith, a desire for community, or simply a need for reflection, the act of pilgrimage continues to hold profound significance for millions of people worldwide.</p>
+    </div>
+  </div>
+</main>
+
+<!-- Detail Overlay -->
+<div class="detail-overlay" id="detailOverlay">
+  <div class="detail-panel" id="detailPanel"></div>
+</div>
+
+<script>
+const SITES = [
+  {
+    id: "jerusalem-christian",
+    name: "Jerusalem (Church of the Holy Sepulchre)",
+    religion: "Christianity",
+    lat: 31.78, lng: 35.23,
+    location: "Jerusalem, Israel/Palestine",
+    significance: "Jerusalem is the holiest city in Christianity, believed to be the site of Jesus Christ's crucifixion, burial, and resurrection. The Church of the Holy Sepulchre, built in the 4th century, encloses both Golgotha (Calvary) and the empty tomb. For nearly two thousand years, Christians have journeyed here to walk in the footsteps of Jesus during his final days.",
+    rituals: [
+      "Walking the Via Dolorosa (Stations of the Cross)",
+      "Praying at the Stone of Anointing and the Aedicule (tomb)",
+      "Attending services in the Church of the Holy Sepulchre",
+      "Participating in Easter processions and liturgies"
+    ],
+    visitTime: "Year-round, with particular significance during Holy Week and Easter (March/April)",
+    visitors: "Approximately 4 million visitors per year"
+  },
+  {
+    id: "santiago",
+    name: "Santiago de Compostela",
+    religion: "Christianity",
+    lat: 42.88, lng: -8.54,
+    location: "Galicia, north-west Spain",
+    significance: "The cathedral at Santiago is believed to hold the remains of the Apostle James (Santiago), one of Jesus' twelve apostles. The Camino de Santiago (Way of St James) is one of the most famous pilgrimage routes in the world, with trails stretching across Europe. During the medieval period it was considered one of the three great Christian pilgrimages alongside Jerusalem and Rome.",
+    rituals: [
+      "Walking one of the Camino routes (the most popular is the Camino Frances, approximately 800km)",
+      "Carrying a pilgrim credential (passport) stamped at stops along the way",
+      "Attending the Pilgrim's Mass at the cathedral",
+      "Embracing the statue of St James behind the altar"
+    ],
+    visitTime: "Spring to autumn (April to October), with the Feast of St James on 25 July",
+    visitors: "Around 450,000 pilgrims complete the Camino each year"
+  },
+  {
+    id: "lourdes",
+    name: "Lourdes",
+    religion: "Christianity",
+    lat: 43.1, lng: -0.05,
+    location: "Hautes-Pyrenees, south-west France",
+    significance: "In 1858, a 14-year-old girl named Bernadette Soubirous reported 18 apparitions of the Virgin Mary in a grotto near Lourdes. A spring discovered during these visions is believed by many to have healing properties. The Catholic Church officially recognised the apparitions, and Lourdes has since become one of the world's most visited Marian shrines, especially important for the sick and those seeking physical or spiritual healing.",
+    rituals: [
+      "Bathing in or drinking the spring water from the Grotto of Massabielle",
+      "Participating in candlelit Marian processions each evening",
+      "Attending Mass at the Basilica of the Immaculate Conception",
+      "Praying the Rosary at the Grotto"
+    ],
+    visitTime: "February to November (the sanctuary season); the Feast of Our Lady of Lourdes is 11 February",
+    visitors: "Approximately 6 million pilgrims per year"
+  },
+  {
+    id: "rome",
+    name: "Rome (Vatican City)",
+    religion: "Christianity",
+    lat: 41.9, lng: 12.45,
+    location: "Rome, Italy",
+    significance: "Rome is the seat of the papacy and the centre of the Roman Catholic Church. St Peter's Basilica is built over the traditional burial site of the Apostle Peter, whom Catholics consider the first pope. The city contains hundreds of churches, catacombs, and relics spanning nearly two millennia of Christian history. A Jubilee Year (Holy Year) proclaimed by the Pope draws particularly large numbers of pilgrims.",
+    rituals: [
+      "Visiting St Peter's Basilica and the Vatican Museums",
+      "Attending a Papal audience or Mass in St Peter's Square",
+      "Visiting the four major basilicas during a Holy Year to receive a plenary indulgence",
+      "Praying at the catacombs and early Christian sites"
+    ],
+    visitTime: "Year-round; Holy Years (typically every 25 years) are especially significant",
+    visitors: "Over 9 million visit Vatican City each year; many more visit Rome's other sacred sites"
+  },
+  {
+    id: "mecca",
+    name: "Mecca (Hajj)",
+    religion: "Islam",
+    lat: 21.42, lng: 39.83,
+    location: "Makkah Province, Saudi Arabia",
+    significance: "Mecca is the holiest city in Islam, the birthplace of the Prophet Muhammad, and the site of the Kaaba, the most sacred structure in the faith. Muslims believe the Kaaba was originally built by the Prophet Ibrahim (Abraham) and his son Ismail. The Hajj pilgrimage to Mecca is the fifth Pillar of Islam: every Muslim who is physically and financially able must undertake it at least once in their lifetime.",
+    rituals: [
+      "Tawaf: circling the Kaaba seven times in an anti-clockwise direction",
+      "Sa'i: walking seven times between the hills of Safa and Marwa",
+      "Standing at Arafat (Wuquf): the most important ritual, spent in prayer and reflection",
+      "Stoning the Jamarat (three pillars), symbolising rejection of temptation",
+      "Wearing ihram (simple white garments) to symbolise equality before God"
+    ],
+    visitTime: "The Hajj takes place annually during Dhul Hijjah (the 12th month of the Islamic lunar calendar); Umrah (lesser pilgrimage) can be performed at any time",
+    visitors: "Approximately 2 to 3 million pilgrims attend the Hajj annually; millions more perform Umrah"
+  },
+  {
+    id: "medina",
+    name: "Medina",
+    religion: "Islam",
+    lat: 24.47, lng: 39.61,
+    location: "Medina Province, Saudi Arabia",
+    significance: "Medina (Al-Madinah al-Munawwarah, meaning 'The Radiant City') is the second holiest city in Islam. It is where the Prophet Muhammad migrated to (the Hijra) in 622 CE, established the first Muslim community, and is buried. The Prophet's Mosque (Al-Masjid an-Nabawi) contains his tomb and is one of the largest mosques in the world. While visiting Medina is not a requirement of Hajj, most pilgrims include it in their journey.",
+    rituals: [
+      "Praying in the Prophet's Mosque (a prayer here is considered equal to a thousand prayers elsewhere)",
+      "Visiting the Rawdah (the area between the Prophet's tomb and his pulpit, considered part of Paradise)",
+      "Sending salutations upon the Prophet Muhammad at his tomb",
+      "Visiting the Quba Mosque, the first mosque built in Islamic history"
+    ],
+    visitTime: "Year-round, though most commonly visited alongside Hajj or Umrah",
+    visitors: "Over 6 million visitors per year"
+  },
+  {
+    id: "varanasi",
+    name: "Varanasi",
+    religion: "Hinduism",
+    lat: 25.32, lng: 83.0,
+    location: "Uttar Pradesh, northern India",
+    significance: "Varanasi (also known as Kashi or Benares) is the holiest city in Hinduism, believed to be the abode of Lord Shiva. It is one of the oldest continuously inhabited cities in the world. Hindus believe that dying in Varanasi or having one's ashes scattered in the River Ganges here liberates the soul from the cycle of death and rebirth (moksha). The city's ghats (stone steps leading to the river) are the centre of spiritual life.",
+    rituals: [
+      "Bathing in the sacred waters of the River Ganges at the ghats",
+      "Witnessing or participating in the Ganga Aarti ceremony (fire ritual) at Dashashwamedh Ghat each evening",
+      "Performing cremation rites at Manikarnika Ghat, the most sacred cremation ground",
+      "Visiting the Kashi Vishwanath Temple dedicated to Lord Shiva"
+    ],
+    visitTime: "Year-round; especially during Maha Shivaratri (February/March) and Dev Deepavali (November)",
+    visitors: "Estimated 20 to 30 million pilgrims per year"
+  },
+  {
+    id: "chardham",
+    name: "Char Dham",
+    religion: "Hinduism",
+    lat: 30.73, lng: 79.07,
+    location: "Uttarakhand, northern India (Himalayan region)",
+    significance: "The Char Dham ('four abodes') of Uttarakhand comprises four sacred temples: Yamunotri, Gangotri, Kedarnath, and Badrinath, situated high in the Himalayas. Hindus believe that visiting all four in a single journey washes away sins and helps attain moksha. The circuit is considered one of the most spiritually rewarding and physically demanding pilgrimages in Hinduism, requiring travel through remote mountain terrain.",
+    rituals: [
+      "Visiting each of the four temples in the traditional order: Yamunotri, Gangotri, Kedarnath, Badrinath",
+      "Bathing in the hot springs at Yamunotri and the sacred waters at Gangotri (source of the Ganges)",
+      "Trekking to the Kedarnath Temple (over 3,500m elevation), dedicated to Lord Shiva",
+      "Receiving darshan (sacred viewing) at the Badrinath Temple, dedicated to Lord Vishnu"
+    ],
+    visitTime: "May to October/November (temples close during the harsh Himalayan winter)",
+    visitors: "Over 3 million pilgrims per year across the circuit"
+  },
+  {
+    id: "bodhgaya",
+    name: "Bodh Gaya",
+    religion: "Buddhism",
+    lat: 24.7, lng: 84.99,
+    location: "Bihar, north-eastern India",
+    significance: "Bodh Gaya is the most sacred site in Buddhism. It is where Siddhartha Gautama attained enlightenment (bodhi) while meditating beneath a Bodhi tree around 500 BCE, becoming the Buddha. The Mahabodhi Temple, a UNESCO World Heritage Site, marks the exact spot. The site is the most important of the four main Buddhist pilgrimage places and draws followers from every Buddhist tradition worldwide.",
+    rituals: [
+      "Meditating beneath the Bodhi Tree (a descendant of the original tree)",
+      "Circumambulating the Mahabodhi Temple",
+      "Prostrating before the Vajrasana (diamond throne) where the Buddha sat",
+      "Chanting sutras and offering flowers, incense, and candles"
+    ],
+    visitTime: "October to March (cooler season); the Buddha Purnima festival (May) is especially significant",
+    visitors: "Approximately 2 to 3 million visitors per year"
+  },
+  {
+    id: "lumbini",
+    name: "Lumbini",
+    religion: "Buddhism",
+    lat: 27.47, lng: 83.28,
+    location: "Rupandehi District, southern Nepal",
+    significance: "Lumbini is the birthplace of Siddhartha Gautama (the Buddha) and a UNESCO World Heritage Site. According to tradition, Queen Mayadevi gave birth to the future Buddha here in approximately 563 BCE while grasping the branch of a sal tree. The Emperor Ashoka visited in the 3rd century BCE and erected a pillar to mark the site. Lumbini is one of the four principal Buddhist pilgrimage destinations.",
+    rituals: [
+      "Visiting the Mayadevi Temple, built over the exact birthplace",
+      "Viewing the Ashoka Pillar, one of the oldest known Buddhist monuments",
+      "Meditating in the Sacred Garden surrounding the temple",
+      "Visiting monasteries built by Buddhist communities from around the world"
+    ],
+    visitTime: "October to March (cool season); Buddha Jayanti (Buddha's birthday) in May draws large crowds",
+    visitors: "Around 1.5 million visitors per year"
+  },
+  {
+    id: "western-wall",
+    name: "Western Wall (Kotel)",
+    religion: "Judaism",
+    lat: 31.78, lng: 35.23,
+    location: "Old City, Jerusalem, Israel/Palestine",
+    significance: "The Western Wall is the last remaining retaining wall of the Second Temple complex, which was destroyed by the Romans in 70 CE. It is the holiest place where Jews are permitted to pray, serving as a powerful symbol of the Jewish people's ancient connection to Jerusalem and the Temple Mount. For centuries, Jews have journeyed here to pray, mourn the destruction of the Temple, and express hope for its restoration.",
+    rituals: [
+      "Praying at the Wall (separate sections for men and women)",
+      "Placing written prayers (kvitlach) into the cracks between the stones",
+      "Celebrating bar and bat mitzvahs at the Wall plaza",
+      "Gathering for special prayers on Shabbat, Jewish holidays, and fast days (especially Tisha B'Av)"
+    ],
+    visitTime: "Year-round; the three Jewish pilgrimage festivals (Pesach, Shavuot, Sukkot) are especially significant",
+    visitors: "Over 10 million visitors per year"
+  },
+  {
+    id: "golden-temple",
+    name: "Golden Temple (Harmandir Sahib)",
+    religion: "Sikhism",
+    lat: 31.62, lng: 74.88,
+    location: "Amritsar, Punjab, India",
+    significance: "The Golden Temple (Sri Harmandir Sahib, meaning 'Abode of God') is the holiest gurdwara and the spiritual heart of Sikhism. Founded by the fourth Guru, Guru Ram Das, in the 16th century, the temple houses the Guru Granth Sahib (Sikh holy scripture). Its four entrances symbolise openness to all people regardless of caste, creed, or background. The Langar (free communal kitchen) feeds up to 100,000 people every day without distinction.",
+    rituals: [
+      "Listening to the continuous recitation of the Guru Granth Sahib (Akhand Path)",
+      "Bathing in the Amrit Sarovar (Pool of Nectar) surrounding the temple",
+      "Sharing a meal in the Langar, open to everyone regardless of faith",
+      "Walking the Parikrama (circumambulation path) around the sacred pool"
+    ],
+    visitTime: "Year-round; Baisakhi (April), Diwali, and the martyrdom anniversaries of the Gurus draw especially large gatherings",
+    visitors: "Approximately 100,000 visitors daily (over 35 million per year)"
+  }
+];
+
+const MOTIVATIONS = [
+  { title: "Spiritual Devotion", text: "Many pilgrims travel to express their love for God or the divine, fulfilling a religious obligation or deepening their personal faith through dedicated acts of worship." },
+  { title: "Seeking Forgiveness", text: "Pilgrimages are often undertaken as acts of penance, with the hope that the journey and the prayers offered at sacred sites will bring forgiveness for past wrongdoings." },
+  { title: "Healing and Hope", text: "Sites like Lourdes attract millions who seek physical healing or comfort in times of illness, drawing strength from the belief that the sacred place has miraculous properties." },
+  { title: "Fulfilment of Duty", text: "In some faiths, pilgrimage is a formal requirement. The Hajj is one of the Five Pillars of Islam, making it an obligation for those who are able to undertake it." },
+  { title: "Community and Belonging", text: "Pilgrimage brings together people from different backgrounds, creating a powerful sense of shared purpose and identity within a faith community." },
+  { title: "Remembrance and Connection", text: "Pilgrims visit sites to connect with the history of their faith, walking where prophets, saints, and founders once walked, and making that history feel present and real." },
+  { title: "Personal Transformation", text: "The challenge of the journey itself, leaving behind comfort and routine, creates conditions for profound personal change, self-discovery, and renewed perspective." },
+  { title: "Gratitude and Thanksgiving", text: "Some pilgrims travel to give thanks for blessings received: recovery from illness, the birth of a child, or other moments of grace and good fortune in their lives." }
+];
+
+const RELIGIONS = ["Christianity", "Islam", "Hinduism", "Buddhism", "Judaism", "Sikhism"];
+
+function getColor(religion) {
+  const map = {
+    Christianity: getComputedStyle(document.documentElement).getPropertyValue('--color-christianity').trim(),
+    Islam: getComputedStyle(document.documentElement).getPropertyValue('--color-islam').trim(),
+    Hinduism: getComputedStyle(document.documentElement).getPropertyValue('--color-hinduism').trim(),
+    Buddhism: getComputedStyle(document.documentElement).getPropertyValue('--color-buddhism').trim(),
+    Judaism: getComputedStyle(document.documentElement).getPropertyValue('--color-judaism').trim(),
+    Sikhism: getComputedStyle(document.documentElement).getPropertyValue('--color-sikhism').trim()
+  };
+  return map[religion] || '#ccc';
+}
+
+/* State */
+let activeFilters = new Set(RELIGIONS);
+let animFrame = 0;
+
+/* Nav */
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + tab.dataset.view).classList.add('active');
+    if (tab.dataset.view === 'map') drawMap();
+  });
+});
+
+/* Filters */
+(function initFilters() {
+  const bar = document.querySelector('.filter-bar');
+  RELIGIONS.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn active';
+    btn.dataset.religion = r;
+    btn.textContent = r;
+    btn.addEventListener('click', () => {
+      if (activeFilters.has(r)) { activeFilters.delete(r); btn.classList.remove('active'); }
+      else { activeFilters.add(r); btn.classList.add('active'); }
+      drawMap();
+    });
+    bar.appendChild(btn);
+  });
+})();
+
+/* Map Drawing */
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+const tooltip = document.getElementById('mapTooltip');
+let W, H, dpr;
+
+function resizeCanvas() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1;
+  W = rect.width;
+  H = Math.max(360, Math.min(W * 0.52, 560));
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function lngToX(lng) { return ((lng + 180) / 360) * W; }
+function latToY(lat) {
+  const latRad = lat * Math.PI / 180;
+  const mercN = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
+  return (H / 2) - (mercN * H / (2 * Math.PI)) * 0.85;
+}
+
+function drawContinentShape(points, fill) {
+  ctx.beginPath();
+  const px = points.map(p => [lngToX(p[1]), latToY(p[0])]);
+  ctx.moveTo(px[0][0], px[0][1]);
+  for (let i = 1; i < px.length; i++) ctx.lineTo(px[i][0], px[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(160,168,192,0.18)';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+}
+
+function drawContinents() {
+  const land = 'rgba(40,55,85,0.7)';
+  // Europe
+  drawContinentShape([
+    [72,10],[70,30],[65,28],[60,40],[58,50],[55,38],[52,26],[48,5],[46,-5],
+    [43,-9],[38,-8],[36,0],[36,12],[37,22],[38,28],[40,30],[42,28],[44,32],
+    [46,36],[50,40],[55,48],[60,52],[65,46],[68,34],[72,10]
+  ], land);
+  // Africa
+  drawContinentShape([
+    [37,-8],[36,0],[35,10],[33,12],[30,12],[25,18],[20,18],[15,15],[10,8],
+    [5,5],[0,10],[-5,13],[-10,16],[-15,18],[-20,22],[-25,28],[-30,32],
+    [-35,20],[-34,18],[-30,16],[-25,14],[-20,12],[-15,10],[-10,8],
+    [-5,5],[0,1],[5,-5],[6,-10],[5,-15],[10,-16],[15,-17],[20,-16],
+    [25,-15],[30,-10],[33,-7],[37,-8]
+  ], land);
+  // Asia
+  drawContinentShape([
+    [72,30],[70,50],[68,60],[65,72],[60,80],[55,75],[50,70],[45,60],
+    [40,50],[38,48],[35,45],[30,48],[25,55],[20,60],[18,65],[15,75],
+    [12,80],[8,78],[5,80],[8,95],[5,100],[2,104],[5,108],[10,106],
+    [15,108],[20,107],[22,110],[25,115],[28,120],[30,122],[35,128],
+    [37,127],[40,130],[42,132],[45,140],[48,143],[50,140],[52,138],
+    [55,136],[58,140],[60,148],[63,150],[65,160],[68,170],[70,175],
+    [72,170],[73,150],[74,130],[75,105],[76,80],[75,60],[72,30]
+  ], land);
+  // North America
+  drawContinentShape([
+    [72,-168],[70,-160],[68,-145],[65,-140],[60,-138],[56,-132],[52,-127],
+    [48,-124],[45,-122],[40,-120],[35,-117],[32,-115],[30,-112],[28,-106],
+    [26,-100],[25,-90],[28,-82],[30,-80],[32,-78],[35,-75],[38,-74],
+    [42,-72],[45,-68],[48,-65],[50,-60],[52,-58],[55,-60],[60,-65],
+    [62,-72],[64,-78],[66,-82],[68,-90],[70,-100],[72,-110],[74,-120],
+    [76,-140],[74,-160],[72,-168]
+  ], land);
+  // South America
+  drawContinentShape([
+    [12,-72],[10,-75],[8,-77],[5,-77],[0,-80],[-3,-78],[-5,-80],[-8,-78],
+    [-10,-77],[-12,-76],[-15,-75],[-20,-70],[-25,-65],[-28,-60],[-32,-58],
+    [-35,-55],[-38,-57],[-42,-62],[-46,-67],[-50,-70],[-55,-68],[-54,-66],
+    [-50,-64],[-45,-60],[-40,-55],[-35,-50],[-30,-48],[-25,-45],[-20,-40],
+    [-15,-38],[-10,-35],[-5,-35],[0,-50],[5,-60],[8,-65],[10,-70],[12,-72]
+  ], land);
+  // Australia
+  drawContinentShape([
+    [-12,131],[-14,127],[-18,122],[-22,114],[-26,113],[-30,115],[-32,117],
+    [-34,118],[-35,122],[-36,137],[-38,145],[-37,148],[-35,150],[-32,152],
+    [-28,153],[-25,152],[-20,148],[-16,145],[-14,142],[-12,136],[-12,131]
+  ], land);
+}
+
+function drawMap() {
+  ctx.clearRect(0, 0, W, H);
+  // Ocean
+  ctx.fillStyle = '#0f1729';
+  ctx.fillRect(0, 0, W, H);
+  // Grid
+  ctx.strokeStyle = 'rgba(100,120,160,0.07)';
+  ctx.lineWidth = 0.5;
+  for (let lng = -180; lng <= 180; lng += 30) {
+    const x = lngToX(lng);
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let lat = -60; lat <= 80; lat += 20) {
+    const y = latToY(lat);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  drawContinents();
+  // Sites
+  const t = animFrame * 0.03;
+  SITES.forEach(site => {
+    if (!activeFilters.has(site.religion)) return;
+    const x = lngToX(site.lng);
+    const y = latToY(site.lat);
+    const color = getColor(site.religion);
+    // Glow
+    const pulse = 0.5 + Math.sin(t + site.lat) * 0.3;
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, 14 + pulse * 6);
+    grad.addColorStop(0, color);
+    grad.addColorStop(0.4, color + '88');
+    grad.addColorStop(1, color + '00');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, 14 + pulse * 6, 0, Math.PI * 2);
+    ctx.fill();
+    // Dot
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  });
+  animFrame++;
+  requestAnimationFrame(drawMap);
+}
+
+function getSiteAt(mx, my) {
+  let closest = null, minD = 20;
+  SITES.forEach(site => {
+    if (!activeFilters.has(site.religion)) return;
+    const x = lngToX(site.lng);
+    const y = latToY(site.lat);
+    const d = Math.hypot(mx - x, my - y);
+    if (d < minD) { minD = d; closest = site; }
+  });
+  return closest;
+}
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const site = getSiteAt(mx, my);
+  if (site) {
+    tooltip.style.display = 'block';
+    tooltip.textContent = site.name + ' (' + site.religion + ')';
+    let tx = mx + 16, ty = my - 10;
+    if (tx + 220 > W) tx = mx - 220;
+    if (ty < 0) ty = my + 20;
+    tooltip.style.left = tx + 'px';
+    tooltip.style.top = ty + 'px';
+    canvas.style.cursor = 'pointer';
+  } else {
+    tooltip.style.display = 'none';
+    canvas.style.cursor = 'default';
+  }
+});
+
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const site = getSiteAt(e.clientX - rect.left, e.clientY - rect.top);
+  if (site) openDetail(site);
+});
+
+canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+/* Detail Panel */
+function openDetail(site) {
+  const color = getColor(site.religion);
+  const panel = document.getElementById('detailPanel');
+  panel.innerHTML = `
+    <button class="close-btn" onclick="closeDetail()">&times;</button>
+    <h2>${site.name}</h2>
+    <span class="detail-religion" style="background:${color}">${site.religion}</span>
+    <div class="detail-section">
+      <h3>Location</h3>
+      <p>${site.location}</p>
+    </div>
+    <div class="detail-section">
+      <h3>Why Is It Significant?</h3>
+      <p>${site.significance}</p>
+    </div>
+    <div class="detail-section">
+      <h3>Key Rituals and Practices</h3>
+      <ul>${site.rituals.map(r => '<li>' + r + '</li>').join('')}</ul>
+    </div>
+    <div class="detail-meta">
+      <div class="detail-meta-item"><strong>When Do Pilgrims Visit?</strong>${site.visitTime}</div>
+      <div class="detail-meta-item"><strong>Annual Visitors</strong>${site.visitors}</div>
+    </div>
+  `;
+  panel.style.borderLeftColor = color;
+  document.getElementById('detailOverlay').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detailOverlay').classList.remove('open');
+}
+
+document.getElementById('detailOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('detailOverlay')) closeDetail();
+});
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
+
+/* Compare */
+function initCompare() {
+  ['compareA', 'compareB'].forEach(id => {
+    const sel = document.getElementById(id);
+    SITES.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name + ' (' + s.religion + ')';
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', renderCompare);
+  });
+}
+
+function renderCompare() {
+  const grid = document.getElementById('compareGrid');
+  const a = SITES.find(s => s.id === document.getElementById('compareA').value);
+  const b = SITES.find(s => s.id === document.getElementById('compareB').value);
+  if (!a && !b) {
+    grid.innerHTML = '<div class="compare-placeholder">Select two pilgrimage sites above to compare them side by side.</div>';
+    return;
+  }
+  grid.innerHTML = '';
+  [a, b].forEach(site => {
+    if (!site) {
+      const empty = document.createElement('div');
+      empty.className = 'compare-card';
+      empty.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:40px 0;">Select a site to compare.</p>';
+      grid.appendChild(empty);
+      return;
+    }
+    const color = getColor(site.religion);
+    const card = document.createElement('div');
+    card.className = 'compare-card';
+    card.style.borderTopColor = color;
+    card.innerHTML = `
+      <h3>${site.name}</h3>
+      <span class="religion-tag" style="background:${color}">${site.religion}</span>
+      <div class="compare-row"><label>Location</label><p>${site.location}</p></div>
+      <div class="compare-row"><label>Significance</label><p>${site.significance}</p></div>
+      <div class="compare-row"><label>Key Rituals</label><p>${site.rituals.join('; ')}</p></div>
+      <div class="compare-row"><label>When Pilgrims Visit</label><p>${site.visitTime}</p></div>
+      <div class="compare-row"><label>Annual Visitors</label><p>${site.visitors}</p></div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+/* Motivations */
+function initMotivations() {
+  const grid = document.getElementById('motivationGrid');
+  MOTIVATIONS.forEach(m => {
+    const card = document.createElement('div');
+    card.className = 'motivation-card';
+    card.innerHTML = `<h4>${m.title}</h4><p>${m.text}</p>`;
+    grid.appendChild(card);
+  });
+}
+
+/* Init */
+function init() {
+  resizeCanvas();
+  drawMap();
+  initCompare();
+  initMotivations();
+}
+
+window.addEventListener('resize', () => { resizeCanvas(); });
+init();
+</script>
+</body>
+</html>

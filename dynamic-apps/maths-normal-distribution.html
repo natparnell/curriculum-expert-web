@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Normal Distribution Explorer</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --primary: #6c5ce7;
+    --primary-dark: #5241b0;
+    --primary-light: #a29bfe;
+    --curve-main: #6c5ce7;
+    --curve-secondary: #00b894;
+    --shade-primary: rgba(108, 92, 231, 0.3);
+    --shade-68: rgba(108, 92, 231, 0.18);
+    --shade-95: rgba(162, 155, 254, 0.15);
+    --shade-997: rgba(0, 184, 148, 0.10);
+    --band-68: #6c5ce7;
+    --band-95: #a29bfe;
+    --band-997: #dfe6e9;
+    --bg: #f8f9fc;
+    --card-bg: #ffffff;
+    --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+    --gray-500: #6b7280; --gray-600: #4b5563; --gray-700: #374151; --gray-800: #1f2937; --gray-900: #111827;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04);
+}
+
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--gray-800); line-height: 1.6; }
+
+.header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white; padding: 2rem 1.5rem; text-align: center;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 4px 12px rgba(108,92,231,0.3);
+}
+.header h1 { font-size: 2rem; font-weight: 800; margin-bottom: 0.2rem; letter-spacing: -0.02em; }
+.header p { font-size: 1.05rem; opacity: 0.88; font-weight: 400; }
+
+.container { max-width: 1280px; margin: 0 auto; padding: 1.5rem; }
+
+.grid-main { display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem; align-items: start; }
+
+.card {
+    background: var(--card-bg); border-radius: var(--radius);
+    border: 1px solid var(--gray-200); padding: 1.5rem;
+    box-shadow: var(--shadow); transition: box-shadow 0.2s;
+}
+.card:hover { box-shadow: var(--shadow-lg); }
+
+.section-title {
+    font-size: 1.15rem; font-weight: 700; color: var(--gray-900);
+    margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;
+}
+.section-title .icon { font-size: 1.1rem; }
+
+/* Canvas area */
+.canvas-wrap { position: relative; width: 100%; background: white; border-radius: var(--radius); overflow: hidden; }
+canvas#mainCanvas { width: 100%; display: block; cursor: crosshair; }
+
+.prob-display {
+    position: absolute; top: 12px; right: 12px;
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(6px);
+    border: 1px solid var(--gray-200); border-radius: 8px;
+    padding: 0.5rem 0.9rem; font-size: 0.95rem; font-weight: 600;
+    color: var(--primary-dark); box-shadow: var(--shadow);
+}
+.prob-display span { font-size: 1.2rem; }
+
+/* Controls */
+.controls-stack { display: flex; flex-direction: column; gap: 1rem; }
+
+.control-group { margin-bottom: 0.25rem; }
+.control-label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 0.85rem; font-weight: 600; color: var(--gray-700); margin-bottom: 0.3rem;
+}
+.control-value { color: var(--primary); font-weight: 700; font-size: 0.95rem; }
+
+input[type="range"] {
+    -webkit-appearance: none; width: 100%; height: 6px; border-radius: 3px;
+    background: var(--gray-200); outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--primary); cursor: pointer; border: 2px solid white;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+select, input[type="number"] {
+    width: 100%; padding: 0.45rem 0.6rem; border: 1px solid var(--gray-300);
+    border-radius: 6px; font-size: 0.9rem; color: var(--gray-800);
+    background: white; font-family: inherit;
+}
+select:focus, input[type="number"]:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(108,92,231,0.15); }
+
+.toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.4rem 0; font-size: 0.88rem; color: var(--gray-700);
+}
+.toggle-switch {
+    position: relative; width: 40px; height: 22px; cursor: pointer;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+    position: absolute; inset: 0; background: var(--gray-300);
+    border-radius: 11px; transition: background 0.2s;
+}
+.toggle-switch input:checked + .toggle-track { background: var(--primary); }
+.toggle-track::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 18px; height: 18px; border-radius: 50%; background: white;
+    transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.toggle-switch input:checked + .toggle-track::after { transform: translateX(18px); }
+
+.btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+    padding: 0.5rem 1rem; border: none; border-radius: 6px;
+    font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+    font-family: inherit;
+}
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-outline { background: transparent; color: var(--primary); border: 1px solid var(--primary); }
+.btn-outline:hover { background: rgba(108,92,231,0.08); }
+
+/* Z-score calc */
+.z-result {
+    margin-top: 0.5rem; padding: 0.6rem; background: var(--gray-50);
+    border-radius: 6px; font-size: 0.9rem; text-align: center;
+    border: 1px solid var(--gray-200);
+}
+.z-result strong { color: var(--primary); }
+
+/* Info panel */
+.info-panel { margin-top: 1.5rem; }
+.info-panel .card { padding: 1.25rem; }
+.info-section { margin-bottom: 1rem; }
+.info-section:last-child { margin-bottom: 0; }
+.info-section h3 { font-size: 0.95rem; font-weight: 700; color: var(--primary-dark); margin-bottom: 0.3rem; }
+.info-section p { font-size: 0.88rem; color: var(--gray-600); line-height: 1.55; }
+.formula { font-family: 'Cambria Math', 'Times New Roman', serif; font-style: italic; background: var(--gray-50); padding: 0.3rem 0.6rem; border-radius: 4px; display: inline-block; margin: 0.3rem 0; font-size: 0.95rem; }
+
+/* Comparison panel */
+.comp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+
+/* Legend */
+.legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem; font-size: 0.82rem; color: var(--gray-600); }
+.legend-item { display: flex; align-items: center; gap: 0.3rem; }
+.legend-swatch { width: 14px; height: 14px; border-radius: 3px; }
+
+/* Draggable marker hint */
+.marker-hint { font-size: 0.78rem; color: var(--gray-500); margin-top: 0.3rem; font-style: italic; }
+
+/* Empirical bands legend */
+.band-legend { display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.35rem; }
+.band-legend-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--gray-600); }
+.band-swatch { width: 20px; height: 10px; border-radius: 2px; }
+
+/* Responsive */
+@media (max-width: 900px) {
+    .grid-main { grid-template-columns: 1fr; }
+    .header h1 { font-size: 1.6rem; }
+}
+@media (max-width: 600px) {
+    .container { padding: 1rem; }
+    .header { padding: 1.5rem 1rem; }
+    .comp-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Normal Distribution Explorer</h1>
+    <p>Interactive bell curve with z-scores, shaded areas, and probability calculations</p>
+</div>
+
+<div class="container">
+    <div class="grid-main">
+        <!-- Left: Canvas + Info -->
+        <div>
+            <div class="card canvas-wrap" style="padding:0; border:none;">
+                <canvas id="mainCanvas" height="460"></canvas>
+                <div class="prob-display" id="probDisplay">P = <span id="probValue">0.5000</span></div>
+            </div>
+            <p class="marker-hint" id="markerHint">Drag the purple marker(s) on the x-axis to adjust boundary values.</p>
+            <div class="legend" id="legendArea"></div>
+
+            <div class="info-panel">
+                <div class="card">
+                    <div class="section-title"><span class="icon">i</span> Understanding Normal Distributions</div>
+                    <div class="info-section">
+                        <h3>What is a Normal Distribution?</h3>
+                        <p>A normal (Gaussian) distribution is a symmetric, bell-shaped probability distribution defined by its mean and standard deviation. It arises naturally in many real-world measurements: heights, exam scores, measurement errors, and more. The total area under the curve equals 1 (100%).</p>
+                    </div>
+                    <div class="info-section">
+                        <h3>Standard Deviation (sigma)</h3>
+                        <p>Standard deviation measures the spread of data around the mean. A small sigma produces a tall, narrow bell; a large sigma produces a flat, wide bell. Roughly 68% of values fall within one standard deviation of the mean.</p>
+                    </div>
+                    <div class="info-section">
+                        <h3>Z-Scores</h3>
+                        <p>A z-score tells you how many standard deviations a value is from the mean. The formula is:</p>
+                        <div class="formula">z = (x - mu) / sigma</div>
+                        <p>A z-score of 0 means the value equals the mean. Positive z-scores are above the mean; negative z-scores are below.</p>
+                    </div>
+                    <div class="info-section">
+                        <h3>The Empirical Rule (68-95-99.7)</h3>
+                        <p>For any normal distribution: approximately 68% of data falls within 1 standard deviation of the mean, 95% within 2, and 99.7% within 3. Toggle the empirical rule bands in the controls panel to see this visualised.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Controls -->
+        <div class="controls-stack">
+            <!-- Distribution parameters -->
+            <div class="card">
+                <div class="section-title"><span class="icon">&#9881;</span> Distribution Parameters</div>
+                <div class="control-group">
+                    <div class="control-label"><span>Mean (mu)</span><span class="control-value" id="meanVal">0.00</span></div>
+                    <input type="range" id="meanSlider" min="-5" max="5" step="0.1" value="0">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Std Dev (sigma)</span><span class="control-value" id="sdVal">1.00</span></div>
+                    <input type="range" id="sdSlider" min="0.5" max="3" step="0.05" value="1">
+                </div>
+            </div>
+
+            <!-- Shading mode -->
+            <div class="card">
+                <div class="section-title"><span class="icon">&#9638;</span> Shading Mode</div>
+                <div class="control-group">
+                    <select id="shadeMode">
+                        <option value="lt">P(X &lt; a) &mdash; left tail</option>
+                        <option value="gt">P(X &gt; a) &mdash; right tail</option>
+                        <option value="between">P(a &lt; X &lt; b) &mdash; between</option>
+                        <option value="ksd">Within k std deviations</option>
+                    </select>
+                </div>
+                <div class="control-group" id="kGroup" style="display:none; margin-top:0.5rem;">
+                    <div class="control-label"><span>k value</span><span class="control-value" id="kVal">1.00</span></div>
+                    <input type="range" id="kSlider" min="0.5" max="3.5" step="0.1" value="1">
+                </div>
+            </div>
+
+            <!-- Empirical rule -->
+            <div class="card">
+                <div class="section-title"><span class="icon">&#9733;</span> Empirical Rule</div>
+                <div class="toggle-row">
+                    <span>Show 68-95-99.7 bands</span>
+                    <label class="toggle-switch"><input type="checkbox" id="toggleEmpirical"><span class="toggle-track"></span></label>
+                </div>
+                <div class="band-legend" id="bandLegend" style="display:none;">
+                    <div class="band-legend-item"><span class="band-swatch" style="background:rgba(108,92,231,0.25);"></span> 68% (1 sigma)</div>
+                    <div class="band-legend-item"><span class="band-swatch" style="background:rgba(162,155,254,0.2);"></span> 95% (2 sigma)</div>
+                    <div class="band-legend-item"><span class="band-swatch" style="background:rgba(0,184,148,0.15);"></span> 99.7% (3 sigma)</div>
+                </div>
+            </div>
+
+            <!-- Z-score calculator -->
+            <div class="card">
+                <div class="section-title"><span class="icon">z</span> Z-Score Calculator</div>
+                <div class="control-group">
+                    <div class="control-label"><span>Raw value (x)</span></div>
+                    <input type="number" id="zInput" step="0.1" value="1" style="margin-bottom:0.4rem;">
+                    <button class="btn btn-primary" style="width:100%;" onclick="calcZ()">Calculate Z-Score</button>
+                </div>
+                <div class="z-result" id="zResult">Enter a value and press Calculate.</div>
+            </div>
+
+            <!-- Comparison mode -->
+            <div class="card">
+                <div class="section-title"><span class="icon">&#8800;</span> Comparison Mode</div>
+                <div class="toggle-row">
+                    <span>Overlay second distribution</span>
+                    <label class="toggle-switch"><input type="checkbox" id="toggleCompare"><span class="toggle-track"></span></label>
+                </div>
+                <div id="compControls" style="display:none; margin-top:0.6rem;">
+                    <div class="comp-row">
+                        <div class="control-group">
+                            <div class="control-label"><span>mu 2</span><span class="control-value" id="mean2Val">1.00</span></div>
+                            <input type="range" id="mean2Slider" min="-5" max="5" step="0.1" value="1">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-label"><span>sigma 2</span><span class="control-value" id="sd2Val">1.50</span></div>
+                            <input type="range" id="sd2Slider" min="0.5" max="3" step="0.05" value="1.5">
+                        </div>
+                    </div>
+                    <div class="legend" style="margin-top:0.4rem;">
+                        <div class="legend-item"><span class="legend-swatch" style="background:var(--curve-main);"></span> Distribution 1</div>
+                        <div class="legend-item"><span class="legend-swatch" style="background:var(--curve-secondary);"></span> Distribution 2</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reset -->
+            <button class="btn btn-outline" style="width:100%;" onclick="resetAll()">Reset to Defaults</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// Normal Distribution Explorer - Core Logic
+// ============================================================
+
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+
+// Controls
+const meanSlider = document.getElementById('meanSlider');
+const sdSlider = document.getElementById('sdSlider');
+const shadeMode = document.getElementById('shadeMode');
+const kSlider = document.getElementById('kSlider');
+const kGroup = document.getElementById('kGroup');
+const toggleEmpirical = document.getElementById('toggleEmpirical');
+const bandLegend = document.getElementById('bandLegend');
+const toggleCompare = document.getElementById('toggleCompare');
+const compControls = document.getElementById('compControls');
+const mean2Slider = document.getElementById('mean2Slider');
+const sd2Slider = document.getElementById('sd2Slider');
+
+// Display elements
+const meanVal = document.getElementById('meanVal');
+const sdVal = document.getElementById('sdVal');
+const mean2Val = document.getElementById('mean2Val');
+const sd2Val = document.getElementById('sd2Val');
+const kVal = document.getElementById('kVal');
+const probValue = document.getElementById('probValue');
+const probDisplay = document.getElementById('probDisplay');
+const zResult = document.getElementById('zResult');
+
+// State
+let mu = 0, sigma = 1;
+let mu2 = 1, sigma2 = 1.5;
+let markerA = -1, markerB = 1;
+let zMarker = null; // raw x value for z-score marker
+let dragging = null; // 'a', 'b', or null
+let showEmpirical = false;
+let showCompare = false;
+let dpr = 1;
+
+// Canvas coordinate mapping
+const PLOT_PADDING_LEFT = 60;
+const PLOT_PADDING_RIGHT = 30;
+const PLOT_PADDING_TOP = 30;
+const PLOT_PADDING_BOTTOM = 60;
+
+function getPlotBounds() {
+    return {
+        left: PLOT_PADDING_LEFT,
+        right: canvas.width / dpr - PLOT_PADDING_RIGHT,
+        top: PLOT_PADDING_TOP,
+        bottom: canvas.height / dpr - PLOT_PADDING_BOTTOM
+    };
+}
+
+function getXRange() {
+    // Show at least mu +/- 4*sigma, but widen for comparison
+    let lo = mu - 4 * sigma;
+    let hi = mu + 4 * sigma;
+    if (showCompare) {
+        lo = Math.min(lo, mu2 - 4 * sigma2);
+        hi = Math.max(hi, mu2 + 4 * sigma2);
+    }
+    // Pad a bit
+    const pad = (hi - lo) * 0.05;
+    return { min: lo - pad, max: hi + pad };
+}
+
+function xToCanvas(x) {
+    const pb = getPlotBounds();
+    const xr = getXRange();
+    return pb.left + (x - xr.min) / (xr.max - xr.min) * (pb.right - pb.left);
+}
+
+function canvasToX(cx) {
+    const pb = getPlotBounds();
+    const xr = getXRange();
+    return xr.min + (cx - pb.left) / (pb.right - pb.left) * (xr.max - xr.min);
+}
+
+function yToCanvas(y, maxY) {
+    const pb = getPlotBounds();
+    return pb.bottom - (y / maxY) * (pb.bottom - pb.top);
+}
+
+// Normal PDF
+function normalPDF(x, m, s) {
+    const z = (x - m) / s;
+    return Math.exp(-0.5 * z * z) / (s * Math.sqrt(2 * Math.PI));
+}
+
+// CDF approximation (Abramowitz & Stegun)
+function normalCDF(x, m, s) {
+    const z = (x - m) / s;
+    return stdNormalCDF(z);
+}
+
+function stdNormalCDF(z) {
+    if (z < -8) return 0;
+    if (z > 8) return 1;
+    const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741;
+    const a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+    const sign = z < 0 ? -1 : 1;
+    const absZ = Math.abs(z);
+    const t = 1.0 / (1.0 + p * absZ);
+    const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-absZ * absZ / 2);
+    return 0.5 * (1.0 + sign * y);
+}
+
+// Get max PDF value across visible distributions
+function getMaxY() {
+    let maxY = normalPDF(mu, mu, sigma);
+    if (showCompare) {
+        maxY = Math.max(maxY, normalPDF(mu2, mu2, sigma2));
+    }
+    return maxY * 1.12; // headroom
+}
+
+// ============================================================
+// Drawing
+// ============================================================
+
+function resizeCanvas() {
+    dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = 460 * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function draw() {
+    resizeCanvas();
+    const w = canvas.width / dpr;
+    const h = canvas.height / dpr;
+    const pb = getPlotBounds();
+    const xr = getXRange();
+    const maxY = getMaxY();
+
+    // Clear
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+
+    // Grid lines
+    drawGrid(pb, xr, maxY);
+
+    // Empirical bands (behind shading)
+    if (showEmpirical) drawEmpiricalBands(pb, xr, maxY);
+
+    // Shading
+    drawShading(pb, xr, maxY);
+
+    // Curves
+    drawCurve(mu, sigma, 'rgba(108,92,231,0.95)', 2.5, pb, xr, maxY);
+    if (showCompare) {
+        drawCurve(mu2, sigma2, 'rgba(0,184,148,0.85)', 2.2, pb, xr, maxY);
+    }
+
+    // Markers
+    drawMarkers(pb, xr, maxY);
+
+    // Z-score marker
+    if (zMarker !== null) drawZMarker(pb, xr, maxY);
+
+    // Axes
+    drawAxes(pb, xr, maxY);
+
+    // Update probability display
+    updateProbability();
+}
+
+function drawGrid(pb, xr, maxY) {
+    ctx.save();
+    ctx.strokeStyle = '#f0f0f4';
+    ctx.lineWidth = 1;
+
+    // Vertical grid lines at integer x values
+    const xStart = Math.ceil(xr.min);
+    const xEnd = Math.floor(xr.max);
+    for (let x = xStart; x <= xEnd; x++) {
+        const cx = xToCanvas(x);
+        ctx.beginPath();
+        ctx.moveTo(cx, pb.top);
+        ctx.lineTo(cx, pb.bottom);
+        ctx.stroke();
+    }
+
+    // Horizontal grid lines
+    const yStep = maxY / 5;
+    for (let i = 1; i <= 4; i++) {
+        const cy = yToCanvas(yStep * i, maxY);
+        ctx.beginPath();
+        ctx.moveTo(pb.left, cy);
+        ctx.lineTo(pb.right, cy);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function drawAxes(pb, xr, maxY) {
+    ctx.save();
+    // X axis
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pb.left, pb.bottom);
+    ctx.lineTo(pb.right, pb.bottom);
+    ctx.stroke();
+
+    // Y axis
+    ctx.beginPath();
+    ctx.moveTo(pb.left, pb.top);
+    ctx.lineTo(pb.left, pb.bottom);
+    ctx.stroke();
+
+    // X labels
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '11px Segoe UI, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const xStart = Math.ceil(xr.min);
+    const xEnd = Math.floor(xr.max);
+    const step = (xEnd - xStart) > 14 ? 2 : 1;
+    for (let x = xStart; x <= xEnd; x += step) {
+        const cx = xToCanvas(x);
+        ctx.fillText(x.toString(), cx, pb.bottom + 6);
+        // Tick
+        ctx.beginPath();
+        ctx.moveTo(cx, pb.bottom);
+        ctx.lineTo(cx, pb.bottom + 4);
+        ctx.stroke();
+    }
+
+    // X axis label
+    ctx.fillStyle = '#374151';
+    ctx.font = '12px Segoe UI, system-ui, sans-serif';
+    ctx.fillText('x', (pb.left + pb.right) / 2, pb.bottom + 28);
+
+    // Y labels
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '10px Segoe UI, system-ui, sans-serif';
+    const yStep = maxY / 5;
+    for (let i = 0; i <= 5; i++) {
+        const val = yStep * i;
+        const cy = yToCanvas(val, maxY);
+        ctx.fillText(val.toFixed(2), pb.left - 8, cy);
+    }
+
+    // Y axis label
+    ctx.save();
+    ctx.translate(14, (pb.top + pb.bottom) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = '#374151';
+    ctx.font = '12px Segoe UI, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('f(x)', 0, 0);
+    ctx.restore();
+
+    ctx.restore();
+}
+
+function drawCurve(m, s, color, lineWidth, pb, xr, maxY) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+
+    const steps = Math.max(300, Math.round((pb.right - pb.left) * 1.5));
+    for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const x = xr.min + t * (xr.max - xr.min);
+        const y = normalPDF(x, m, s);
+        const cx = xToCanvas(x);
+        const cy = yToCanvas(y, maxY);
+        if (i === 0) ctx.moveTo(cx, cy);
+        else ctx.lineTo(cx, cy);
+    }
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawShading(pb, xr, maxY) {
+    const mode = shadeMode.value;
+    let lo, hi;
+
+    if (mode === 'lt') {
+        lo = xr.min;
+        hi = markerA;
+    } else if (mode === 'gt') {
+        lo = markerA;
+        hi = xr.max;
+    } else if (mode === 'between') {
+        lo = Math.min(markerA, markerB);
+        hi = Math.max(markerA, markerB);
+    } else { // ksd
+        const k = parseFloat(kSlider.value);
+        lo = mu - k * sigma;
+        hi = mu + k * sigma;
+    }
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(108, 92, 231, 0.22)';
+    ctx.beginPath();
+
+    const steps = 200;
+    const startX = Math.max(lo, xr.min);
+    const endX = Math.min(hi, xr.max);
+
+    ctx.moveTo(xToCanvas(startX), pb.bottom);
+    for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const x = startX + t * (endX - startX);
+        const y = normalPDF(x, mu, sigma);
+        ctx.lineTo(xToCanvas(x), yToCanvas(y, maxY));
+    }
+    ctx.lineTo(xToCanvas(endX), pb.bottom);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawEmpiricalBands(pb, xr, maxY) {
+    const bands = [
+        { k: 3, color: 'rgba(0, 184, 148, 0.10)', label: '99.7%' },
+        { k: 2, color: 'rgba(162, 155, 254, 0.18)', label: '95%' },
+        { k: 1, color: 'rgba(108, 92, 231, 0.22)', label: '68%' }
+    ];
+
+    bands.forEach(band => {
+        const lo = mu - band.k * sigma;
+        const hi = mu + band.k * sigma;
+        ctx.save();
+        ctx.fillStyle = band.color;
+        ctx.beginPath();
+        const steps = 150;
+        const startX = Math.max(lo, xr.min);
+        const endX = Math.min(hi, xr.max);
+        ctx.moveTo(xToCanvas(startX), pb.bottom);
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const x = startX + t * (endX - startX);
+            const y = normalPDF(x, mu, sigma);
+            ctx.lineTo(xToCanvas(x), yToCanvas(y, maxY));
+        }
+        ctx.lineTo(xToCanvas(endX), pb.bottom);
+        ctx.closePath();
+        ctx.fill();
+
+        // Label at top of band
+        const peakY = normalPDF(mu, mu, sigma);
+        const labelY = yToCanvas(peakY, maxY) - 8 - (3 - band.k) * 16;
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '10px Segoe UI, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(band.label, xToCanvas(mu), Math.max(labelY, pb.top + 10));
+
+        // Vertical dashed lines at boundaries
+        ctx.strokeStyle = band.color.replace(/[\d.]+\)$/, '0.5)');
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1;
+        [lo, hi].forEach(bx => {
+            const cx = xToCanvas(bx);
+            if (cx >= pb.left && cx <= pb.right) {
+                ctx.beginPath();
+                ctx.moveTo(cx, pb.bottom);
+                ctx.lineTo(cx, yToCanvas(normalPDF(bx, mu, sigma), maxY));
+                ctx.stroke();
+            }
+        });
+        ctx.setLineDash([]);
+        ctx.restore();
+    });
+}
+
+function drawMarkers(pb, xr, maxY) {
+    const mode = shadeMode.value;
+    if (mode === 'ksd') return;
+
+    const markers = (mode === 'between') ? [
+        { val: markerA, label: 'a' },
+        { val: markerB, label: 'b' }
+    ] : [
+        { val: markerA, label: 'a' }
+    ];
+
+    markers.forEach(mk => {
+        const cx = xToCanvas(mk.val);
+        if (cx < pb.left || cx > pb.right) return;
+        const cy = pb.bottom;
+
+        // Vertical dashed line
+        ctx.save();
+        ctx.strokeStyle = 'rgba(108,92,231,0.5)';
+        ctx.setLineDash([5, 4]);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, yToCanvas(normalPDF(mk.val, mu, sigma), maxY));
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Marker triangle
+        ctx.fillStyle = '#6c5ce7';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + 2);
+        ctx.lineTo(cx - 8, cy + 16);
+        ctx.lineTo(cx + 8, cy + 16);
+        ctx.closePath();
+        ctx.fill();
+
+        // Label
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px Segoe UI, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(mk.label, cx, cy + 10);
+
+        // Value above marker
+        ctx.fillStyle = '#6c5ce7';
+        ctx.font = '11px Segoe UI, system-ui, sans-serif';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(mk.val.toFixed(2), cx, cy - 2);
+
+        ctx.restore();
+    });
+}
+
+function drawZMarker(pb, xr, maxY) {
+    const cx = xToCanvas(zMarker);
+    if (cx < pb.left || cx > pb.right) return;
+    const y = normalPDF(zMarker, mu, sigma);
+    const cy = yToCanvas(y, maxY);
+
+    ctx.save();
+    // Vertical line
+    ctx.strokeStyle = '#e17055';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(cx, pb.bottom);
+    ctx.lineTo(cx, cy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Dot on curve
+    ctx.fillStyle = '#e17055';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Label
+    const z = (zMarker - mu) / sigma;
+    ctx.fillStyle = '#e17055';
+    ctx.font = 'bold 11px Segoe UI, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('z=' + z.toFixed(2), cx, cy - 10);
+    ctx.restore();
+}
+
+// ============================================================
+// Probability Calculation
+// ============================================================
+
+function updateProbability() {
+    const mode = shadeMode.value;
+    let p = 0;
+    let label = 'P';
+
+    if (mode === 'lt') {
+        p = normalCDF(markerA, mu, sigma);
+        label = 'P(X < ' + markerA.toFixed(2) + ')';
+    } else if (mode === 'gt') {
+        p = 1 - normalCDF(markerA, mu, sigma);
+        label = 'P(X > ' + markerA.toFixed(2) + ')';
+    } else if (mode === 'between') {
+        const lo = Math.min(markerA, markerB);
+        const hi = Math.max(markerA, markerB);
+        p = normalCDF(hi, mu, sigma) - normalCDF(lo, mu, sigma);
+        label = 'P(' + lo.toFixed(2) + ' < X < ' + hi.toFixed(2) + ')';
+    } else {
+        const k = parseFloat(kSlider.value);
+        p = normalCDF(mu + k * sigma, mu, sigma) - normalCDF(mu - k * sigma, mu, sigma);
+        label = 'P(|X - mu| < ' + k.toFixed(1) + 'sigma)';
+    }
+
+    probDisplay.innerHTML = label + ' = <span>' + p.toFixed(4) + '</span>';
+}
+
+// ============================================================
+// Z-Score Calculator
+// ============================================================
+
+function calcZ() {
+    const x = parseFloat(document.getElementById('zInput').value);
+    if (isNaN(x)) {
+        zResult.innerHTML = 'Please enter a valid number.';
+        zMarker = null;
+        draw();
+        return;
+    }
+    const z = (x - mu) / sigma;
+    const pBelow = normalCDF(x, mu, sigma);
+    zMarker = x;
+    zResult.innerHTML = 'x = ' + x.toFixed(2) + ', <strong>z = ' + z.toFixed(4) + '</strong><br>'
+        + 'P(X < ' + x.toFixed(2) + ') = ' + pBelow.toFixed(4);
+    draw();
+}
+
+// ============================================================
+// Mouse Interaction (Draggable Markers)
+// ============================================================
+
+function getMouseX(e) {
+    const rect = canvas.getBoundingClientRect();
+    return e.clientX - rect.left;
+}
+
+function findClosestMarker(mx) {
+    const mode = shadeMode.value;
+    if (mode === 'ksd') return null;
+
+    const distA = Math.abs(mx - xToCanvas(markerA));
+    if (mode !== 'between') {
+        return distA < 20 ? 'a' : null;
+    }
+    const distB = Math.abs(mx - xToCanvas(markerB));
+    if (distA < 20 && distA <= distB) return 'a';
+    if (distB < 20) return 'b';
+    return null;
+}
+
+canvas.addEventListener('mousedown', function(e) {
+    const mx = getMouseX(e);
+    dragging = findClosestMarker(mx);
+    if (dragging) canvas.style.cursor = 'grabbing';
+});
+
+canvas.addEventListener('mousemove', function(e) {
+    const mx = getMouseX(e);
+    if (dragging) {
+        const xr = getXRange();
+        let val = canvasToX(mx);
+        val = Math.max(xr.min, Math.min(xr.max, val));
+        val = Math.round(val * 20) / 20; // snap to 0.05
+        if (dragging === 'a') markerA = val;
+        else markerB = val;
+        draw();
+    } else {
+        const close = findClosestMarker(mx);
+        canvas.style.cursor = close ? 'grab' : 'crosshair';
+    }
+});
+
+canvas.addEventListener('mouseup', function() {
+    dragging = null;
+    canvas.style.cursor = 'crosshair';
+});
+
+canvas.addEventListener('mouseleave', function() {
+    dragging = null;
+    canvas.style.cursor = 'crosshair';
+});
+
+// Touch support
+canvas.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const mx = touch.clientX - rect.left;
+    dragging = findClosestMarker(mx);
+}, { passive: false });
+
+canvas.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    if (!dragging) return;
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const mx = touch.clientX - rect.left;
+    const xr = getXRange();
+    let val = canvasToX(mx);
+    val = Math.max(xr.min, Math.min(xr.max, val));
+    val = Math.round(val * 20) / 20;
+    if (dragging === 'a') markerA = val;
+    else markerB = val;
+    draw();
+}, { passive: false });
+
+canvas.addEventListener('touchend', function() {
+    dragging = null;
+});
+
+// ============================================================
+// Event Listeners
+// ============================================================
+
+meanSlider.addEventListener('input', function() {
+    mu = parseFloat(this.value);
+    meanVal.textContent = mu.toFixed(2);
+    draw();
+});
+
+sdSlider.addEventListener('input', function() {
+    sigma = parseFloat(this.value);
+    sdVal.textContent = sigma.toFixed(2);
+    draw();
+});
+
+shadeMode.addEventListener('change', function() {
+    const mode = this.value;
+    kGroup.style.display = mode === 'ksd' ? 'block' : 'none';
+    document.getElementById('markerHint').style.display = mode === 'ksd' ? 'none' : 'block';
+    draw();
+});
+
+kSlider.addEventListener('input', function() {
+    kVal.textContent = parseFloat(this.value).toFixed(2);
+    draw();
+});
+
+toggleEmpirical.addEventListener('change', function() {
+    showEmpirical = this.checked;
+    bandLegend.style.display = showEmpirical ? 'flex' : 'none';
+    draw();
+});
+
+toggleCompare.addEventListener('change', function() {
+    showCompare = this.checked;
+    compControls.style.display = showCompare ? 'block' : 'none';
+    draw();
+});
+
+mean2Slider.addEventListener('input', function() {
+    mu2 = parseFloat(this.value);
+    mean2Val.textContent = mu2.toFixed(2);
+    draw();
+});
+
+sd2Slider.addEventListener('input', function() {
+    sigma2 = parseFloat(this.value);
+    sd2Val.textContent = sigma2.toFixed(2);
+    draw();
+});
+
+function resetAll() {
+    mu = 0; sigma = 1; markerA = -1; markerB = 1;
+    mu2 = 1; sigma2 = 1.5; zMarker = null;
+    showEmpirical = false; showCompare = false;
+
+    meanSlider.value = 0; meanVal.textContent = '0.00';
+    sdSlider.value = 1; sdVal.textContent = '1.00';
+    shadeMode.value = 'lt';
+    kSlider.value = 1; kVal.textContent = '1.00';
+    kGroup.style.display = 'none';
+    document.getElementById('markerHint').style.display = 'block';
+    toggleEmpirical.checked = false; bandLegend.style.display = 'none';
+    toggleCompare.checked = false; compControls.style.display = 'none';
+    mean2Slider.value = 1; mean2Val.textContent = '1.00';
+    sd2Slider.value = 1.5; sd2Val.textContent = '1.50';
+    document.getElementById('zInput').value = '1';
+    zResult.innerHTML = 'Enter a value and press Calculate.';
+    draw();
+}
+
+// ============================================================
+// Resize handling
+// ============================================================
+
+let resizeTimeout;
+window.addEventListener('resize', function() {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(draw, 60);
+});
+
+// Initial draw
+draw();
+</script>
+</body>
+</html>

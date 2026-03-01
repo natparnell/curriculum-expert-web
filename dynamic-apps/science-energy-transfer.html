@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Energy Transfer Sankey Builder</title>
+  <style>
+    :root {
+      --green-dark:     #1a5c38;
+      --green-mid:      #2e7d52;
+      --green-light:    #4caf7d;
+      --green-pale:     #d0f0df;
+      --green-bg:       #f0faf4;
+      --useful:         #27ae60;
+      --useful-dark:    #1a7a42;
+      --wasted-heat:    #e67e22;
+      --wasted-heat-dk: #b85c0a;
+      --wasted-other:   #c0392b;
+      --wasted-other-dk:#8e1c10;
+      --neutral:        #5d6d7e;
+      --neutral-light:  #eaf0f6;
+      --white:          #ffffff;
+      --border:         #c3d9cc;
+      --text-main:      #1a2e23;
+      --text-muted:     #5a7a66;
+      --shadow:         0 2px 8px rgba(0,0,0,0.10);
+      --radius:         10px;
+      --header-h:       60px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: var(--green-bg);
+      color: var(--text-main);
+      min-height: 100vh;
+    }
+
+    /* ---- HEADER ---- */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--green-dark);
+      height: var(--header-h);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.28);
+    }
+    header h1 {
+      color: #fff;
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      flex: 1;
+    }
+    header .badge {
+      background: var(--green-light);
+      color: #fff;
+      font-size: 0.70rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* ---- LAYOUT ---- */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 20px 16px 40px;
+    }
+
+    .intro {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 13px 18px;
+      margin-bottom: 16px;
+      font-size: 0.91rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .intro strong { color: var(--green-dark); }
+
+    /* ---- PRESETS ---- */
+    .preset-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-bottom: 16px;
+      align-items: center;
+    }
+    .preset-bar label {
+      font-size: 0.83rem;
+      font-weight: 700;
+      color: var(--green-dark);
+      margin-right: 2px;
+    }
+    .preset-btn {
+      background: #fff;
+      border: 2px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 0.81rem;
+      font-weight: 600;
+      color: var(--neutral);
+      cursor: pointer;
+      transition: border-color .15s, background .15s, color .15s;
+    }
+    .preset-btn:hover,
+    .preset-btn.active {
+      border-color: var(--green-mid);
+      background: var(--green-pale);
+      color: var(--green-dark);
+    }
+
+    /* ---- MAIN GRID ---- */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 290px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 768px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ---- PANELS ---- */
+    .panel {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .panel-header {
+      background: var(--green-mid);
+      color: #fff;
+      font-size: 0.86rem;
+      font-weight: 700;
+      padding: 9px 15px;
+      letter-spacing: 0.02em;
+    }
+    .panel-body { padding: 14px; }
+
+    /* ---- SLIDERS ---- */
+    .flow-list { display: flex; flex-direction: column; gap: 13px; }
+
+    .flow-item-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.83rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .flow-dot {
+      width: 11px; height: 11px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .flow-dot.useful        { background: var(--useful); }
+    .flow-dot.wasted-heat   { background: var(--wasted-heat); }
+    .flow-dot.wasted-other  { background: var(--wasted-other); }
+    .type-tag {
+      margin-left: auto;
+      font-size: 0.70rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+    input[type=range] {
+      flex: 1;
+      height: 5px;
+      border-radius: 3px;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range].s-useful       { accent-color: var(--useful); }
+    input[type=range].s-wasted-heat  { accent-color: var(--wasted-heat); }
+    input[type=range].s-wasted-other { accent-color: var(--wasted-other); }
+
+    .flow-val {
+      font-size: 0.80rem;
+      font-weight: 700;
+      min-width: 38px;
+      text-align: right;
+      color: var(--green-dark);
+    }
+
+    .status-bar {
+      margin-top: 8px;
+      font-size: 0.79rem;
+      font-weight: 600;
+      padding: 7px 10px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .status-bar.ok   { background: var(--green-pale); color: var(--green-dark); }
+    .status-bar.over { background: #fdecea; color: #b71c1c; }
+    .status-bar.under{ background: #fff8e1; color: #7b5800; }
+
+    /* ---- EFFICIENCY ---- */
+    .eff-block {
+      margin-top: 12px;
+      border-radius: 8px;
+      padding: 11px 12px;
+      background: var(--neutral-light);
+      text-align: center;
+    }
+    .eff-label {
+      font-size: 0.73rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 3px;
+    }
+    .eff-value {
+      font-size: 2.2rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .eff-value.high { color: var(--useful); }
+    .eff-value.mid  { color: var(--wasted-heat); }
+    .eff-value.low  { color: var(--wasted-other); }
+    .eff-sub {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* ---- SYSTEM NAME ---- */
+    .name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 14px 0;
+    }
+    .name-row input {
+      flex: 1;
+      font-size: 0.86rem;
+      font-weight: 700;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 9px;
+      color: var(--text-main);
+      background: var(--green-bg);
+      outline: none;
+      transition: border-color .15s;
+    }
+    .name-row input:focus { border-color: var(--green-mid); }
+
+    /* ---- CUSTOM BUILDER ---- */
+    .custom-wrap {
+      margin-top: 14px;
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 13px 14px;
+      background: #fff;
+    }
+    .custom-wrap h3 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--green-dark);
+      margin-bottom: 9px;
+    }
+    .custom-row {
+      display: grid;
+      grid-template-columns: 1fr 64px 130px auto;
+      gap: 6px;
+      align-items: end;
+      margin-bottom: 7px;
+    }
+    .custom-row .cf-label {
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+    .custom-row input[type=text],
+    .custom-row input[type=number],
+    .custom-row select {
+      width: 100%;
+      padding: 5px 7px;
+      font-size: 0.80rem;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      outline: none;
+      background: var(--green-bg);
+      color: var(--text-main);
+      font-family: inherit;
+    }
+    .custom-row input:focus,
+    .custom-row select:focus { border-color: var(--green-mid); }
+
+    .btn-remove {
+      background: #fdecea;
+      border: none;
+      border-radius: 6px;
+      width: 28px; height: 28px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: var(--wasted-other);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .14s;
+    }
+    .btn-remove:hover { background: #f5b7b1; }
+
+    .btn-add {
+      background: var(--green-pale);
+      border: 1.5px solid var(--green-light);
+      color: var(--green-dark);
+      border-radius: 6px;
+      padding: 6px 13px;
+      font-size: 0.80rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 3px;
+      transition: background .14s;
+      font-family: inherit;
+    }
+    .btn-add:hover { background: var(--green-light); color: #fff; }
+
+    .custom-total-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 9px;
+      padding-top: 9px;
+      border-top: 1px solid var(--border);
+    }
+    .custom-total-row label {
+      font-size: 0.80rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      flex: 1;
+    }
+    .custom-total-row input {
+      width: 75px;
+      padding: 5px 7px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      border: 1.5px solid var(--green-mid);
+      border-radius: 6px;
+      text-align: center;
+      background: var(--green-bg);
+      color: var(--green-dark);
+      outline: none;
+      font-family: inherit;
+    }
+
+    /* ---- SVG DIAGRAM PANEL ---- */
+    .diagram-panel { overflow: visible; }
+    .key-row {
+      display: flex;
+      gap: 14px;
+      padding: 8px 14px 6px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--border);
+    }
+    .key-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .key-swatch {
+      width: 20px; height: 9px;
+      border-radius: 3px;
+    }
+    #sankey-svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    /* ---- INFO PANEL ---- */
+    .info-panel {
+      margin-top: 16px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .info-panel summary {
+      background: var(--green-dark);
+      color: #fff;
+      padding: 10px 17px;
+      font-size: 0.86rem;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .info-panel summary::-webkit-details-marker { display: none; }
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 14px;
+    }
+    @media (max-width: 600px) { .info-grid { grid-template-columns: 1fr; } }
+
+    .info-card {
+      background: var(--green-bg);
+      border: 1px solid var(--green-pale);
+      border-radius: 8px;
+      padding: 11px 13px;
+    }
+    .info-card h4 {
+      font-size: 0.83rem;
+      font-weight: 700;
+      color: var(--green-dark);
+      margin-bottom: 5px;
+    }
+    .info-card p, .info-card li {
+      font-size: 0.80rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+    .info-card ul { padding-left: 15px; }
+    .info-card li { margin-bottom: 2px; }
+    .formula {
+      background: var(--green-pale);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.81rem;
+      font-weight: 700;
+      color: var(--green-dark);
+      text-align: center;
+      margin-top: 7px;
+      font-family: 'Courier New', monospace;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 0.73rem;
+      color: var(--text-muted);
+      padding: 22px 0 8px;
+      opacity: 0.65;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Energy Transfer Sankey Builder</h1>
+  <span class="badge">KS3 / KS4 Physics</span>
+</header>
+
+<div class="container">
+
+  <div class="intro">
+    <strong>Energy is always conserved</strong> but not always useful. Select a preset system or build your own, then adjust the sliders to redistribute energy between useful outputs and wasted forms. Arrow widths are proportional to joules. Efficiency = useful output &divide; total input &times; 100.
+  </div>
+
+  <div class="preset-bar">
+    <label>Preset:</label>
+    <button class="preset-btn active" data-idx="0" onclick="loadPreset(0)">Incandescent Bulb</button>
+    <button class="preset-btn"        data-idx="1" onclick="loadPreset(1)">LED Bulb</button>
+    <button class="preset-btn"        data-idx="2" onclick="loadPreset(2)">Car Engine</button>
+    <button class="preset-btn"        data-idx="3" onclick="loadPreset(3)">Coal Power Station</button>
+    <button class="preset-btn"        data-idx="4" onclick="loadPreset(4)">Human Body</button>
+    <button class="preset-btn"        data-idx="5" onclick="loadPreset(5)">Food Chain</button>
+    <button class="preset-btn"        data-idx="6" onclick="loadPreset(6)">Custom</button>
+  </div>
+
+  <div class="main-grid">
+
+    <!-- LEFT COLUMN -->
+    <div>
+      <!-- CONTROLS PANEL -->
+      <div class="panel">
+        <div class="panel-header">Adjust Energy Flows</div>
+
+        <div class="name-row">
+          <input type="text" id="system-name" value="Incandescent Bulb" oninput="drawSankey()" />
+        </div>
+
+        <div class="panel-body">
+          <div class="flow-list" id="flow-list"></div>
+          <div class="status-bar ok" id="status-bar">Balanced</div>
+          <div class="eff-block">
+            <div class="eff-label">Efficiency</div>
+            <div class="eff-value high" id="eff-val">10%</div>
+            <div class="eff-sub" id="eff-sub">10 J useful / 100 J input</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CUSTOM BUILDER -->
+      <div class="custom-wrap" id="custom-wrap" style="display:none">
+        <h3>Custom System Builder</h3>
+        <div id="custom-list"></div>
+        <button class="btn-add" onclick="addCustomFlow()">+ Add output</button>
+        <div class="custom-total-row">
+          <label>Total input energy (J):</label>
+          <input type="number" id="custom-input-j" value="100" min="1" max="100000"
+            oninput="onCustomTotalChange()" />
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: DIAGRAM -->
+    <div class="panel diagram-panel">
+      <div class="panel-header">Sankey Diagram</div>
+      <div class="key-row">
+        <div class="key-item">
+          <div class="key-swatch" style="background:var(--useful)"></div>Useful energy
+        </div>
+        <div class="key-item">
+          <div class="key-swatch" style="background:var(--wasted-heat)"></div>Wasted (thermal)
+        </div>
+        <div class="key-item">
+          <div class="key-swatch" style="background:var(--wasted-other)"></div>Wasted (other)
+        </div>
+      </div>
+      <svg id="sankey-svg" viewBox="0 0 640 440" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="drop" x="-5%" y="-5%" width="115%" height="115%">
+            <feDropShadow dx="1" dy="1" stdDeviation="2.5" flood-color="#000" flood-opacity="0.12"/>
+          </filter>
+        </defs>
+        <g id="sankey-g"></g>
+      </svg>
+    </div>
+
+  </div>
+
+  <!-- INFO PANEL -->
+  <details class="info-panel" open>
+    <summary>
+      Key Concepts: Energy Conservation and Efficiency
+      <span>&#9660;</span>
+    </summary>
+    <div class="info-grid">
+      <div class="info-card">
+        <h4>Law of Conservation of Energy</h4>
+        <p>Energy cannot be created or destroyed. It is transferred between stores or dissipated to the surroundings. In a Sankey diagram, the combined width of all output arrows always equals the input arrow width.</p>
+      </div>
+      <div class="info-card">
+        <h4>Efficiency</h4>
+        <p>Efficiency measures how well a device transfers input energy into useful output. Real devices always waste some energy, so efficiency is always less than 100%.</p>
+        <div class="formula">Efficiency (%) = (Useful output &divide; Total input) &times; 100</div>
+      </div>
+      <div class="info-card">
+        <h4>Reading a Sankey Diagram</h4>
+        <ul>
+          <li>Arrow width is proportional to energy in joules (J)</li>
+          <li>Input arrow arrives from the left</li>
+          <li>Useful outputs branch to the right (forward)</li>
+          <li>Wasted energy typically exits downward</li>
+          <li>All output widths together equal the input width</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <h4>Typical Efficiencies</h4>
+        <ul>
+          <li>Incandescent bulb: approx. 5-10%</li>
+          <li>LED bulb: approx. 80-90%</li>
+          <li>Petrol car engine: approx. 20-30%</li>
+          <li>Coal power station: approx. 35-40%</li>
+          <li>Electric motor: approx. 85-95%</li>
+          <li>Human body (locomotion): approx. 25%</li>
+        </ul>
+      </div>
+    </div>
+  </details>
+
+  <footer>Energy Transfer Sankey Builder &mdash; WeST Science Resources &mdash; KS3/KS4 Physics</footer>
+</div>
+
+<script>
+/* =================================================================
+   PRESETS
+   ================================================================= */
+const PRESETS = [
+  {
+    name: 'Incandescent Bulb',
+    input: 100,
+    flows: [
+      { label: 'Light (visible)',       j: 10, type: 'useful'       },
+      { label: 'Infrared radiation',    j: 70, type: 'wasted-heat'  },
+      { label: 'Convection/conduction', j: 20, type: 'wasted-heat'  }
+    ]
+  },
+  {
+    name: 'LED Bulb',
+    input: 100,
+    flows: [
+      { label: 'Light (visible)', j: 85, type: 'useful'      },
+      { label: 'Thermal (heat)',  j: 15, type: 'wasted-heat' }
+    ]
+  },
+  {
+    name: 'Car Engine',
+    input: 100,
+    flows: [
+      { label: 'Kinetic (movement)',       j: 25, type: 'useful'       },
+      { label: 'Thermal (exhaust gases)',  j: 42, type: 'wasted-heat'  },
+      { label: 'Thermal (friction/engine)',j: 28, type: 'wasted-heat'  },
+      { label: 'Sound energy',             j:  5, type: 'wasted-other' }
+    ]
+  },
+  {
+    name: 'Coal Power Station',
+    input: 100,
+    flows: [
+      { label: 'Electrical energy',        j: 38, type: 'useful'       },
+      { label: 'Thermal (cooling towers)', j: 50, type: 'wasted-heat'  },
+      { label: 'Thermal (flue gases)',     j: 10, type: 'wasted-heat'  },
+      { label: 'Friction/transmission',    j:  2, type: 'wasted-other' }
+    ]
+  },
+  {
+    name: 'Human Body',
+    input: 100,
+    flows: [
+      { label: 'Kinetic (movement)',  j: 25, type: 'useful'       },
+      { label: 'Chemical (growth)',   j: 10, type: 'useful'       },
+      { label: 'Thermal (body heat)', j: 60, type: 'wasted-heat'  },
+      { label: 'Sound',               j:  5, type: 'wasted-other' }
+    ]
+  },
+  {
+    name: 'Food Chain (Herbivore)',
+    input: 100,
+    flows: [
+      { label: 'Growth (biomass)',       j: 10, type: 'useful'       },
+      { label: 'Thermal (respiration)',  j: 60, type: 'wasted-heat'  },
+      { label: 'Excretion/egestion',     j: 20, type: 'wasted-other' },
+      { label: 'Movement/activity',      j: 10, type: 'wasted-other' }
+    ]
+  }
+];
+
+const TYPE_COL = {
+  'useful':        '#27ae60',
+  'wasted-heat':   '#e67e22',
+  'wasted-other':  '#c0392b'
+};
+const TYPE_TAG = {
+  'useful':        'Useful',
+  'wasted-heat':   'Wasted (thermal)',
+  'wasted-other':  'Wasted (other)'
+};
+
+/* =================================================================
+   STATE
+   ================================================================= */
+let currentIdx  = 0;        // 0-5 preset, 6 custom
+let totalInput  = 100;
+let flows       = [];       // working copy: [{label, j, type}]
+
+// Custom builder state
+let customFlows = [
+  { label: 'Useful output', j: 60, type: 'useful'      },
+  { label: 'Wasted heat',   j: 40, type: 'wasted-heat' }
+];
+let customInputJ = 100;
+
+/* =================================================================
+   LOAD PRESET / CUSTOM
+   ================================================================= */
+function loadPreset(idx) {
+  currentIdx = idx;
+  document.querySelectorAll('.preset-btn').forEach((b, i) =>
+    b.classList.toggle('active', i === idx));
+
+  const customWrap = document.getElementById('custom-wrap');
+
+  if (idx === 6) {
+    customWrap.style.display = 'block';
+    document.getElementById('system-name').value = 'Custom System';
+    document.getElementById('custom-input-j').value = customInputJ;
+    totalInput = customInputJ;
+    flows = customFlows.map(f => ({ ...f }));
+    renderCustomList();
+    renderSliders();
+  } else {
+    customWrap.style.display = 'none';
+    const p = PRESETS[idx];
+    document.getElementById('system-name').value = p.name;
+    totalInput = p.input;
+    flows = p.flows.map(f => ({ ...f }));
+    renderSliders();
+  }
+  updateAll();
+}
+
+/* =================================================================
+   SLIDERS
+   ================================================================= */
+function renderSliders() {
+  const list = document.getElementById('flow-list');
+  list.innerHTML = '';
+
+  flows.forEach((f, i) => {
+    const item = document.createElement('div');
+    item.innerHTML = `
+      <div class="flow-item-label">
+        <span class="flow-dot ${f.type}"></span>
+        <span>${f.label}</span>
+        <span class="type-tag">${TYPE_TAG[f.type]}</span>
+      </div>
+      <div class="slider-row">
+        <input type="range" class="s-${f.type}"
+          min="0" max="${totalInput}" value="${f.j}" step="1"
+          data-i="${i}" oninput="onSlider(this)" />
+        <span class="flow-val" id="fv-${i}">${f.j}&thinsp;J</span>
+      </div>`;
+    list.appendChild(item);
+  });
+}
+
+function onSlider(el) {
+  const i = +el.dataset.i;
+  flows[i].j = +el.value;
+  if (currentIdx === 6) customFlows[i].j = flows[i].j;
+  document.getElementById('fv-' + i).innerHTML = flows[i].j + '&thinsp;J';
+  updateAll();
+}
+
+/* =================================================================
+   CUSTOM BUILDER
+   ================================================================= */
+function renderCustomList() {
+  const el = document.getElementById('custom-list');
+  el.innerHTML = '';
+
+  customFlows.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'custom-row';
+    row.innerHTML = `
+      <div>
+        <div class="cf-label">Label</div>
+        <input type="text" value="${escHtml(f.label)}"
+          oninput="customFlows[${i}].label=this.value;flows[${i}]&&(flows[${i}].label=this.value);renderSliders();drawSankey()" />
+      </div>
+      <div>
+        <div class="cf-label">Joules</div>
+        <input type="number" value="${f.j}" min="0" max="100000"
+          oninput="customFlows[${i}].j=+this.value||0;flows[${i}]&&(flows[${i}].j=customFlows[${i}].j);renderSliders();updateAll()" />
+      </div>
+      <div>
+        <div class="cf-label">Type</div>
+        <select onchange="customFlows[${i}].type=this.value;flows[${i}]&&(flows[${i}].type=this.value);renderSliders();drawSankey()">
+          <option value="useful"       ${f.type==='useful'       ?'selected':''}>Useful</option>
+          <option value="wasted-heat"  ${f.type==='wasted-heat'  ?'selected':''}>Wasted (thermal)</option>
+          <option value="wasted-other" ${f.type==='wasted-other' ?'selected':''}>Wasted (other)</option>
+        </select>
+      </div>
+      <button class="btn-remove" title="Remove" onclick="removeCustomFlow(${i})">&#10005;</button>`;
+    el.appendChild(row);
+  });
+}
+
+function addCustomFlow() {
+  customFlows.push({ label: 'New output', j: 0, type: 'wasted-heat' });
+  syncCustomToFlows();
+}
+
+function removeCustomFlow(i) {
+  if (customFlows.length <= 1) return;
+  customFlows.splice(i, 1);
+  syncCustomToFlows();
+}
+
+function onCustomTotalChange() {
+  customInputJ = +document.getElementById('custom-input-j').value || 100;
+  totalInput   = customInputJ;
+  syncCustomToFlows();
+}
+
+function syncCustomToFlows() {
+  flows = customFlows.map(f => ({ ...f }));
+  renderCustomList();
+  renderSliders();
+  updateAll();
+}
+
+/* =================================================================
+   UPDATE (efficiency + status)
+   ================================================================= */
+function updateAll() {
+  const totalOut  = flows.reduce((s, f) => s + f.j, 0);
+  const usefulOut = flows.filter(f => f.type === 'useful').reduce((s, f) => s + f.j, 0);
+  const eff       = totalInput > 0 ? Math.round((usefulOut / totalInput) * 1000) / 10 : 0;
+
+  // Status
+  const bar = document.getElementById('status-bar');
+  const diff = totalOut - totalInput;
+  if (diff === 0) {
+    bar.textContent = `Total output: ${totalOut}\u202fJ = ${totalInput}\u202fJ input (balanced)`;
+    bar.className = 'status-bar ok';
+  } else if (diff > 0) {
+    bar.textContent = `Total output: ${totalOut}\u202fJ exceeds input ${totalInput}\u202fJ by ${diff}\u202fJ`;
+    bar.className = 'status-bar over';
+  } else {
+    bar.textContent = `Total output: ${totalOut}\u202fJ of ${totalInput}\u202fJ (${-diff}\u202fJ unallocated)`;
+    bar.className = 'status-bar under';
+  }
+
+  // Efficiency
+  const ev = document.getElementById('eff-val');
+  ev.textContent = eff + '%';
+  ev.className = 'eff-value ' + (eff >= 60 ? 'high' : eff >= 30 ? 'mid' : 'low');
+  document.getElementById('eff-sub').textContent =
+    `${usefulOut}\u202fJ useful / ${totalInput}\u202fJ input`;
+
+  drawSankey();
+}
+
+/* =================================================================
+   SANKEY DRAWING
+   ================================================================= */
+/*
+  Layout (in SVG viewBox 640 x 440):
+
+  PAD       = 20
+  inputX    = 20        (left edge of input arrow)
+  nodeX     = 190       (left edge of node block)
+  NODE_W    = 24        (node block width)
+  outX      = 580       (right tip of output arrows)
+  labelX    = outX + 12 (labels)
+  MAX_H     = 320       (maximum arrow height at 100%)
+
+  Input arrow: horizontal ribbon from (inputX, centred) to nodeX
+  Node block:  rect from nodeX to nodeX+NODE_W, height = inputH
+  Output arms: bezier ribbons from nodeX+NODE_W curving to outX
+
+  Useful arrows branch upward from the node centre.
+  Wasted arrows branch downward from the node centre.
+*/
+
+function drawSankey() {
+  const g = document.getElementById('sankey-g');
+  g.innerHTML = '';
+
+  const W = 640, H = 440;
+  const PAD = 18;
+  const inputXL  = PAD;
+  const nodeX    = 195;
+  const NODE_W   = 22;
+  const outX     = 565;
+  const labelX   = outX + 11;
+  const MAX_H    = 310;   // max ribbon height in px (for totalInput)
+  const MIN_H    = 4;     // min visible ribbon for non-zero flows
+  const GAP      = 7;     // gap between output ribbons
+
+  const totalOut = flows.reduce((s, f) => s + f.j, 0);
+  const scale    = v => totalInput > 0 ? Math.max(0, (v / totalInput) * MAX_H) : 0;
+
+  const inputH   = Math.max(MIN_H, scale(totalInput));
+  const nodeCY   = H / 2;
+  const nodeTop  = nodeCY - inputH / 2;
+  const nodeBot  = nodeCY + inputH / 2;
+
+  // ---- helper: draw a bezier ribbon (4 bezier curves forming a band) ----
+  function ribbon(x1, y1top, y1bot, x2, y2top, y2bot, colour) {
+    const cx = (x1 + x2) / 2;
+    const d  = [
+      `M ${x1} ${y1top}`,
+      `C ${cx} ${y1top}, ${cx} ${y2top}, ${x2} ${y2top}`,
+      `L ${x2} ${y2bot}`,
+      `C ${cx} ${y2bot}, ${cx} ${y1bot}, ${x1} ${y1bot}`,
+      `Z`
+    ].join(' ');
+    const el = svgEl('path', { d, fill: colour, opacity: '0.88' });
+    g.appendChild(el);
+  }
+
+  // ---- helper: arrowhead polygon pointing right ----
+  function arrowTip(x, midY, halfH, colour) {
+    const tw = Math.min(12, halfH * 1.4);
+    const pts = `${x},${midY - halfH} ${x + tw},${midY} ${x},${midY + halfH}`;
+    g.appendChild(svgEl('polygon', { points: pts, fill: colour }));
+  }
+
+  // ---- background guide lines ----
+  for (let x = nodeX + NODE_W; x <= outX; x += 80) {
+    g.appendChild(svgEl('line', {
+      x1: x, y1: PAD, x2: x, y2: H - PAD,
+      stroke: '#c8dace', 'stroke-width': '0.8', 'stroke-dasharray': '4 4'
+    }));
+  }
+
+  // ---- INPUT arrow ----
+  const inputCol = '#2e7d52';
+  g.appendChild(svgEl('rect', {
+    x: inputXL, y: nodeTop, width: nodeX - inputXL, height: inputH,
+    fill: inputCol, rx: 0
+  }));
+
+  // Label on input arrow
+  const inputMidY = nodeCY;
+  const inputMidX = (inputXL + nodeX) / 2;
+  addTxt(g, inputMidX, inputMidY - 7, `${totalInput}\u202fJ`, '#fff', '0.80rem', '700', 'middle');
+  addTxt(g, inputMidX, inputMidY + 10, 'Input energy', '#c8eed9', '0.70rem', '500', 'middle');
+
+  // ---- NODE block ----
+  g.appendChild(svgEl('rect', {
+    x: nodeX, y: nodeTop - 3, width: NODE_W, height: inputH + 6,
+    fill: '#1a5c38', rx: 5, filter: 'url(#drop)'
+  }));
+
+  // System name above node
+  const sysName = document.getElementById('system-name').value || 'System';
+  addTxt(g, nodeX + NODE_W / 2, nodeTop - 12, sysName, '#1a5c38', '0.80rem', '700', 'middle');
+
+  // ---- SEPARATE flows into useful and wasted ----
+  const usefulFlows = flows.filter(f => f.type === 'useful'  && f.j > 0);
+  const wastedFlows = flows.filter(f => f.type !== 'useful'  && f.j > 0);
+
+  // Total heights for useful and wasted
+  const usefulTotalH = usefulFlows.reduce((s, f) => s + Math.max(MIN_H, scale(f.j)), 0)
+                       + Math.max(0, usefulFlows.length - 1) * GAP;
+  const wastedTotalH = wastedFlows.reduce((s, f) => s + Math.max(MIN_H, scale(f.j)), 0)
+                       + Math.max(0, wastedFlows.length - 1) * GAP;
+
+  // Place useful above centre, wasted below centre
+  // They share the node evenly from nodeTop..nodeBot
+  const nodeRX = nodeX + NODE_W;
+
+  // Useful flows exit from upper part of node right edge
+  // We centre the group around nodeCY for a clean look
+  let usefulGroupTop = nodeCY - usefulTotalH / 2;
+  // Clamp within node
+  usefulGroupTop = Math.max(nodeTop, Math.min(usefulGroupTop, nodeBot - usefulTotalH));
+
+  let wastedGroupTop = nodeCY - wastedTotalH / 2;
+  wastedGroupTop = Math.max(nodeTop, Math.min(wastedGroupTop, nodeBot - wastedTotalH));
+
+  // We want to spread them to the output column nicely
+  // Output column: useful arrows spaced from PAD to H/2; wasted from H/2 to H-PAD
+  const usefulZoneTop = PAD + 10;
+  const usefulZoneBot = H / 2 - GAP / 2;
+  const wastedZoneTop = H / 2 + GAP / 2;
+  const wastedZoneBot = H - PAD - 10;
+
+  // Draw useful flows
+  let nodeUsefulCursor = usefulGroupTop;
+  const usefulOutHeights = usefulFlows.map(f => Math.max(MIN_H, scale(f.j)));
+  const usefulOutTotal   = usefulOutHeights.reduce((s, h) => s + h, 0) + (usefulFlows.length - 1) * GAP;
+  const usefulZoneH      = usefulZoneBot - usefulZoneTop;
+  // Fit output to zone
+  const usefulScaleFactor = usefulOutTotal > usefulZoneH ? usefulZoneH / usefulOutTotal : 1;
+
+  let outUsefulY = usefulZoneTop;
+  usefulFlows.forEach((f, i) => {
+    const nh = usefulOutHeights[i];
+    const oh = Math.max(MIN_H, nh * usefulScaleFactor);
+    const col = TYPE_COL[f.type];
+
+    // Node exit coords
+    const n1top = nodeUsefulCursor;
+    const n1bot = nodeUsefulCursor + nh;
+
+    // Output coords
+    const o1top = outUsefulY;
+    const o1bot = outUsefulY + oh;
+
+    ribbon(nodeRX, n1top, n1bot, outX, o1top, o1bot, col);
+    arrowTip(outX, (o1top + o1bot) / 2, oh / 2, col);
+
+    // Labels
+    const lY = (o1top + o1bot) / 2;
+    addTxt(g, labelX, lY - 5,  `${f.j}\u202fJ`, col,     '0.78rem', '700', 'start');
+    const shortLabel = f.label.length > 20 ? f.label.slice(0, 19) + '\u2026' : f.label;
+    addTxt(g, labelX, lY + 8, shortLabel, '#444', '0.68rem', '400', 'start');
+
+    nodeUsefulCursor += nh + GAP;
+    outUsefulY       += oh + GAP;
+  });
+
+  // Draw wasted flows
+  // For node exit, start from nodeBot going up for wasted too
+  // (wasted exits from lower portion of node)
+  let nodeWastedCursor = wastedGroupTop;
+  const wastedOutHeights = wastedFlows.map(f => Math.max(MIN_H, scale(f.j)));
+  const wastedOutTotal   = wastedOutHeights.reduce((s, h) => s + h, 0) + (wastedFlows.length - 1) * GAP;
+  const wastedZoneH      = wastedZoneBot - wastedZoneTop;
+  const wastedScaleFactor = wastedOutTotal > wastedZoneH ? wastedZoneH / wastedOutTotal : 1;
+
+  let outWastedY = wastedZoneTop;
+  wastedFlows.forEach((f, i) => {
+    const nh = wastedOutHeights[i];
+    const oh = Math.max(MIN_H, nh * wastedScaleFactor);
+    const col = TYPE_COL[f.type];
+
+    const n1top = nodeWastedCursor;
+    const n1bot = nodeWastedCursor + nh;
+    const o1top = outWastedY;
+    const o1bot = outWastedY + oh;
+
+    ribbon(nodeRX, n1top, n1bot, outX, o1top, o1bot, col);
+    arrowTip(outX, (o1top + o1bot) / 2, oh / 2, col);
+
+    const lY = (o1top + o1bot) / 2;
+    addTxt(g, labelX, lY - 5,  `${f.j}\u202fJ`, col,     '0.78rem', '700', 'start');
+    const shortLabel = f.label.length > 20 ? f.label.slice(0, 19) + '\u2026' : f.label;
+    addTxt(g, labelX, lY + 8, shortLabel, '#444', '0.68rem', '400', 'start');
+
+    nodeWastedCursor += nh + GAP;
+    outWastedY       += oh + GAP;
+  });
+
+  // ---- zero-flow note ----
+  if (flows.every(f => f.j === 0)) {
+    addTxt(g, W/2, H/2, 'Set joule values using the sliders', '#aaa', '0.88rem', '500', 'middle');
+  }
+
+  // ---- "Useful" / "Wasted" zone labels ----
+  if (usefulFlows.length > 0) {
+    addTxt(g, nodeRX + 30, usefulZoneTop - 5, 'Useful outputs', '#1a7a42', '0.70rem', '700', 'start');
+  }
+  if (wastedFlows.length > 0) {
+    addTxt(g, nodeRX + 30, wastedZoneBot + 14, 'Wasted energy', '#8e4000', '0.70rem', '700', 'start');
+  }
+}
+
+/* =================================================================
+   SVG HELPERS
+   ================================================================= */
+function svgEl(tag, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+
+function addTxt(parent, x, y, text, fill, size, weight, anchor) {
+  const el = svgEl('text', {
+    x, y,
+    fill: fill || '#333',
+    'font-size': size || '0.80rem',
+    'font-weight': weight || '400',
+    'text-anchor': anchor || 'middle',
+    'font-family': 'Segoe UI, Arial, sans-serif',
+    'dominant-baseline': 'auto'
+  });
+  el.textContent = text;
+  parent.appendChild(el);
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* =================================================================
+   INIT
+   ================================================================= */
+loadPreset(0);
+</script>
+</body>
+</html>

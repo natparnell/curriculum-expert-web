@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grade Boundary Explorer</title>
+<style>
+:root {
+  --bg: #f8f9fa;
+  --surface: #ffffff;
+  --text: #1a1a2e;
+  --text-muted: #6c757d;
+  --border: #dee2e6;
+  --header-bg: #1a1a2e;
+  --header-text: #ffffff;
+  --grade-9: #7b2d8e;
+  --grade-8: #3949ab;
+  --grade-7: #0277bd;
+  --grade-6: #00897b;
+  --grade-5: #2e7d32;
+  --grade-4: #9e9d24;
+  --grade-3: #f57f17;
+  --grade-2: #e65100;
+  --grade-1: #b71c1c;
+  --grade-u: #757575;
+  --accent: #3949ab;
+  --accent-light: #e8eaf6;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --radius: 8px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+header { position: sticky; top: 0; z-index: 100; background: var(--header-bg); color: var(--header-text); padding: 16px 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+header p { font-size: 0.85rem; opacity: 0.8; margin-top: 2px; }
+.container { max-width: 1100px; margin: 0 auto; padding: 20px 16px; }
+.controls-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: center; }
+.controls-row label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.controls-row select, .controls-row button { font-size: 0.85rem; padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); cursor: pointer; color: var(--text); }
+.controls-row select:focus, .controls-row button:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.controls-row button { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+.controls-row button:hover { opacity: 0.9; }
+.controls-row button.secondary { background: var(--surface); color: var(--accent); border-color: var(--accent); }
+.controls-row button.secondary.active { background: var(--accent-light); }
+.panel { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px; }
+.panel h2 { font-size: 1rem; font-weight: 700; margin-bottom: 12px; color: var(--text); }
+.canvas-wrap { position: relative; width: 100%; overflow-x: auto; }
+canvas#histogram { display: block; width: 100%; max-width: 700px; margin: 0 auto; cursor: default; }
+.slider-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+.slider-row label { font-size: 0.82rem; min-width: 80px; }
+.slider-row input[type=range] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+.slider-row .val { font-size: 0.82rem; min-width: 36px; text-align: right; font-weight: 600; }
+.results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 8px; margin-bottom: 16px; }
+.grade-card { text-align: center; padding: 10px 6px; border-radius: var(--radius); color: #fff; font-weight: 700; }
+.grade-card .grade-label { font-size: 1.3rem; }
+.grade-card .grade-count { font-size: 0.82rem; opacity: 0.9; margin-top: 2px; }
+.grade-card .grade-pct { font-size: 0.78rem; opacity: 0.8; }
+.stacked-bar-wrap { margin-bottom: 16px; }
+.stacked-bar { display: flex; height: 32px; border-radius: var(--radius); overflow: hidden; }
+.stacked-bar div { display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: #fff; min-width: 0; transition: width 0.25s ease; }
+.metrics-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.metric { background: var(--accent-light); padding: 10px 16px; border-radius: var(--radius); font-size: 0.9rem; font-weight: 600; }
+.metric span { color: var(--accent); font-size: 1.15rem; }
+.boundary-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 8px; }
+.boundary-table th, .boundary-table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+.boundary-table th { font-weight: 600; color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; }
+.boundary-table .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: middle; margin-right: 6px; }
+.info-panel { font-size: 0.85rem; color: var(--text); }
+.info-panel h3 { font-size: 0.95rem; margin: 14px 0 6px; color: var(--accent); }
+.info-panel h3:first-child { margin-top: 0; }
+.info-panel p { margin-bottom: 8px; }
+.info-panel ul { margin: 0 0 8px 20px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 800px) {
+  .two-col { grid-template-columns: 1fr; }
+  .controls-row { flex-direction: column; align-items: stretch; }
+  header h1 { font-size: 1.15rem; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Grade Boundary Explorer</h1>
+  <p>Drag boundary lines on the histogram and watch grade distributions shift in real time</p>
+</header>
+<div class="container">
+
+  <!-- Controls -->
+  <div class="controls-row">
+    <div>
+      <label>Preset</label><br>
+      <select id="presetSelect">
+        <option value="typical">Typical Summer Series</option>
+        <option value="generous">Generous Boundaries</option>
+        <option value="strict">Strict Boundaries</option>
+        <option value="inflation">Grade Inflation Scenario</option>
+      </select>
+    </div>
+    <div>
+      <label>Distribution</label><br>
+      <select id="distSelect">
+        <option value="normal">Normal (Bell Curve)</option>
+        <option value="skewRight">Skewed Right (Easier Paper)</option>
+        <option value="skewLeft">Skewed Left (Harder Paper)</option>
+        <option value="bimodal">Bimodal</option>
+      </select>
+    </div>
+    <div style="margin-left:auto;">
+      <button id="compBtn" class="secondary">Show Comparison</button>
+      <button id="resetBtn" class="secondary" style="margin-left:6px;">Reset</button>
+    </div>
+  </div>
+
+  <!-- Distribution sliders -->
+  <div class="panel" id="distPanel">
+    <h2>Distribution Settings</h2>
+    <div class="slider-row">
+      <label>Mean mark</label>
+      <input type="range" id="meanSlider" min="20" max="80" value="52">
+      <span class="val" id="meanVal">52</span>
+    </div>
+    <div class="slider-row">
+      <label>Spread (SD)</label>
+      <input type="range" id="sdSlider" min="5" max="25" value="15">
+      <span class="val" id="sdVal">15</span>
+    </div>
+  </div>
+
+  <!-- Histogram -->
+  <div class="panel">
+    <h2>Mark Distribution</h2>
+    <div class="canvas-wrap">
+      <canvas id="histogram" width="700" height="400"></canvas>
+    </div>
+    <p style="font-size:0.78rem;color:var(--text-muted);margin-top:6px;">Click and drag the vertical grade boundary lines to adjust. Bars re-colour instantly.</p>
+  </div>
+
+  <div class="two-col">
+    <!-- Results -->
+    <div>
+      <div class="panel">
+        <h2>Grade Distribution</h2>
+        <div class="results-grid" id="gradeCards"></div>
+        <div class="stacked-bar-wrap">
+          <div class="stacked-bar" id="stackedBar"></div>
+        </div>
+        <div class="metrics-row" id="metrics"></div>
+      </div>
+      <!-- Boundary table -->
+      <div class="panel">
+        <h2>Current Boundaries</h2>
+        <table class="boundary-table" id="boundaryTable">
+          <thead><tr><th>Grade</th><th>Min Mark</th><th>Mark Range</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Info -->
+    <div class="panel info-panel">
+      <h2>Understanding Grade Boundaries</h2>
+      <h3>What are grade boundaries?</h3>
+      <p>Grade boundaries are the minimum marks needed to achieve each grade in a GCSE exam. They are set after marking is complete and vary between exam sessions.</p>
+      <h3>Who sets them?</h3>
+      <p>Exam boards (AQA, Edexcel/Pearson, OCR, WJEC) set grade boundaries under the regulatory oversight of Ofqual in England, Qualifications Wales in Wales, and CCEA in Northern Ireland.</p>
+      <h3>Comparable outcomes</h3>
+      <p>Ofqual uses a "comparable outcomes" approach: statistical predictions based on the prior attainment of the cohort (mainly KS2 results) anchor the percentage of students expected at key grades (4 and 7). This means boundaries move to keep results broadly comparable year on year.</p>
+      <h3>Why do boundaries change?</h3>
+      <ul>
+        <li>Paper difficulty: a harder paper leads to lower boundaries</li>
+        <li>Cohort ability: changes in the national cohort's prior attainment shift predictions</li>
+        <li>Senior examiner judgement at awarding meetings fine-tunes the statistical recommendations</li>
+        <li>Policy decisions: for example, the 2020-2022 pandemic grading arrangements temporarily raised results</li>
+      </ul>
+      <h3>Key grade thresholds</h3>
+      <p>Grade 4 is the "standard pass" (equivalent to the old C). Grade 5 is the "strong pass". Grade 7 is equivalent to the old A. Schools and the DfE track % achieving 4+, 5+ and 7+ as headline accountability measures.</p>
+      <h3>Using this tool</h3>
+      <p>Drag the boundary lines left (lower boundaries, more generous) or right (higher boundaries, stricter) and observe how the proportion at each grade changes. Try different presets and distribution shapes to understand the interaction between paper difficulty and grade boundaries.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ---------- colour map ---------- */
+  const GRADE_COLOURS = {
+    9: '#7b2d8e', 8: '#3949ab', 7: '#0277bd', 6: '#00897b',
+    5: '#2e7d32', 4: '#9e9d24', 3: '#f57f17', 2: '#e65100',
+    1: '#b71c1c', U: '#757575'
+  };
+
+  /* ---------- presets ---------- */
+  const PRESETS = {
+    typical:   [80, 70, 61, 52, 43, 34, 25, 16, 8],
+    generous:  [73, 63, 54, 45, 37, 29, 21, 13, 6],
+    strict:    [87, 77, 68, 59, 50, 41, 32, 22, 12],
+    inflation: [70, 60, 51, 42, 34, 26, 18, 11, 5]
+  };
+
+  /* ---------- state ---------- */
+  let boundaries = [...PRESETS.typical]; // index 0 = grade 9 min, index 8 = grade 1 min
+  let originalBoundaries = [...boundaries];
+  let showComparison = false;
+  let distribution = new Array(101).fill(0);
+  const totalStudents = 200;
+  let dragIdx = -1;
+
+  const canvas = document.getElementById('histogram');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+
+  /* ---------- sizing ---------- */
+  const MARGIN = { top: 20, right: 20, bottom: 50, left: 50 };
+  let W, H, plotW, plotH;
+
+  function sizeCanvas() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const cssW = Math.min(700, rect.width);
+    const cssH = 400;
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width = cssW * dpr;
+    canvas.height = cssH * dpr;
+    W = cssW; H = cssH;
+    plotW = W - MARGIN.left - MARGIN.right;
+    plotH = H - MARGIN.top - MARGIN.bottom;
+  }
+
+  /* ---------- distribution generators ---------- */
+  function gaussRandom(mean, sd) {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return mean + sd * Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  }
+
+  function generateDistribution(type, mean, sd) {
+    const d = new Array(101).fill(0);
+    for (let i = 0; i < totalStudents; i++) {
+      let mark;
+      if (type === 'normal') {
+        mark = Math.round(gaussRandom(mean, sd));
+      } else if (type === 'skewRight') {
+        mark = Math.round(gaussRandom(mean + 10, sd * 0.85));
+        if (Math.random() < 0.3) mark = Math.round(gaussRandom(mean + 25, sd * 0.5));
+      } else if (type === 'skewLeft') {
+        mark = Math.round(gaussRandom(mean - 10, sd * 0.85));
+        if (Math.random() < 0.3) mark = Math.round(gaussRandom(mean - 25, sd * 0.5));
+      } else if (type === 'bimodal') {
+        if (Math.random() < 0.5) {
+          mark = Math.round(gaussRandom(mean - 15, sd * 0.6));
+        } else {
+          mark = Math.round(gaussRandom(mean + 15, sd * 0.6));
+        }
+      } else {
+        mark = Math.round(gaussRandom(mean, sd));
+      }
+      mark = Math.max(0, Math.min(100, mark));
+      d[mark]++;
+    }
+    return d;
+  }
+
+  /* ---------- grade for a given mark ---------- */
+  function gradeForMark(mark) {
+    for (let g = 0; g < 9; g++) {
+      if (mark >= boundaries[g]) return 9 - g;
+    }
+    return 'U';
+  }
+
+  function colourForMark(mark) {
+    return GRADE_COLOURS[gradeForMark(mark)];
+  }
+
+  /* ---------- drawing ---------- */
+  function markToX(mark) { return MARGIN.left + (mark / 100) * plotW; }
+  function xToMark(x) { return Math.round(((x - MARGIN.left) / plotW) * 100); }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    const maxCount = Math.max(1, ...distribution);
+    const barW = plotW / 101;
+
+    /* axes */
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(MARGIN.left, MARGIN.top);
+    ctx.lineTo(MARGIN.left, H - MARGIN.bottom);
+    ctx.lineTo(W - MARGIN.right, H - MARGIN.bottom);
+    ctx.stroke();
+
+    /* Y ticks */
+    ctx.fillStyle = '#999';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    const yTicks = 5;
+    for (let i = 0; i <= yTicks; i++) {
+      const val = Math.round((maxCount / yTicks) * i);
+      const y = H - MARGIN.bottom - (i / yTicks) * plotH;
+      ctx.fillText(val, MARGIN.left - 8, y);
+      if (i > 0) {
+        ctx.strokeStyle = '#eee';
+        ctx.beginPath(); ctx.moveTo(MARGIN.left, y); ctx.lineTo(W - MARGIN.right, y); ctx.stroke();
+      }
+    }
+
+    /* X ticks */
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (let m = 0; m <= 100; m += 10) {
+      const x = markToX(m);
+      ctx.fillStyle = '#999';
+      ctx.fillText(m, x, H - MARGIN.bottom + 6);
+      ctx.strokeStyle = '#eee';
+      ctx.beginPath(); ctx.moveTo(x, MARGIN.top); ctx.lineTo(x, H - MARGIN.bottom); ctx.stroke();
+    }
+
+    /* axis labels */
+    ctx.fillStyle = '#666';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Mark (out of 100)', MARGIN.left + plotW / 2, H - 6);
+    ctx.save();
+    ctx.translate(14, MARGIN.top + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Students', 0, 0);
+    ctx.restore();
+
+    /* bars */
+    for (let m = 0; m <= 100; m++) {
+      if (distribution[m] === 0) continue;
+      const x = markToX(m);
+      const barH = (distribution[m] / maxCount) * plotH;
+      ctx.fillStyle = colourForMark(m);
+      ctx.fillRect(x - barW / 2, H - MARGIN.bottom - barH, barW, barH);
+    }
+
+    /* comparison boundary lines (dashed) */
+    if (showComparison) {
+      ctx.setLineDash([6, 4]);
+      ctx.lineWidth = 1.5;
+      for (let g = 0; g < 9; g++) {
+        const x = markToX(originalBoundaries[g]);
+        ctx.strokeStyle = GRADE_COLOURS[9 - g];
+        ctx.globalAlpha = 0.45;
+        ctx.beginPath(); ctx.moveTo(x, MARGIN.top); ctx.lineTo(x, H - MARGIN.bottom); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.setLineDash([]);
+    }
+
+    /* boundary lines (solid, draggable) */
+    ctx.lineWidth = 2.2;
+    ctx.setLineDash([]);
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    for (let g = 0; g < 9; g++) {
+      const x = markToX(boundaries[g]);
+      const col = GRADE_COLOURS[9 - g];
+      ctx.strokeStyle = col;
+      ctx.beginPath(); ctx.moveTo(x, MARGIN.top); ctx.lineTo(x, H - MARGIN.bottom); ctx.stroke();
+      /* label */
+      ctx.fillStyle = col;
+      const labelY = MARGIN.top + 14 + (g % 2) * 14;
+      ctx.fillText((9 - g).toString(), x, labelY);
+    }
+  }
+
+  /* ---------- results ---------- */
+  function computeResults() {
+    const counts = { 9:0, 8:0, 7:0, 6:0, 5:0, 4:0, 3:0, 2:0, 1:0, U:0 };
+    let total = 0;
+    for (let m = 0; m <= 100; m++) {
+      counts[gradeForMark(m)] += distribution[m];
+      total += distribution[m];
+    }
+    return { counts, total };
+  }
+
+  function updateResults() {
+    const { counts, total } = computeResults();
+    if (total === 0) return;
+
+    /* grade cards */
+    const cardsEl = document.getElementById('gradeCards');
+    cardsEl.innerHTML = '';
+    const grades = [9,8,7,6,5,4,3,2,1,'U'];
+    grades.forEach(g => {
+      const pct = ((counts[g] / total) * 100).toFixed(1);
+      const div = document.createElement('div');
+      div.className = 'grade-card';
+      div.style.background = GRADE_COLOURS[g];
+      div.innerHTML = '<div class="grade-label">' + g + '</div><div class="grade-count">' + counts[g] + ' students</div><div class="grade-pct">' + pct + '%</div>';
+      cardsEl.appendChild(div);
+    });
+
+    /* stacked bar */
+    const bar = document.getElementById('stackedBar');
+    bar.innerHTML = '';
+    grades.forEach(g => {
+      const pct = (counts[g] / total) * 100;
+      if (pct < 0.5) return;
+      const div = document.createElement('div');
+      div.style.width = pct + '%';
+      div.style.background = GRADE_COLOURS[g];
+      div.textContent = pct >= 4 ? g : '';
+      bar.appendChild(div);
+    });
+
+    /* metrics */
+    const pct4plus = (([9,8,7,6,5,4].reduce((s,g) => s + counts[g], 0) / total) * 100).toFixed(1);
+    const pct5plus = (([9,8,7,6,5].reduce((s,g) => s + counts[g], 0) / total) * 100).toFixed(1);
+    const pct7plus = (([9,8,7].reduce((s,g) => s + counts[g], 0) / total) * 100).toFixed(1);
+    document.getElementById('metrics').innerHTML =
+      '<div class="metric">Grade 4+: <span>' + pct4plus + '%</span></div>' +
+      '<div class="metric">Grade 5+: <span>' + pct5plus + '%</span></div>' +
+      '<div class="metric">Grade 7+: <span>' + pct7plus + '%</span></div>';
+
+    /* boundary table */
+    const tbody = document.querySelector('#boundaryTable tbody');
+    tbody.innerHTML = '';
+    for (let g = 0; g < 9; g++) {
+      const grade = 9 - g;
+      const min = boundaries[g];
+      const max = g === 0 ? 100 : boundaries[g - 1] - 1;
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td><span class="swatch" style="background:' + GRADE_COLOURS[grade] + '"></span>Grade ' + grade + '</td><td>' + min + '</td><td>' + min + ' - ' + max + '</td>';
+      tbody.appendChild(tr);
+    }
+    const trU = document.createElement('tr');
+    const uMax = boundaries[8] - 1;
+    trU.innerHTML = '<td><span class="swatch" style="background:' + GRADE_COLOURS['U'] + '"></span>U</td><td>0</td><td>0 - ' + uMax + '</td>';
+    tbody.appendChild(trU);
+  }
+
+  /* ---------- drag interaction ---------- */
+  function getCanvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  function findBoundary(pos) {
+    const threshold = 8;
+    for (let g = 0; g < 9; g++) {
+      const bx = markToX(boundaries[g]);
+      if (Math.abs(pos.x - bx) < threshold && pos.y >= MARGIN.top && pos.y <= H - MARGIN.bottom) {
+        return g;
+      }
+    }
+    return -1;
+  }
+
+  function clampBoundary(idx, mark) {
+    const lo = idx < 8 ? boundaries[idx + 1] + 1 : 1;
+    const hi = idx > 0 ? boundaries[idx - 1] - 1 : 99;
+    return Math.max(lo, Math.min(hi, mark));
+  }
+
+  canvas.addEventListener('mousedown', function(e) {
+    const pos = getCanvasPos(e);
+    dragIdx = findBoundary(pos);
+    if (dragIdx >= 0) canvas.style.cursor = 'ew-resize';
+  });
+  canvas.addEventListener('mousemove', function(e) {
+    const pos = getCanvasPos(e);
+    if (dragIdx >= 0) {
+      const mark = xToMark(pos.x);
+      boundaries[dragIdx] = clampBoundary(dragIdx, mark);
+      draw();
+      updateResults();
+    } else {
+      canvas.style.cursor = findBoundary(pos) >= 0 ? 'ew-resize' : 'default';
+    }
+  });
+  canvas.addEventListener('mouseup', function() { dragIdx = -1; canvas.style.cursor = 'default'; });
+  canvas.addEventListener('mouseleave', function() { dragIdx = -1; canvas.style.cursor = 'default'; });
+
+  /* touch */
+  canvas.addEventListener('touchstart', function(e) {
+    const pos = getCanvasPos(e);
+    dragIdx = findBoundary(pos);
+    if (dragIdx >= 0) e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener('touchmove', function(e) {
+    if (dragIdx >= 0) {
+      e.preventDefault();
+      const pos = getCanvasPos(e);
+      boundaries[dragIdx] = clampBoundary(dragIdx, xToMark(pos.x));
+      draw();
+      updateResults();
+    }
+  }, { passive: false });
+  canvas.addEventListener('touchend', function() { dragIdx = -1; });
+
+  /* ---------- controls ---------- */
+  document.getElementById('presetSelect').addEventListener('change', function() {
+    boundaries = [...PRESETS[this.value]];
+    originalBoundaries = [...boundaries];
+    draw();
+    updateResults();
+  });
+
+  document.getElementById('distSelect').addEventListener('change', function() {
+    const mean = parseInt(document.getElementById('meanSlider').value);
+    const sd = parseInt(document.getElementById('sdSlider').value);
+    distribution = generateDistribution(this.value, mean, sd);
+    draw();
+    updateResults();
+  });
+
+  document.getElementById('meanSlider').addEventListener('input', function() {
+    document.getElementById('meanVal').textContent = this.value;
+    const type = document.getElementById('distSelect').value;
+    const sd = parseInt(document.getElementById('sdSlider').value);
+    distribution = generateDistribution(type, parseInt(this.value), sd);
+    draw();
+    updateResults();
+  });
+
+  document.getElementById('sdSlider').addEventListener('input', function() {
+    document.getElementById('sdVal').textContent = this.value;
+    const type = document.getElementById('distSelect').value;
+    const mean = parseInt(document.getElementById('meanSlider').value);
+    distribution = generateDistribution(type, mean, parseInt(this.value));
+    draw();
+    updateResults();
+  });
+
+  document.getElementById('compBtn').addEventListener('click', function() {
+    showComparison = !showComparison;
+    this.classList.toggle('active', showComparison);
+    this.textContent = showComparison ? 'Hide Comparison' : 'Show Comparison';
+    if (showComparison) originalBoundaries = [...PRESETS[document.getElementById('presetSelect').value]];
+    draw();
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', function() {
+    const preset = document.getElementById('presetSelect').value;
+    boundaries = [...PRESETS[preset]];
+    originalBoundaries = [...boundaries];
+    document.getElementById('meanSlider').value = 52;
+    document.getElementById('meanVal').textContent = '52';
+    document.getElementById('sdSlider').value = 15;
+    document.getElementById('sdVal').textContent = '15';
+    document.getElementById('distSelect').value = 'normal';
+    distribution = generateDistribution('normal', 52, 15);
+    draw();
+    updateResults();
+  });
+
+  /* ---------- resize ---------- */
+  window.addEventListener('resize', function() {
+    sizeCanvas();
+    draw();
+  });
+
+  /* ---------- init ---------- */
+  sizeCanvas();
+  distribution = generateDistribution('normal', 52, 15);
+  draw();
+  updateResults();
+})();
+</script>
+</body>
+</html>

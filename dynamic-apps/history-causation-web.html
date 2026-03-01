@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Causation Web Builder</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0f1a2e;--navy-light:#1a2a4a;--navy-mid:#152240;
+  --gold:#d4a843;--gold-light:#f0d080;--gold-dim:#a07830;
+  --white:#f0ece4;--text:#ddd8cc;--muted:#8a8577;
+  --political:#4a90d9;--economic:#50b86c;--social:#e0a040;--military:#d04040;--religious:#9b59b6;
+  --card-bg:#1e2f50;--card-border:#2a4070;
+  --panel-bg:#141e34;--panel-border:#253560;
+  --radius:8px;--shadow:0 4px 20px rgba(0,0,0,.4);
+}
+html,body{height:100%;overflow:hidden;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--navy);color:var(--text)}
+button{cursor:pointer;font-family:inherit;border:none;border-radius:var(--radius);transition:all .2s}
+button:hover{filter:brightness(1.15)}
+select,input,textarea{font-family:inherit;border-radius:var(--radius);border:1px solid var(--panel-border);background:var(--navy-mid);color:var(--text);padding:6px 10px;outline:none}
+select:focus,input:focus,textarea:focus{border-color:var(--gold)}
+
+/* HEADER */
+#header{display:flex;align-items:center;justify-content:space-between;padding:8px 18px;background:linear-gradient(135deg,#0c1524,#162040);border-bottom:2px solid var(--gold-dim);height:56px;z-index:100;position:relative}
+#header h1{font-size:1.35rem;color:var(--gold);letter-spacing:1px;font-weight:700;white-space:nowrap}
+#header h1 span{color:var(--gold-light);font-weight:400;font-size:.85rem;margin-left:8px;opacity:.7}
+.header-group{display:flex;align-items:center;gap:10px}
+.hbtn{background:var(--navy-light);color:var(--gold);padding:7px 14px;font-size:.8rem;border:1px solid var(--gold-dim)}
+.hbtn:hover{background:var(--gold-dim);color:#fff}
+.hbtn.primary{background:var(--gold-dim);color:#fff}
+.hbtn.primary:hover{background:var(--gold)}
+
+/* LAYOUT */
+#app{display:flex;height:calc(100vh - 56px);overflow:hidden}
+
+/* LEFT SIDEBAR */
+#sidebar{width:280px;min-width:280px;background:var(--panel-bg);border-right:1px solid var(--panel-border);display:flex;flex-direction:column;overflow:hidden;z-index:50}
+#sidebar.collapsed{width:0;min-width:0;overflow:hidden;border:none}
+.side-section{padding:12px 14px;border-bottom:1px solid var(--panel-border)}
+.side-section h3{font-size:.75rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--gold);margin-bottom:8px}
+#cardList{flex:1;overflow-y:auto;padding:8px}
+#cardList::-webkit-scrollbar{width:6px}
+#cardList::-webkit-scrollbar-thumb{background:var(--gold-dim);border-radius:3px}
+
+/* FACTOR CARDS IN SIDEBAR */
+.factor-card{
+  background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius);
+  padding:10px 12px;margin-bottom:8px;cursor:grab;transition:all .2s;position:relative;
+  border-left:4px solid var(--gold)
+}
+.factor-card:hover{background:#243858;transform:translateX(3px)}
+.factor-card .fc-title{font-size:.82rem;font-weight:600;color:var(--white);margin-bottom:3px}
+.factor-card .fc-desc{font-size:.7rem;color:var(--muted);line-height:1.35}
+.factor-card .fc-meta{display:flex;align-items:center;gap:6px;margin-top:5px}
+.fc-tag{font-size:.6rem;padding:2px 7px;border-radius:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.fc-date{font-size:.62rem;color:var(--muted);margin-left:auto}
+.tag-Political{background:var(--political);color:#fff}
+.tag-Economic{background:var(--economic);color:#fff}
+.tag-Social{background:var(--social);color:#000}
+.tag-Military{background:var(--military);color:#fff}
+.tag-Religious{background:var(--religious);color:#fff}
+
+/* CANVAS AREA */
+#canvasWrap{flex:1;position:relative;overflow:hidden;background:var(--navy)}
+#bgCanvas{position:absolute;top:0;left:0;width:100%;height:100%}
+svg#mainSvg{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
+#nodeLayer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none}
+
+/* NODES ON CANVAS */
+.web-node{
+  position:absolute;pointer-events:all;cursor:grab;
+  background:linear-gradient(145deg,#1e3055,#253d6a);
+  border:2px solid var(--gold-dim);border-radius:var(--radius);
+  padding:12px 14px;min-width:160px;max-width:240px;
+  box-shadow:var(--shadow);transition:box-shadow .2s,border-color .2s;
+  user-select:none;
+}
+.web-node:hover{box-shadow:0 6px 30px rgba(212,168,67,.25);border-color:var(--gold)}
+.web-node.selected{border-color:var(--gold-light);box-shadow:0 0 20px rgba(212,168,67,.4)}
+.web-node.connecting{border-color:#6cf;box-shadow:0 0 20px rgba(100,200,255,.4)}
+.wn-title{font-size:.82rem;font-weight:700;color:var(--gold-light);margin-bottom:4px;line-height:1.25}
+.wn-desc{font-size:.68rem;color:var(--text);line-height:1.3;margin-bottom:6px;opacity:.85}
+.wn-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.wn-stars{display:flex;gap:1px;margin-left:auto}
+.wn-star{font-size:.75rem;cursor:pointer;color:#555;transition:color .15s}
+.wn-star.active{color:var(--gold)}
+.wn-star:hover{color:var(--gold-light)}
+.wn-delete{position:absolute;top:4px;right:6px;background:none;color:#666;font-size:.85rem;padding:2px 5px;opacity:0;transition:opacity .2s}
+.web-node:hover .wn-delete{opacity:1}
+.wn-delete:hover{color:#f55}
+
+/* RIGHT PANEL */
+#rightPanel{width:320px;min-width:320px;background:var(--panel-bg);border-left:1px solid var(--panel-border);display:flex;flex-direction:column;overflow:hidden;z-index:50}
+#rightPanel.collapsed{width:0;min-width:0;overflow:hidden;border:none}
+.rp-tabs{display:flex;border-bottom:1px solid var(--panel-border)}
+.rp-tab{flex:1;padding:10px;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;text-align:center;color:var(--muted);background:transparent;border-bottom:2px solid transparent;transition:all .2s}
+.rp-tab:hover{color:var(--text)}
+.rp-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.rp-content{flex:1;overflow-y:auto;padding:14px}
+.rp-content::-webkit-scrollbar{width:6px}
+.rp-content::-webkit-scrollbar-thumb{background:var(--gold-dim);border-radius:3px}
+.rp-panel{display:none}
+.rp-panel.active{display:block}
+.rp-panel h4{font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--gold);margin-bottom:10px}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--navy-mid);border-radius:var(--radius);margin-bottom:6px;font-size:.78rem}
+.stat-label{color:var(--muted)}
+.stat-value{color:var(--gold-light);font-weight:600}
+
+/* PIE CHART */
+#pieWrap{display:flex;justify-content:center;margin:16px 0}
+#pieCanvas{width:180px;height:180px}
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:.72rem}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+/* ESSAY PANEL */
+.essay-block{background:var(--navy-mid);border-radius:var(--radius);padding:12px;margin-bottom:10px;border-left:3px solid var(--gold-dim)}
+.essay-block h5{font-size:.78rem;color:var(--gold);margin-bottom:5px}
+.essay-block p{font-size:.72rem;line-height:1.5;color:var(--text);opacity:.9}
+#essayOutput{white-space:pre-wrap;font-size:.72rem;line-height:1.6;color:var(--text)}
+
+/* ARROW LABEL */
+.arrow-label{
+  position:absolute;pointer-events:all;cursor:pointer;
+  background:var(--navy-light);border:1px solid var(--panel-border);border-radius:4px;
+  padding:3px 8px;font-size:.65rem;color:var(--text);white-space:nowrap;
+  z-index:3;transform:translate(-50%,-50%)
+}
+.arrow-label:hover{border-color:var(--gold);color:var(--gold-light)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--panel-bg);border:1px solid var(--gold-dim);border-radius:12px;padding:24px;width:420px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal h3{color:var(--gold);font-size:1.05rem;margin-bottom:16px}
+.modal label{display:block;font-size:.75rem;color:var(--muted);margin-bottom:4px;margin-top:12px}
+.modal input,.modal textarea,.modal select{width:100%;margin-bottom:4px}
+.modal textarea{min-height:60px;resize:vertical}
+.modal-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+.mbtn{padding:8px 20px;font-size:.82rem;border-radius:var(--radius)}
+.mbtn-cancel{background:var(--navy-light);color:var(--text);border:1px solid var(--panel-border)}
+.mbtn-ok{background:var(--gold-dim);color:#fff}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--gold-dim);color:#fff;padding:10px 24px;border-radius:var(--radius);font-size:.82rem;z-index:2000;animation:toastIn .3s,toastOut .3s 2.5s forwards}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateX(-50%) translateY(20px)}}
+
+/* INSTRUCTIONS OVERLAY */
+#instrOverlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:5;pointer-events:none;opacity:.35}
+#instrOverlay h2{color:var(--gold);font-size:1.4rem;margin-bottom:8px}
+#instrOverlay p{color:var(--text);font-size:.85rem;line-height:1.6}
+
+/* ZOOM CONTROLS */
+.zoom-controls{position:absolute;bottom:16px;right:16px;display:flex;flex-direction:column;gap:4px;z-index:10}
+.zoom-btn{width:36px;height:36px;background:var(--panel-bg);border:1px solid var(--panel-border);color:var(--gold);font-size:1.1rem;display:flex;align-items:center;justify-content:center;border-radius:var(--radius)}
+
+/* CONNECTION MODE INDICATOR */
+#connIndicator{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(100,200,255,.15);border:1px solid #6cf;color:#6cf;padding:8px 20px;border-radius:var(--radius);font-size:.82rem;z-index:10;display:none}
+
+/* PRINT */
+@media print{
+  #header,#sidebar,#rightPanel,.zoom-controls,#connIndicator,.wn-delete{display:none!important}
+  #canvasWrap{position:static!important;width:100%!important;height:100vh!important}
+  .web-node{border-color:#333!important;box-shadow:none!important;background:#fff!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .wn-title{color:#222!important}.wn-desc{color:#555!important}
+}
+
+/* RESPONSIVE */
+@media(max-width:1100px){
+  #sidebar{width:240px;min-width:240px}
+  #rightPanel{width:260px;min-width:260px}
+}
+@media(max-width:800px){
+  #sidebar{position:absolute;left:0;top:0;height:100%;z-index:60;box-shadow:4px 0 20px rgba(0,0,0,.5)}
+  #rightPanel{position:absolute;right:0;top:0;height:100%;z-index:60;box-shadow:-4px 0 20px rgba(0,0,0,.5)}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div class="header-group">
+    <button class="hbtn" onclick="toggleSidebar()" title="Toggle card panel">&#9776;</button>
+    <h1>Causation Web Builder<span>History Analysis Tool</span></h1>
+  </div>
+  <div class="header-group">
+    <select id="topicSelect" onchange="loadTopic(this.value)" style="width:220px">
+      <option value="">-- Select a Topic --</option>
+      <option value="ww1">Causes of World War 1</option>
+      <option value="ecw">Causes of the English Civil War</option>
+      <option value="fr">Causes of the French Revolution</option>
+      <option value="free">Free Build</option>
+    </select>
+    <button class="hbtn" onclick="openCustomCardModal()">+ Custom Card</button>
+    <button class="hbtn" id="connModeBtn" onclick="toggleConnectionMode()">Draw Arrows</button>
+    <button class="hbtn" onclick="autoLayout()">Auto-Layout</button>
+    <button class="hbtn" onclick="highlightStrongestPath()">Show Strongest Path</button>
+    <button class="hbtn primary" onclick="exportView()">Export / Print</button>
+    <button class="hbtn" onclick="toggleRightPanel()" title="Toggle analysis panel">&#9776; Analysis</button>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+
+  <!-- LEFT SIDEBAR -->
+  <div id="sidebar">
+    <div class="side-section">
+      <h3>Factor Cards</h3>
+      <p style="font-size:.68rem;color:var(--muted);line-height:1.4">Drag cards onto the canvas to build your causation web. Select a topic above to load suggested factors.</p>
+    </div>
+    <div id="cardList"></div>
+    <div class="side-section" style="border-top:1px solid var(--panel-border);border-bottom:none;margin-top:auto">
+      <button class="hbtn" style="width:100%" onclick="openCustomCardModal()">+ Create Custom Card</button>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div id="canvasWrap" oncontextmenu="return false">
+    <canvas id="bgCanvas"></canvas>
+    <svg id="mainSvg">
+      <defs>
+        <marker id="arrowHead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" fill="var(--gold)">
+          <polygon points="0 0, 10 3.5, 0 7"/>
+        </marker>
+        <marker id="arrowHeadHighlight" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" fill="#ff6">
+          <polygon points="0 0, 10 3.5, 0 7"/>
+        </marker>
+      </defs>
+      <g id="arrowGroup"></g>
+    </svg>
+    <div id="nodeLayer"></div>
+    <div id="instrOverlay">
+      <h2>Build Your Causation Web</h2>
+      <p>Select a topic from the dropdown above,<br>then drag factor cards onto this canvas.<br>Use "Draw Arrows" to connect causes to effects.</p>
+    </div>
+    <div id="connIndicator">Click a source card, then click the target card to draw an arrow. Press Escape to cancel.</div>
+    <div class="zoom-controls">
+      <button class="zoom-btn" onclick="zoomIn()" title="Zoom in">+</button>
+      <button class="zoom-btn" onclick="zoomOut()" title="Zoom out">&minus;</button>
+      <button class="zoom-btn" onclick="zoomReset()" title="Reset zoom" style="font-size:.7rem">1:1</button>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="rightPanel">
+    <div class="rp-tabs">
+      <button class="rp-tab active" onclick="switchTab('analysis',this)">Analysis</button>
+      <button class="rp-tab" onclick="switchTab('essay',this)">Essay Scaffold</button>
+    </div>
+    <div class="rp-content">
+      <div class="rp-panel active" id="panelAnalysis">
+        <h4>Connection Analysis</h4>
+        <div id="analysisStats"></div>
+        <h4 style="margin-top:18px">Category Breakdown</h4>
+        <div id="pieWrap"><canvas id="pieCanvas" width="180" height="180"></canvas></div>
+        <div id="pieLegend"></div>
+        <h4 style="margin-top:18px">Strongest Path</h4>
+        <div id="pathInfo" style="font-size:.75rem;color:var(--muted)">Click "Show Strongest Path" in the toolbar to highlight the most significant chain of causation.</div>
+      </div>
+      <div class="rp-panel" id="panelEssay">
+        <h4>Essay Scaffold Generator</h4>
+        <p style="font-size:.72rem;color:var(--muted);margin-bottom:14px">Generate a structured essay plan based on your causation web.</p>
+        <button class="hbtn primary" style="width:100%;margin-bottom:16px" onclick="generateEssay()">Generate Essay Plan</button>
+        <div id="essayOutput"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// DATA
+// ============================================================
+const TOPICS = {
+  ww1: {
+    name: "Causes of World War 1",
+    cards: [
+      {id:"ww1_1",title:"Assassination of Archduke Franz Ferdinand",desc:"The heir to the Austro-Hungarian throne was assassinated in Sarajevo by Gavrilo Princip, a Bosnian Serb nationalist.",cat:"Political",date:"28 June 1914"},
+      {id:"ww1_2",title:"Alliance System",desc:"Europe was divided into two major alliance blocs: the Triple Entente and the Triple Alliance, meaning a local conflict could escalate rapidly.",cat:"Political",date:"1882-1907"},
+      {id:"ww1_3",title:"Arms Race",desc:"European powers competed to build larger armies and navies, particularly the Anglo-German naval arms race.",cat:"Military",date:"1898-1914"},
+      {id:"ww1_4",title:"Imperialism & Colonial Rivalry",desc:"Competition for colonies in Africa and Asia created tensions between European powers, especially France and Germany.",cat:"Economic",date:"1880s-1914"},
+      {id:"ww1_5",title:"Nationalism & Pan-Slavism",desc:"Rising nationalist movements, especially in the Balkans, destabilised multi-ethnic empires and fuelled separatist ambitions.",cat:"Social",date:"1800s-1914"},
+      {id:"ww1_6",title:"Balkan Crises",desc:"A series of crises in the Balkans (1908-1913) increased tensions between Austria-Hungary, Serbia, and Russia.",cat:"Political",date:"1908-1913"},
+      {id:"ww1_7",title:"Schlieffen Plan",desc:"Germany's military plan to fight a two-front war by quickly defeating France before turning east to face Russia.",cat:"Military",date:"1905"},
+      {id:"ww1_8",title:"Moroccan Crises",desc:"Two crises over Morocco (1905, 1911) brought France and Germany to the brink of war and strengthened the Entente.",cat:"Political",date:"1905-1911"},
+      {id:"ww1_9",title:"Austro-Hungarian Ultimatum to Serbia",desc:"Austria-Hungary issued a harsh ultimatum to Serbia after the assassination, designed to be rejected and justify war.",cat:"Political",date:"23 July 1914"},
+      {id:"ww1_10",title:"Militarism in European Society",desc:"Military values and the glorification of war permeated European culture, making populations more willing to support conflict.",cat:"Social",date:"Late 1800s"},
+      {id:"ww1_11",title:"Economic Rivalry: Germany vs Britain",desc:"Germany's rapid industrialisation threatened Britain's economic dominance, creating commercial and strategic competition.",cat:"Economic",date:"1870s-1914"},
+      {id:"ww1_12",title:"Decline of the Ottoman Empire",desc:"The weakening Ottoman Empire created a power vacuum in the Balkans that multiple nations sought to fill.",cat:"Political",date:"1800s-1914"},
+      {id:"ww1_13",title:"Russian Mobilisation",desc:"Russia's decision to mobilise its army in support of Serbia triggered Germany's declaration of war under the Schlieffen Plan.",cat:"Military",date:"30 July 1914"},
+    ]
+  },
+  ecw: {
+    name: "Causes of the English Civil War",
+    cards: [
+      {id:"ecw_1",title:"Divine Right of Kings",desc:"Charles I believed he ruled by God's authority and did not need to answer to Parliament, causing constitutional conflict.",cat:"Political",date:"1625-1642"},
+      {id:"ecw_2",title:"Ship Money Tax",desc:"Charles extended this coastal defence tax to inland counties without parliamentary approval, provoking widespread resistance.",cat:"Economic",date:"1634-1638"},
+      {id:"ecw_3",title:"Personal Rule (Eleven Years' Tyranny)",desc:"Charles dissolved Parliament and ruled without it for 11 years, raising money through controversial prerogative taxes.",cat:"Political",date:"1629-1640"},
+      {id:"ecw_4",title:"Religious Reforms of Archbishop Laud",desc:"William Laud's High Church reforms were seen as moving the Church of England dangerously close to Catholicism.",cat:"Religious",date:"1633-1640"},
+      {id:"ecw_5",title:"Scottish Prayer Book Rebellion",desc:"Attempts to impose a new prayer book on Scotland led to the Bishops' Wars, forcing Charles to recall Parliament.",cat:"Religious",date:"1637-1640"},
+      {id:"ecw_6",title:"Grand Remonstrance",desc:"Parliament presented a list of grievances to Charles, narrowly passing a vote. It deepened the divide between King and Parliament.",cat:"Political",date:"November 1641"},
+      {id:"ecw_7",title:"Irish Rebellion",desc:"A Catholic uprising in Ireland created an army crisis: neither King nor Parliament trusted the other to control the forces needed to suppress it.",cat:"Military",date:"October 1641"},
+      {id:"ecw_8",title:"Attempted Arrest of Five Members",desc:"Charles entered Parliament with soldiers to arrest five MPs, a dramatic breach of parliamentary privilege that outraged London.",cat:"Political",date:"4 January 1642"},
+      {id:"ecw_9",title:"Rise of Puritanism",desc:"Growing Puritan influence in Parliament demanded further Protestant reform and opposed the King's religious policies.",cat:"Religious",date:"1600s-1640s"},
+      {id:"ecw_10",title:"Petition of Right",desc:"Parliament forced Charles to accept limits on his power, including no taxation without consent, but Charles later ignored it.",cat:"Political",date:"1628"},
+      {id:"ecw_11",title:"Economic Grievances of the Gentry",desc:"The rising gentry class resented royal monopolies, forced loans, and arbitrary taxation that harmed their economic interests.",cat:"Economic",date:"1620s-1640s"},
+      {id:"ecw_12",title:"Militia Ordinance",desc:"Parliament passed an ordinance taking control of the militia away from the King, a direct challenge to royal prerogative.",cat:"Military",date:"March 1642"},
+      {id:"ecw_13",title:"Henrietta Maria's Influence",desc:"Charles's Catholic queen was deeply unpopular and her influence reinforced fears of a Catholic conspiracy at court.",cat:"Social",date:"1625-1642"},
+      {id:"ecw_14",title:"Long Parliament Reforms",desc:"The Long Parliament abolished Star Chamber and other prerogative courts, systematically dismantling Charles's system of personal rule.",cat:"Political",date:"1640-1641"},
+    ]
+  },
+  fr: {
+    name: "Causes of the French Revolution",
+    cards: [
+      {id:"fr_1",title:"Financial Crisis of the Monarchy",desc:"Decades of war, extravagant spending, and an inefficient tax system left the French crown effectively bankrupt by the 1780s.",cat:"Economic",date:"1780s"},
+      {id:"fr_2",title:"Inequitable Tax System",desc:"The First and Second Estates (clergy and nobility) were largely exempt from taxation, placing the burden on the commoners of the Third Estate.",cat:"Economic",date:"Pre-1789"},
+      {id:"fr_3",title:"The Estates-General",desc:"Louis XVI summoned the Estates-General for the first time since 1614 to address the financial crisis, raising expectations of reform.",cat:"Political",date:"May 1789"},
+      {id:"fr_4",title:"Enlightenment Ideas",desc:"Philosophes like Voltaire, Rousseau, and Montesquieu promoted ideas of liberty, equality, and popular sovereignty that challenged absolute monarchy.",cat:"Social",date:"1700s"},
+      {id:"fr_5",title:"American Revolution Influence",desc:"French involvement in the American Revolution spread revolutionary ideals and deepened France's debt crisis.",cat:"Political",date:"1775-1783"},
+      {id:"fr_6",title:"Bread Crisis & Famine",desc:"Poor harvests in 1788 caused bread prices to soar, leading to widespread hunger and anger among the urban and rural poor.",cat:"Economic",date:"1788-1789"},
+      {id:"fr_7",title:"Absolutism of Louis XVI",desc:"Louis XVI's indecisive rule and resistance to reform frustrated both reformers and those seeking to maintain the old order.",cat:"Political",date:"1774-1789"},
+      {id:"fr_8",title:"Storming of the Bastille",desc:"A Parisian mob stormed the Bastille fortress, symbolising the overthrow of royal tyranny and sparking revolutionary action across France.",cat:"Political",date:"14 July 1789"},
+      {id:"fr_9",title:"Social Inequality of the Three Estates",desc:"French society was rigidly divided into three estates with vast inequalities in rights, privileges, and political representation.",cat:"Social",date:"Pre-1789"},
+      {id:"fr_10",title:"Tennis Court Oath",desc:"Members of the Third Estate swore not to disband until they had given France a constitution, transforming themselves into the National Assembly.",cat:"Political",date:"20 June 1789"},
+      {id:"fr_11",title:"Extravagance of Versailles",desc:"The lavish lifestyle of the royal court at Versailles, especially Marie Antoinette, angered a population suffering economic hardship.",cat:"Social",date:"1770s-1789"},
+      {id:"fr_12",title:"Weakness of Louis XVI",desc:"Louis XVI was widely seen as weak and indecisive, unable to push through necessary reforms or maintain authority.",cat:"Political",date:"1774-1789"},
+      {id:"fr_13",title:"Rise of the Bourgeoisie",desc:"The wealthy middle class resented being denied political power and social status despite their economic importance.",cat:"Social",date:"1700s"},
+      {id:"fr_14",title:"Dismissal of Necker",desc:"Louis XVI's dismissal of the popular finance minister Jacques Necker triggered panic and outrage in Paris.",cat:"Political",date:"11 July 1789"},
+      {id:"fr_15",title:"Cahiers de Doleances",desc:"Lists of grievances compiled by each estate revealed widespread dissatisfaction with taxation, feudal dues, and lack of representation.",cat:"Social",date:"Early 1789"},
+    ]
+  },
+  free: {name:"Free Build",cards:[]}
+};
+
+const CAT_COLORS = {Political:"#4a90d9",Economic:"#50b86c",Social:"#e0a040",Military:"#d04040",Religious:"#9b59b6"};
+
+// ============================================================
+// STATE
+// ============================================================
+let nodes = []; // {id,title,desc,cat,date,x,y,significance,placed}
+let arrows = []; // {id,from,to,label,thickness}
+let nextNodeId = 1;
+let nextArrowId = 1;
+let currentTopic = "";
+
+// Canvas pan/zoom
+let panX = 0, panY = 0, zoom = 1;
+let isPanning = false, panStartX = 0, panStartY = 0, panStartPanX = 0, panStartPanY = 0;
+
+// Dragging nodes
+let dragNode = null, dragOffsetX = 0, dragOffsetY = 0;
+
+// Connection mode
+let connectionMode = false;
+let connectionSource = null;
+
+// Highlighted path
+let highlightedPath = [];
+
+// ============================================================
+// INIT
+// ============================================================
+window.addEventListener("load", () => {
+  drawGrid();
+  window.addEventListener("resize", drawGrid);
+  setupCanvasEvents();
+  updateAnalysis();
+});
+
+function drawGrid() {
+  const c = document.getElementById("bgCanvas");
+  const wrap = document.getElementById("canvasWrap");
+  c.width = wrap.clientWidth;
+  c.height = wrap.clientHeight;
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, c.width, c.height);
+  const step = 40 * zoom;
+  const offX = panX % step;
+  const offY = panY % step;
+  ctx.strokeStyle = "rgba(255,255,255,.04)";
+  ctx.lineWidth = 1;
+  for (let x = offX; x < c.width; x += step) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, c.height); ctx.stroke();
+  }
+  for (let y = offY; y < c.height; y += step) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(c.width, y); ctx.stroke();
+  }
+}
+
+// ============================================================
+// TOPIC LOADING
+// ============================================================
+function loadTopic(key) {
+  if (!key) return;
+  currentTopic = key;
+  const topic = TOPICS[key];
+  // Clear canvas
+  nodes = []; arrows = []; nextNodeId = 1; nextArrowId = 1;
+  highlightedPath = [];
+  document.getElementById("nodeLayer").innerHTML = "";
+  document.getElementById("arrowGroup").innerHTML = "";
+  removeAllArrowLabels();
+  // Populate sidebar
+  const list = document.getElementById("cardList");
+  list.innerHTML = "";
+  if (topic.cards.length === 0) {
+    list.innerHTML = '<p style="padding:12px;font-size:.72rem;color:var(--muted)">Free build mode. Use "+ Custom Card" to create your own factor cards.</p>';
+  }
+  topic.cards.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "factor-card";
+    div.style.borderLeftColor = CAT_COLORS[c.cat] || "var(--gold)";
+    div.draggable = true;
+    div.innerHTML = `
+      <div class="fc-title">${c.title}</div>
+      <div class="fc-desc">${c.desc}</div>
+      <div class="fc-meta">
+        <span class="fc-tag tag-${c.cat}">${c.cat}</span>
+        <span class="fc-date">${c.date}</span>
+      </div>`;
+    div.addEventListener("dragstart", e => {
+      e.dataTransfer.setData("text/plain", JSON.stringify(c));
+      e.dataTransfer.effectAllowed = "copy";
+    });
+    // Double click to place
+    div.addEventListener("dblclick", () => {
+      placeNode(c, 200 + Math.random()*400, 150 + Math.random()*300);
+    });
+    list.appendChild(div);
+  });
+  document.getElementById("instrOverlay").style.display = topic.cards.length ? "" : "none";
+  panX = 0; panY = 0; zoom = 1;
+  applyTransform();
+  updateAnalysis();
+  toast(`Loaded: ${topic.name}`);
+}
+
+// ============================================================
+// PLACE NODE
+// ============================================================
+function placeNode(cardData, cx, cy) {
+  // Check if already placed
+  if (cardData.id && nodes.find(n => n.id === cardData.id)) {
+    toast("This card is already on the canvas.");
+    return;
+  }
+  const id = cardData.id || ("custom_" + nextNodeId++);
+  const node = {
+    id, title: cardData.title, desc: cardData.desc || "",
+    cat: cardData.cat || "Political", date: cardData.date || "",
+    x: (cx - panX) / zoom, y: (cy - panY) / zoom,
+    significance: 3
+  };
+  nodes.push(node);
+  renderNode(node);
+  document.getElementById("instrOverlay").style.display = "none";
+  updateAnalysis();
+  return node;
+}
+
+function renderNode(node) {
+  const el = document.createElement("div");
+  el.className = "web-node";
+  el.id = "node-" + node.id;
+  el.dataset.nodeId = node.id;
+  updateNodeHTML(el, node);
+  updateNodeTransform(el, node);
+  document.getElementById("nodeLayer").appendChild(el);
+  // Events
+  el.addEventListener("mousedown", e => {
+    if (e.target.classList.contains("wn-star") || e.target.classList.contains("wn-delete")) return;
+    if (connectionMode) {
+      e.stopPropagation();
+      handleConnectionClick(node.id);
+      return;
+    }
+    e.stopPropagation();
+    dragNode = node;
+    const rect = el.getBoundingClientRect();
+    dragOffsetX = e.clientX - rect.left;
+    dragOffsetY = e.clientY - rect.top;
+    el.style.cursor = "grabbing";
+    el.style.zIndex = 100;
+  });
+}
+
+function updateNodeHTML(el, node) {
+  const scale = .7 + node.significance * .12;
+  el.style.transform = `scale(${scale})`;
+  el.style.borderLeftColor = CAT_COLORS[node.cat] || "var(--gold)";
+  let stars = "";
+  for (let i = 1; i <= 5; i++) {
+    stars += `<span class="wn-star ${i <= node.significance ? 'active' : ''}" data-star="${i}" data-node="${node.id}">&#9733;</span>`;
+  }
+  el.innerHTML = `
+    <button class="wn-delete" onclick="deleteNode('${node.id}')" title="Remove">&times;</button>
+    <div class="wn-title">${node.title}</div>
+    ${node.desc ? `<div class="wn-desc">${node.desc}</div>` : ""}
+    <div class="wn-meta">
+      <span class="fc-tag tag-${node.cat}" style="font-size:.58rem">${node.cat}</span>
+      ${node.date ? `<span class="fc-date">${node.date}</span>` : ""}
+      <span class="wn-stars">${stars}</span>
+    </div>`;
+  el.querySelectorAll(".wn-star").forEach(s => {
+    s.addEventListener("click", e => {
+      e.stopPropagation();
+      const nid = s.dataset.node;
+      const star = parseInt(s.dataset.star);
+      const nd = nodes.find(n => n.id === nid);
+      if (nd) {
+        nd.significance = star;
+        const nel = document.getElementById("node-" + nid);
+        if (nel) updateNodeHTML(nel, nd);
+        updateAllArrows();
+        updateAnalysis();
+      }
+    });
+  });
+}
+
+function updateNodeTransform(el, node) {
+  const sx = node.x * zoom + panX;
+  const sy = node.y * zoom + panY;
+  const scale = .7 + node.significance * .12;
+  el.style.left = sx + "px";
+  el.style.top = sy + "px";
+  el.style.transform = `scale(${scale})`;
+  el.style.transformOrigin = "top left";
+}
+
+function deleteNode(id) {
+  nodes = nodes.filter(n => n.id !== id);
+  arrows = arrows.filter(a => a.from !== id && a.to !== id);
+  const el = document.getElementById("node-" + id);
+  if (el) el.remove();
+  highlightedPath = highlightedPath.filter(p => p !== id);
+  updateAllArrows();
+  updateAnalysis();
+}
+
+// ============================================================
+// CANVAS EVENTS (pan, zoom, drop)
+// ============================================================
+function setupCanvasEvents() {
+  const wrap = document.getElementById("canvasWrap");
+
+  // Drop from sidebar
+  wrap.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; });
+  wrap.addEventListener("drop", e => {
+    e.preventDefault();
+    try {
+      const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+      const rect = wrap.getBoundingClientRect();
+      placeNode(data, e.clientX - rect.left, e.clientY - rect.top);
+    } catch(ex) {}
+  });
+
+  // Pan
+  wrap.addEventListener("mousedown", e => {
+    if (e.target.closest(".web-node") || e.target.closest(".arrow-label") || e.target.closest(".zoom-btn")) return;
+    if (connectionMode && !e.target.closest(".web-node")) {
+      // cancel connection
+      connectionSource = null;
+      document.querySelectorAll(".web-node.connecting").forEach(n => n.classList.remove("connecting"));
+      return;
+    }
+    isPanning = true;
+    panStartX = e.clientX; panStartY = e.clientY;
+    panStartPanX = panX; panStartPanY = panY;
+    wrap.style.cursor = "grabbing";
+  });
+
+  window.addEventListener("mousemove", e => {
+    if (dragNode) {
+      const rect = wrap.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      dragNode.x = (mx - dragOffsetX - panX) / zoom;
+      dragNode.y = (my - dragOffsetY - panY) / zoom;
+      const el = document.getElementById("node-" + dragNode.id);
+      if (el) updateNodeTransform(el, dragNode);
+      updateAllArrows();
+      return;
+    }
+    if (isPanning) {
+      panX = panStartPanX + (e.clientX - panStartX);
+      panY = panStartPanY + (e.clientY - panStartY);
+      applyTransform();
+    }
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (dragNode) {
+      const el = document.getElementById("node-" + dragNode.id);
+      if (el) { el.style.cursor = "grab"; el.style.zIndex = ""; }
+      dragNode = null;
+    }
+    if (isPanning) {
+      isPanning = false;
+      wrap.style.cursor = "";
+    }
+  });
+
+  // Zoom
+  wrap.addEventListener("wheel", e => {
+    e.preventDefault();
+    const rect = wrap.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const oldZoom = zoom;
+    zoom *= e.deltaY < 0 ? 1.08 : 0.92;
+    zoom = Math.max(0.2, Math.min(3, zoom));
+    panX = mx - (mx - panX) * zoom / oldZoom;
+    panY = my - (my - panY) * zoom / oldZoom;
+    applyTransform();
+  }, { passive: false });
+
+  // Escape
+  window.addEventListener("keydown", e => {
+    if (e.key === "Escape" && connectionMode) {
+      toggleConnectionMode();
+    }
+  });
+}
+
+function applyTransform() {
+  nodes.forEach(n => {
+    const el = document.getElementById("node-" + n.id);
+    if (el) updateNodeTransform(el, n);
+  });
+  updateAllArrows();
+  drawGrid();
+}
+
+function zoomIn() { zoom = Math.min(3, zoom * 1.2); applyTransform(); }
+function zoomOut() { zoom = Math.max(0.2, zoom / 1.2); applyTransform(); }
+function zoomReset() { zoom = 1; panX = 0; panY = 0; applyTransform(); }
+
+// ============================================================
+// CONNECTION MODE
+// ============================================================
+function toggleConnectionMode() {
+  connectionMode = !connectionMode;
+  const btn = document.getElementById("connModeBtn");
+  const ind = document.getElementById("connIndicator");
+  if (connectionMode) {
+    btn.classList.add("primary");
+    btn.textContent = "Stop Drawing";
+    ind.style.display = "block";
+    connectionSource = null;
+  } else {
+    btn.classList.remove("primary");
+    btn.textContent = "Draw Arrows";
+    ind.style.display = "none";
+    connectionSource = null;
+    document.querySelectorAll(".web-node.connecting").forEach(n => n.classList.remove("connecting"));
+  }
+}
+
+function handleConnectionClick(nodeId) {
+  if (!connectionSource) {
+    connectionSource = nodeId;
+    const el = document.getElementById("node-" + nodeId);
+    if (el) el.classList.add("connecting");
+  } else {
+    if (connectionSource === nodeId) {
+      connectionSource = null;
+      document.querySelectorAll(".web-node.connecting").forEach(n => n.classList.remove("connecting"));
+      return;
+    }
+    // Check duplicate
+    if (arrows.find(a => a.from === connectionSource && a.to === nodeId)) {
+      toast("This connection already exists.");
+      connectionSource = null;
+      document.querySelectorAll(".web-node.connecting").forEach(n => n.classList.remove("connecting"));
+      return;
+    }
+    const fromId = connectionSource;
+    const toId = nodeId;
+    connectionSource = null;
+    document.querySelectorAll(".web-node.connecting").forEach(n => n.classList.remove("connecting"));
+    // Ask for label and thickness
+    openArrowModal(fromId, toId);
+  }
+}
+
+function openArrowModal(fromId, toId) {
+  const fromNode = nodes.find(n => n.id === fromId);
+  const toNode = nodes.find(n => n.id === toId);
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Describe this Connection</h3>
+      <p style="font-size:.78rem;color:var(--muted);margin-bottom:6px">${fromNode.title} &rarr; ${toNode.title}</p>
+      <label>Explanation (how does this cause lead to this effect?)</label>
+      <input type="text" id="arrowLabelInput" placeholder="e.g. This led to increased tensions..." maxlength="80">
+      <label>Link Strength</label>
+      <select id="arrowThicknessInput">
+        <option value="2">Weak (thin line)</option>
+        <option value="4" selected>Moderate</option>
+        <option value="6">Strong</option>
+        <option value="8">Very Strong (thick line)</option>
+      </select>
+      <div class="modal-btns">
+        <button class="mbtn mbtn-cancel" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+        <button class="mbtn mbtn-ok" id="arrowOkBtn">Add Connection</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector("#arrowLabelInput").focus();
+  overlay.querySelector("#arrowOkBtn").addEventListener("click", () => {
+    const label = overlay.querySelector("#arrowLabelInput").value.trim();
+    const thickness = parseInt(overlay.querySelector("#arrowThicknessInput").value);
+    overlay.remove();
+    createArrow(fromId, toId, label, thickness);
+  });
+  overlay.querySelector("#arrowLabelInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") overlay.querySelector("#arrowOkBtn").click();
+  });
+}
+
+function createArrow(fromId, toId, label, thickness) {
+  const id = "arrow_" + nextArrowId++;
+  arrows.push({ id, from: fromId, to: toId, label: label || "", thickness: thickness || 4 });
+  updateAllArrows();
+  updateAnalysis();
+}
+
+function updateAllArrows() {
+  const group = document.getElementById("arrowGroup");
+  group.innerHTML = "";
+  removeAllArrowLabels();
+  arrows.forEach(a => {
+    const fromN = nodes.find(n => n.id === a.from);
+    const toN = nodes.find(n => n.id === a.to);
+    if (!fromN || !toN) return;
+    const fromEl = document.getElementById("node-" + fromN.id);
+    const toEl = document.getElementById("node-" + toN.id);
+    if (!fromEl || !toEl) return;
+
+    const fRect = fromEl.getBoundingClientRect();
+    const tRect = toEl.getBoundingClientRect();
+    const wrap = document.getElementById("canvasWrap").getBoundingClientRect();
+
+    const fx = fRect.left + fRect.width / 2 - wrap.left;
+    const fy = fRect.top + fRect.height / 2 - wrap.top;
+    const tx = tRect.left + tRect.width / 2 - wrap.left;
+    const ty = tRect.top + tRect.height / 2 - wrap.top;
+
+    // Shorten arrow to stop at card edge
+    const angle = Math.atan2(ty - fy, tx - fx);
+    const padFrom = Math.max(fRect.width, fRect.height) / 2 * 0.6;
+    const padTo = Math.max(tRect.width, tRect.height) / 2 * 0.6 + 8;
+    const startX = fx + Math.cos(angle) * padFrom;
+    const startY = fy + Math.sin(angle) * padFrom;
+    const endX = tx - Math.cos(angle) * padTo;
+    const endY = ty - Math.sin(angle) * padTo;
+
+    const isHighlighted = isArrowInHighlightedPath(a);
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", startX);
+    line.setAttribute("y1", startY);
+    line.setAttribute("x2", endX);
+    line.setAttribute("y2", endY);
+    line.setAttribute("stroke", isHighlighted ? "#ff6" : "rgba(212,168,67,.6)");
+    line.setAttribute("stroke-width", isHighlighted ? a.thickness + 2 : a.thickness);
+    line.setAttribute("marker-end", isHighlighted ? "url(#arrowHeadHighlight)" : "url(#arrowHead)");
+    line.style.cursor = "pointer";
+    line.addEventListener("dblclick", () => editArrow(a));
+    line.addEventListener("contextmenu", e => { e.preventDefault(); deleteArrow(a.id); });
+    group.appendChild(line);
+
+    // Label
+    if (a.label) {
+      const lbl = document.createElement("div");
+      lbl.className = "arrow-label";
+      lbl.textContent = a.label;
+      lbl.style.left = ((startX + endX) / 2) + "px";
+      lbl.style.top = ((startY + endY) / 2) + "px";
+      lbl.addEventListener("dblclick", () => editArrow(a));
+      lbl.addEventListener("contextmenu", e => { e.preventDefault(); deleteArrow(a.id); });
+      document.getElementById("canvasWrap").appendChild(lbl);
+    }
+  });
+}
+
+function isArrowInHighlightedPath(arrow) {
+  for (let i = 0; i < highlightedPath.length - 1; i++) {
+    if (highlightedPath[i] === arrow.from && highlightedPath[i+1] === arrow.to) return true;
+  }
+  return false;
+}
+
+function editArrow(arrow) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Edit Connection</h3>
+      <label>Explanation</label>
+      <input type="text" id="editArrowLabel" value="${arrow.label}" maxlength="80">
+      <label>Link Strength</label>
+      <select id="editArrowThickness">
+        <option value="2" ${arrow.thickness===2?'selected':''}>Weak (thin line)</option>
+        <option value="4" ${arrow.thickness===4?'selected':''}>Moderate</option>
+        <option value="6" ${arrow.thickness===6?'selected':''}>Strong</option>
+        <option value="8" ${arrow.thickness===8?'selected':''}>Very Strong (thick line)</option>
+      </select>
+      <div class="modal-btns">
+        <button class="mbtn mbtn-cancel" style="margin-right:auto;background:#a03030;color:#fff" onclick="deleteArrow('${arrow.id}');this.closest('.modal-overlay').remove()">Delete</button>
+        <button class="mbtn mbtn-cancel" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+        <button class="mbtn mbtn-ok" id="editArrowOk">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector("#editArrowOk").addEventListener("click", () => {
+    arrow.label = overlay.querySelector("#editArrowLabel").value.trim();
+    arrow.thickness = parseInt(overlay.querySelector("#editArrowThickness").value);
+    overlay.remove();
+    updateAllArrows();
+    updateAnalysis();
+  });
+}
+
+function deleteArrow(id) {
+  arrows = arrows.filter(a => a.id !== id);
+  updateAllArrows();
+  updateAnalysis();
+}
+
+function removeAllArrowLabels() {
+  document.querySelectorAll("#canvasWrap > .arrow-label").forEach(l => l.remove());
+}
+
+// ============================================================
+// CUSTOM CARD MODAL
+// ============================================================
+function openCustomCardModal() {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Create Custom Factor Card</h3>
+      <label>Title</label>
+      <input type="text" id="ccTitle" placeholder="e.g. Treaty of Versailles" maxlength="80">
+      <label>Description</label>
+      <textarea id="ccDesc" placeholder="Brief explanation of this factor (1-2 sentences)..." maxlength="200"></textarea>
+      <label>Category</label>
+      <select id="ccCat">
+        <option value="Political">Political</option>
+        <option value="Economic">Economic</option>
+        <option value="Social">Social</option>
+        <option value="Military">Military</option>
+        <option value="Religious">Religious</option>
+      </select>
+      <label>Date / Time Period</label>
+      <input type="text" id="ccDate" placeholder="e.g. 1914 or 1600s-1640s">
+      <div class="modal-btns">
+        <button class="mbtn mbtn-cancel" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+        <button class="mbtn mbtn-ok" id="ccOk">Add to Canvas</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector("#ccTitle").focus();
+  overlay.querySelector("#ccOk").addEventListener("click", () => {
+    const title = overlay.querySelector("#ccTitle").value.trim();
+    if (!title) { toast("Please enter a title."); return; }
+    const desc = overlay.querySelector("#ccDesc").value.trim();
+    const cat = overlay.querySelector("#ccCat").value;
+    const date = overlay.querySelector("#ccDate").value.trim();
+    overlay.remove();
+    const wrap = document.getElementById("canvasWrap");
+    placeNode({ title, desc, cat, date }, wrap.clientWidth / 2, wrap.clientHeight / 2);
+    toast("Custom card added to canvas.");
+  });
+  overlay.querySelector("#ccTitle").addEventListener("keydown", e => {
+    if (e.key === "Enter") overlay.querySelector("#ccOk").click();
+  });
+}
+
+// ============================================================
+// AUTO-LAYOUT
+// ============================================================
+function autoLayout() {
+  if (nodes.length === 0) { toast("No cards on the canvas yet."); return; }
+
+  const wrap = document.getElementById("canvasWrap");
+  const W = wrap.clientWidth / zoom;
+  const H = wrap.clientHeight / zoom;
+  const marginX = 40, marginY = 40;
+  const usableW = W - 2 * marginX;
+  const usableH = H - 2 * marginY;
+
+  // Sort by date heuristic: extract first year
+  const getYear = (d) => {
+    const m = d.match(/\d{3,4}/);
+    return m ? parseInt(m[0]) : 9999;
+  };
+
+  // Calculate connection counts
+  const connCount = {};
+  nodes.forEach(n => connCount[n.id] = 0);
+  arrows.forEach(a => { connCount[a.from] = (connCount[a.from]||0) + 1; connCount[a.to] = (connCount[a.to]||0) + 1; });
+
+  // Sort by date
+  const sorted = [...nodes].sort((a, b) => getYear(a.date) - getYear(b.date));
+
+  // Layout: chronological left-right, high-connectivity towards vertical center
+  const cols = Math.ceil(Math.sqrt(sorted.length * 1.5));
+  const rows = Math.ceil(sorted.length / cols);
+  const cellW = usableW / cols;
+  const cellH = usableH / Math.max(rows, 1);
+
+  // Rank by connections for vertical positioning within column
+  sorted.forEach((n, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    // High connectivity = more central vertically
+    const maxConn = Math.max(...Object.values(connCount), 1);
+    const connRatio = (connCount[n.id] || 0) / maxConn;
+    const centerBias = (0.5 - Math.abs(0.5 - (row + 0.5) / Math.max(rows, 1))) * connRatio * cellH * 0.5;
+
+    n.x = marginX + col * cellW + cellW * 0.2 + Math.random() * cellW * 0.3;
+    n.y = marginY + row * cellH + cellH * 0.2 + centerBias + Math.random() * cellH * 0.2;
+  });
+
+  // Offset pan so layout is visible
+  panX = 0; panY = 0;
+  applyTransform();
+  toast("Cards arranged chronologically (left to right).");
+}
+
+// ============================================================
+// ANALYSIS
+// ============================================================
+function updateAnalysis() {
+  const statsDiv = document.getElementById("analysisStats");
+  if (nodes.length === 0) {
+    statsDiv.innerHTML = '<p style="font-size:.75rem;color:var(--muted)">Add cards to the canvas and draw connections to see analysis.</p>';
+    drawPie([]);
+    return;
+  }
+
+  // Connection counts
+  const outgoing = {}, incoming = {};
+  nodes.forEach(n => { outgoing[n.id] = 0; incoming[n.id] = 0; });
+  arrows.forEach(a => {
+    outgoing[a.from] = (outgoing[a.from] || 0) + 1;
+    incoming[a.to] = (incoming[a.to] || 0) + 1;
+  });
+
+  const topOutId = Object.keys(outgoing).reduce((a, b) => (outgoing[a] || 0) >= (outgoing[b] || 0) ? a : b, nodes[0].id);
+  const topInId = Object.keys(incoming).reduce((a, b) => (incoming[a] || 0) >= (incoming[b] || 0) ? a : b, nodes[0].id);
+  const topOutNode = nodes.find(n => n.id === topOutId);
+  const topInNode = nodes.find(n => n.id === topInId);
+
+  const totalConnections = arrows.length;
+  const avgSignificance = nodes.length > 0 ? (nodes.reduce((s, n) => s + n.significance, 0) / nodes.length).toFixed(1) : 0;
+
+  let html = `
+    <div class="stat-row"><span class="stat-label">Cards on canvas</span><span class="stat-value">${nodes.length}</span></div>
+    <div class="stat-row"><span class="stat-label">Connections</span><span class="stat-value">${totalConnections}</span></div>
+    <div class="stat-row"><span class="stat-label">Avg. significance</span><span class="stat-value">${avgSignificance} / 5</span></div>`;
+
+  if (totalConnections > 0) {
+    html += `
+    <div class="stat-row" style="flex-direction:column;align-items:flex-start;gap:3px">
+      <span class="stat-label">Most influential cause (most outgoing)</span>
+      <span class="stat-value" style="font-size:.72rem">${topOutNode.title} (${outgoing[topOutId]} outgoing)</span>
+    </div>
+    <div class="stat-row" style="flex-direction:column;align-items:flex-start;gap:3px">
+      <span class="stat-label">Most caused by others (most incoming)</span>
+      <span class="stat-value" style="font-size:.72rem">${topInNode.title} (${incoming[topInId]} incoming)</span>
+    </div>`;
+  }
+
+  statsDiv.innerHTML = html;
+
+  // Pie chart
+  const catCounts = {};
+  nodes.forEach(n => { catCounts[n.cat] = (catCounts[n.cat] || 0) + 1; });
+  drawPie(catCounts);
+}
+
+function drawPie(catCounts) {
+  const canvas = document.getElementById("pieCanvas");
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, 180, 180);
+  const entries = Object.entries(catCounts).filter(([,v]) => v > 0);
+  const total = entries.reduce((s, [,v]) => s + v, 0);
+
+  if (total === 0) {
+    ctx.fillStyle = "#333";
+    ctx.font = "12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("No data yet", 90, 95);
+    document.getElementById("pieLegend").innerHTML = "";
+    return;
+  }
+
+  let startAngle = -Math.PI / 2;
+  const cx = 90, cy = 90, r = 75;
+  entries.forEach(([cat, count]) => {
+    const slice = (count / total) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, startAngle, startAngle + slice);
+    ctx.closePath();
+    ctx.fillStyle = CAT_COLORS[cat] || "#888";
+    ctx.fill();
+    ctx.strokeStyle = "var(--navy)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Label
+    if (slice > 0.3) {
+      const mid = startAngle + slice / 2;
+      const lx = cx + Math.cos(mid) * r * 0.6;
+      const ly = cy + Math.sin(mid) * r * 0.6;
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(Math.round(count / total * 100) + "%", lx, ly);
+    }
+
+    startAngle += slice;
+  });
+
+  // Legend
+  let legendHTML = "";
+  entries.forEach(([cat, count]) => {
+    legendHTML += `<div class="legend-row"><span class="legend-dot" style="background:${CAT_COLORS[cat]}"></span>${cat}: ${count} (${Math.round(count/total*100)}%)</div>`;
+  });
+  document.getElementById("pieLegend").innerHTML = legendHTML;
+}
+
+// ============================================================
+// STRONGEST PATH
+// ============================================================
+function highlightStrongestPath() {
+  if (nodes.length < 2 || arrows.length === 0) {
+    toast("Need at least 2 cards and 1 connection to find a path.");
+    return;
+  }
+
+  // Find the longest weighted path using DFS
+  // Weight = arrow thickness * average significance of connected nodes
+  let bestPath = [];
+  let bestScore = 0;
+
+  const adj = {};
+  nodes.forEach(n => adj[n.id] = []);
+  arrows.forEach(a => {
+    const fromN = nodes.find(n => n.id === a.from);
+    const toN = nodes.find(n => n.id === a.to);
+    if (fromN && toN) {
+      const weight = a.thickness * (fromN.significance + toN.significance) / 2;
+      adj[a.from].push({ to: a.to, weight });
+    }
+  });
+
+  function dfs(nodeId, visited, path, score) {
+    if (path.length >= 2 && score > bestScore) {
+      bestScore = score;
+      bestPath = [...path];
+    }
+    for (const edge of adj[nodeId]) {
+      if (!visited.has(edge.to)) {
+        visited.add(edge.to);
+        path.push(edge.to);
+        dfs(edge.to, visited, path, score + edge.weight);
+        path.pop();
+        visited.delete(edge.to);
+      }
+    }
+  }
+
+  nodes.forEach(n => {
+    const visited = new Set([n.id]);
+    dfs(n.id, visited, [n.id], 0);
+  });
+
+  if (bestPath.length < 2) {
+    toast("No chain of causation found.");
+    return;
+  }
+
+  highlightedPath = bestPath;
+  updateAllArrows();
+
+  // Show in panel
+  const pathNames = bestPath.map(id => {
+    const n = nodes.find(nd => nd.id === id);
+    return n ? n.title : id;
+  });
+  document.getElementById("pathInfo").innerHTML = `
+    <div style="color:var(--gold-light);font-weight:600;margin-bottom:6px">Strongest chain of causation (${bestPath.length} factors):</div>
+    ${pathNames.map((name, i) => `<div style="margin-bottom:4px">${i > 0 ? '<span style="color:#ff6;margin-right:6px">&darr;</span>' : '<span style="color:var(--gold);margin-right:6px">&#9679;</span>'}${name}</div>`).join("")}
+    <div style="margin-top:8px;color:var(--muted);font-size:.68rem">Combined weight score: ${bestScore.toFixed(1)}</div>
+    <button class="hbtn" style="margin-top:8px;font-size:.7rem" onclick="clearHighlight()">Clear Highlight</button>`;
+
+  // Switch to analysis tab
+  switchTab("analysis", document.querySelector('.rp-tab'));
+  toast("Strongest path highlighted on canvas.");
+}
+
+function clearHighlight() {
+  highlightedPath = [];
+  updateAllArrows();
+  document.getElementById("pathInfo").innerHTML = '<span style="color:var(--muted)">Click "Show Strongest Path" to highlight the most significant chain of causation.</span>';
+}
+
+// ============================================================
+// ESSAY SCAFFOLD
+// ============================================================
+function generateEssay() {
+  if (nodes.length === 0) {
+    toast("Add cards to the canvas first.");
+    return;
+  }
+
+  const topicName = currentTopic && TOPICS[currentTopic] ? TOPICS[currentTopic].name : "Historical Causation";
+  const categories = {};
+  nodes.forEach(n => {
+    if (!categories[n.cat]) categories[n.cat] = [];
+    categories[n.cat].push(n);
+  });
+
+  // Connection data
+  const outgoing = {}, incoming = {};
+  nodes.forEach(n => { outgoing[n.id] = 0; incoming[n.id] = 0; });
+  arrows.forEach(a => {
+    outgoing[a.from] = (outgoing[a.from] || 0) + 1;
+    incoming[a.to] = (incoming[a.to] || 0) + 1;
+  });
+
+  // Sort categories by number of cards
+  const catEntries = Object.entries(categories).sort((a, b) => b[1].length - a[1].length);
+
+  // Find most influential
+  let mostInfluential = null, maxOut = 0;
+  nodes.forEach(n => {
+    if ((outgoing[n.id] || 0) > maxOut) {
+      maxOut = outgoing[n.id]; mostInfluential = n;
+    }
+  });
+
+  // Find trigger (most incoming)
+  let trigger = null, maxIn = 0;
+  nodes.forEach(n => {
+    if ((incoming[n.id] || 0) > maxIn) {
+      maxIn = incoming[n.id]; trigger = n;
+    }
+  });
+
+  // Find highest significance
+  const highSig = [...nodes].sort((a, b) => b.significance - a.significance);
+
+  let essay = "";
+
+  // Title
+  essay += `<div class="essay-block"><h5>Essay Title</h5><p>"To what extent were the ${topicName.toLowerCase()} the result of long-term factors rather than short-term triggers?"</p></div>`;
+
+  // Introduction
+  essay += `<div class="essay-block"><h5>Introduction</h5><p>`;
+  essay += `Your causation web identifies ${nodes.length} key factors across ${catEntries.length} categories (${catEntries.map(([c]) => c).join(", ")}). `;
+  if (arrows.length > 0) {
+    essay += `With ${arrows.length} connections mapped, this suggests a complex web of interrelated causes. `;
+  }
+  essay += `Begin by briefly outlining the key categories of causes and state your argument about which type of cause was most significant.`;
+  essay += `</p></div>`;
+
+  // Body paragraphs by category
+  catEntries.forEach(([cat, catNodes], idx) => {
+    const sortedBySig = [...catNodes].sort((a, b) => b.significance - a.significance);
+    const nodeNames = sortedBySig.map(n => n.title).join("; ");
+
+    // Find connections between these nodes and others
+    const catArrows = arrows.filter(a => catNodes.some(n => n.id === a.from));
+    const labels = catArrows.filter(a => a.label).map(a => a.label);
+
+    essay += `<div class="essay-block" style="border-left-color:${CAT_COLORS[cat]}"><h5>Paragraph ${idx + 1}: ${cat} Causes</h5><p>`;
+    essay += `<strong>Topic sentence:</strong> "${cat} factors played a ${catNodes.length >= 3 ? "significant" : catNodes.length >= 2 ? "notable" : "contributing"} role in the ${topicName.toLowerCase()}." `;
+    essay += `<br><br><strong>Key factors to discuss:</strong> ${nodeNames}. `;
+    if (sortedBySig[0]) {
+      essay += `<br><br><strong>Focus on:</strong> ${sortedBySig[0].title} (significance: ${sortedBySig[0].significance}/5)`;
+      if (sortedBySig[0].desc) essay += ` - ${sortedBySig[0].desc}`;
+    }
+    if (labels.length > 0) {
+      essay += `<br><br><strong>Connections to explain:</strong> ${labels.slice(0, 3).join("; ")}.`;
+    }
+    essay += `<br><br><strong>Analysis tip:</strong> Explain <em>how</em> and <em>why</em> these ${cat.toLowerCase()} factors contributed to the outcome, not just <em>what</em> happened.`;
+    essay += `</p></div>`;
+  });
+
+  // Evaluation / links paragraph
+  if (arrows.length > 0) {
+    essay += `<div class="essay-block"><h5>Linking Paragraph: Interconnections</h5><p>`;
+    essay += `<strong>Topic sentence:</strong> "While it is useful to categorise causes, many factors were deeply interconnected." `;
+    if (mostInfluential) {
+      essay += `<br><br>Your web shows that "${mostInfluential.title}" has the most outgoing connections (${maxOut}), suggesting it was a root cause that influenced multiple other factors. `;
+    }
+    if (trigger && trigger !== mostInfluential) {
+      essay += `"${trigger.title}" has the most incoming connections (${maxIn}), suggesting it was an outcome of many converging causes. `;
+    }
+    essay += `<br><br><strong>Analysis tip:</strong> Discuss how causes from different categories reinforced each other. Use phrases like "This was compounded by...", "Furthermore...", "This created a climate in which...".`;
+    essay += `</p></div>`;
+  }
+
+  // Conclusion
+  essay += `<div class="essay-block"><h5>Conclusion</h5><p>`;
+  essay += `<strong>Topic sentence:</strong> "In conclusion, the ${topicName.toLowerCase()} resulted from a combination of ${catEntries.map(([c]) => c.toLowerCase()).join(", ")} factors." `;
+  if (highSig[0]) {
+    essay += `<br><br>Based on your significance ratings, "${highSig[0].title}" (${highSig[0].significance}/5) appears to be the most important single factor. `;
+  }
+  essay += `<br><br><strong>Final tip:</strong> Make a clear judgement about which type of cause was most significant and explain why. Avoid simply listing causes; instead, weigh their relative importance.`;
+  essay += `</p></div>`;
+
+  document.getElementById("essayOutput").innerHTML = essay;
+  switchTab("essay", document.querySelectorAll(".rp-tab")[1]);
+  toast("Essay scaffold generated.");
+}
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function toggleSidebar() {
+  document.getElementById("sidebar").classList.toggle("collapsed");
+}
+function toggleRightPanel() {
+  document.getElementById("rightPanel").classList.toggle("collapsed");
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll(".rp-tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".rp-panel").forEach(p => p.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+  else document.querySelector(`.rp-tab`).classList.add("active");
+  const panel = document.getElementById("panel" + name.charAt(0).toUpperCase() + name.slice(1));
+  if (panel) panel.classList.add("active");
+  // Highlight correct tab
+  document.querySelectorAll(".rp-tab").forEach(t => {
+    if (t.textContent.toLowerCase().includes(name.substring(0, 4))) t.classList.add("active");
+    else t.classList.remove("active");
+  });
+}
+
+function toast(msg) {
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+function exportView() {
+  // Hide UI elements and print
+  const sidebar = document.getElementById("sidebar");
+  const rp = document.getElementById("rightPanel");
+  const wasSidebarCollapsed = sidebar.classList.contains("collapsed");
+  const wasRPCollapsed = rp.classList.contains("collapsed");
+  sidebar.classList.add("collapsed");
+  rp.classList.add("collapsed");
+
+  // Generate a printable summary
+  const printWin = window.open("", "_blank");
+  const topicName = currentTopic && TOPICS[currentTopic] ? TOPICS[currentTopic].name : "Causation Web";
+
+  // Capture the SVG
+  const svg = document.getElementById("mainSvg");
+  const svgData = new XMLSerializer().serializeToString(svg);
+
+  // Build node list
+  let nodeHTML = "";
+  nodes.forEach(n => {
+    const out = arrows.filter(a => a.from === n.id).length;
+    const inc = arrows.filter(a => a.to === n.id).length;
+    nodeHTML += `<tr>
+      <td style="font-weight:600">${n.title}</td>
+      <td><span style="background:${CAT_COLORS[n.cat]};color:#fff;padding:2px 8px;border-radius:10px;font-size:.7rem">${n.cat}</span></td>
+      <td>${n.date}</td>
+      <td>${"&#9733;".repeat(n.significance)}${"&#9734;".repeat(5-n.significance)}</td>
+      <td>${out} out / ${inc} in</td>
+    </tr>`;
+  });
+
+  let arrowHTML = "";
+  arrows.forEach(a => {
+    const from = nodes.find(n => n.id === a.from);
+    const to = nodes.find(n => n.id === a.to);
+    if (from && to) {
+      const strength = a.thickness <= 2 ? "Weak" : a.thickness <= 4 ? "Moderate" : a.thickness <= 6 ? "Strong" : "Very Strong";
+      arrowHTML += `<tr><td>${from.title}</td><td>&rarr;</td><td>${to.title}</td><td>${a.label || "-"}</td><td>${strength}</td></tr>`;
+    }
+  });
+
+  // Essay
+  const essayContent = document.getElementById("essayOutput").innerHTML || "<p>No essay generated yet.</p>";
+
+  printWin.document.write(`<!DOCTYPE html><html><head><title>${topicName} - Causation Web Export</title>
+<style>
+body{font-family:'Segoe UI',sans-serif;padding:30px;color:#222;max-width:1000px;margin:auto}
+h1{color:#1a2a4a;border-bottom:3px solid #d4a843;padding-bottom:10px}
+h2{color:#1a2a4a;margin-top:30px;border-bottom:1px solid #ccc;padding-bottom:5px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.85rem}
+th{background:#1a2a4a;color:#fff;padding:8px 10px;text-align:left}
+td{padding:6px 10px;border-bottom:1px solid #ddd}
+tr:hover{background:#f5f5f5}
+.essay-block{background:#f8f6f0;border-radius:6px;padding:14px;margin-bottom:12px;border-left:4px solid #d4a843}
+.essay-block h5{color:#1a2a4a;margin-bottom:6px}
+.essay-block p{line-height:1.7;font-size:.85rem}
+.print-note{text-align:center;color:#888;font-size:.75rem;margin-top:40px;border-top:1px solid #ddd;padding-top:10px}
+@media print{.no-print{display:none}}
+</style></head><body>
+<h1>${topicName}</h1>
+<p style="color:#666">Causation Web Builder Export &mdash; ${new Date().toLocaleDateString()}</p>
+<h2>Factors (${nodes.length})</h2>
+<table><tr><th>Factor</th><th>Category</th><th>Date</th><th>Significance</th><th>Connections</th></tr>${nodeHTML}</table>
+<h2>Connections (${arrows.length})</h2>
+${arrows.length > 0 ? `<table><tr><th>From</th><th></th><th>To</th><th>Explanation</th><th>Strength</th></tr>${arrowHTML}</table>` : "<p>No connections drawn yet.</p>"}
+<h2>Essay Scaffold</h2>
+${essayContent}
+<p class="print-note">Generated by Causation Web Builder</p>
+<script>window.print();<\/script>
+</body></html>`);
+  printWin.document.close();
+
+  if (!wasSidebarCollapsed) sidebar.classList.remove("collapsed");
+  if (!wasRPCollapsed) rp.classList.remove("collapsed");
+}
+</script>
+</body>
+</html>

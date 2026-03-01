@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson Plan Timer</title>
+<style>
+:root {
+  --starter: #2e9e5a;
+  --starter-light: #e6f5ec;
+  --main: #2a7de1;
+  --main-light: #e3f0fc;
+  --plenary: #7c3aed;
+  --plenary-light: #f0ebfc;
+  --transition: #6b7280;
+  --transition-light: #f0f1f3;
+  --assessment: #e67e22;
+  --assessment-light: #fdf0e2;
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --text: #1e293b;
+  --text-light: #64748b;
+  --border: #e2e8f0;
+  --danger: #dc2626;
+  --danger-light: #fef2f2;
+  --radius: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2a5298 100%);
+  color: #fff; padding: 14px 24px; box-shadow: var(--shadow-md);
+}
+header h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.3px; }
+header p { font-size: 0.82rem; opacity: 0.85; margin-top: 2px; }
+.container { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+.card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px; }
+.card h2 { font-size: 1.05rem; font-weight: 600; margin-bottom: 12px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.card h2 .icon { font-size: 1.1rem; }
+label { font-size: 0.82rem; font-weight: 600; color: var(--text-light); display: block; margin-bottom: 4px; }
+select, input, textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: var(--radius); font-size: 0.88rem; font-family: inherit;
+  background: var(--surface); color: var(--text); transition: border-color 0.2s;
+}
+select:focus, input:focus, textarea:focus { outline: none; border-color: var(--main); }
+textarea { resize: vertical; min-height: 40px; }
+button {
+  padding: 8px 16px; border: none; border-radius: var(--radius);
+  font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s; font-family: inherit;
+}
+button:hover { opacity: 0.88; }
+button:active { transform: scale(0.97); }
+.btn-primary { background: var(--main); color: #fff; }
+.btn-success { background: var(--starter); color: #fff; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
+.btn-outline:hover { border-color: var(--main); color: var(--main); }
+.btn-sm { padding: 5px 10px; font-size: 0.78rem; }
+
+/* Setup row */
+.setup-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.setup-row .field { flex: 1; min-width: 140px; }
+
+/* Templates */
+.templates { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.templates button { background: var(--surface); border: 1.5px solid var(--border); color: var(--text); font-size: 0.78rem; padding: 6px 12px; }
+.templates button:hover { border-color: var(--main); color: var(--main); }
+
+/* Time indicator */
+.time-indicator { display: flex; gap: 16px; align-items: center; margin: 12px 0; font-size: 0.85rem; flex-wrap: wrap; }
+.time-indicator .allocated { font-weight: 600; }
+.time-indicator .remaining { color: var(--starter); font-weight: 600; }
+.time-indicator .over { color: var(--danger); font-weight: 700; }
+.time-indicator .bar-wrap { flex: 1; min-width: 120px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.time-indicator .bar-fill { height: 100%; background: var(--main); border-radius: 3px; transition: width 0.3s; }
+.time-indicator .bar-fill.over { background: var(--danger); }
+
+/* Segment list */
+.segment-list { display: flex; flex-direction: column; gap: 8px; min-height: 40px; }
+.segment-item {
+  display: grid; grid-template-columns: 28px 1fr 80px 120px 1fr 36px;
+  gap: 8px; align-items: center; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); cursor: grab; transition: box-shadow 0.2s;
+}
+.segment-item:active { cursor: grabbing; }
+.segment-item.dragging { opacity: 0.5; box-shadow: var(--shadow-md); }
+.segment-item.drag-over { border-color: var(--main); border-style: dashed; }
+.segment-item .drag-handle { color: var(--text-light); font-size: 1rem; text-align: center; user-select: none; }
+.segment-item input, .segment-item select { padding: 6px 8px; font-size: 0.82rem; }
+.segment-item .remove-btn { background: none; border: none; color: var(--text-light); font-size: 1.1rem; padding: 4px; cursor: pointer; border-radius: 4px; }
+.segment-item .remove-btn:hover { color: var(--danger); background: var(--danger-light); }
+.phase-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.phase-starter { background: var(--starter-light); color: var(--starter); }
+.phase-main { background: var(--main-light); color: var(--main); }
+.phase-plenary { background: var(--plenary-light); color: var(--plenary); }
+.phase-transition { background: var(--transition-light); color: var(--transition); }
+.phase-assessment { background: var(--assessment-light); color: var(--assessment); }
+
+/* Timeline */
+.timeline-bar { display: flex; height: 32px; border-radius: var(--radius); overflow: hidden; margin: 8px 0; }
+.timeline-bar .tl-seg {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.68rem; font-weight: 600; color: #fff; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis; padding: 0 4px;
+  transition: flex 0.3s; position: relative;
+}
+.tl-seg.starter { background: var(--starter); }
+.tl-seg.main { background: var(--main); }
+.tl-seg.plenary { background: var(--plenary); }
+.tl-seg.transition { background: var(--transition); }
+.tl-seg.assessment { background: var(--assessment); }
+.timeline-labels { display: flex; font-size: 0.7rem; color: var(--text-light); }
+.timeline-labels span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+
+/* Timer mode */
+.timer-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.timer-display { text-align: center; padding: 24px 16px; }
+.timer-display .current-phase { margin-bottom: 6px; }
+.timer-display .current-name { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
+.timer-display .current-notes { font-size: 0.88rem; color: var(--text-light); margin-bottom: 16px; font-style: italic; max-width: 500px; margin-left: auto; margin-right: auto; }
+.timer-display .countdown { font-size: 3.2rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 2px; margin-bottom: 8px; }
+.timer-display .sub-time { font-size: 0.85rem; color: var(--text-light); }
+.progress-wrap { margin: 16px 0; }
+.progress-label { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-light); margin-bottom: 4px; }
+.progress-bar { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 5px; transition: width 0.5s; }
+.flash-alert { animation: flashAlert 0.6s ease-in-out 3; }
+@keyframes flashAlert {
+  0%, 100% { background: var(--surface); }
+  50% { background: #fef08a; }
+}
+.lesson-complete { text-align: center; padding: 32px; }
+.lesson-complete h3 { font-size: 1.3rem; margin-bottom: 8px; color: var(--starter); }
+
+/* Info panel */
+.info-panel details { margin-bottom: 10px; }
+.info-panel summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; padding: 8px 0; color: var(--text); }
+.info-panel summary:hover { color: var(--main); }
+.info-panel .info-content { padding: 8px 0 8px 16px; font-size: 0.84rem; color: var(--text-light); line-height: 1.65; }
+.info-panel .info-content li { margin-bottom: 4px; }
+.info-panel .info-content strong { color: var(--text); }
+
+/* Warning */
+.warning { background: var(--danger-light); border: 1px solid #fecaca; color: var(--danger); padding: 8px 12px; border-radius: var(--radius); font-size: 0.84rem; font-weight: 600; margin: 8px 0; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: #1e293b; color: #fff; padding: 10px 20px; border-radius: var(--radius);
+  font-size: 0.85rem; z-index: 200; opacity: 0; transition: opacity 0.3s;
+}
+.toast.show { opacity: 1; }
+
+/* Responsive */
+@media (max-width: 700px) {
+  .segment-item { grid-template-columns: 24px 1fr 60px 1fr 30px; }
+  .segment-item select.phase-select { display: none; }
+  .timer-display .countdown { font-size: 2.4rem; }
+  .setup-row { flex-direction: column; }
+}
+.empty-state { text-align: center; padding: 24px; color: var(--text-light); font-size: 0.88rem; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Lesson Plan Timer</h1>
+  <p>Visual lesson plan with timed segments and live countdown</p>
+</header>
+
+<div class="container">
+  <!-- Setup Panel -->
+  <div class="card" id="setupCard">
+    <h2><span class="icon">&#9881;</span> Lesson Setup</h2>
+    <div class="setup-row">
+      <div class="field">
+        <label for="lessonDuration">Lesson Duration</label>
+        <select id="lessonDuration">
+          <option value="30">30 minutes</option>
+          <option value="45">45 minutes</option>
+          <option value="50">50 minutes</option>
+          <option value="60" selected>60 minutes</option>
+        </select>
+      </div>
+      <div class="field">
+        <button class="btn-primary" onclick="addSegment()">+ Add Segment</button>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;">
+      <label>Quick Templates</label>
+      <div class="templates">
+        <button onclick="loadTemplate('standard')">Standard 60-min</button>
+        <button onclick="loadTemplate('practical')">Practical lesson</button>
+        <button onclick="loadTemplate('assessment')">Assessment lesson</button>
+        <button onclick="loadTemplate('collaborative')">Collaborative learning</button>
+      </div>
+    </div>
+
+    <div class="time-indicator" id="timeIndicator">
+      <span class="allocated">Allocated: <span id="allocatedTime">0</span> min</span>
+      <div class="bar-wrap"><div class="bar-fill" id="allocationBar"></div></div>
+      <span id="remainingLabel" class="remaining">Remaining: <span id="remainingTime">60</span> min</span>
+    </div>
+    <div id="overWarning" class="warning hidden">Segments exceed lesson duration. Please adjust.</div>
+
+    <div class="segment-list" id="segmentList">
+      <div class="empty-state" id="emptyState">No segments yet. Add a segment or choose a template to get started.</div>
+    </div>
+
+    <div style="margin-top:16px;">
+      <label>Visual Timeline</label>
+      <div class="timeline-bar" id="timelineBar"></div>
+      <div class="timeline-labels" id="timelineLabels"></div>
+    </div>
+
+    <div style="margin-top:16px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn-success" id="startBtn" onclick="startLesson()">Start Lesson</button>
+      <button class="btn-outline" onclick="copyPlan()">Copy Plan</button>
+      <button class="btn-outline btn-sm" onclick="clearAll()">Clear All</button>
+    </div>
+  </div>
+
+  <!-- Timer Panel -->
+  <div class="card hidden" id="timerCard">
+    <h2><span class="icon">&#9202;</span> Lesson Timer</h2>
+    <div class="timer-controls">
+      <button class="btn-primary" id="pauseBtn" onclick="togglePause()">Pause</button>
+      <button class="btn-outline" onclick="skipSegment()">Skip Segment</button>
+      <button class="btn-danger btn-sm" onclick="stopLesson()">Stop &amp; Edit</button>
+    </div>
+    <div class="timer-display" id="timerDisplay">
+      <div class="current-phase" id="timerPhase"></div>
+      <div class="current-name" id="timerName">--</div>
+      <div class="current-notes" id="timerNotes"></div>
+      <div class="countdown" id="timerCountdown">00:00</div>
+      <div class="sub-time">
+        Segment: <span id="segElapsed">0:00</span> / <span id="segTotal">0:00</span>
+        &nbsp;&bull;&nbsp;
+        Lesson: <span id="lessonElapsed">0:00</span> / <span id="lessonTotal">0:00</span>
+      </div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span>Segment progress</span><span id="segPercent">0%</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="segProgressFill" style="width:0; background:var(--main);"></div></div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span>Overall lesson</span><span id="lessonPercent">0%</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="lessonProgressFill" style="width:0; background:#1e3a5f;"></div></div>
+    </div>
+    <div class="timeline-bar" id="timerTimeline" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- Info Panel -->
+  <div class="card info-panel">
+    <h2><span class="icon">&#128218;</span> Teaching Tips</h2>
+    <details>
+      <summary>Lesson Pacing Guidance</summary>
+      <div class="info-content">
+        <ul>
+          <li><strong>Starters (3-7 min):</strong> Activate prior knowledge. Use retrieval practice, a hook question, or a brief "Do Now" task so pupils engage from the moment they arrive.</li>
+          <li><strong>Main activities (15-35 min):</strong> Chunk new content into 8-12 minute segments with check-for-understanding pauses. Vary input, modelling, and guided practice.</li>
+          <li><strong>Plenaries (3-8 min):</strong> Go beyond "what did you learn today?" Use exit tickets, a key-question quiz, or an application task that reveals depth of understanding.</li>
+          <li><strong>Transitions (1-2 min):</strong> Explicitly manage transitions: give a clear signal, state the next task, and set a time expectation.</li>
+        </ul>
+      </div>
+    </details>
+    <details>
+      <summary>Rosenshine's Principles of Instruction</summary>
+      <div class="info-content">
+        <ol>
+          <li>Begin a lesson with a short review of previous learning.</li>
+          <li>Present new material in small steps with student practice after each step.</li>
+          <li>Ask a large number of questions and check responses of all students.</li>
+          <li>Provide models and worked examples.</li>
+          <li>Guide student practice and provide scaffolds for difficult tasks.</li>
+          <li>Check for student understanding frequently.</li>
+          <li>Obtain a high success rate before moving on.</li>
+          <li>Provide independent practice with monitoring.</li>
+          <li>Review weekly and monthly (spaced retrieval).</li>
+          <li>Use daily, weekly, and monthly review to consolidate learning.</li>
+        </ol>
+      </div>
+    </details>
+    <details>
+      <summary>Effective Starters</summary>
+      <div class="info-content">
+        <ul>
+          <li><strong>Retrieval grid:</strong> A grid with columns of varying difficulty; pupils choose questions from each column.</li>
+          <li><strong>Odd one out:</strong> Present three or four items; pupils identify which does not belong and justify their reasoning.</li>
+          <li><strong>Countdown challenge:</strong> Name 5, then 4, then 3... items from a topic under time pressure.</li>
+          <li><strong>Image inference:</strong> Display an image related to the topic; pupils write down what they notice and what they wonder.</li>
+        </ul>
+      </div>
+    </details>
+    <details>
+      <summary>Effective Plenaries</summary>
+      <div class="info-content">
+        <ul>
+          <li><strong>Exit ticket:</strong> One focused question that checks the lesson objective. Collect and review before the next lesson.</li>
+          <li><strong>Two truths and a lie:</strong> Pupils write three statements about the topic; their partner identifies the false one.</li>
+          <li><strong>Summarise in 10 words:</strong> Pupils distil the lesson into exactly 10 words, forcing precision.</li>
+          <li><strong>Question relay:</strong> Each pupil writes a question, passes it on, and a peer answers it.</li>
+        </ul>
+      </div>
+    </details>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==================== State ==================== */
+let segments = [];
+let segIdCounter = 0;
+let timerInterval = null;
+let isPaused = false;
+let currentSegIdx = 0;
+let segSecondsLeft = 0;
+let lessonSecondsElapsed = 0;
+let totalLessonSeconds = 0;
+let isFlashing = false;
+
+/* ==================== Helpers ==================== */
+function getLessonDuration() { return parseInt(document.getElementById('lessonDuration').value); }
+function phaseColor(phase) {
+  const map = { starter:'var(--starter)', main:'var(--main)', plenary:'var(--plenary)', transition:'var(--transition)', assessment:'var(--assessment)' };
+  return map[phase] || 'var(--main)';
+}
+function phaseClass(phase) { return 'phase-' + phase; }
+function fmtTime(totalSec) {
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+function fmtTimePad(totalSec) {
+  const m = String(Math.floor(totalSec / 60)).padStart(2, '0');
+  const s = String(totalSec % 60).padStart(2, '0');
+  return m + ':' + s;
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ==================== Segments ==================== */
+function addSegment(name, duration, phase, notes) {
+  const seg = {
+    id: ++segIdCounter,
+    name: name || 'Activity ' + segIdCounter,
+    duration: duration || 5,
+    phase: phase || 'main',
+    notes: notes || ''
+  };
+  segments.push(seg);
+  renderSegments();
+}
+
+function removeSegment(id) {
+  segments = segments.filter(s => s.id !== id);
+  renderSegments();
+}
+
+function updateSegment(id, field, value) {
+  const seg = segments.find(s => s.id === id);
+  if (!seg) return;
+  if (field === 'duration') {
+    value = Math.max(1, Math.min(120, parseInt(value) || 1));
+  }
+  seg[field] = value;
+  updateIndicators();
+  renderTimeline();
+}
+
+function renderSegments() {
+  const list = document.getElementById('segmentList');
+  const empty = document.getElementById('emptyState');
+  if (segments.length === 0) {
+    list.innerHTML = '';
+    list.appendChild(empty);
+    empty.classList.remove('hidden');
+  } else {
+    empty.classList.add('hidden');
+    list.innerHTML = segments.map(seg => `
+      <div class="segment-item" draggable="true" data-id="${seg.id}"
+           ondragstart="onDragStart(event)" ondragover="onDragOver(event)"
+           ondrop="onDrop(event)" ondragend="onDragEnd(event)" ondragleave="onDragLeave(event)">
+        <div class="drag-handle">&#9776;</div>
+        <input type="text" value="${escHtml(seg.name)}" placeholder="Segment name"
+               onchange="updateSegment(${seg.id},'name',this.value)">
+        <input type="number" min="1" max="120" value="${seg.duration}"
+               onchange="updateSegment(${seg.id},'duration',this.value)" style="text-align:center;">
+        <select class="phase-select" onchange="updateSegment(${seg.id},'phase',this.value)">
+          ${['starter','main','plenary','transition','assessment'].map(p =>
+            `<option value="${p}" ${seg.phase===p?'selected':''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`
+          ).join('')}
+        </select>
+        <input type="text" value="${escHtml(seg.notes)}" placeholder="Notes (optional)"
+               onchange="updateSegment(${seg.id},'notes',this.value)">
+        <button class="remove-btn" onclick="removeSegment(${seg.id})" title="Remove">&times;</button>
+      </div>
+    `).join('');
+  }
+  updateIndicators();
+  renderTimeline();
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ==================== Drag & Drop ==================== */
+let dragId = null;
+function onDragStart(e) {
+  dragId = parseInt(e.currentTarget.dataset.id);
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function onDragEnd(e) {
+  document.querySelectorAll('.segment-item').forEach(el => {
+    el.classList.remove('dragging','drag-over');
+  });
+}
+function onDrop(e) {
+  e.preventDefault();
+  const targetId = parseInt(e.currentTarget.dataset.id);
+  e.currentTarget.classList.remove('drag-over');
+  if (dragId === targetId) return;
+  const fromIdx = segments.findIndex(s => s.id === dragId);
+  const toIdx = segments.findIndex(s => s.id === targetId);
+  if (fromIdx < 0 || toIdx < 0) return;
+  const [moved] = segments.splice(fromIdx, 1);
+  segments.splice(toIdx, 0, moved);
+  renderSegments();
+}
+
+/* ==================== Indicators ==================== */
+function updateIndicators() {
+  const total = getLessonDuration();
+  const allocated = segments.reduce((s, seg) => s + seg.duration, 0);
+  const remaining = total - allocated;
+  document.getElementById('allocatedTime').textContent = allocated;
+  document.getElementById('remainingTime').textContent = Math.abs(remaining);
+  const pct = Math.min(100, (allocated / total) * 100);
+  const bar = document.getElementById('allocationBar');
+  bar.style.width = pct + '%';
+  const lbl = document.getElementById('remainingLabel');
+  const warn = document.getElementById('overWarning');
+  if (remaining < 0) {
+    bar.classList.add('over');
+    lbl.innerHTML = 'Over by: <span id="remainingTime">' + Math.abs(remaining) + '</span> min';
+    lbl.className = 'over';
+    warn.classList.remove('hidden');
+  } else {
+    bar.classList.remove('over');
+    lbl.innerHTML = 'Remaining: <span id="remainingTime">' + remaining + '</span> min';
+    lbl.className = 'remaining';
+    warn.classList.add('hidden');
+  }
+}
+
+/* ==================== Timeline ==================== */
+function renderTimeline() {
+  const bar = document.getElementById('timelineBar');
+  const labels = document.getElementById('timelineLabels');
+  const total = segments.reduce((s, seg) => s + seg.duration, 0);
+  if (total === 0) { bar.innerHTML = ''; labels.innerHTML = ''; return; }
+  bar.innerHTML = segments.map(seg => {
+    const pct = (seg.duration / total) * 100;
+    return `<div class="tl-seg ${seg.phase}" style="flex:${seg.duration}" title="${seg.name} (${seg.duration} min)">${pct > 8 ? seg.duration + 'm' : ''}</div>`;
+  }).join('');
+  labels.innerHTML = segments.map(seg => {
+    return `<span style="flex:${seg.duration}">${seg.name}</span>`;
+  }).join('');
+}
+
+/* ==================== Templates ==================== */
+const templates = {
+  standard: [
+    { name:'Starter: Retrieval practice', duration:5, phase:'starter', notes:'Quiz on prior learning' },
+    { name:'Transition', duration:1, phase:'transition', notes:'' },
+    { name:'New content: Teacher input', duration:12, phase:'main', notes:'Model worked example' },
+    { name:'Guided practice', duration:10, phase:'main', notes:'Scaffolded tasks in pairs' },
+    { name:'Transition', duration:1, phase:'transition', notes:'' },
+    { name:'Independent practice', duration:18, phase:'main', notes:'Apply independently' },
+    { name:'Transition', duration:1, phase:'transition', notes:'' },
+    { name:'Assessment check', duration:5, phase:'assessment', notes:'Mini whiteboard check' },
+    { name:'Plenary: Exit ticket', duration:5, phase:'plenary', notes:'Key question on objective' },
+    { name:'Pack away', duration:2, phase:'transition', notes:'' }
+  ],
+  practical: [
+    { name:'Starter: Safety briefing', duration:5, phase:'starter', notes:'Recap procedures and hazards' },
+    { name:'Teacher demo', duration:8, phase:'main', notes:'Model the practical step by step' },
+    { name:'Transition: Set up equipment', duration:3, phase:'transition', notes:'Distribute materials' },
+    { name:'Practical activity', duration:25, phase:'main', notes:'Pupils carry out the investigation' },
+    { name:'Transition: Tidy up', duration:4, phase:'transition', notes:'Clean and return equipment' },
+    { name:'Results analysis', duration:8, phase:'assessment', notes:'Record and discuss findings' },
+    { name:'Plenary: Conclusions', duration:5, phase:'plenary', notes:'Link findings to theory' },
+    { name:'Pack away', duration:2, phase:'transition', notes:'' }
+  ],
+  assessment: [
+    { name:'Starter: Calm focus task', duration:5, phase:'starter', notes:'Silent reading or light review' },
+    { name:'Assessment briefing', duration:3, phase:'transition', notes:'Explain rubric and expectations' },
+    { name:'Assessment task', duration:35, phase:'assessment', notes:'Timed assessment under conditions' },
+    { name:'Transition: Pens down', duration:2, phase:'transition', notes:'Collect papers' },
+    { name:'Peer review / Answers', duration:10, phase:'plenary', notes:'Go through key answers together' },
+    { name:'Reflection', duration:3, phase:'plenary', notes:'What went well, what to revise' },
+    { name:'Pack away', duration:2, phase:'transition', notes:'' }
+  ],
+  collaborative: [
+    { name:'Starter: Think-pair-share', duration:5, phase:'starter', notes:'Pose an open question' },
+    { name:'Teacher input', duration:8, phase:'main', notes:'Brief explanation, set group task' },
+    { name:'Transition: Form groups', duration:2, phase:'transition', notes:'Assign roles' },
+    { name:'Group task: Phase 1', duration:12, phase:'main', notes:'Research and planning' },
+    { name:'Mid-point check-in', duration:3, phase:'assessment', notes:'Groups share progress' },
+    { name:'Group task: Phase 2', duration:12, phase:'main', notes:'Create output' },
+    { name:'Transition', duration:1, phase:'transition', notes:'' },
+    { name:'Gallery walk / Presentations', duration:10, phase:'plenary', notes:'Groups present findings' },
+    { name:'Plenary: Peer feedback', duration:5, phase:'plenary', notes:'Two stars and a wish' },
+    { name:'Pack away', duration:2, phase:'transition', notes:'' }
+  ]
+};
+
+function loadTemplate(key) {
+  const tpl = templates[key];
+  if (!tpl) return;
+  const totalMin = tpl.reduce((s, t) => s + t.duration, 0);
+  document.getElementById('lessonDuration').value = totalMin <= 30 ? '30' : totalMin <= 45 ? '45' : totalMin <= 50 ? '50' : '60';
+  segments = [];
+  segIdCounter = 0;
+  tpl.forEach(t => {
+    segments.push({ id: ++segIdCounter, name: t.name, duration: t.duration, phase: t.phase, notes: t.notes });
+  });
+  renderSegments();
+  showToast('Template loaded');
+}
+
+function clearAll() {
+  segments = [];
+  segIdCounter = 0;
+  renderSegments();
+}
+
+/* ==================== Copy Plan ==================== */
+function copyPlan() {
+  if (segments.length === 0) { showToast('No segments to copy'); return; }
+  const dur = getLessonDuration();
+  let text = 'LESSON PLAN (' + dur + ' minutes)\n';
+  text += '='.repeat(40) + '\n\n';
+  let cumulative = 0;
+  segments.forEach((seg, i) => {
+    const start = cumulative;
+    cumulative += seg.duration;
+    text += (i + 1) + '. [' + seg.phase.toUpperCase() + '] ' + seg.name + '\n';
+    text += '   Duration: ' + seg.duration + ' min (' + start + ':00 - ' + cumulative + ':00)\n';
+    if (seg.notes) text += '   Notes: ' + seg.notes + '\n';
+    text += '\n';
+  });
+  text += 'Total allocated: ' + cumulative + ' / ' + dur + ' minutes\n';
+  navigator.clipboard.writeText(text).then(() => showToast('Plan copied to clipboard'));
+}
+
+/* ==================== Timer ==================== */
+function startLesson() {
+  if (segments.length === 0) { showToast('Add at least one segment'); return; }
+  document.getElementById('setupCard').classList.add('hidden');
+  document.getElementById('timerCard').classList.remove('hidden');
+  currentSegIdx = 0;
+  lessonSecondsElapsed = 0;
+  totalLessonSeconds = segments.reduce((s, seg) => s + seg.duration, 0) * 60;
+  isPaused = false;
+  document.getElementById('pauseBtn').textContent = 'Pause';
+  document.getElementById('lessonTotal').textContent = fmtTime(totalLessonSeconds);
+  loadCurrentSegment();
+  renderTimerTimeline();
+  timerInterval = setInterval(tick, 1000);
+}
+
+function stopLesson() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  document.getElementById('timerCard').classList.add('hidden');
+  document.getElementById('setupCard').classList.remove('hidden');
+}
+
+function togglePause() {
+  isPaused = !isPaused;
+  document.getElementById('pauseBtn').textContent = isPaused ? 'Resume' : 'Pause';
+}
+
+function skipSegment() {
+  const remaining = segSecondsLeft;
+  lessonSecondsElapsed += remaining;
+  advanceSegment();
+}
+
+function loadCurrentSegment() {
+  const seg = segments[currentSegIdx];
+  if (!seg) return;
+  segSecondsLeft = seg.duration * 60;
+  const badge = `<span class="phase-badge ${phaseClass(seg.phase)}">${seg.phase}</span>`;
+  document.getElementById('timerPhase').innerHTML = badge;
+  document.getElementById('timerName').textContent = seg.name;
+  document.getElementById('timerNotes').textContent = seg.notes || '';
+  document.getElementById('segTotal').textContent = fmtTime(seg.duration * 60);
+  document.getElementById('segProgressFill').style.background = phaseColor(seg.phase);
+  updateTimerUI();
+}
+
+function advanceSegment() {
+  currentSegIdx++;
+  if (currentSegIdx >= segments.length) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    showComplete();
+    return;
+  }
+  flashScreen();
+  loadCurrentSegment();
+  renderTimerTimeline();
+}
+
+function tick() {
+  if (isPaused) return;
+  if (segSecondsLeft > 0) {
+    segSecondsLeft--;
+    lessonSecondsElapsed++;
+    updateTimerUI();
+    if (segSecondsLeft === 0) {
+      flashScreen();
+      setTimeout(() => advanceSegment(), 800);
+    }
+  }
+}
+
+function updateTimerUI() {
+  document.getElementById('timerCountdown').textContent = fmtTimePad(segSecondsLeft);
+  const seg = segments[currentSegIdx];
+  if (!seg) return;
+  const segTotalSec = seg.duration * 60;
+  const segElapsedSec = segTotalSec - segSecondsLeft;
+  document.getElementById('segElapsed').textContent = fmtTime(segElapsedSec);
+  document.getElementById('lessonElapsed').textContent = fmtTime(lessonSecondsElapsed);
+  const segPct = segTotalSec > 0 ? Math.round((segElapsedSec / segTotalSec) * 100) : 0;
+  document.getElementById('segPercent').textContent = segPct + '%';
+  document.getElementById('segProgressFill').style.width = segPct + '%';
+  const lessonPct = totalLessonSeconds > 0 ? Math.round((lessonSecondsElapsed / totalLessonSeconds) * 100) : 0;
+  document.getElementById('lessonPercent').textContent = lessonPct + '%';
+  document.getElementById('lessonProgressFill').style.width = lessonPct + '%';
+}
+
+function flashScreen() {
+  const card = document.getElementById('timerCard');
+  card.classList.remove('flash-alert');
+  void card.offsetWidth;
+  card.classList.add('flash-alert');
+  setTimeout(() => card.classList.remove('flash-alert'), 2000);
+}
+
+function showComplete() {
+  document.getElementById('timerDisplay').innerHTML = `
+    <div class="lesson-complete">
+      <h3>Lesson Complete</h3>
+      <p>All segments finished. Total time: ${fmtTime(lessonSecondsElapsed)}</p>
+      <button class="btn-primary" onclick="stopLesson()" style="margin-top:16px;">Back to Setup</button>
+    </div>`;
+  document.getElementById('segPercent').textContent = '100%';
+  document.getElementById('segProgressFill').style.width = '100%';
+  document.getElementById('lessonPercent').textContent = '100%';
+  document.getElementById('lessonProgressFill').style.width = '100%';
+}
+
+function renderTimerTimeline() {
+  const bar = document.getElementById('timerTimeline');
+  const total = segments.reduce((s, seg) => s + seg.duration, 0);
+  if (total === 0) { bar.innerHTML = ''; return; }
+  bar.innerHTML = segments.map((seg, i) => {
+    const active = i === currentSegIdx ? 'opacity:1;' : 'opacity:0.35;';
+    const pct = (seg.duration / total) * 100;
+    return `<div class="tl-seg ${seg.phase}" style="flex:${seg.duration};${active}" title="${seg.name}">${pct > 8 ? seg.duration + 'm' : ''}</div>`;
+  }).join('');
+}
+
+/* ==================== Init ==================== */
+document.getElementById('lessonDuration').addEventListener('change', () => {
+  updateIndicators();
+});
+renderSegments();
+</script>
+</body>
+</html>

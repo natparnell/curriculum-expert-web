@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plate Tectonics Simulator</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--earth-deep:#1a0a00;--crust-brown:#8B6914;--crust-dark:#5C4033;
+--mantle-orange:#CC5500;--mantle-deep:#8B2500;--magma-red:#FF2400;
+--magma-glow:#FF6B35;--ocean-blue:#1B4F72;--ocean-light:#2E86C1;
+--ocean-surface:#3498DB;--mountain-grey:#7F8C8D;--mountain-snow:#ECF0F1;
+--accent-gold:#D4A017;--panel-bg:#1C1208;--panel-border:#3D2B1F;
+--text-light:#F5E6CC;--text-muted:#BFA882;--btn-bg:#2C1A0E;
+--btn-hover:#4A2E1A;--btn-active:#D4A017;--success:#27AE60;
+--danger:#E74C3C;--warning:#F39C12;
+}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--earth-deep);color:var(--text-light);overflow-x:hidden;min-height:100vh}
+#app{display:flex;flex-direction:column;height:100vh;max-height:100vh}
+
+/* Header */
+header{background:linear-gradient(135deg,#1C1208 0%,#2C1A0E 50%,#1C1208 100%);border-bottom:2px solid var(--accent-gold);padding:8px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;z-index:100}
+header h1{font-size:1.4rem;font-weight:700;background:linear-gradient(135deg,var(--accent-gold),#F5E6CC,var(--accent-gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:1px;white-space:nowrap}
+header h1 span{font-size:.75rem;display:block;letter-spacing:2px;text-transform:uppercase;background:linear-gradient(90deg,var(--text-muted),var(--text-light));-webkit-background-clip:text;background-clip:text}
+
+/* Controls bar */
+.controls-bar{background:var(--panel-bg);border-bottom:1px solid var(--panel-border);padding:8px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.control-group{display:flex;align-items:center;gap:8px}
+.control-group label{font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);white-space:nowrap}
+.btn{background:var(--btn-bg);color:var(--text-light);border:1px solid var(--panel-border);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.8rem;transition:all .2s;font-family:inherit;white-space:nowrap}
+.btn:hover{background:var(--btn-hover);border-color:var(--accent-gold)}
+.btn.active{background:var(--accent-gold);color:#1C1208;font-weight:600;border-color:var(--accent-gold)}
+.btn-icon{width:34px;height:34px;padding:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem}
+.btn-sm{padding:4px 10px;font-size:.72rem}
+select{background:var(--btn-bg);color:var(--text-light);border:1px solid var(--panel-border);padding:6px 10px;border-radius:6px;font-size:.8rem;font-family:inherit;cursor:pointer}
+select:focus{outline:none;border-color:var(--accent-gold)}
+
+/* Main area */
+.main-area{flex:1;display:flex;overflow:hidden;min-height:0}
+
+/* Canvas container */
+.canvas-container{flex:1;position:relative;background:#0A0500;overflow:hidden}
+#simCanvas{width:100%;height:100%;display:block}
+
+/* Labels overlay */
+.label-overlay{position:absolute;pointer-events:none;font-size:.7rem;padding:3px 8px;border-radius:3px;background:rgba(0,0,0,.75);border:1px solid rgba(212,160,23,.5);color:var(--text-light);white-space:nowrap;z-index:10;transition:opacity .3s}
+
+/* Stress meter */
+.stress-meter-container{position:absolute;top:12px;right:12px;background:rgba(28,18,8,.9);border:1px solid var(--panel-border);border-radius:8px;padding:10px;width:140px;z-index:20;display:none}
+.stress-meter-container.visible{display:block}
+.stress-meter-container h4{font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:6px;text-align:center}
+.stress-bar{height:12px;background:#1a0a00;border-radius:6px;overflow:hidden;border:1px solid var(--panel-border)}
+.stress-fill{height:100%;width:0%;border-radius:6px;transition:width .1s,background .3s;background:var(--success)}
+.stress-fill.medium{background:var(--warning)}
+.stress-fill.high{background:var(--danger)}
+
+/* Side panel */
+.side-panel{width:280px;background:var(--panel-bg);border-left:1px solid var(--panel-border);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+.side-panel h3{font-size:.85rem;padding:12px 14px 8px;color:var(--accent-gold);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--panel-border)}
+.info-section{padding:10px 14px;border-bottom:1px solid rgba(61,43,31,.5)}
+.info-section h4{font-size:.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.info-section p{font-size:.78rem;line-height:1.5;color:var(--text-light);opacity:.9}
+.feature-list{list-style:none;padding:0}
+.feature-list li{font-size:.75rem;padding:3px 0;color:var(--text-light);opacity:.85;display:flex;align-items:center;gap:6px}
+.feature-list li::before{content:'';width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.feature-list li.crust::before{background:var(--crust-brown)}
+.feature-list li.mantle::before{background:var(--mantle-orange)}
+.feature-list li.magma::before{background:var(--magma-red)}
+.feature-list li.ocean::before{background:var(--ocean-light)}
+.feature-list li.mountain::before{background:var(--mountain-grey)}
+
+/* Real-world panel */
+.real-world-card{background:rgba(44,26,14,.6);border-radius:8px;padding:10px;margin:8px 14px}
+.real-world-card h5{font-size:.78rem;color:var(--accent-gold);margin-bottom:4px}
+.real-world-card p{font-size:.72rem;color:var(--text-muted);line-height:1.4}
+.mini-map{width:100%;height:80px;border-radius:6px;margin-top:6px;overflow:hidden;position:relative}
+.mini-map canvas{width:100%;height:100%}
+
+/* Quiz panel */
+.quiz-panel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(28,18,8,.95);border:2px solid var(--accent-gold);border-radius:12px;padding:24px;z-index:50;min-width:340px;max-width:90vw;display:none;text-align:center;box-shadow:0 0 40px rgba(212,160,23,.3)}
+.quiz-panel.visible{display:block}
+.quiz-panel h3{color:var(--accent-gold);margin-bottom:12px;font-size:1.1rem}
+.quiz-panel p{margin-bottom:16px;font-size:.9rem;color:var(--text-light)}
+.quiz-options{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.quiz-option{background:var(--btn-bg);border:2px solid var(--panel-border);color:var(--text-light);padding:10px 16px;border-radius:8px;cursor:pointer;font-size:.85rem;transition:all .2s;font-family:inherit}
+.quiz-option:hover{border-color:var(--accent-gold);background:var(--btn-hover)}
+.quiz-option.correct{border-color:var(--success);background:rgba(39,174,96,.2);color:var(--success)}
+.quiz-option.wrong{border-color:var(--danger);background:rgba(231,76,60,.2);color:var(--danger)}
+.quiz-result{font-size:.9rem;font-weight:600;margin-top:8px;min-height:1.4em}
+.quiz-score{font-size:.8rem;color:var(--text-muted);margin-top:8px}
+
+/* Movement controls overlay */
+.movement-controls{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:20;background:rgba(28,18,8,.85);padding:10px 14px;border-radius:10px;border:1px solid var(--panel-border);align-items:center}
+.movement-controls .sep{width:1px;height:28px;background:var(--panel-border);margin:0 4px}
+.plate-label{font-size:.65rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);text-align:center;margin-bottom:2px}
+.arrow-group{display:flex;gap:4px;align-items:center}
+
+/* Earthquake shake */
+@keyframes shake{
+0%,100%{transform:translate(0,0)}
+10%{transform:translate(-8px,4px)}
+20%{transform:translate(6px,-6px)}
+30%{transform:translate(-4px,8px)}
+40%{transform:translate(8px,-2px)}
+50%{transform:translate(-6px,6px)}
+60%{transform:translate(4px,-8px)}
+70%{transform:translate(-8px,2px)}
+80%{transform:translate(6px,4px)}
+90%{transform:translate(-2px,-6px)}
+}
+.shaking{animation:shake .5s ease-in-out}
+
+/* Responsive */
+@media(max-width:900px){
+  .side-panel{width:220px}
+  header h1{font-size:1.1rem}
+}
+@media(max-width:700px){
+  .side-panel{display:none}
+  .controls-bar{padding:6px 10px;gap:8px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Plate Tectonics Simulator<span>Interactive Earth Science</span></h1>
+    <div class="control-group">
+      <button class="btn btn-sm" id="btnQuiz" onclick="toggleQuiz()">Quiz Mode</button>
+      <button class="btn btn-sm" id="btnLabels" onclick="toggleLabels()">Labels: ON</button>
+      <button class="btn btn-sm" id="btnReset" onclick="resetSim()">Reset</button>
+    </div>
+  </header>
+
+  <div class="controls-bar">
+    <div class="control-group">
+      <label>Boundary:</label>
+      <button class="btn btn-sm active" data-mode="convergent" onclick="setMode('convergent',this)">Convergent</button>
+      <button class="btn btn-sm" data-mode="divergent" onclick="setMode('divergent',this)">Divergent</button>
+      <button class="btn btn-sm" data-mode="conservative" onclick="setMode('conservative',this)">Conservative</button>
+    </div>
+    <div class="control-group" id="subTypeGroup">
+      <label>Sub-type:</label>
+      <select id="subTypeSelect" onchange="setSubType(this.value)">
+        <option value="oceanic-continental">Oceanic-Continental</option>
+        <option value="continental-continental">Continental-Continental</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Speed:</label>
+      <button class="btn btn-sm active" data-speed="slow" onclick="setSpeed('slow',this)">Slow</button>
+      <button class="btn btn-sm" data-speed="medium" onclick="setSpeed('medium',this)">Medium</button>
+      <button class="btn btn-sm" data-speed="fast" onclick="setSpeed('fast',this)">Fast</button>
+    </div>
+  </div>
+
+  <div class="main-area">
+    <div class="canvas-container" id="canvasContainer">
+      <canvas id="simCanvas"></canvas>
+
+      <div class="stress-meter-container" id="stressMeter">
+        <h4>Seismic Stress</h4>
+        <div class="stress-bar"><div class="stress-fill" id="stressFill"></div></div>
+      </div>
+
+      <div class="movement-controls">
+        <div>
+          <div class="plate-label">Left Plate</div>
+          <div class="arrow-group">
+            <button class="btn btn-icon btn-sm" onmousedown="startMove('left','left')" onmouseup="stopMove()" onmouseleave="stopMove()" ontouchstart="startMove('left','left')" ontouchend="stopMove()">&#9664;</button>
+            <button class="btn btn-icon btn-sm" onmousedown="startMove('left','right')" onmouseup="stopMove()" onmouseleave="stopMove()" ontouchstart="startMove('left','right')" ontouchend="stopMove()">&#9654;</button>
+            <button class="btn btn-icon btn-sm" onmousedown="startMove('left','up')" onmouseup="stopMove()" onmouseleave="stopMove()" ontouchstart="startMove('left','up')" ontouchend="stopMove()">&#9650;</button>
+            <button class="btn btn-icon btn-sm" onmousedown="startMove('left','down')" onmouseup="stopMove()" onmouseleave="stopMove()" ontouchstart="startMove('left','down')" ontouchend="stopMove()">&#9660;</button>
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div>
+          <div class="plate-label">Auto Animate</div>
+          <div class="arrow-group">
+            <button class="btn btn-sm" id="btnAutoAnimate" onclick="toggleAutoAnimate()">Play</button>
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div>
+          <div class="plate-label">Right Plate</div>
+          <div class="arrow-group">
+            <button class="btn btn-icon btn-sm" onmousedown="startMove('right','left')" onmouseup="stopMove()" onmouseleave="stopMove()" ontouchstart="startMove('right','left')" ontouchend="stopMove()">&#9664;</button>
+            <button class="btn btn-icon btn-sm" onmousedown="startMove('right','right')" onmouseup="stopMove()" onmouseleave="stopMove()" ontouchstart="startMove('right','right')" ontouchend="stopMove()">&#9654;</button>
+            <button class="btn btn-icon btn-sm" onmousedown="startMove('right','up')" onmouseup="stopMove()" onmouseleave="stopMove()" ontouchstart="startMove('right','up')" ontouchend="stopMove()">&#9660;</button>
+            <button class="btn btn-icon btn-sm" onmousedown="startMove('right','down')" onmouseup="stopMove()" onmouseleave="stopMove()" ontouchstart="startMove('right','down')" ontouchend="stopMove()">&#9650;</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="quiz-panel" id="quizPanel">
+        <h3>Plate Tectonics Quiz</h3>
+        <p id="quizQuestion">What type of boundary is shown?</p>
+        <div class="quiz-options" id="quizOptions"></div>
+        <div class="quiz-result" id="quizResult"></div>
+        <div class="quiz-score" id="quizScore"></div>
+        <button class="btn" id="quizNext" onclick="nextQuizQuestion()" style="display:none;margin-top:8px">Next Question</button>
+        <button class="btn btn-sm" onclick="toggleQuiz()" style="margin-top:12px">Close Quiz</button>
+      </div>
+    </div>
+
+    <div class="side-panel" id="sidePanel">
+      <h3>Information</h3>
+      <div class="info-section" id="infoDescription">
+        <h4>Convergent Boundary</h4>
+        <p>Also called a <strong>destructive boundary</strong>. Two plates move towards each other. The denser oceanic plate is forced beneath the continental plate in a process called <strong>subduction</strong>.</p>
+      </div>
+      <div class="info-section">
+        <h4>Key Features</h4>
+        <ul class="feature-list" id="featureList">
+          <li class="crust">Continental & Oceanic Crust</li>
+          <li class="mantle">Upper Mantle (Asthenosphere)</li>
+          <li class="magma">Subduction Zone</li>
+          <li class="ocean">Ocean Trench</li>
+          <li class="mountain">Volcanic Mountains</li>
+        </ul>
+      </div>
+      <div class="info-section">
+        <h4>Real-World Example</h4>
+        <div class="real-world-card" id="realWorldCard">
+          <h5>Nazca & South American Plates</h5>
+          <p>The Nazca Plate subducts under the South American Plate, creating the Andes Mountains and the Peru-Chile Trench.</p>
+          <div class="mini-map"><canvas id="miniMapCanvas"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== STATE =====================
+const S = {
+  mode: 'convergent',
+  subType: 'oceanic-continental',
+  speed: 'slow',
+  autoAnimate: false,
+  showLabels: true,
+  quizActive: false,
+  // Plate positions (offset from center, 0=touching)
+  leftPlateX: 0,
+  rightPlateX: 0,
+  leftPlateY: 0,
+  rightPlateY: 0,
+  // Animation progress 0..1
+  progress: 0,
+  // Conservative stress
+  stress: 0,
+  earthquakeActive: false,
+  earthquakeTime: 0,
+  // Seismic waves
+  seismicWaves: [],
+  // Time
+  time: 0,
+  // Convection particles
+  convectionParticles: [],
+  // Magma particles
+  magmaParticles: [],
+  // Movement
+  moveInterval: null,
+  // Quiz
+  quizScore: 0,
+  quizTotal: 0,
+  quizAnswered: false,
+  currentQuizType: null,
+  // Labels
+  labels: []
+};
+
+const speedMap = { slow: 0.3, medium: 0.7, fast: 1.4 };
+
+// Canvas
+const canvas = document.getElementById('simCanvas');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+
+function resize() {
+  const cont = document.getElementById('canvasContainer');
+  W = canvas.width = cont.clientWidth;
+  H = canvas.height = cont.clientHeight;
+  cx = W / 2;
+  cy = H * 0.35;
+  initConvectionParticles();
+}
+window.addEventListener('resize', resize);
+
+// ===================== INIT =====================
+function initConvectionParticles() {
+  S.convectionParticles = [];
+  const mantleTop = cy + 60;
+  const mantleBot = H;
+  const cellW = W / 4;
+  for (let cell = 0; cell < 4; cell++) {
+    const ccx = cellW * cell + cellW / 2;
+    const clockwise = cell % 2 === 0;
+    for (let i = 0; i < 12; i++) {
+      const angle = (Math.PI * 2 / 12) * i;
+      S.convectionParticles.push({
+        cell, cx: ccx, angle,
+        rx: cellW * 0.35, ry: (mantleBot - mantleTop) * 0.3,
+        cy: (mantleTop + mantleBot) / 2,
+        clockwise, speed: 0.15 + Math.random() * 0.1
+      });
+    }
+  }
+}
+
+function initMagmaParticles() {
+  S.magmaParticles = [];
+  for (let i = 0; i < 30; i++) {
+    S.magmaParticles.push({
+      x: cx + (Math.random() - 0.5) * 40,
+      y: cy + 100 + Math.random() * 200,
+      vx: (Math.random() - 0.5) * 0.5,
+      vy: -0.5 - Math.random() * 1.5,
+      life: Math.random(),
+      size: 2 + Math.random() * 3
+    });
+  }
+}
+
+// ===================== CONTROLS =====================
+function setMode(mode, el) {
+  S.mode = mode;
+  S.progress = 0;
+  S.stress = 0;
+  S.leftPlateX = 0; S.rightPlateX = 0;
+  S.leftPlateY = 0; S.rightPlateY = 0;
+  S.earthquakeActive = false;
+  S.seismicWaves = [];
+  document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+
+  const stg = document.getElementById('subTypeGroup');
+  if (mode === 'convergent') {
+    stg.style.display = 'flex';
+    document.getElementById('subTypeSelect').innerHTML =
+      '<option value="oceanic-continental">Oceanic-Continental</option><option value="continental-continental">Continental-Continental</option>';
+    S.subType = 'oceanic-continental';
+  } else {
+    stg.style.display = 'none';
+  }
+
+  document.getElementById('stressMeter').classList.toggle('visible', mode === 'conservative');
+  updateInfo();
+  initMagmaParticles();
+}
+
+function setSubType(v) {
+  S.subType = v;
+  S.progress = 0;
+  updateInfo();
+}
+
+function setSpeed(sp, el) {
+  S.speed = sp;
+  document.querySelectorAll('[data-speed]').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function toggleLabels() {
+  S.showLabels = !S.showLabels;
+  document.getElementById('btnLabels').textContent = 'Labels: ' + (S.showLabels ? 'ON' : 'OFF');
+}
+
+function toggleAutoAnimate() {
+  S.autoAnimate = !S.autoAnimate;
+  document.getElementById('btnAutoAnimate').textContent = S.autoAnimate ? 'Pause' : 'Play';
+  document.getElementById('btnAutoAnimate').classList.toggle('active', S.autoAnimate);
+}
+
+function resetSim() {
+  S.progress = 0;
+  S.stress = 0;
+  S.leftPlateX = 0; S.rightPlateX = 0;
+  S.leftPlateY = 0; S.rightPlateY = 0;
+  S.earthquakeActive = false;
+  S.seismicWaves = [];
+  S.autoAnimate = false;
+  document.getElementById('btnAutoAnimate').textContent = 'Play';
+  document.getElementById('btnAutoAnimate').classList.remove('active');
+  initMagmaParticles();
+}
+
+// Movement
+function startMove(plate, dir) {
+  stopMove();
+  S.moveInterval = setInterval(() => {
+    const spd = speedMap[S.speed] * 2;
+    if (plate === 'left') {
+      if (dir === 'left') S.leftPlateX -= spd;
+      if (dir === 'right') S.leftPlateX += spd;
+      if (dir === 'up') S.leftPlateY -= spd;
+      if (dir === 'down') S.leftPlateY += spd;
+    } else {
+      if (dir === 'left') S.rightPlateX -= spd;
+      if (dir === 'right') S.rightPlateX += spd;
+      if (dir === 'up') S.rightPlateY -= spd;
+      if (dir === 'down') S.rightPlateY += spd;
+    }
+    updateProgress();
+  }, 30);
+}
+
+function stopMove() {
+  if (S.moveInterval) clearInterval(S.moveInterval);
+  S.moveInterval = null;
+}
+
+function updateProgress() {
+  const gap = S.rightPlateX - S.leftPlateX;
+  if (S.mode === 'convergent') {
+    S.progress = Math.max(0, Math.min(1, (-gap) / 200));
+  } else if (S.mode === 'divergent') {
+    S.progress = Math.max(0, Math.min(1, gap / 200));
+  } else {
+    const slide = Math.abs(S.leftPlateY - S.rightPlateY);
+    S.stress = Math.min(1, slide / 150);
+    if (S.stress >= 1 && !S.earthquakeActive) triggerEarthquake();
+  }
+}
+
+function triggerEarthquake() {
+  S.earthquakeActive = true;
+  S.earthquakeTime = 0;
+  S.seismicWaves = [];
+  for (let i = 0; i < 5; i++) {
+    S.seismicWaves.push({ radius: 0, opacity: 1, delay: i * 8 });
+  }
+  document.getElementById('canvasContainer').classList.add('shaking');
+  setTimeout(() => {
+    document.getElementById('canvasContainer').classList.remove('shaking');
+    S.earthquakeActive = false;
+    S.stress = 0;
+    S.leftPlateY = 0;
+    S.rightPlateY = 0;
+  }, 1500);
+}
+
+// ===================== INFO PANEL =====================
+const infoData = {
+  convergent: {
+    'oceanic-continental': {
+      title: 'Convergent Boundary (Oceanic-Continental)',
+      desc: 'Also called a <strong>destructive boundary</strong>. The denser oceanic plate is forced beneath the lighter continental plate in a process called <strong>subduction</strong>. This creates ocean trenches, volcanic mountains, and earthquake activity.',
+      features: [
+        { text: 'Continental Crust (less dense)', cls: 'crust' },
+        { text: 'Oceanic Crust (denser)', cls: 'ocean' },
+        { text: 'Subduction Zone', cls: 'magma' },
+        { text: 'Ocean Trench', cls: 'ocean' },
+        { text: 'Volcanic Mountain Chain', cls: 'mountain' },
+        { text: 'Magma Chamber', cls: 'magma' },
+        { text: 'Convection Currents', cls: 'mantle' }
+      ],
+      example: { title: 'Nazca & South American Plates', desc: 'The Nazca Plate subducts beneath the South American Plate, forming the Andes Mountains and the Peru-Chile Trench. This is one of the most active subduction zones on Earth.' },
+      mapType: 'andes'
+    },
+    'continental-continental': {
+      title: 'Convergent Boundary (Continental-Continental)',
+      desc: 'When two continental plates collide, neither can be subducted because they have similar densities. Instead, the crust crumples and folds upward to create massive <strong>fold mountains</strong>.',
+      features: [
+        { text: 'Continental Crust (both sides)', cls: 'crust' },
+        { text: 'Fold Mountains', cls: 'mountain' },
+        { text: 'Crumpled Sedimentary Rock', cls: 'crust' },
+        { text: 'Thickened Crust', cls: 'mantle' },
+        { text: 'Convection Currents', cls: 'mantle' }
+      ],
+      example: { title: 'Indian & Eurasian Plates', desc: 'The collision of the Indian Plate into the Eurasian Plate formed the Himalayan Mountains, including Mount Everest. This collision is still ongoing, and the Himalayas continue to rise.' },
+      mapType: 'himalayas'
+    }
+  },
+  divergent: {
+    default: {
+      title: 'Divergent Boundary (Constructive)',
+      desc: 'Also called a <strong>constructive boundary</strong>. Two plates move apart from each other. Magma rises from the mantle to fill the gap, creating <strong>new crust</strong>. This process is called <strong>sea-floor spreading</strong>.',
+      features: [
+        { text: 'Oceanic Crust', cls: 'ocean' },
+        { text: 'Mid-Ocean Ridge', cls: 'mountain' },
+        { text: 'Rising Magma', cls: 'magma' },
+        { text: 'New Crust Formation', cls: 'crust' },
+        { text: 'Sea-Floor Spreading', cls: 'ocean' },
+        { text: 'Rift Valley', cls: 'mantle' }
+      ],
+      example: { title: 'Mid-Atlantic Ridge', desc: 'The North American and Eurasian plates are moving apart at about 2.5cm per year. The Mid-Atlantic Ridge runs the entire length of the Atlantic Ocean, with Iceland sitting directly on it.' },
+      mapType: 'atlantic'
+    }
+  },
+  conservative: {
+    default: {
+      title: 'Conservative Boundary (Transform)',
+      desc: 'Also called a <strong>transform boundary</strong>. Two plates slide past each other in opposite directions. No crust is created or destroyed. <strong>Friction</strong> causes stress to build up, which is released as <strong>earthquakes</strong>.',
+      features: [
+        { text: 'Continental Crust', cls: 'crust' },
+        { text: 'Fault Line', cls: 'magma' },
+        { text: 'Locked/Stuck Zone', cls: 'mantle' },
+        { text: 'Stress Build-up', cls: 'magma' },
+        { text: 'Earthquake (Seismic Release)', cls: 'magma' },
+        { text: 'Epicentre', cls: 'mountain' }
+      ],
+      example: { title: 'San Andreas Fault, California', desc: 'The Pacific Plate and the North American Plate slide past each other along the San Andreas Fault. This transform boundary causes frequent earthquakes in California, including the devastating 1906 San Francisco earthquake.' },
+      mapType: 'sanandreas'
+    }
+  }
+};
+
+function updateInfo() {
+  const data = S.mode === 'convergent' ? infoData.convergent[S.subType] :
+               S.mode === 'divergent' ? infoData.divergent.default :
+               infoData.conservative.default;
+
+  document.getElementById('infoDescription').innerHTML =
+    `<h4>${data.title}</h4><p>${data.desc}</p>`;
+
+  const fl = document.getElementById('featureList');
+  fl.innerHTML = data.features.map(f => `<li class="${f.cls}">${f.text}</li>`).join('');
+
+  const rc = document.getElementById('realWorldCard');
+  rc.innerHTML = `<h5>${data.example.title}</h5><p>${data.example.desc}</p><div class="mini-map"><canvas id="miniMapCanvas"></canvas></div>`;
+
+  setTimeout(() => drawMiniMap(data.mapType), 50);
+}
+
+// ===================== MINI MAP =====================
+function drawMiniMap(type) {
+  const mc = document.getElementById('miniMapCanvas');
+  if (!mc) return;
+  const par = mc.parentElement;
+  mc.width = par.clientWidth;
+  mc.height = par.clientHeight;
+  const mx = mc.getContext('2d');
+  const mw = mc.width, mh = mc.height;
+
+  // Ocean background
+  mx.fillStyle = '#1B3A5C';
+  mx.fillRect(0, 0, mw, mh);
+
+  // Simple continent shapes
+  mx.fillStyle = '#5C7A3A';
+  mx.strokeStyle = '#3D5A1E';
+  mx.lineWidth = 1;
+
+  if (type === 'andes' || type === 'atlantic' || type === 'sanandreas') {
+    // Americas (left side) - simplified
+    mx.beginPath();
+    // North America
+    mx.moveTo(mw*0.15, mh*0.08);
+    mx.lineTo(mw*0.28, mh*0.05);
+    mx.lineTo(mw*0.32, mh*0.15);
+    mx.lineTo(mw*0.30, mh*0.30);
+    mx.lineTo(mw*0.25, mh*0.38);
+    // Central America
+    mx.lineTo(mw*0.22, mh*0.45);
+    // South America
+    mx.lineTo(mw*0.28, mh*0.50);
+    mx.lineTo(mw*0.30, mh*0.65);
+    mx.lineTo(mw*0.25, mh*0.85);
+    mx.lineTo(mw*0.22, mh*0.90);
+    mx.lineTo(mw*0.18, mh*0.80);
+    mx.lineTo(mw*0.16, mh*0.60);
+    mx.lineTo(mw*0.15, mh*0.45);
+    mx.lineTo(mw*0.10, mh*0.30);
+    mx.lineTo(mw*0.08, mh*0.15);
+    mx.closePath();
+    mx.fill(); mx.stroke();
+  }
+
+  if (type === 'atlantic' || type === 'himalayas') {
+    // Europe & Africa (right side)
+    mx.beginPath();
+    mx.moveTo(mw*0.55, mh*0.05);
+    mx.lineTo(mw*0.72, mh*0.08);
+    mx.lineTo(mw*0.70, mh*0.20);
+    mx.lineTo(mw*0.60, mh*0.28);
+    mx.lineTo(mw*0.55, mh*0.32);
+    // Africa
+    mx.lineTo(mw*0.58, mh*0.40);
+    mx.lineTo(mw*0.65, mh*0.50);
+    mx.lineTo(mw*0.63, mh*0.70);
+    mx.lineTo(mw*0.58, mh*0.82);
+    mx.lineTo(mw*0.52, mh*0.75);
+    mx.lineTo(mw*0.50, mh*0.55);
+    mx.lineTo(mw*0.48, mh*0.35);
+    mx.closePath();
+    mx.fill(); mx.stroke();
+  }
+
+  if (type === 'himalayas') {
+    // Asia
+    mx.fillStyle = '#5C7A3A';
+    mx.beginPath();
+    mx.moveTo(mw*0.55, mh*0.05);
+    mx.lineTo(mw*0.95, mh*0.05);
+    mx.lineTo(mw*0.92, mh*0.45);
+    mx.lineTo(mw*0.80, mh*0.50);
+    mx.lineTo(mw*0.65, mh*0.45);
+    mx.lineTo(mw*0.58, mh*0.35);
+    mx.lineTo(mw*0.55, mh*0.20);
+    mx.closePath();
+    mx.fill(); mx.stroke();
+    // India
+    mx.beginPath();
+    mx.moveTo(mw*0.68, mh*0.45);
+    mx.lineTo(mw*0.76, mh*0.45);
+    mx.lineTo(mw*0.74, mh*0.65);
+    mx.lineTo(mw*0.70, mh*0.70);
+    mx.lineTo(mw*0.66, mh*0.60);
+    mx.closePath();
+    mx.fill(); mx.stroke();
+    // Boundary marker
+    mx.strokeStyle = '#FF2400';
+    mx.lineWidth = 2;
+    mx.setLineDash([4, 3]);
+    mx.beginPath();
+    mx.moveTo(mw*0.58, mh*0.42);
+    mx.lineTo(mw*0.80, mh*0.42);
+    mx.stroke();
+    mx.setLineDash([]);
+    // Label
+    mx.fillStyle = '#FF6B35';
+    mx.font = 'bold 9px sans-serif';
+    mx.fillText('Himalayas', mw*0.60, mh*0.40);
+    // Arrows
+    drawMiniArrow(mx, mw*0.72, mh*0.62, 0, -1, '#FF6B35');
+    drawMiniArrow(mx, mw*0.72, mh*0.30, 0, 1, '#FF6B35');
+  }
+
+  if (type === 'andes') {
+    // Boundary marker - west coast of South America
+    mx.strokeStyle = '#FF2400';
+    mx.lineWidth = 2;
+    mx.setLineDash([4, 3]);
+    mx.beginPath();
+    mx.moveTo(mw*0.14, mh*0.50);
+    mx.lineTo(mw*0.16, mh*0.60);
+    mx.lineTo(mw*0.18, mh*0.75);
+    mx.lineTo(mw*0.17, mh*0.85);
+    mx.stroke();
+    mx.setLineDash([]);
+    mx.fillStyle = '#FF6B35';
+    mx.font = 'bold 9px sans-serif';
+    mx.fillText('Andes', mw*0.04, mh*0.65);
+    mx.fillText('Nazca Plate', mw*0.02, mh*0.78);
+    drawMiniArrow(mx, mw*0.08, mh*0.70, 1, 0, '#FF6B35');
+    drawMiniArrow(mx, mw*0.26, mh*0.70, -1, 0, '#FF6B35');
+  }
+
+  if (type === 'atlantic') {
+    // Mid-Atlantic Ridge
+    mx.strokeStyle = '#FF2400';
+    mx.lineWidth = 2;
+    mx.setLineDash([4, 3]);
+    mx.beginPath();
+    mx.moveTo(mw*0.42, mh*0.02);
+    mx.lineTo(mw*0.40, mh*0.25);
+    mx.lineTo(mw*0.42, mh*0.50);
+    mx.lineTo(mw*0.40, mh*0.75);
+    mx.lineTo(mw*0.42, mh*0.98);
+    mx.stroke();
+    mx.setLineDash([]);
+    mx.fillStyle = '#FF6B35';
+    mx.font = 'bold 8px sans-serif';
+    mx.fillText('Mid-Atlantic', mw*0.34, mh*0.48);
+    mx.fillText('Ridge', mw*0.38, mh*0.56);
+    drawMiniArrow(mx, mw*0.30, mh*0.40, -1, 0, '#FF6B35');
+    drawMiniArrow(mx, mw*0.52, mh*0.40, 1, 0, '#FF6B35');
+  }
+
+  if (type === 'sanandreas') {
+    // Focus on California
+    mx.strokeStyle = '#FF2400';
+    mx.lineWidth = 2;
+    mx.setLineDash([4, 3]);
+    mx.beginPath();
+    mx.moveTo(mw*0.22, mh*0.18);
+    mx.lineTo(mw*0.20, mh*0.32);
+    mx.lineTo(mw*0.22, mh*0.42);
+    mx.stroke();
+    mx.setLineDash([]);
+    mx.fillStyle = '#FF6B35';
+    mx.font = 'bold 8px sans-serif';
+    mx.fillText('San Andreas', mw*0.04, mh*0.28);
+    mx.fillText('Fault', mw*0.08, mh*0.36);
+    // Pacific plate moving NW, North American SE
+    drawMiniArrow(mx, mw*0.14, mh*0.32, 0, -1, '#FF6B35');
+    drawMiniArrow(mx, mw*0.28, mh*0.28, 0, 1, '#FF6B35');
+  }
+}
+
+function drawMiniArrow(mx, x, y, dx, dy, color) {
+  const len = 12;
+  mx.strokeStyle = color;
+  mx.fillStyle = color;
+  mx.lineWidth = 2;
+  mx.beginPath();
+  mx.moveTo(x, y);
+  mx.lineTo(x + dx * len, y + dy * len);
+  mx.stroke();
+  // Arrowhead
+  const ax = x + dx * len, ay = y + dy * len;
+  mx.beginPath();
+  mx.moveTo(ax, ay);
+  mx.lineTo(ax - dx * 4 - dy * 3, ay - dy * 4 + dx * 3);
+  mx.lineTo(ax - dx * 4 + dy * 3, ay - dy * 4 - dx * 3);
+  mx.closePath();
+  mx.fill();
+}
+
+// ===================== QUIZ =====================
+const quizQuestions = [
+  { mode: 'convergent', subType: 'oceanic-continental', q: 'An oceanic plate is being pushed beneath a continental plate. Volcanoes and a trench are forming. What type of boundary is this?', answer: 'Convergent (Destructive)' },
+  { mode: 'convergent', subType: 'continental-continental', q: 'Two continental plates are colliding and the crust is folding upwards to form mountains. What type of boundary is this?', answer: 'Convergent (Destructive)' },
+  { mode: 'divergent', subType: 'default', q: 'Two plates are moving apart. Magma rises to fill the gap and creates new crust. What type of boundary is this?', answer: 'Divergent (Constructive)' },
+  { mode: 'conservative', subType: 'default', q: 'Two plates are sliding past each other. No crust is created or destroyed but stress builds up. What type of boundary is this?', answer: 'Conservative (Transform)' },
+  { mode: 'convergent', subType: 'oceanic-continental', q: 'The Nazca Plate is diving under the South American Plate, forming the Andes. What boundary type is this?', answer: 'Convergent (Destructive)' },
+  { mode: 'divergent', subType: 'default', q: 'Iceland sits on a boundary where plates pull apart and magma builds new land. What type of boundary?', answer: 'Divergent (Constructive)' },
+  { mode: 'conservative', subType: 'default', q: 'The San Andreas Fault produces earthquakes as plates grind past each other. What boundary type?', answer: 'Conservative (Transform)' },
+  { mode: 'convergent', subType: 'continental-continental', q: 'The Indian Plate crashed into the Eurasian Plate, pushing up the Himalayas. What type of boundary?', answer: 'Convergent (Destructive)' }
+];
+
+const quizAnswerOptions = ['Convergent (Destructive)', 'Divergent (Constructive)', 'Conservative (Transform)'];
+let quizOrder = [];
+let quizIndex = 0;
+
+function toggleQuiz() {
+  S.quizActive = !S.quizActive;
+  document.getElementById('quizPanel').classList.toggle('visible', S.quizActive);
+  document.getElementById('btnQuiz').classList.toggle('active', S.quizActive);
+  if (S.quizActive) {
+    S.quizScore = 0;
+    S.quizTotal = 0;
+    quizOrder = [...Array(quizQuestions.length).keys()].sort(() => Math.random() - 0.5);
+    quizIndex = 0;
+    showQuizQuestion();
+  }
+}
+
+function showQuizQuestion() {
+  if (quizIndex >= quizOrder.length) quizIndex = 0;
+  const qd = quizQuestions[quizOrder[quizIndex]];
+  S.currentQuizType = qd;
+  S.quizAnswered = false;
+
+  // Set the sim to show this type
+  S.mode = qd.mode;
+  if (qd.mode === 'convergent') S.subType = qd.subType;
+  S.progress = 0.5;
+  S.autoAnimate = true;
+
+  // Update mode buttons
+  document.querySelectorAll('[data-mode]').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === qd.mode);
+  });
+
+  const stg = document.getElementById('subTypeGroup');
+  if (qd.mode === 'convergent') {
+    stg.style.display = 'flex';
+    document.getElementById('subTypeSelect').value = qd.subType;
+  } else {
+    stg.style.display = 'none';
+  }
+  document.getElementById('stressMeter').classList.toggle('visible', qd.mode === 'conservative');
+
+  document.getElementById('quizQuestion').textContent = qd.q;
+  const opts = document.getElementById('quizOptions');
+  opts.innerHTML = '';
+  quizAnswerOptions.forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = 'quiz-option';
+    btn.textContent = a;
+    btn.onclick = () => checkAnswer(a, qd.answer, btn);
+    opts.appendChild(btn);
+  });
+  document.getElementById('quizResult').textContent = '';
+  document.getElementById('quizNext').style.display = 'none';
+  document.getElementById('quizScore').textContent = `Score: ${S.quizScore} / ${S.quizTotal}`;
+  updateInfo();
+}
+
+function checkAnswer(selected, correct, btn) {
+  if (S.quizAnswered) return;
+  S.quizAnswered = true;
+  S.quizTotal++;
+  const isCorrect = selected === correct;
+  if (isCorrect) S.quizScore++;
+  btn.classList.add(isCorrect ? 'correct' : 'wrong');
+  if (!isCorrect) {
+    document.querySelectorAll('.quiz-option').forEach(b => {
+      if (b.textContent === correct) b.classList.add('correct');
+    });
+  }
+  document.getElementById('quizResult').textContent = isCorrect ? 'Correct! Well done!' : `Not quite. The answer is: ${correct}`;
+  document.getElementById('quizResult').style.color = isCorrect ? 'var(--success)' : 'var(--danger)';
+  document.getElementById('quizScore').textContent = `Score: ${S.quizScore} / ${S.quizTotal}`;
+  document.getElementById('quizNext').style.display = 'inline-block';
+}
+
+function nextQuizQuestion() {
+  quizIndex++;
+  showQuizQuestion();
+}
+
+// ===================== DRAWING =====================
+function drawFrame(dt) {
+  ctx.clearRect(0, 0, W, H);
+  S.time += dt * speedMap[S.speed];
+
+  if (S.autoAnimate) {
+    if (S.mode === 'convergent') {
+      S.progress = Math.min(1, S.progress + dt * 0.0003 * speedMap[S.speed]);
+    } else if (S.mode === 'divergent') {
+      S.progress = Math.min(1, S.progress + dt * 0.0003 * speedMap[S.speed]);
+    } else {
+      if (!S.earthquakeActive) {
+        S.stress = Math.min(1, S.stress + dt * 0.0004 * speedMap[S.speed]);
+        if (S.stress >= 1) triggerEarthquake();
+      }
+    }
+  }
+
+  // Update stress meter
+  const sf = document.getElementById('stressFill');
+  sf.style.width = (S.stress * 100) + '%';
+  sf.className = 'stress-fill' + (S.stress > 0.7 ? ' high' : S.stress > 0.4 ? ' medium' : '');
+
+  S.labels = [];
+
+  drawSky();
+  drawOcean();
+  drawMantle();
+  drawConvectionCurrents(dt);
+
+  if (S.mode === 'convergent') drawConvergent();
+  else if (S.mode === 'divergent') drawDivergent(dt);
+  else drawConservative(dt);
+
+  drawLabelsOnCanvas();
+}
+
+function drawSky() {
+  const skyH = cy - 40;
+  if (skyH <= 0) return;
+  const grad = ctx.createLinearGradient(0, 0, 0, skyH);
+  grad.addColorStop(0, '#0B1623');
+  grad.addColorStop(0.5, '#1B3A5C');
+  grad.addColorStop(1, '#2E86C1');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, skyH);
+}
+
+function drawOcean() {
+  const oceanTop = cy - 40;
+  const oceanBot = cy;
+  if (oceanTop >= oceanBot) return;
+  const grad = ctx.createLinearGradient(0, oceanTop, 0, oceanBot);
+  grad.addColorStop(0, '#2E86C1');
+  grad.addColorStop(0.5, '#1B6CA8');
+  grad.addColorStop(1, '#154360');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, oceanTop, W, oceanBot - oceanTop);
+
+  // Water surface shimmer
+  ctx.strokeStyle = 'rgba(174,214,241,0.3)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < W; i += 30) {
+    const waveY = oceanTop + 5 + Math.sin(S.time * 0.002 + i * 0.05) * 3;
+    ctx.beginPath();
+    ctx.moveTo(i, waveY);
+    ctx.lineTo(i + 15, waveY + Math.sin(S.time * 0.003 + i * 0.03) * 2);
+    ctx.stroke();
+  }
+}
+
+function drawMantle() {
+  const mantleTop = cy + 60;
+  const grad = ctx.createLinearGradient(0, mantleTop, 0, H);
+  grad.addColorStop(0, '#CC5500');
+  grad.addColorStop(0.3, '#A04000');
+  grad.addColorStop(0.6, '#8B2500');
+  grad.addColorStop(1, '#5A1A00');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, mantleTop, W, H - mantleTop);
+
+  // Mantle glow/texture
+  for (let i = 0; i < 20; i++) {
+    const gx = (S.time * 0.01 * (i + 1) * 0.3 + i * 200) % (W + 200) - 100;
+    const gy = mantleTop + 50 + Math.sin(i * 1.7) * (H - mantleTop - 100) * 0.3 + (H - mantleTop) * 0.3;
+    const gr = ctx.createRadialGradient(gx, gy, 0, gx, gy, 40 + i * 3);
+    gr.addColorStop(0, 'rgba(255,80,20,0.12)');
+    gr.addColorStop(1, 'rgba(255,80,20,0)');
+    ctx.fillStyle = gr;
+    ctx.fillRect(gx - 80, gy - 80, 160, 160);
+  }
+
+  // Label
+  if (S.showLabels) {
+    S.labels.push({ text: 'UPPER MANTLE (Asthenosphere)', x: W * 0.15, y: (mantleTop + H) / 2, color: '#FF8C42' });
+  }
+}
+
+function drawConvectionCurrents(dt) {
+  const mantleTop = cy + 80;
+  const mantleBot = H - 10;
+
+  ctx.strokeStyle = 'rgba(255,140,50,0.4)';
+  ctx.lineWidth = 2;
+
+  S.convectionParticles.forEach(p => {
+    p.angle += (p.clockwise ? 1 : -1) * p.speed * dt * 0.001 * speedMap[S.speed];
+    const px = p.cx + Math.cos(p.angle) * p.rx;
+    const py = p.cy + Math.sin(p.angle) * p.ry;
+
+    if (py >= mantleTop && py <= mantleBot && px > 10 && px < W - 10) {
+      // Trail
+      const trailAngle = p.angle - (p.clockwise ? 1 : -1) * 0.3;
+      const tx = p.cx + Math.cos(trailAngle) * p.rx;
+      const ty = p.cy + Math.sin(trailAngle) * p.ry;
+
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(px, py);
+      ctx.stroke();
+
+      // Arrowhead
+      const dx = px - tx, dy = py - ty;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 1) {
+        const ndx = dx / dist, ndy = dy / dist;
+        ctx.fillStyle = 'rgba(255,140,50,0.5)';
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(px - ndx * 6 - ndy * 3, py - ndy * 6 + ndx * 3);
+        ctx.lineTo(px - ndx * 6 + ndy * 3, py - ndy * 6 - ndx * 3);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Dot
+      ctx.fillStyle = 'rgba(255,180,80,0.6)';
+      ctx.beginPath();
+      ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+  if (S.showLabels) {
+    S.labels.push({ text: 'Convection Currents', x: W * 0.75, y: (mantleTop + mantleBot) / 2 - 20, color: '#FF8C42' });
+  }
+}
+
+// ===================== CONVERGENT =====================
+function drawConvergent() {
+  const p = S.progress;
+
+  if (S.subType === 'oceanic-continental') {
+    drawOceanicContinentalConvergent(p);
+  } else {
+    drawContinentalContinentalConvergent(p);
+  }
+}
+
+function drawOceanicContinentalConvergent(p) {
+  const crustH = 50;
+  const plateW = W * 0.42;
+
+  // Left plate = Oceanic (denser, thinner, darker)
+  const leftX = -plateW * p * 0.3 + S.leftPlateX;
+  const rightX = plateW * p * 0.3 + S.rightPlateX;
+
+  // Subduction - oceanic plate bends down
+  const subAngle = p * 0.6;
+  const subDepth = p * 180;
+
+  // Draw oceanic plate (left) - subducting
+  ctx.save();
+  const oceanPlateGrad = ctx.createLinearGradient(0, cy, 0, cy + crustH);
+  oceanPlateGrad.addColorStop(0, '#2C3E50');
+  oceanPlateGrad.addColorStop(1, '#1A252F');
+  ctx.fillStyle = oceanPlateGrad;
+
+  ctx.beginPath();
+  const opLeft = leftX;
+  const opRight = cx - 10 + leftX * 0.3;
+  ctx.moveTo(opLeft, cy);
+  ctx.lineTo(opRight, cy);
+  // Subduction curve
+  const subX1 = opRight + 20;
+  const subY1 = cy + subDepth * 0.3;
+  const subX2 = opRight + 40;
+  const subY2 = cy + subDepth;
+  ctx.quadraticCurveTo(subX1, subY1, subX2, subY2);
+  ctx.lineTo(subX2 - crustH * Math.sin(subAngle), subY2 + crustH * Math.cos(subAngle));
+  ctx.quadraticCurveTo(subX1 - crustH * 0.3, subY1 + crustH, opRight, cy + crustH);
+  ctx.lineTo(opLeft, cy + crustH * 0.8);
+  ctx.closePath();
+  ctx.fill();
+
+  // Oceanic crust texture
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  for (let i = opLeft; i < opRight; i += 20) {
+    ctx.beginPath();
+    ctx.moveTo(i, cy + 5);
+    ctx.lineTo(i + 10, cy + crustH * 0.8 - 5);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Ocean trench
+  if (p > 0.1) {
+    const trenchX = opRight + 5;
+    const trenchDepth = p * 30;
+    ctx.fillStyle = '#0A1628';
+    ctx.beginPath();
+    ctx.moveTo(trenchX - 15, cy);
+    ctx.lineTo(trenchX, cy + trenchDepth);
+    ctx.lineTo(trenchX + 15, cy);
+    ctx.closePath();
+    ctx.fill();
+    if (S.showLabels) S.labels.push({ text: 'Ocean Trench', x: trenchX - 25, y: cy - 10, color: '#5DADE2' });
+  }
+
+  // Continental plate (right) - thicker, lighter
+  const contLeft = cx + rightX * 0.3;
+  const contRight = W + rightX;
+  const contCrustH = crustH * 1.4;
+
+  const contGrad = ctx.createLinearGradient(0, cy - 20, 0, cy + contCrustH);
+  contGrad.addColorStop(0, '#B8860B');
+  contGrad.addColorStop(0.3, '#8B6914');
+  contGrad.addColorStop(1, '#5C4033');
+  ctx.fillStyle = contGrad;
+
+  ctx.beginPath();
+  ctx.moveTo(contLeft, cy);
+
+  // Volcanic mountains
+  const mtnBase = contLeft + 30;
+  const mtnCount = 3;
+  const mtnSpacing = 50;
+  const mtnH = p * 80;
+
+  if (p > 0.2) {
+    for (let i = 0; i < mtnCount; i++) {
+      const mx = mtnBase + i * mtnSpacing;
+      const mh = mtnH * (1 - i * 0.2) * (0.8 + Math.sin(i * 2.1) * 0.2);
+      ctx.lineTo(mx - 20, cy);
+      ctx.lineTo(mx, cy - mh);
+      ctx.lineTo(mx + 20, cy);
+    }
+  }
+
+  ctx.lineTo(contRight, cy);
+  ctx.lineTo(contRight, cy + contCrustH);
+  ctx.lineTo(contLeft, cy + contCrustH);
+  ctx.closePath();
+  ctx.fill();
+
+  // Continental texture
+  ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+  ctx.lineWidth = 1;
+  for (let i = contLeft + 80; i < contRight; i += 25) {
+    ctx.beginPath();
+    ctx.moveTo(i, cy + 5);
+    ctx.lineTo(i + Math.random() * 10, cy + contCrustH - 5);
+    ctx.stroke();
+  }
+
+  // Snow caps on mountains
+  if (p > 0.4) {
+    ctx.fillStyle = '#ECF0F1';
+    for (let i = 0; i < mtnCount; i++) {
+      const mx = mtnBase + i * mtnSpacing;
+      const mh = mtnH * (1 - i * 0.2) * (0.8 + Math.sin(i * 2.1) * 0.2);
+      if (mh > 20) {
+        ctx.beginPath();
+        ctx.moveTo(mx, cy - mh);
+        ctx.lineTo(mx - 6, cy - mh + 12);
+        ctx.lineTo(mx + 6, cy - mh + 12);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  // Magma plume / chamber under volcano
+  if (p > 0.15) {
+    const magX = mtnBase + 25;
+    const magY = cy + contCrustH;
+    const magH = 30 + p * 80;
+    const magGrad = ctx.createRadialGradient(magX, magY + 20, 5, magX, magY + 20, magH);
+    magGrad.addColorStop(0, 'rgba(255,36,0,0.7)');
+    magGrad.addColorStop(0.5, 'rgba(255,107,53,0.4)');
+    magGrad.addColorStop(1, 'rgba(255,107,53,0)');
+    ctx.fillStyle = magGrad;
+    ctx.beginPath();
+    ctx.ellipse(magX, magY + 20, 30 + p * 20, magH * 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Magma rising through volcano
+    if (p > 0.5) {
+      ctx.strokeStyle = 'rgba(255,36,0,0.6)';
+      ctx.lineWidth = 3 + p * 3;
+      ctx.beginPath();
+      ctx.moveTo(magX, magY + 20);
+      ctx.quadraticCurveTo(magX + Math.sin(S.time * 0.005) * 5, (cy + magY) / 2, mtnBase, cy - mtnH * 0.8);
+      ctx.stroke();
+    }
+
+    // Eruption particles at top
+    if (p > 0.7) {
+      for (let i = 0; i < 8; i++) {
+        const angle = S.time * 0.003 + i * 0.8;
+        const dist = 10 + Math.sin(angle * 3) * 15;
+        const px = mtnBase + Math.cos(angle) * dist;
+        const py = cy - mtnH - 5 - Math.abs(Math.sin(angle * 2)) * 20;
+        const size = 2 + Math.random() * 3;
+        ctx.fillStyle = `rgba(255,${50 + Math.random() * 100},0,${0.5 + Math.random() * 0.3})`;
+        ctx.beginPath();
+        ctx.arc(px, py, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    if (S.showLabels) {
+      S.labels.push({ text: 'Magma Chamber', x: magX - 35, y: magY + 40, color: '#FF6B35' });
+    }
+  }
+
+  // Subduction zone label
+  if (p > 0.1 && S.showLabels) {
+    S.labels.push({ text: 'Subduction Zone', x: opRight - 20, y: cy + subDepth * 0.5 + 20, color: '#FF2400' });
+    S.labels.push({ text: 'Oceanic Crust', x: opLeft + 40, y: cy + crustH * 0.4 + 5, color: '#AED6F1' });
+    S.labels.push({ text: 'Continental Crust', x: contLeft + 100, y: cy + contCrustH * 0.5, color: '#D4A017' });
+    if (p > 0.3) S.labels.push({ text: 'Volcanic Mountains', x: mtnBase - 10, y: cy - mtnH - 15, color: '#ECF0F1' });
+  }
+
+  // Direction arrows on plates
+  drawPlateArrow(opLeft + plateW * 0.3, cy + crustH * 0.4, 1, '#AED6F1');
+  drawPlateArrow(contRight - plateW * 0.3, cy + contCrustH * 0.5, -1, '#D4A017');
+
+  // Crust label
+  if (S.showLabels) {
+    S.labels.push({ text: 'CRUST', x: 30, y: cy + crustH * 0.4, color: '#BFA882' });
+  }
+}
+
+function drawContinentalContinentalConvergent(p) {
+  const crustH = 60;
+  const plateW = W * 0.42;
+
+  const leftX = -plateW * p * 0.25 + S.leftPlateX;
+  const rightX = plateW * p * 0.25 + S.rightPlateX;
+
+  const leftRight = cx - 5 + leftX * 0.3;
+  const rightLeft = cx + 5 + rightX * 0.3;
+
+  // Fold mountains in the middle
+  const foldH = p * 120;
+  const foldW = 60 + p * 80;
+  const foldCenter = cx;
+
+  // Left continental plate
+  const lGrad = ctx.createLinearGradient(0, cy - foldH, 0, cy + crustH);
+  lGrad.addColorStop(0, '#C19A6B');
+  lGrad.addColorStop(0.4, '#8B6914');
+  lGrad.addColorStop(1, '#5C4033');
+  ctx.fillStyle = lGrad;
+
+  ctx.beginPath();
+  ctx.moveTo(leftX, cy);
+  // Build up fold mountains
+  if (p > 0.1) {
+    const numFolds = 5;
+    const foldStart = foldCenter - foldW;
+    const foldEnd = foldCenter;
+    for (let i = 0; i < numFolds; i++) {
+      const fx = foldStart + (foldEnd - foldStart) * (i / numFolds);
+      const fh = foldH * Math.sin((i / numFolds) * Math.PI) * (0.7 + Math.sin(i * 1.3) * 0.3);
+      ctx.lineTo(fx, cy - fh);
+    }
+  }
+  ctx.lineTo(leftRight, cy);
+  ctx.lineTo(leftRight, cy + crustH + p * 40);
+  ctx.lineTo(leftX, cy + crustH);
+  ctx.closePath();
+  ctx.fill();
+
+  // Right continental plate
+  const rGrad = ctx.createLinearGradient(0, cy - foldH, 0, cy + crustH);
+  rGrad.addColorStop(0, '#BDB76B');
+  rGrad.addColorStop(0.4, '#8B7D3C');
+  rGrad.addColorStop(1, '#5C5030');
+  ctx.fillStyle = rGrad;
+
+  ctx.beginPath();
+  ctx.moveTo(rightLeft, cy);
+  if (p > 0.1) {
+    const numFolds = 5;
+    const foldStart = foldCenter;
+    const foldEnd = foldCenter + foldW;
+    for (let i = 0; i < numFolds; i++) {
+      const fx = foldStart + (foldEnd - foldStart) * (i / numFolds);
+      const fh = foldH * Math.sin((i / numFolds) * Math.PI) * (0.7 + Math.cos(i * 1.7) * 0.3);
+      ctx.lineTo(fx, cy - fh);
+    }
+  }
+  ctx.lineTo(W + rightX, cy);
+  ctx.lineTo(W + rightX, cy + crustH);
+  ctx.lineTo(rightLeft, cy + crustH + p * 40);
+  ctx.closePath();
+  ctx.fill();
+
+  // Fold detail lines
+  if (p > 0.15) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1.5;
+    for (let layer = 0; layer < 4; layer++) {
+      ctx.beginPath();
+      const layerY = cy + layer * 12;
+      for (let i = 0; i <= 10; i++) {
+        const fx = foldCenter - foldW + (foldW * 2) * (i / 10);
+        const fh = foldH * 0.5 * Math.sin((i / 10) * Math.PI) * Math.sin(i * 0.9 + layer * 0.5);
+        if (i === 0) ctx.moveTo(fx, layerY - fh * p);
+        else ctx.lineTo(fx, layerY - fh * p);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // Snow on peaks
+  if (p > 0.5) {
+    ctx.fillStyle = '#ECF0F1';
+    for (let i = 1; i < 9; i++) {
+      const fx = foldCenter - foldW + (foldW * 2) * (i / 10);
+      const fh = foldH * Math.sin((i / 10) * Math.PI) * (0.7 + Math.sin(i * 1.3) * 0.3);
+      if (fh > foldH * 0.4) {
+        ctx.beginPath();
+        ctx.moveTo(fx, cy - fh);
+        ctx.lineTo(fx - 5, cy - fh + 10);
+        ctx.lineTo(fx + 5, cy - fh + 10);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  // Thickened crust below collision zone
+  if (p > 0.1) {
+    const thickGrad = ctx.createLinearGradient(foldCenter, cy + crustH, foldCenter, cy + crustH + p * 80);
+    thickGrad.addColorStop(0, '#5C4033');
+    thickGrad.addColorStop(1, '#3D2B1F');
+    ctx.fillStyle = thickGrad;
+    ctx.beginPath();
+    ctx.moveTo(foldCenter - foldW * 0.8, cy + crustH);
+    ctx.quadraticCurveTo(foldCenter, cy + crustH + p * 80, foldCenter + foldW * 0.8, cy + crustH);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Labels
+  if (S.showLabels && p > 0.1) {
+    S.labels.push({ text: 'Fold Mountains', x: foldCenter - 35, y: cy - foldH - 15, color: '#ECF0F1' });
+    S.labels.push({ text: 'Continental Crust', x: leftX + 60, y: cy + crustH * 0.5, color: '#D4A017' });
+    S.labels.push({ text: 'Continental Crust', x: W + rightX - 180, y: cy + crustH * 0.5, color: '#D4A017' });
+    S.labels.push({ text: 'Thickened Crust', x: foldCenter - 40, y: cy + crustH + p * 30, color: '#BFA882' });
+  }
+
+  drawPlateArrow(leftX + plateW * 0.4, cy + crustH * 0.5, 1, '#D4A017');
+  drawPlateArrow(W + rightX - plateW * 0.4, cy + crustH * 0.5, -1, '#BDB76B');
+}
+
+// ===================== DIVERGENT =====================
+function drawDivergent(dt) {
+  const p = S.progress;
+  const crustH = 50;
+  const gapW = p * 120;
+  const plateW = W * 0.45;
+
+  const leftEnd = cx - gapW / 2 + S.leftPlateX;
+  const rightStart = cx + gapW / 2 + S.rightPlateX;
+
+  // Left oceanic plate
+  const oGrad1 = ctx.createLinearGradient(0, cy, 0, cy + crustH);
+  oGrad1.addColorStop(0, '#2C3E50');
+  oGrad1.addColorStop(1, '#1A252F');
+  ctx.fillStyle = oGrad1;
+  ctx.fillRect(S.leftPlateX - plateW, cy, plateW + leftEnd - (S.leftPlateX - plateW), crustH);
+
+  // Right oceanic plate
+  ctx.fillRect(rightStart, cy, W - rightStart + 50, crustH);
+
+  // Magma rising in the gap
+  if (p > 0.05) {
+    // Magma glow from below
+    const magGrad = ctx.createRadialGradient(cx, cy + crustH + 30, 5, cx, cy + crustH + 30, 100 + p * 80);
+    magGrad.addColorStop(0, 'rgba(255,36,0,0.8)');
+    magGrad.addColorStop(0.4, 'rgba(255,107,53,0.5)');
+    magGrad.addColorStop(0.8, 'rgba(204,85,0,0.2)');
+    magGrad.addColorStop(1, 'rgba(204,85,0,0)');
+    ctx.fillStyle = magGrad;
+    ctx.fillRect(cx - 100, cy, 200, H - cy);
+
+    // Rising magma streams
+    ctx.lineWidth = 3 + p * 4;
+    for (let i = -2; i <= 2; i++) {
+      const mx = cx + i * 12;
+      const mgrd = ctx.createLinearGradient(mx, cy + crustH + 100, mx, cy);
+      mgrd.addColorStop(0, 'rgba(255,36,0,0.9)');
+      mgrd.addColorStop(0.5, 'rgba(255,107,53,0.7)');
+      mgrd.addColorStop(1, 'rgba(255,200,50,0.5)');
+      ctx.strokeStyle = mgrd;
+      ctx.beginPath();
+      ctx.moveTo(mx, cy + crustH + 100);
+      const wave = Math.sin(S.time * 0.003 + i) * 8;
+      ctx.quadraticCurveTo(mx + wave, cy + crustH * 0.5, mx + wave * 0.5, cy + 5);
+      ctx.stroke();
+    }
+
+    // Magma particles rising
+    for (let i = 0; i < 15; i++) {
+      const phase = (S.time * 0.002 + i * 0.7) % 1;
+      const px = cx + Math.sin(i * 2.3 + S.time * 0.001) * (gapW * 0.4);
+      const py = cy + crustH + 80 - phase * (crustH + 90);
+      const size = 2 + Math.sin(phase * Math.PI) * 3;
+      const alpha = Math.sin(phase * Math.PI) * 0.8;
+      ctx.fillStyle = `rgba(255,${100 + Math.floor(Math.random() * 100)},0,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(px, py, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // New crust forming (mid-ocean ridge)
+    if (p > 0.15) {
+      const ridgeH = 20 + p * 30;
+      const ridgeGrad = ctx.createLinearGradient(cx, cy - ridgeH, cx, cy + crustH);
+      ridgeGrad.addColorStop(0, '#4A3728');
+      ridgeGrad.addColorStop(0.3, '#3D2B1F');
+      ridgeGrad.addColorStop(1, '#2C1A0E');
+      ctx.fillStyle = ridgeGrad;
+
+      ctx.beginPath();
+      ctx.moveTo(leftEnd, cy);
+      // Ridge peaks
+      const ridgePeaks = 3;
+      for (let i = 0; i <= ridgePeaks; i++) {
+        const rx = leftEnd + (rightStart - leftEnd) * (i / ridgePeaks);
+        const rh = ridgeH * Math.sin((i / ridgePeaks) * Math.PI) * (0.6 + Math.sin(i * 2) * 0.4);
+        ctx.lineTo(rx, cy - rh);
+      }
+      ctx.lineTo(rightStart, cy);
+      ctx.lineTo(rightStart, cy + crustH);
+      ctx.lineTo(leftEnd, cy + crustH);
+      ctx.closePath();
+      ctx.fill();
+
+      // Cooling crust texture - striped pattern for sea-floor spreading
+      ctx.strokeStyle = 'rgba(255,100,30,0.3)';
+      ctx.lineWidth = 2;
+      const stripes = Math.floor(p * 8);
+      for (let i = 1; i <= stripes; i++) {
+        const sx = cx - (gapW / 2) * (i / (stripes + 1));
+        const sx2 = cx + (gapW / 2) * (i / (stripes + 1));
+        ctx.beginPath();
+        ctx.moveTo(sx, cy + 5); ctx.lineTo(sx, cy + crustH - 5);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(sx2, cy + 5); ctx.lineTo(sx2, cy + crustH - 5);
+        ctx.stroke();
+      }
+
+      if (S.showLabels) {
+        S.labels.push({ text: 'Mid-Ocean Ridge', x: cx - 40, y: cy - ridgeH - 12, color: '#ECF0F1' });
+        S.labels.push({ text: 'New Crust', x: cx - 25, y: cy + crustH * 0.5, color: '#FF8C42' });
+      }
+    }
+  }
+
+  // Sea-floor spreading arrows
+  if (p > 0.1 && S.showLabels) {
+    S.labels.push({ text: 'Sea-Floor Spreading', x: cx - 55, y: cy + crustH + 20, color: '#FF6B35' });
+  }
+
+  // Plate labels
+  if (S.showLabels) {
+    S.labels.push({ text: 'Oceanic Crust', x: S.leftPlateX - plateW + 80, y: cy + crustH * 0.5, color: '#AED6F1' });
+    S.labels.push({ text: 'Oceanic Crust', x: rightStart + 40, y: cy + crustH * 0.5, color: '#AED6F1' });
+    S.labels.push({ text: 'Rising Magma', x: cx - 30, y: cy + crustH + 60, color: '#FF2400' });
+  }
+
+  drawPlateArrow(S.leftPlateX - plateW * 0.3, cy + crustH * 0.5, -1, '#AED6F1');
+  drawPlateArrow(rightStart + plateW * 0.3, cy + crustH * 0.5, 1, '#AED6F1');
+}
+
+// ===================== CONSERVATIVE =====================
+function drawConservative(dt) {
+  const crustH = 55;
+  const plateW = W * 0.45;
+  const slideY = S.leftPlateY - S.rightPlateY;
+
+  // Fault line in center
+  const faultX = cx;
+
+  // Left plate
+  const lGrad = ctx.createLinearGradient(0, cy, 0, cy + crustH);
+  lGrad.addColorStop(0, '#8B6914');
+  lGrad.addColorStop(1, '#5C4033');
+  ctx.fillStyle = lGrad;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, cy + S.leftPlateY * 0.15, faultX - 1, crustH);
+  ctx.clip();
+  ctx.fillRect(0, cy + S.leftPlateY * 0.15, faultX, crustH);
+
+  // Ground features on left
+  ctx.fillStyle = '#6B8E23';
+  for (let i = 0; i < 5; i++) {
+    const tx = 50 + i * 80;
+    ctx.beginPath();
+    ctx.ellipse(tx, cy + S.leftPlateY * 0.15, 15, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Right plate
+  const rGrad = ctx.createLinearGradient(0, cy, 0, cy + crustH);
+  rGrad.addColorStop(0, '#A0522D');
+  rGrad.addColorStop(1, '#6B3A2A');
+  ctx.fillStyle = rGrad;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(faultX + 1, cy + S.rightPlateY * 0.15, W - faultX, crustH);
+  ctx.clip();
+  ctx.fillRect(faultX + 1, cy + S.rightPlateY * 0.15, W - faultX, crustH);
+
+  // Ground features on right
+  ctx.fillStyle = '#556B2F';
+  for (let i = 0; i < 5; i++) {
+    const tx = faultX + 50 + i * 80;
+    ctx.beginPath();
+    ctx.ellipse(tx, cy + S.rightPlateY * 0.15, 15, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Fault line
+  ctx.strokeStyle = S.stress > 0.7 ? '#FF2400' : S.stress > 0.4 ? '#FF8C42' : '#D4A017';
+  ctx.lineWidth = 2 + S.stress * 3;
+  ctx.setLineDash([8, 4]);
+  ctx.beginPath();
+  ctx.moveTo(faultX, cy - 20);
+  ctx.lineTo(faultX, cy + crustH + 20);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Stress glow at fault
+  if (S.stress > 0.3) {
+    const stressGlow = ctx.createRadialGradient(faultX, cy + crustH / 2, 0, faultX, cy + crustH / 2, 30 + S.stress * 40);
+    stressGlow.addColorStop(0, `rgba(255,36,0,${S.stress * 0.4})`);
+    stressGlow.addColorStop(1, 'rgba(255,36,0,0)');
+    ctx.fillStyle = stressGlow;
+    ctx.fillRect(faultX - 80, cy - 20, 160, crustH + 40);
+  }
+
+  // Friction sparks
+  if (S.stress > 0.5 && !S.earthquakeActive) {
+    for (let i = 0; i < Math.floor(S.stress * 8); i++) {
+      const sy = cy + Math.random() * crustH;
+      const sx = faultX + (Math.random() - 0.5) * 10;
+      ctx.fillStyle = `rgba(255,${200 + Math.random() * 55},0,${0.5 + Math.random() * 0.5})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1 + Math.random() * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Seismic waves during earthquake
+  if (S.earthquakeActive) {
+    S.seismicWaves.forEach(w => {
+      if (w.delay > 0) { w.delay -= speedMap[S.speed]; return; }
+      w.radius += 3 * speedMap[S.speed];
+      w.opacity = Math.max(0, 1 - w.radius / 200);
+      if (w.opacity > 0) {
+        ctx.strokeStyle = `rgba(255,200,0,${w.opacity})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(faultX, cy + crustH / 2, w.radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    });
+  }
+
+  // Labels
+  if (S.showLabels) {
+    S.labels.push({ text: 'Fault Line', x: faultX + 10, y: cy - 25, color: '#FF2400' });
+    S.labels.push({ text: 'Continental Crust', x: 50, y: cy + crustH * 0.5 + S.leftPlateY * 0.15, color: '#D4A017' });
+    S.labels.push({ text: 'Continental Crust', x: faultX + 50, y: cy + crustH * 0.5 + S.rightPlateY * 0.15, color: '#D4A017' });
+    if (S.earthquakeActive) {
+      S.labels.push({ text: 'EPICENTRE', x: faultX - 25, y: cy + crustH / 2 - 15, color: '#FFD700' });
+    }
+    if (S.stress > 0.3) {
+      S.labels.push({ text: 'Stress Build-up', x: faultX - 40, y: cy + crustH + 30, color: '#FF6B35' });
+    }
+  }
+
+  // Plate motion arrows (sliding past)
+  drawPlateArrowVert(80, cy + S.leftPlateY * 0.15 + crustH * 0.5, -1, '#D4A017');
+  drawPlateArrowVert(W - 80, cy + S.rightPlateY * 0.15 + crustH * 0.5, 1, '#D4A017');
+}
+
+// ===================== HELPERS =====================
+function drawPlateArrow(x, y, dir, color) {
+  const len = 40;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 3;
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + dir * len, y);
+  ctx.stroke();
+  // Arrowhead
+  ctx.beginPath();
+  ctx.moveTo(x + dir * len, y);
+  ctx.lineTo(x + dir * (len - 10), y - 6);
+  ctx.lineTo(x + dir * (len - 10), y + 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawPlateArrowVert(x, y, dir, color) {
+  const len = 30;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 3;
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x, y + dir * len);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x, y + dir * len);
+  ctx.lineTo(x - 6, y + dir * (len - 10));
+  ctx.lineTo(x + 6, y + dir * (len - 10));
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawLabelsOnCanvas() {
+  if (!S.showLabels) return;
+  ctx.font = 'bold 11px "Segoe UI", sans-serif';
+  S.labels.forEach(l => {
+    const m = ctx.measureText(l.text);
+    const pad = 5;
+    const lx = l.x;
+    const ly = l.y;
+
+    // Background
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    roundRect(ctx, lx - pad, ly - 10 - pad, m.width + pad * 2, 16 + pad, 3);
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = l.color || 'rgba(212,160,23,0.6)';
+    ctx.lineWidth = 1;
+    roundRect(ctx, lx - pad, ly - 10 - pad, m.width + pad * 2, 16 + pad, 3);
+    ctx.stroke();
+
+    // Text
+    ctx.fillStyle = l.color || '#F5E6CC';
+    ctx.fillText(l.text, lx, ly);
+  });
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+// ===================== ANIMATION LOOP =====================
+let lastTime = 0;
+function loop(time) {
+  const dt = Math.min(time - lastTime, 50);
+  lastTime = time;
+  drawFrame(dt);
+  requestAnimationFrame(loop);
+}
+
+// ===================== DRAG SUPPORT =====================
+let dragging = null;
+let dragStartX = 0, dragStartY = 0;
+let dragStartPlateX = 0, dragStartPlateY = 0;
+
+canvas.addEventListener('mousedown', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+  // Check if clicking on left or right plate area
+  if (mx < cx) {
+    dragging = 'left';
+    dragStartPlateX = S.leftPlateX;
+    dragStartPlateY = S.leftPlateY;
+  } else {
+    dragging = 'right';
+    dragStartPlateX = S.rightPlateX;
+    dragStartPlateY = S.rightPlateY;
+  }
+  dragStartX = e.clientX;
+  dragStartY = e.clientY;
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = (e.clientX - dragStartX) * 1.5;
+  const dy = (e.clientY - dragStartY) * 1.5;
+
+  if (dragging === 'left') {
+    S.leftPlateX = dragStartPlateX + dx;
+    S.leftPlateY = dragStartPlateY + dy;
+  } else {
+    S.rightPlateX = dragStartPlateX + dx;
+    S.rightPlateY = dragStartPlateY + dy;
+  }
+  updateProgress();
+});
+
+canvas.addEventListener('mouseup', () => { dragging = null; });
+canvas.addEventListener('mouseleave', () => { dragging = null; });
+
+// Touch support
+canvas.addEventListener('touchstart', e => {
+  const rect = canvas.getBoundingClientRect();
+  const t = e.touches[0];
+  const mx = (t.clientX - rect.left) * (canvas.width / rect.width);
+  if (mx < cx) {
+    dragging = 'left';
+    dragStartPlateX = S.leftPlateX;
+    dragStartPlateY = S.leftPlateY;
+  } else {
+    dragging = 'right';
+    dragStartPlateX = S.rightPlateX;
+    dragStartPlateY = S.rightPlateY;
+  }
+  dragStartX = t.clientX;
+  dragStartY = t.clientY;
+});
+
+canvas.addEventListener('touchmove', e => {
+  if (!dragging) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  const dx = (t.clientX - dragStartX) * 1.5;
+  const dy = (t.clientY - dragStartY) * 1.5;
+  if (dragging === 'left') {
+    S.leftPlateX = dragStartPlateX + dx;
+    S.leftPlateY = dragStartPlateY + dy;
+  } else {
+    S.rightPlateX = dragStartPlateX + dx;
+    S.rightPlateY = dragStartPlateY + dy;
+  }
+  updateProgress();
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => { dragging = null; });
+
+// ===================== INIT =====================
+resize();
+updateInfo();
+initMagmaParticles();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

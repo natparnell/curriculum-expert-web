@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flight Path Tracker</title>
+<style>
+  :root {
+    --slate-900: #0f172a;
+    --slate-800: #1e293b;
+    --slate-700: #334155;
+    --slate-600: #475569;
+    --slate-500: #64748b;
+    --slate-400: #94a3b8;
+    --slate-300: #cbd5e1;
+    --slate-200: #e2e8f0;
+    --slate-100: #f1f5f9;
+    --slate-50:  #f8fafc;
+    --teal-900:  #134e4a;
+    --teal-700:  #0f766e;
+    --teal-600:  #0d9488;
+    --teal-500:  #14b8a6;
+    --teal-400:  #2dd4bf;
+    --teal-300:  #5eead4;
+    --teal-100:  #ccfbf1;
+    --teal-50:   #f0fdfa;
+    --green-500: #22c55e;
+    --green-100: #dcfce7;
+    --amber-500: #f59e0b;
+    --amber-100: #fef3c7;
+    --red-500:   #ef4444;
+    --red-100:   #fee2e2;
+    --font: 'Segoe UI', system-ui, sans-serif;
+    --radius: 8px;
+    --shadow: 0 2px 8px rgba(0,0,0,0.12);
+    --shadow-lg: 0 4px 20px rgba(0,0,0,0.18);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--slate-100);
+    color: var(--slate-800);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, var(--slate-900) 0%, var(--teal-900) 100%);
+    color: #fff;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: var(--shadow-lg);
+  }
+  header .icon {
+    width: 44px; height: 44px;
+    background: var(--teal-500);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+  header p  { font-size: 0.82rem; color: var(--teal-300); margin-top: 2px; }
+
+  /* ── Layout ── */
+  .app-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 0;
+    min-height: calc(100vh - 80px);
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    background: var(--slate-800);
+    color: var(--slate-100);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 80px);
+    position: sticky;
+    top: 0;
+  }
+  .sidebar h2 {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--slate-400);
+    margin-bottom: 8px;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    border: 1px solid var(--slate-200);
+  }
+  .card-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--slate-500);
+    margin-bottom: 12px;
+  }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 16px 20px 0;
+  }
+  .stat-pill {
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat-pill.on-track  { background: var(--green-100); }
+  .stat-pill.above     { background: var(--teal-100); }
+  .stat-pill.below     { background: var(--red-100); }
+  .stat-pill .label    { font-size: 0.72rem; font-weight: 600; color: var(--slate-600); text-transform: uppercase; letter-spacing: 0.06em; }
+  .stat-pill .value    { font-size: 1.8rem; font-weight: 800; line-height: 1; }
+  .stat-pill.on-track .value { color: var(--green-500); }
+  .stat-pill.above .value    { color: var(--teal-700); }
+  .stat-pill.below .value    { color: var(--red-500); }
+  .stat-pill .sub      { font-size: 0.7rem; color: var(--slate-500); }
+
+  /* ── Main content ── */
+  .main-content {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+  }
+
+  /* ── Chart area ── */
+  .chart-container {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--slate-200);
+    overflow: hidden;
+  }
+  .chart-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--slate-200);
+    background: var(--slate-50);
+    flex-wrap: wrap;
+  }
+  .chart-toolbar h3 {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--slate-700);
+    flex: 1;
+  }
+  canvas#flightChart {
+    display: block;
+    width: 100%;
+    cursor: crosshair;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    border: none;
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { opacity: 0.88; }
+  .btn-teal  { background: var(--teal-600); color: #fff; }
+  .btn-slate { background: var(--slate-700); color: #fff; }
+  .btn-ghost { background: transparent; color: var(--slate-600); border: 1px solid var(--slate-300); }
+  .btn-ghost:hover { background: var(--slate-100); }
+  .btn-danger { background: var(--red-500); color: #fff; }
+  .btn-sm { padding: 4px 10px; font-size: 0.72rem; }
+
+  .btn.active {
+    outline: 3px solid var(--teal-400);
+    outline-offset: 2px;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--slate-200);
+    background: var(--slate-50);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.15s, background 0.15s;
+    user-select: none;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .legend-item:hover { background: var(--slate-200); }
+  .legend-item.selected { border-color: currentColor; background: var(--slate-100); }
+  .legend-item.faded { opacity: 0.35; }
+  .legend-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .legend-flag {
+    font-size: 0.7rem;
+  }
+
+  /* ── Student list in sidebar ── */
+  .student-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .student-row {
+    background: var(--slate-700);
+    border-radius: 6px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: background 0.12s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .student-row:hover { background: var(--slate-600); }
+  .student-row.active { background: var(--teal-700); }
+  .student-color-swatch {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .student-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    flex: 1;
+  }
+  .student-badge {
+    font-size: 0.68rem;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: 700;
+  }
+  .badge-above    { background: var(--teal-500); color: #fff; }
+  .badge-on-track { background: var(--green-500); color: #fff; }
+  .badge-below    { background: var(--red-500); color: #fff; }
+
+  /* ── Assessment point controls ── */
+  .ap-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .ap-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ap-row input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    background: var(--slate-700);
+    border: 1px solid var(--slate-600);
+    border-radius: 5px;
+    color: var(--slate-100);
+    padding: 5px 8px;
+    font-size: 0.78rem;
+    font-family: inherit;
+  }
+  .ap-row input[type="text"]:focus { outline: 2px solid var(--teal-500); }
+
+  /* ── Score editor (main area) ── */
+  .score-editor {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--slate-200);
+    overflow: hidden;
+  }
+  .score-editor-header {
+    background: var(--slate-50);
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--slate-200);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .score-editor-header h3 {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--slate-700);
+    flex: 1;
+  }
+  .score-table-wrap {
+    overflow-x: auto;
+  }
+  table.score-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+  }
+  .score-table th {
+    background: var(--slate-100);
+    color: var(--slate-600);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.68rem;
+    padding: 8px 12px;
+    text-align: center;
+    border-bottom: 2px solid var(--slate-200);
+    white-space: nowrap;
+  }
+  .score-table th:first-child { text-align: left; }
+  .score-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--slate-100);
+    text-align: center;
+  }
+  .score-table td:first-child { text-align: left; font-weight: 600; padding-left: 14px; }
+  .score-table tr:hover td { background: var(--slate-50); }
+  .score-table input[type="number"] {
+    width: 56px;
+    padding: 4px 6px;
+    border: 1px solid var(--slate-300);
+    border-radius: 4px;
+    text-align: center;
+    font-family: inherit;
+    font-size: 0.78rem;
+    color: var(--slate-800);
+  }
+  .score-table input[type="number"]:focus { outline: 2px solid var(--teal-500); border-color: transparent; }
+  .score-table input[type="number"].empty { background: var(--slate-50); color: var(--slate-400); }
+
+  /* ── Target band controls ── */
+  .range-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .range-row label { font-size: 0.72rem; color: var(--slate-400); width: 80px; flex-shrink: 0; }
+  .range-row input[type="number"] {
+    width: 60px;
+    background: var(--slate-700);
+    border: 1px solid var(--slate-600);
+    border-radius: 5px;
+    color: var(--slate-100);
+    padding: 4px 7px;
+    font-size: 0.78rem;
+    font-family: inherit;
+    text-align: center;
+  }
+  .range-row input:focus { outline: 2px solid var(--teal-500); }
+  .range-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--teal-500);
+  }
+
+  /* ── What-if banner ── */
+  .whatif-banner {
+    background: linear-gradient(90deg, var(--amber-100), #fffbeb);
+    border: 1px solid var(--amber-500);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.82rem;
+    color: var(--slate-700);
+  }
+  .whatif-banner.visible { display: flex; }
+  .whatif-banner strong { color: var(--amber-500); }
+  .whatif-banner .whatif-close {
+    margin-left: auto;
+    cursor: pointer;
+    color: var(--slate-500);
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  /* ── Tooltip ── */
+  #tooltip {
+    position: fixed;
+    background: var(--slate-900);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s;
+    z-index: 9999;
+    line-height: 1.6;
+    box-shadow: var(--shadow-lg);
+    min-width: 140px;
+  }
+  #tooltip.visible { opacity: 1; }
+  #tooltip .tt-name { font-weight: 700; margin-bottom: 2px; }
+  #tooltip .tt-score { color: var(--teal-300); }
+  #tooltip .tt-dist  { font-size: 0.7rem; color: var(--slate-400); }
+
+  /* ── Info section ── */
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    padding: 0 20px 16px;
+  }
+  .info-card {
+    background: var(--slate-800);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .info-card h4 { color: var(--teal-400); font-size: 0.78rem; margin-bottom: 6px; }
+  .info-card p  { font-size: 0.75rem; color: var(--slate-400); line-height: 1.5; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .app-layout { grid-template-columns: 1fr; }
+    .sidebar {
+      max-height: none;
+      position: static;
+      order: 2;
+    }
+    .main-content { order: 1; padding: 12px; }
+    .stats-bar { grid-template-columns: repeat(3, 1fr); padding: 12px; }
+    .stat-pill .value { font-size: 1.4rem; }
+    header { padding: 14px 16px; }
+    header h1 { font-size: 1.1rem; }
+  }
+
+  /* ── Utility ── */
+  .flex-gap { display: flex; gap: 8px; align-items: center; }
+  .mt-8 { margin-top: 8px; }
+  .text-muted { color: var(--slate-400); font-size: 0.72rem; }
+  .section-divider {
+    border: none;
+    border-top: 1px solid var(--slate-700);
+    margin: 4px 0;
+  }
+  .whatif-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--amber-500);
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 2px 7px;
+    border-radius: 10px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="icon">&#9992;</div>
+  <div>
+    <h1>Flight Path Tracker</h1>
+    <p>Individual student progress vs target flight paths across assessment points</p>
+  </div>
+</header>
+
+<!-- Stats bar -->
+<div class="stats-bar" id="statsBar">
+  <div class="stat-pill on-track">
+    <span class="label">On Track</span>
+    <span class="value" id="statOnTrack">0</span>
+    <span class="sub">within target band</span>
+  </div>
+  <div class="stat-pill above">
+    <span class="label">Above</span>
+    <span class="value" id="statAbove">0</span>
+    <span class="sub">exceeding flight path</span>
+  </div>
+  <div class="stat-pill below">
+    <span class="label">Below</span>
+    <span class="value" id="statBelow">0</span>
+    <span class="sub">intervention needed</span>
+  </div>
+</div>
+
+<div class="app-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+
+    <!-- Students -->
+    <div>
+      <h2>Students</h2>
+      <div class="student-list" id="studentList"></div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- Target band -->
+    <div>
+      <h2>Target Band</h2>
+      <p class="text-muted" style="margin-bottom:10px;">The shaded corridor represents acceptable progress. Students outside this band are flagged.</p>
+      <div class="range-row">
+        <label>Band lower</label>
+        <input type="number" id="bandLower" value="40" min="0" max="100">
+        <input type="range" id="bandLowerSlider" min="0" max="100" value="40">
+      </div>
+      <div class="range-row">
+        <label>Band upper</label>
+        <input type="number" id="bandUpper" value="75" min="0" max="100">
+        <input type="range" id="bandUpperSlider" min="0" max="100" value="75">
+      </div>
+      <div class="range-row">
+        <label>Y-axis max</label>
+        <input type="number" id="yMax" value="100" min="10" max="200">
+        <input type="range" id="yMaxSlider" min="10" max="200" value="100">
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- Assessment points -->
+    <div>
+      <h2>Assessment Points</h2>
+      <p class="text-muted" style="margin-bottom:8px;">Up to 8 points on the X-axis.</p>
+      <div class="ap-list" id="apList"></div>
+      <div class="flex-gap mt-8">
+        <button class="btn btn-teal btn-sm" id="addApBtn">+ Add point</button>
+        <button class="btn btn-ghost btn-sm" id="resetApBtn">Reset</button>
+      </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <!-- Mode controls -->
+    <div>
+      <h2>Interaction Mode</h2>
+      <div class="flex-gap" style="flex-wrap:wrap;">
+        <button class="btn btn-slate btn-sm active" id="modeView" title="View mode">&#128065; View</button>
+        <button class="btn btn-slate btn-sm" id="modeWhatIf" title="Drag the final data point of the selected student">&#9881; What-if</button>
+      </div>
+      <p class="text-muted mt-8">In What-if mode, select a student then drag their final data point on the chart to model an outcome.</p>
+    </div>
+
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="main-content">
+
+    <!-- What-if banner -->
+    <div class="whatif-banner" id="whatifBanner">
+      <span>&#9881;</span>
+      <span><strong>What-if mode active.</strong> Select a student, then drag their final data point on the chart to model a projected outcome.</span>
+      <span class="whatif-close" id="whatifClose" title="Exit what-if mode">&#10005;</span>
+    </div>
+
+    <!-- Chart -->
+    <div class="chart-container">
+      <div class="chart-toolbar">
+        <h3>Progress Chart</h3>
+        <button class="btn btn-ghost btn-sm" id="resetHighlight">Show all</button>
+        <button class="btn btn-ghost btn-sm" id="toggleBand">Hide band</button>
+        <button class="btn btn-ghost btn-sm" id="toggleGrid">Hide grid</button>
+      </div>
+      <canvas id="flightChart"></canvas>
+      <div class="legend" id="chartLegend"></div>
+    </div>
+
+    <!-- Score editor -->
+    <div class="score-editor">
+      <div class="score-editor-header">
+        <h3>Assessment Scores</h3>
+        <span class="text-muted">Enter scores (0-100) for each student at each assessment point. Leave blank if not yet assessed.</span>
+        <button class="btn btn-teal btn-sm" id="refreshChart">Refresh chart</button>
+      </div>
+      <div class="score-table-wrap">
+        <table class="score-table" id="scoreTable">
+          <thead id="scoreTableHead"></thead>
+          <tbody id="scoreTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Educational framing -->
+    <div class="info-grid">
+      <div class="info-card">
+        <h4>What is a Flight Path?</h4>
+        <p>A flight path is a projected trajectory of expected progress for a student, based on their prior attainment. The shaded band represents the acceptable corridor of progress, from minimum expected to aspirational.</p>
+      </div>
+      <div class="info-card">
+        <h4>On Track / Off Track</h4>
+        <p>Students whose most recent score falls within the band are considered on track. Those above are exceeding expectations. Those below the lower boundary are at risk and may require targeted intervention.</p>
+      </div>
+      <div class="info-card">
+        <h4>Intervention Trigger Points</h4>
+        <p>An intervention trigger activates when a student falls below the lower boundary at any assessment point, or when trajectory modelling (What-if mode) indicates risk of missing the end-of-year target.</p>
+      </div>
+      <div class="info-card">
+        <h4>Using What-if Mode</h4>
+        <p>Select a student from the sidebar, activate What-if mode, then drag their final data point on the chart. This models projected outcomes and helps teachers set realistic targets for the next assessment cycle.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div id="tooltip">
+  <div class="tt-name" id="ttName"></div>
+  <div class="tt-score" id="ttScore"></div>
+  <div class="tt-dist" id="ttDist"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ────────────────────────────────────────────────
+     CONSTANTS & PALETTE
+  ──────────────────────────────────────────────── */
+  const STUDENT_COLOURS = [
+    '#14b8a6', // teal-500
+    '#6366f1', // indigo-500
+    '#f59e0b', // amber-500
+    '#ec4899', // pink-500
+    '#22c55e', // green-500
+    '#f97316', // orange-500
+    '#8b5cf6', // violet-500
+    '#3b82f6', // blue-500
+  ];
+
+  const DEFAULT_APS = ['Baseline', 'Nov', 'Feb', 'Jun', 'Y10 Mock', 'Nov (Y10)', 'Mar (Y10)', 'Final'];
+
+  const DEFAULT_STUDENTS = [
+    { name: 'Amara Osei',     scores: [52, 55, 58, 63, 61, 67, 70, null] },
+    { name: 'Ben Holloway',   scores: [38, 35, 33, 30, 28, null, null, null] },
+    { name: 'Chloe Davies',   scores: [68, 72, 74, 78, 80, 83, 85, null] },
+    { name: 'Daniel Ferreira',scores: [44, 46, 50, 54, 56, 59, null, null] },
+    { name: 'Elsa Kowalski',  scores: [71, 70, 69, 73, 76, 78, 81, null] },
+    { name: 'Finn McCarthy',  scores: [30, 28, 26, 25, 24, null, null, null] },
+    { name: 'Grace Oladipo',  scores: [55, 58, 62, 65, 68, 71, 74, null] },
+    { name: 'Harley Singh',   scores: [60, 63, 61, 64, 67, 70, null, null] },
+  ];
+
+  /* ────────────────────────────────────────────────
+     STATE
+  ──────────────────────────────────────────────── */
+  let assessmentPoints = DEFAULT_APS.map(n => n); // mutable copy
+  let students = DEFAULT_STUDENTS.map((s, i) => ({
+    id: i,
+    name: s.name,
+    colour: STUDENT_COLOURS[i % STUDENT_COLOURS.length],
+    scores: s.scores.slice(),
+    whatIfScore: null,
+    visible: true,
+    selected: false,
+  }));
+
+  let bandLower = 40;
+  let bandUpper = 75;
+  let yMax      = 100;
+  let showBand  = true;
+  let showGrid  = true;
+  let whatIfMode = false;
+  let selectedStudentId = null;
+  let dragging  = false;
+  let dragStudentId = null;
+
+  /* ────────────────────────────────────────────────
+     CANVAS SETUP
+  ──────────────────────────────────────────────── */
+  const canvas = document.getElementById('flightChart');
+  const ctx    = canvas.getContext('2d');
+
+  const PAD = { top: 20, right: 30, bottom: 48, left: 52 };
+
+  function resizeCanvas() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const dpr  = window.devicePixelRatio || 1;
+    canvas.width  = rect.width * dpr;
+    canvas.height = Math.min(420, Math.max(300, rect.width * 0.42)) * dpr;
+    canvas.style.width  = rect.width + 'px';
+    canvas.style.height = (canvas.height / dpr) + 'px';
+    ctx.scale(dpr, dpr);
+    draw();
+  }
+
+  function logicalSize() {
+    const dpr = window.devicePixelRatio || 1;
+    return { w: canvas.width / dpr, h: canvas.height / dpr };
+  }
+
+  /* ────────────────────────────────────────────────
+     CHART HELPERS
+  ──────────────────────────────────────────────── */
+  function chartArea() {
+    const { w, h } = logicalSize();
+    return {
+      x0: PAD.left,
+      y0: PAD.top,
+      x1: w - PAD.right,
+      y1: h - PAD.bottom,
+      w:  w - PAD.left - PAD.right,
+      h:  h - PAD.top  - PAD.bottom,
+    };
+  }
+
+  function apCount() { return assessmentPoints.length; }
+
+  function xForIndex(index, ca) {
+    const n = apCount();
+    if (n === 1) return ca.x0 + ca.w / 2;
+    return ca.x0 + (index / (n - 1)) * ca.w;
+  }
+
+  function yForScore(score, ca) {
+    return ca.y1 - (score / yMax) * ca.h;
+  }
+
+  function scoreForY(y, ca) {
+    return ((ca.y1 - y) / ca.h) * yMax;
+  }
+
+  /* ────────────────────────────────────────────────
+     DRAW
+  ──────────────────────────────────────────────── */
+  function draw() {
+    const { w, h } = logicalSize();
+    const ca = chartArea();
+    ctx.clearRect(0, 0, w, h);
+
+    drawBand(ca);
+    if (showGrid) drawGrid(ca);
+    drawAxes(ca);
+    drawStudentLines(ca);
+  }
+
+  function drawBand(ca) {
+    if (!showBand) return;
+    const n = apCount();
+    if (n < 2) return;
+
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = '#14b8a6';
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const x = xForIndex(i, ca);
+      const y = yForScore(bandUpper, ca);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    for (let i = n - 1; i >= 0; i--) {
+      const x = xForIndex(i, ca);
+      const y = yForScore(bandLower, ca);
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = '#14b8a6';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const x = xForIndex(i, ca);
+      const y = yForScore(bandUpper, ca);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const x = xForIndex(i, ca);
+      const y = yForScore(bandLower, ca);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // Labels
+    ctx.save();
+    ctx.font = '10px Segoe UI, sans-serif';
+    ctx.fillStyle = '#0f766e';
+    ctx.globalAlpha = 0.8;
+    ctx.fillText('Target upper: ' + bandUpper, ca.x0 + 4, yForScore(bandUpper, ca) - 4);
+    ctx.fillText('Target lower: ' + bandLower, ca.x0 + 4, yForScore(bandLower, ca) + 12);
+    ctx.restore();
+  }
+
+  function drawGrid(ca) {
+    const steps = 10;
+    ctx.save();
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= steps; i++) {
+      const val = (i / steps) * yMax;
+      const y   = yForScore(val, ca);
+      ctx.beginPath();
+      ctx.moveTo(ca.x0, y);
+      ctx.lineTo(ca.x1, y);
+      ctx.stroke();
+    }
+    // Vertical grid
+    for (let i = 0; i < apCount(); i++) {
+      const x = xForIndex(i, ca);
+      ctx.beginPath();
+      ctx.moveTo(x, ca.y0);
+      ctx.lineTo(x, ca.y1);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawAxes(ca) {
+    ctx.save();
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(ca.x0, ca.y0);
+    ctx.lineTo(ca.x0, ca.y1);
+    ctx.lineTo(ca.x1, ca.y1);
+    ctx.stroke();
+
+    // Y-axis labels
+    ctx.font = '11px Segoe UI, sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'right';
+    const steps = 5;
+    for (let i = 0; i <= steps; i++) {
+      const val = Math.round((i / steps) * yMax);
+      const y   = yForScore(val, ca);
+      ctx.fillText(val, ca.x0 - 6, y + 4);
+    }
+
+    // X-axis labels
+    ctx.textAlign = 'center';
+    ctx.font = '11px Segoe UI, sans-serif';
+    for (let i = 0; i < apCount(); i++) {
+      const x = xForIndex(i, ca);
+      ctx.fillText(assessmentPoints[i], x, ca.y1 + 18);
+    }
+
+    // Axis title
+    ctx.save();
+    ctx.font = 'bold 11px Segoe UI, sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    ctx.translate(14, ca.y0 + ca.h / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.fillText('Score', 0, 0);
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  function drawStudentLines(ca) {
+    const n = apCount();
+    const anySelected = students.some(s => s.selected);
+
+    students.forEach(student => {
+      if (!student.visible) return;
+      const pts = getStudentPoints(student, ca, n);
+      if (pts.length < 1) return;
+
+      const isSelected = student.selected;
+      const faded = anySelected && !isSelected;
+      const alpha = faded ? 0.15 : 1;
+      const lw    = isSelected ? 3.5 : 2;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = student.colour;
+      ctx.lineWidth   = lw;
+      ctx.lineJoin    = 'round';
+      ctx.lineCap     = 'round';
+
+      // Draw line
+      if (pts.length >= 2) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let k = 1; k < pts.length; k++) {
+          ctx.lineTo(pts[k].x, pts[k].y);
+        }
+        ctx.stroke();
+      }
+
+      // Draw dots
+      pts.forEach((pt, k) => {
+        const isLast = k === pts.length - 1;
+        const isWhatIf = isLast && student.whatIfScore !== null && whatIfMode;
+        const r = isLast && isSelected ? 7 : (isSelected ? 5 : 4);
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = isWhatIf ? '#f59e0b' : student.colour;
+        ctx.fill();
+        if (isSelected) {
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      });
+
+      // Draw what-if projected line (dashed)
+      if (student.whatIfScore !== null && whatIfMode && pts.length >= 1) {
+        const lastReal = pts[pts.length - 2] || pts[pts.length - 1];
+        const wX = xForIndex(n - 1, ca);
+        const wY = yForScore(student.whatIfScore, ca);
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(lastReal.x, lastReal.y);
+        ctx.lineTo(wX, wY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+
+      // Flag below-band students
+      const lastPt = pts[pts.length - 1];
+      const lastScore = getLastScore(student);
+      if (lastScore !== null && lastScore < bandLower && !faded) {
+        drawFlag(lastPt.x, lastPt.y, student.colour);
+      }
+
+      ctx.restore();
+    });
+  }
+
+  function getStudentPoints(student, ca, n) {
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      let score = student.scores[i];
+      // What-if: override last point if in what-if mode and this student has a whatIfScore
+      if (whatIfMode && student.whatIfScore !== null && i === n - 1) {
+        score = student.whatIfScore;
+      }
+      if (score !== null && score !== undefined && score !== '') {
+        pts.push({ x: xForIndex(i, ca), y: yForScore(Number(score), ca), index: i, score: Number(score) });
+      }
+    }
+    return pts;
+  }
+
+  function getLastScore(student) {
+    const n = apCount();
+    for (let i = n - 1; i >= 0; i--) {
+      if (student.scores[i] !== null && student.scores[i] !== undefined && student.scores[i] !== '') {
+        return Number(student.scores[i]);
+      }
+    }
+    return null;
+  }
+
+  function drawFlag(x, y, colour) {
+    ctx.save();
+    ctx.font = '16px serif';
+    ctx.textAlign = 'center';
+    ctx.globalAlpha = 0.9;
+    ctx.fillText('⚑', x + 10, y - 10);
+    ctx.restore();
+  }
+
+  /* ────────────────────────────────────────────────
+     STATS
+  ──────────────────────────────────────────────── */
+  function updateStats() {
+    let onTrack = 0, above = 0, below = 0;
+    students.forEach(s => {
+      const score = getLastScore(s);
+      if (score === null) return;
+      if (score < bandLower) below++;
+      else if (score > bandUpper) above++;
+      else onTrack++;
+    });
+    document.getElementById('statOnTrack').textContent = onTrack;
+    document.getElementById('statAbove').textContent   = above;
+    document.getElementById('statBelow').textContent   = below;
+  }
+
+  function getStudentStatus(student) {
+    const score = getLastScore(student);
+    if (score === null) return 'on-track';
+    if (score < bandLower) return 'below';
+    if (score > bandUpper) return 'above';
+    return 'on-track';
+  }
+
+  /* ────────────────────────────────────────────────
+     STUDENT LIST (sidebar)
+  ──────────────────────────────────────────────── */
+  function renderStudentList() {
+    const list = document.getElementById('studentList');
+    list.innerHTML = '';
+    students.forEach(s => {
+      const status = getStudentStatus(s);
+      const row = document.createElement('div');
+      row.className = 'student-row' + (s.selected ? ' active' : '');
+      row.dataset.id = s.id;
+
+      const swatch = document.createElement('div');
+      swatch.className = 'student-color-swatch';
+      swatch.style.background = s.colour;
+
+      const name = document.createElement('span');
+      name.className = 'student-name';
+      name.textContent = s.name;
+
+      const badge = document.createElement('span');
+      badge.className = 'student-badge badge-' + status;
+      badge.textContent = status === 'on-track' ? 'On Track' : (status === 'above' ? 'Above' : 'Below');
+
+      if (status === 'below') {
+        const flag = document.createElement('span');
+        flag.textContent = '⚑';
+        flag.style.fontSize = '0.8rem';
+        row.appendChild(swatch);
+        row.appendChild(name);
+        row.appendChild(flag);
+        row.appendChild(badge);
+      } else {
+        row.appendChild(swatch);
+        row.appendChild(name);
+        row.appendChild(badge);
+      }
+
+      row.addEventListener('click', () => toggleStudentSelection(s.id));
+      list.appendChild(row);
+    });
+  }
+
+  function toggleStudentSelection(id) {
+    students.forEach(s => { s.selected = (s.id === id) ? !s.selected : false; });
+    selectedStudentId = students.find(s => s.selected)?.id ?? null;
+    renderStudentList();
+    renderLegend();
+    draw();
+  }
+
+  /* ────────────────────────────────────────────────
+     LEGEND
+  ──────────────────────────────────────────────── */
+  function renderLegend() {
+    const legend = document.getElementById('chartLegend');
+    legend.innerHTML = '';
+    students.forEach(s => {
+      const status = getStudentStatus(s);
+      const item = document.createElement('div');
+      item.className = 'legend-item' +
+        (s.selected ? ' selected' : '') +
+        (!s.visible ? ' faded' : '');
+      item.style.color = s.colour;
+
+      const dot = document.createElement('div');
+      dot.className = 'legend-dot';
+      dot.style.background = s.colour;
+
+      const label = document.createElement('span');
+      label.textContent = s.name;
+
+      item.appendChild(dot);
+      item.appendChild(label);
+
+      if (status === 'below') {
+        const flag = document.createElement('span');
+        flag.className = 'legend-flag';
+        flag.textContent = ' ⚑';
+        item.appendChild(flag);
+      }
+
+      item.addEventListener('click', () => toggleStudentSelection(s.id));
+      legend.appendChild(item);
+    });
+  }
+
+  /* ────────────────────────────────────────────────
+     ASSESSMENT POINTS UI
+  ──────────────────────────────────────────────── */
+  function renderApList() {
+    const list = document.getElementById('apList');
+    list.innerHTML = '';
+    assessmentPoints.forEach((ap, i) => {
+      const row = document.createElement('div');
+      row.className = 'ap-row';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = ap;
+      input.placeholder = 'e.g. Baseline';
+      input.addEventListener('input', () => {
+        assessmentPoints[i] = input.value;
+        renderScoreTable();
+        draw();
+      });
+
+      const del = document.createElement('button');
+      del.className = 'btn btn-danger btn-sm';
+      del.textContent = '\u00d7';
+      del.title = 'Remove this assessment point';
+      del.addEventListener('click', () => {
+        if (assessmentPoints.length <= 2) { alert('You need at least 2 assessment points.'); return; }
+        assessmentPoints.splice(i, 1);
+        students.forEach(s => s.scores.splice(i, 1));
+        renderApList();
+        renderScoreTable();
+        draw();
+      });
+
+      row.appendChild(input);
+      row.appendChild(del);
+      list.appendChild(row);
+    });
+  }
+
+  document.getElementById('addApBtn').addEventListener('click', () => {
+    if (assessmentPoints.length >= 8) { alert('Maximum of 8 assessment points.'); return; }
+    assessmentPoints.push('AP ' + (assessmentPoints.length + 1));
+    students.forEach(s => s.scores.push(null));
+    renderApList();
+    renderScoreTable();
+    draw();
+  });
+
+  document.getElementById('resetApBtn').addEventListener('click', () => {
+    if (!confirm('Reset to default assessment points? Student scores will be adjusted.')) return;
+    const diff = DEFAULT_APS.length - assessmentPoints.length;
+    assessmentPoints = DEFAULT_APS.slice();
+    if (diff > 0) {
+      students.forEach(s => { for (let i = 0; i < diff; i++) s.scores.push(null); });
+    } else if (diff < 0) {
+      students.forEach(s => s.scores = s.scores.slice(0, DEFAULT_APS.length));
+    }
+    renderApList();
+    renderScoreTable();
+    draw();
+  });
+
+  /* ────────────────────────────────────────────────
+     SCORE TABLE
+  ──────────────────────────────────────────────── */
+  function renderScoreTable() {
+    const head = document.getElementById('scoreTableHead');
+    const body = document.getElementById('scoreTableBody');
+    head.innerHTML = '';
+    body.innerHTML = '';
+
+    const hRow = document.createElement('tr');
+    const th0 = document.createElement('th');
+    th0.textContent = 'Student';
+    hRow.appendChild(th0);
+    assessmentPoints.forEach(ap => {
+      const th = document.createElement('th');
+      th.textContent = ap;
+      hRow.appendChild(th);
+    });
+    head.appendChild(hRow);
+
+    students.forEach(s => {
+      const tr = document.createElement('tr');
+      const td0 = document.createElement('td');
+
+      const swatch = document.createElement('span');
+      swatch.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:' + s.colour + ';margin-right:6px;';
+      td0.appendChild(swatch);
+      td0.appendChild(document.createTextNode(s.name));
+      tr.appendChild(td0);
+
+      assessmentPoints.forEach((_, i) => {
+        const td = document.createElement('td');
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.min  = 0;
+        inp.max  = 200;
+        inp.step = 1;
+        const val = s.scores[i];
+        if (val !== null && val !== undefined && val !== '') {
+          inp.value = val;
+          inp.classList.remove('empty');
+        } else {
+          inp.value = '';
+          inp.classList.add('empty');
+        }
+        inp.addEventListener('input', () => {
+          const v = inp.value.trim();
+          s.scores[i] = v === '' ? null : Number(v);
+          inp.classList.toggle('empty', v === '');
+          refreshAll();
+        });
+        td.appendChild(inp);
+        tr.appendChild(td);
+      });
+
+      body.appendChild(tr);
+    });
+  }
+
+  document.getElementById('refreshChart').addEventListener('click', refreshAll);
+
+  function refreshAll() {
+    draw();
+    updateStats();
+    renderStudentList();
+    renderLegend();
+  }
+
+  /* ────────────────────────────────────────────────
+     BAND & Y-MAX CONTROLS
+  ──────────────────────────────────────────────── */
+  function syncBandControls() {
+    document.getElementById('bandLower').value       = bandLower;
+    document.getElementById('bandLowerSlider').value = bandLower;
+    document.getElementById('bandUpper').value       = bandUpper;
+    document.getElementById('bandUpperSlider').value = bandUpper;
+    document.getElementById('yMax').value            = yMax;
+    document.getElementById('yMaxSlider').value      = yMax;
+  }
+
+  function bindNumericPair(inputId, sliderId, getter, setter) {
+    const input  = document.getElementById(inputId);
+    const slider = document.getElementById(sliderId);
+    input.addEventListener('input', () => {
+      setter(Number(input.value));
+      slider.value = input.value;
+      refreshAll();
+    });
+    slider.addEventListener('input', () => {
+      setter(Number(slider.value));
+      input.value = slider.value;
+      refreshAll();
+    });
+  }
+
+  bindNumericPair('bandLower', 'bandLowerSlider', () => bandLower, v => { bandLower = v; });
+  bindNumericPair('bandUpper', 'bandUpperSlider', () => bandUpper, v => { bandUpper = v; });
+  bindNumericPair('yMax',      'yMaxSlider',      () => yMax,      v => { yMax = Math.max(10, v); });
+
+  /* ────────────────────────────────────────────────
+     TOOLBAR BUTTONS
+  ──────────────────────────────────────────────── */
+  document.getElementById('resetHighlight').addEventListener('click', () => {
+    students.forEach(s => { s.selected = false; s.visible = true; });
+    selectedStudentId = null;
+    renderStudentList();
+    renderLegend();
+    draw();
+  });
+
+  const toggleBandBtn = document.getElementById('toggleBand');
+  toggleBandBtn.addEventListener('click', () => {
+    showBand = !showBand;
+    toggleBandBtn.textContent = showBand ? 'Hide band' : 'Show band';
+    draw();
+  });
+
+  const toggleGridBtn = document.getElementById('toggleGrid');
+  toggleGridBtn.addEventListener('click', () => {
+    showGrid = !showGrid;
+    toggleGridBtn.textContent = showGrid ? 'Hide grid' : 'Show grid';
+    draw();
+  });
+
+  /* ────────────────────────────────────────────────
+     MODE CONTROLS
+  ──────────────────────────────────────────────── */
+  const modeViewBtn   = document.getElementById('modeView');
+  const modeWhatIfBtn = document.getElementById('modeWhatIf');
+  const whatifBanner  = document.getElementById('whatifBanner');
+
+  modeViewBtn.addEventListener('click', () => setMode('view'));
+  modeWhatIfBtn.addEventListener('click', () => setMode('whatif'));
+  document.getElementById('whatifClose').addEventListener('click', () => setMode('view'));
+
+  function setMode(mode) {
+    whatIfMode = (mode === 'whatif');
+    modeViewBtn.classList.toggle('active', !whatIfMode);
+    modeWhatIfBtn.classList.toggle('active', whatIfMode);
+    whatifBanner.classList.toggle('visible', whatIfMode);
+    canvas.style.cursor = whatIfMode ? 'ns-resize' : 'crosshair';
+    if (!whatIfMode) {
+      students.forEach(s => { s.whatIfScore = null; });
+    }
+    draw();
+  }
+
+  /* ────────────────────────────────────────────────
+     TOOLTIP
+  ──────────────────────────────────────────────── */
+  const tooltip = document.getElementById('tooltip');
+
+  function showTooltip(x, y, student, score, apName) {
+    const dist = score - ((bandLower + bandUpper) / 2);
+    const distStr = dist >= 0 ? ('+' + Math.round(dist)) : Math.round(dist).toString();
+    const status = score < bandLower ? 'Below target' : (score > bandUpper ? 'Above target' : 'On track');
+
+    document.getElementById('ttName').textContent  = student.name;
+    document.getElementById('ttScore').textContent = apName + ': ' + Math.round(score);
+    document.getElementById('ttDist').textContent  = status + '  (' + distStr + ' from midpoint)';
+
+    tooltip.style.left = (x + 16) + 'px';
+    tooltip.style.top  = (y - 10) + 'px';
+    tooltip.classList.add('visible');
+  }
+
+  function hideTooltip() {
+    tooltip.classList.remove('visible');
+  }
+
+  /* ────────────────────────────────────────────────
+     MOUSE INTERACTION
+  ──────────────────────────────────────────────── */
+  function getCanvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+  }
+
+  function findNearestPoint(mx, my) {
+    const ca = chartArea();
+    const n  = apCount();
+    let best = null;
+    let bestDist = 30;
+
+    students.forEach(student => {
+      if (!student.visible) return;
+      const pts = getStudentPoints(student, ca, n);
+      pts.forEach(pt => {
+        const d = Math.hypot(pt.x - mx, pt.y - my);
+        if (d < bestDist) {
+          bestDist = d;
+          best = { student, pt };
+        }
+      });
+    });
+    return best;
+  }
+
+  function findLastPointForSelected(student) {
+    const ca = chartArea();
+    const n  = apCount();
+    const pts = getStudentPoints(student, ca, n);
+    if (pts.length === 0) return null;
+    return pts[pts.length - 1];
+  }
+
+  canvas.addEventListener('mousemove', (e) => {
+    const { x, y } = getCanvasPos(e);
+    const ca = chartArea();
+
+    if (dragging && dragStudentId !== null && whatIfMode) {
+      const s = students.find(st => st.id === dragStudentId);
+      if (s) {
+        const score = Math.max(0, Math.min(yMax, scoreForY(y, ca)));
+        s.whatIfScore = score;
+        draw();
+        // Show tooltip for what-if
+        const lastAp = assessmentPoints[apCount() - 1];
+        showTooltip(e.clientX, e.clientY, s, score, lastAp + ' (projected)');
+        return;
+      }
+    }
+
+    const hit = findNearestPoint(x, y);
+    if (hit) {
+      const apName = assessmentPoints[hit.pt.index];
+      showTooltip(e.clientX, e.clientY, hit.student, hit.pt.score, apName);
+    } else {
+      hideTooltip();
+    }
+  });
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (!whatIfMode) return;
+    const { x, y } = getCanvasPos(e);
+
+    if (selectedStudentId !== null) {
+      const sel = students.find(s => s.id === selectedStudentId);
+      if (sel) {
+        const lastPt = findLastPointForSelected(sel);
+        if (lastPt && Math.hypot(lastPt.x - x, lastPt.y - y) < 20) {
+          dragging = true;
+          dragStudentId = sel.id;
+          canvas.style.cursor = 'grabbing';
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+
+    // Allow clicking any student's last point to start drag
+    const ca = chartArea();
+    const n  = apCount();
+    let found = false;
+    students.forEach(student => {
+      if (found || !student.visible) return;
+      const pts = getStudentPoints(student, ca, n);
+      if (pts.length === 0) return;
+      const lastPt = pts[pts.length - 1];
+      if (Math.hypot(lastPt.x - x, lastPt.y - y) < 20) {
+        students.forEach(s => { s.selected = (s.id === student.id); });
+        selectedStudentId = student.id;
+        dragging = true;
+        dragStudentId = student.id;
+        canvas.style.cursor = 'grabbing';
+        renderStudentList();
+        renderLegend();
+        draw();
+        found = true;
+      }
+    });
+  });
+
+  canvas.addEventListener('mouseup', () => {
+    if (dragging) {
+      dragging = false;
+      dragStudentId = null;
+      canvas.style.cursor = whatIfMode ? 'ns-resize' : 'crosshair';
+      refreshAll();
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    hideTooltip();
+    if (dragging) {
+      dragging = false;
+      dragStudentId = null;
+      canvas.style.cursor = whatIfMode ? 'ns-resize' : 'crosshair';
+      refreshAll();
+    }
+  });
+
+  canvas.addEventListener('click', (e) => {
+    if (whatIfMode) return;
+    const { x, y } = getCanvasPos(e);
+    const hit = findNearestPoint(x, y);
+    if (hit) {
+      toggleStudentSelection(hit.student.id);
+    }
+  });
+
+  // Touch support for what-if drag
+  canvas.addEventListener('touchstart', (e) => {
+    if (!whatIfMode) return;
+    const { x, y } = getCanvasPos(e);
+    if (selectedStudentId !== null) {
+      const sel = students.find(s => s.id === selectedStudentId);
+      if (sel) {
+        const lastPt = findLastPointForSelected(sel);
+        if (lastPt && Math.hypot(lastPt.x - x, lastPt.y - y) < 30) {
+          dragging = true;
+          dragStudentId = sel.id;
+          e.preventDefault();
+        }
+      }
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (!dragging || !whatIfMode) return;
+    e.preventDefault();
+    const { x, y } = getCanvasPos(e);
+    const ca = chartArea();
+    const s = students.find(st => st.id === dragStudentId);
+    if (s) {
+      s.whatIfScore = Math.max(0, Math.min(yMax, scoreForY(y, ca)));
+      draw();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', () => {
+    if (dragging) {
+      dragging = false;
+      dragStudentId = null;
+      refreshAll();
+    }
+  });
+
+  /* ────────────────────────────────────────────────
+     RESIZE
+  ──────────────────────────────────────────────── */
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resizeCanvas, 80);
+  });
+
+  /* ────────────────────────────────────────────────
+     INIT
+  ──────────────────────────────────────────────── */
+  function init() {
+    syncBandControls();
+    renderApList();
+    renderScoreTable();
+    renderStudentList();
+    renderLegend();
+    updateStats();
+    resizeCanvas();
+  }
+
+  init();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perspective Swap Simulator</title>
+<style>
+:root {
+  --orange-50: #fff7ed;
+  --orange-100: #ffedd5;
+  --orange-200: #fed7aa;
+  --orange-300: #fdba74;
+  --orange-400: #fb923c;
+  --orange-500: #f97316;
+  --orange-600: #ea580c;
+  --teal-50: #f0fdfa;
+  --teal-100: #ccfbf1;
+  --teal-200: #99f6e4;
+  --teal-300: #5eead4;
+  --teal-400: #2dd4bf;
+  --teal-500: #14b8a6;
+  --teal-600: #0d9488;
+  --teal-700: #0f766e;
+  --grey-50: #f9fafb;
+  --grey-100: #f3f4f6;
+  --grey-200: #e5e7eb;
+  --grey-300: #d1d5db;
+  --grey-400: #9ca3af;
+  --grey-500: #6b7280;
+  --grey-600: #4b5563;
+  --grey-700: #374151;
+  --grey-800: #1f2937;
+  --grey-900: #111827;
+  --radius: 10px;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.12);
+  --transition: 0.3s ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--grey-50);
+  color: var(--grey-800);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* Sticky Header */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: linear-gradient(135deg, var(--orange-500), var(--orange-600));
+  color: #fff;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow-lg);
+}
+.header h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.02em; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.info-btn {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: #fff;
+  border-radius: 50%;
+  width: 34px; height: 34px;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: var(--transition);
+}
+.info-btn:hover { background: rgba(255,255,255,0.35); }
+.empathy-badge {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Main Layout */
+.container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+
+/* Scenario Selector */
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.scenario-card {
+  background: #fff;
+  border: 2px solid var(--grey-200);
+  border-radius: var(--radius);
+  padding: 18px;
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: left;
+}
+.scenario-card:hover { border-color: var(--teal-400); transform: translateY(-2px); box-shadow: var(--shadow); }
+.scenario-card.active { border-color: var(--teal-500); background: var(--teal-50); }
+.scenario-card h3 { font-size: 1rem; margin-bottom: 4px; color: var(--grey-800); }
+.scenario-card p { font-size: 0.85rem; color: var(--grey-500); }
+.scenario-icon { font-size: 1.6rem; margin-bottom: 8px; display: block; }
+
+/* Simulation Area */
+.sim-area { display: none; }
+.sim-area.visible { display: block; }
+
+/* Character Avatars */
+.avatars-row {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  position: relative;
+}
+.avatar-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 3px solid var(--grey-200);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: var(--transition);
+  min-width: 100px;
+  position: relative;
+  z-index: 2;
+}
+.avatar-btn:hover { border-color: var(--orange-300); transform: translateY(-2px); }
+.avatar-btn.active { border-color: var(--orange-500); background: var(--orange-50); box-shadow: 0 0 0 3px rgba(249,115,22,0.15); }
+.avatar-btn.explored { border-color: var(--teal-400); }
+.avatar-btn.explored.active { border-color: var(--orange-500); }
+.avatar-svg { width: 52px; height: 52px; }
+.avatar-label { font-size: 0.8rem; font-weight: 600; color: var(--grey-700); }
+.avatar-role { font-size: 0.7rem; color: var(--grey-400); }
+.explored-tick {
+  position: absolute;
+  top: 4px; right: 6px;
+  width: 18px; height: 18px;
+  background: var(--teal-500);
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.avatar-btn.explored .explored-tick { display: flex; }
+
+/* SVG Connection Lines Container */
+.connections-svg {
+  width: 100%;
+  height: 40px;
+  margin-bottom: 8px;
+  overflow: visible;
+}
+
+/* Narration Panel */
+.narration-panel {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 22px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+  border-left: 4px solid var(--orange-500);
+  transition: var(--transition);
+}
+.narration-panel h3 { font-size: 1.05rem; color: var(--orange-600); margin-bottom: 8px; }
+.narration-text { font-size: 0.95rem; color: var(--grey-700); line-height: 1.7; }
+
+/* Triple Panel */
+.triple-panel {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.triple-card {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  transition: var(--transition);
+  border-top: 3px solid var(--grey-200);
+}
+.triple-card.see { border-top-color: var(--orange-400); }
+.triple-card.think { border-top-color: var(--teal-500); }
+.triple-card.feel { border-top-color: #a78bfa; }
+.triple-card h4 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+.triple-card.see h4 { color: var(--orange-500); }
+.triple-card.think h4 { color: var(--teal-600); }
+.triple-card.feel h4 { color: #7c3aed; }
+.triple-card p { font-size: 0.88rem; color: var(--grey-600); line-height: 1.6; }
+
+/* Overlap/Diverge Section */
+.overlap-section {
+  background: var(--teal-50);
+  border: 1px solid var(--teal-200);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.overlap-section h4 { font-size: 0.95rem; color: var(--teal-700); margin-bottom: 12px; }
+.overlap-list { list-style: none; }
+.overlap-list li {
+  padding: 6px 0;
+  font-size: 0.88rem;
+  color: var(--grey-600);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.overlap-list li::before { content: ''; display: inline-block; min-width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; }
+.overlap-list li.shared::before { background: var(--teal-500); }
+.overlap-list li.diverge::before { background: var(--orange-400); }
+
+/* Empathy Progress */
+.empathy-progress {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+}
+.empathy-progress h4 { font-size: 0.9rem; color: var(--grey-700); margin-bottom: 10px; }
+.progress-bar-bg {
+  height: 10px;
+  background: var(--grey-200);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--orange-400), var(--teal-500));
+  border-radius: 5px;
+  transition: width 0.5s ease;
+}
+.progress-label { font-size: 0.8rem; color: var(--grey-500); margin-top: 6px; text-align: right; }
+
+/* Reflection Panel */
+.reflection-panel {
+  display: none;
+  background: linear-gradient(135deg, var(--teal-50), var(--orange-50));
+  border: 2px solid var(--teal-300);
+  border-radius: var(--radius);
+  padding: 28px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+.reflection-panel.visible { display: block; }
+.reflection-panel h3 { font-size: 1.15rem; color: var(--teal-700); margin-bottom: 16px; }
+.reflection-prompts { text-align: left; margin: 16px 0; }
+.reflection-prompts li {
+  font-size: 0.92rem;
+  color: var(--grey-700);
+  margin-bottom: 10px;
+  padding-left: 8px;
+  list-style: decimal;
+  margin-left: 18px;
+  line-height: 1.6;
+}
+.reflection-score {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--teal-600);
+  margin: 10px 0;
+}
+.reflection-msg { font-size: 0.92rem; color: var(--grey-600); margin-bottom: 18px; }
+.btn-reset {
+  background: var(--orange-500);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 10px 28px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btn-reset:hover { background: var(--orange-600); }
+
+/* Info Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.visible { display: flex; }
+.modal-box {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 30px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+.modal-box h2 { font-size: 1.2rem; color: var(--teal-700); margin-bottom: 14px; }
+.modal-box h3 { font-size: 1rem; color: var(--orange-600); margin: 16px 0 8px; }
+.modal-box p { font-size: 0.9rem; color: var(--grey-600); margin-bottom: 10px; line-height: 1.65; }
+.modal-box ul { margin: 8px 0 12px 20px; }
+.modal-box ul li { font-size: 0.88rem; color: var(--grey-600); margin-bottom: 4px; line-height: 1.6; }
+.modal-close {
+  display: block;
+  margin: 18px auto 0;
+  background: var(--teal-500);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 8px 24px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.modal-close:hover { background: var(--teal-600); }
+
+/* Back button */
+.btn-back {
+  background: none;
+  border: 1px solid var(--grey-300);
+  border-radius: var(--radius);
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  color: var(--grey-600);
+  cursor: pointer;
+  margin-bottom: 18px;
+  transition: var(--transition);
+}
+.btn-back:hover { border-color: var(--grey-400); color: var(--grey-800); }
+
+/* Scenario intro */
+.scenario-intro {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 22px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow);
+}
+.scenario-intro h2 { font-size: 1.15rem; color: var(--grey-800); margin-bottom: 6px; }
+.scenario-intro p { font-size: 0.92rem; color: var(--grey-500); }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .scenario-grid { grid-template-columns: 1fr; }
+  .triple-panel { grid-template-columns: 1fr; }
+  .header h1 { font-size: 1.05rem; }
+  .avatars-row { gap: 10px; }
+  .avatar-btn { min-width: 80px; padding: 10px 12px; }
+  .avatar-svg { width: 42px; height: 42px; }
+  .container { padding: 16px 12px; }
+  .narration-panel { padding: 16px; }
+  .modal-box { padding: 22px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <h1>Perspective Swap Simulator</h1>
+  <div class="header-right">
+    <span class="empathy-badge" id="headerScore">Empathy: 0%</span>
+    <button class="info-btn" id="infoBtn" aria-label="Information about this tool">i</button>
+  </div>
+</header>
+
+<!-- Info Modal -->
+<div class="modal-overlay" id="infoModal">
+  <div class="modal-box">
+    <h2>About This Tool</h2>
+    <p>The Perspective Swap Simulator helps students develop empathy and perspective-taking skills by exploring school conflict scenarios from multiple viewpoints.</p>
+
+    <h3>Empathy and Perspective-Taking</h3>
+    <p>Empathy is the ability to understand and share the feelings of another person. Perspective-taking goes further: it means imagining yourself in someone else's situation, considering what they see, think, and feel.</p>
+    <p>Research shows that practising perspective-taking regularly can reduce conflict, improve friendships, and build stronger classroom communities.</p>
+
+    <h3>Theory of Mind (ToM)</h3>
+    <p>Theory of Mind is the understanding that other people have thoughts, beliefs, and feelings that may be different from your own. It develops throughout childhood and is essential for navigating social situations.</p>
+    <p>This simulator supports ToM development by making those hidden mental states visible through the "What they see / think / feel" panels.</p>
+
+    <h3>How to Use</h3>
+    <ul>
+      <li>Choose a conflict scenario from the menu.</li>
+      <li>Click on each character's avatar to swap perspective.</li>
+      <li>Read what each person sees, thinks, and feels.</li>
+      <li>Notice where perspectives overlap and where they diverge.</li>
+      <li>Explore all perspectives to unlock the reflection prompts.</li>
+    </ul>
+
+    <h3>Curriculum Links</h3>
+    <ul>
+      <li>PSHE: Relationships, conflict resolution, empathy</li>
+      <li>RSE: Respectful relationships, mental wellbeing</li>
+      <li>British Values: Mutual respect, tolerance</li>
+    </ul>
+
+    <button class="modal-close" id="closeModal">Close</button>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div class="container">
+
+  <!-- Scenario Selection -->
+  <div id="scenarioSelect">
+    <div class="scenario-grid" id="scenarioGrid"></div>
+  </div>
+
+  <!-- Simulation Area -->
+  <div class="sim-area" id="simArea">
+    <button class="btn-back" id="btnBack">Back to scenarios</button>
+
+    <div class="scenario-intro" id="scenarioIntro">
+      <h2 id="scenarioTitle"></h2>
+      <p id="scenarioDesc"></p>
+    </div>
+
+    <!-- Character Avatars -->
+    <div class="avatars-row" id="avatarsRow"></div>
+
+    <!-- SVG Connection Lines -->
+    <svg class="connections-svg" id="connectionsSvg"></svg>
+
+    <!-- Narration Panel -->
+    <div class="narration-panel" id="narrationPanel">
+      <h3 id="narrationName"></h3>
+      <p class="narration-text" id="narrationText"></p>
+    </div>
+
+    <!-- Triple Panel -->
+    <div class="triple-panel" id="triplePanel">
+      <div class="triple-card see">
+        <h4>What They See</h4>
+        <p id="panelSee"></p>
+      </div>
+      <div class="triple-card think">
+        <h4>What They Think</h4>
+        <p id="panelThink"></p>
+      </div>
+      <div class="triple-card feel">
+        <h4>What They Feel</h4>
+        <p id="panelFeel"></p>
+      </div>
+    </div>
+
+    <!-- Overlap / Diverge -->
+    <div class="overlap-section" id="overlapSection">
+      <h4>Where Perspectives Overlap and Diverge</h4>
+      <ul class="overlap-list" id="overlapList"></ul>
+    </div>
+
+    <!-- Empathy Progress -->
+    <div class="empathy-progress">
+      <h4>Empathy Exploration Progress</h4>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+      <p class="progress-label" id="progressLabel">0 of 0 perspectives explored</p>
+    </div>
+
+    <!-- Reflection -->
+    <div class="reflection-panel" id="reflectionPanel">
+      <h3>Reflection Time</h3>
+      <div class="reflection-score" id="reflectionScore"></div>
+      <p class="reflection-msg" id="reflectionMsg"></p>
+      <ol class="reflection-prompts" id="reflectionPrompts"></ol>
+      <button class="btn-reset" id="btnReset">Try Another Scenario</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== DATA ===== */
+const scenarios = [
+  {
+    id: 'playground',
+    title: 'The Playground Argument',
+    icon: '\u26BD',
+    summary: 'Two pupils disagree over the rules of a football game at break time, and things escalate quickly.',
+    description: 'During morning break, a football game ends in a heated argument. One pupil says the ball was out; the other says it was a goal. Voices are raised and a crowd gathers.',
+    characters: [
+      {
+        id: 'alex',
+        name: 'Alex',
+        role: 'Pupil (scorer)',
+        colour: '#f97316',
+        narration: 'I kicked the ball and it clearly went in. Everyone saw it. Then Sam started shouting that it was out. That is so unfair. I scored that goal fair and square. Now Sam is trying to get everyone on their side and I look like the bad one.',
+        see: 'The ball crossing the line before Sam could reach it. A crowd forming. Sam pointing and shouting.',
+        think: 'I know that was a goal. Sam just cannot accept losing. If I back down now, everyone will think I am a pushover.',
+        feel: 'Frustrated and embarrassed. Worried about looking weak in front of friends. A knot in the stomach.'
+      },
+      {
+        id: 'sam',
+        name: 'Sam',
+        role: 'Pupil (defender)',
+        colour: '#14b8a6',
+        narration: 'I was right there. The ball went wide. Alex always does this, just claims goals that did not go in. Now Alex is getting louder and I feel like I have to stand my ground or people will think I am lying.',
+        see: 'The ball going past the post. Alex celebrating before anyone agreed. Other pupils looking uncertain.',
+        think: 'Alex is not being fair. I was closest to the line. Why does nobody believe me? If I give in, Alex will keep doing this.',
+        feel: 'Angry and hurt. Feeling unheard. Anxious about the confrontation getting bigger.'
+      },
+      {
+        id: 'teacher',
+        name: 'Ms Carter',
+        role: 'Teacher on duty',
+        colour: '#7c3aed',
+        narration: 'I noticed a commotion by the pitch and went over. Two pupils were shouting about a goal. The crowd was getting excited. I need to calm this down before it escalates further, but I also need to understand what happened without taking sides.',
+        see: 'Two upset children surrounded by a growing crowd. Raised voices. Other pupils choosing sides.',
+        think: 'I did not see the play itself. Both pupils believe they are right. The priority is de-escalation, then fairness. Perhaps this is a chance to teach conflict resolution.',
+        feel: 'Concerned about the situation escalating. Calm but alert. Hoping to use this as a learning moment.'
+      }
+    ],
+    overlaps: [
+      { text: 'Both Alex and Sam genuinely believe they are right about the goal.', type: 'shared' },
+      { text: 'Both pupils worry about how they appear to their friends.', type: 'shared' },
+      { text: 'Alex sees a clear goal; Sam sees a clear miss. Neither saw the same event the same way.', type: 'diverge' },
+      { text: 'Ms Carter focuses on safety and de-escalation; the pupils focus on who is right.', type: 'diverge' }
+    ],
+    reflections: [
+      'Why might two people see the same event differently?',
+      'How could Alex and Sam resolve this without a teacher needing to step in?',
+      'What would change if both pupils paused and listened to each other first?',
+      'How does worrying about what friends think make conflicts harder to resolve?'
+    ]
+  },
+  {
+    id: 'homework',
+    title: 'The Homework Dispute',
+    icon: '\uD83D\uDCDA',
+    summary: 'A pupil has not completed their homework for the third time. Their teacher and parent see it very differently.',
+    description: 'Jordan has not handed in homework again. The teacher speaks to Jordan at the start of class. Later, a phone call home leads to very different reactions.',
+    characters: [
+      {
+        id: 'jordan',
+        name: 'Jordan',
+        role: 'Pupil',
+        colour: '#f97316',
+        narration: 'I tried to do the homework, I really did. But things at home were difficult this week. Mum was working late every night and my little brother would not stop crying. By the time things quietened down I was too tired. Now Mr Hayes has called me out in front of everyone and I feel terrible.',
+        see: 'The disappointed look on Mr Hayes\u2019 face. Classmates glancing over. An empty space in the homework tray where mine should be.',
+        think: 'Nobody understands what it is like at home. I am not lazy. I just could not find the time or the quiet. Now everyone thinks I do not care about school.',
+        feel: 'Ashamed and small. Overwhelmed by home pressures. Worried that trying to explain will sound like excuses.'
+      },
+      {
+        id: 'hayes',
+        name: 'Mr Hayes',
+        role: 'Teacher',
+        colour: '#14b8a6',
+        narration: 'This is the third week in a row Jordan has not completed homework. I have given reminders, offered help at lunch, and now I need to escalate. I do not want to embarrass Jordan, but the class needs consistency. I will ring home tonight.',
+        see: 'A pattern of missing work. Jordan looking down, avoiding eye contact. Good work in class that does not match the missing homework.',
+        think: 'Something is going on. Jordan is capable. I need to find out what the barrier is rather than just applying consequences. But I also cannot let the standard slip for the whole class.',
+        feel: 'Concerned but slightly frustrated. Torn between compassion and consistency. Hoping the parents can shed light on things.'
+      },
+      {
+        id: 'parent',
+        name: 'Jordan\u2019s Mum',
+        role: 'Parent',
+        colour: '#7c3aed',
+        narration: 'I got a call from school about Jordan\u2019s homework. I felt awful. I have been picking up extra shifts and I know things at home have been chaotic. I do not want the school thinking I do not care about Jordan\u2019s education. I am doing my best.',
+        see: 'A missed call from school. The homework sheet still in Jordan\u2019s bag, half-started. A to-do list of her own that never ends.',
+        think: 'I should have checked. But when am I supposed to? I leave before the children wake and get home after bedtime some nights. The school must think I am a terrible parent.',
+        feel: 'Guilty and defensive. Exhausted. Worried the school will judge the family rather than offer support.'
+      }
+    ],
+    overlaps: [
+      { text: 'All three people want Jordan to succeed at school.', type: 'shared' },
+      { text: 'Both Jordan and Mum feel guilty about the situation.', type: 'shared' },
+      { text: 'Mr Hayes sees a pattern of missing work; Jordan and Mum see a difficult week at home.', type: 'diverge' },
+      { text: 'Mr Hayes worries about fairness to the whole class; Jordan and Mum focus on their individual circumstances.', type: 'diverge' }
+    ],
+    reflections: [
+      'What assumptions might a teacher make if they only see missing homework and not the home situation?',
+      'How could Jordan communicate their difficulties without feeling ashamed?',
+      'What could the school do to support families going through tough times?',
+      'Why is it important for teachers to ask "What is going on?" rather than just "Where is your homework?"'
+    ]
+  },
+  {
+    id: 'exclusion',
+    title: 'The Friendship Exclusion',
+    icon: '\uD83D\uDCAC',
+    summary: 'A close group of friends starts leaving one person out. Each member of the group sees it differently.',
+    description: 'Priya notices she has been left out of a group chat and was not invited to sit with her friends at lunch. The group say it was not deliberate, but Priya is not so sure.',
+    characters: [
+      {
+        id: 'priya',
+        name: 'Priya',
+        role: 'Excluded pupil',
+        colour: '#f97316',
+        narration: 'I went to sit at our usual table and there was no space left. Ellie said "sorry, we did not think you were coming." But I always sit there. Then I found out about the group chat I was not added to. It feels like they are pushing me out on purpose.',
+        see: 'Her usual seat taken. Friends laughing together. A group chat notification on someone else\u2019s phone that she is not part of.',
+        think: 'They are doing this on purpose. What did I do wrong? Maybe they have been talking about me in that chat. I thought these were my best friends.',
+        feel: 'Lonely and rejected. A painful tightness in the chest. Scared that she has lost her friends. Confused.'
+      },
+      {
+        id: 'ellie',
+        name: 'Ellie',
+        role: 'Pupil (in the group)',
+        colour: '#14b8a6',
+        narration: 'I genuinely did not mean to leave Priya out. The group chat was made quickly for planning a project and I just forgot to add her. At lunch, we sat down and it filled up. I feel bad but Priya is making it into a bigger thing than it is.',
+        see: 'Priya looking upset. The group chat that was made in a rush. A full table that just happened to fill up.',
+        think: 'I did not do anything wrong on purpose. But Priya looks really hurt. Maybe I should have been more careful. I do not want drama though.',
+        feel: 'Defensive but also a bit guilty. Uncomfortable with confrontation. Wishing it would all blow over.'
+      },
+      {
+        id: 'teacher2',
+        name: 'Mrs Okafor',
+        role: 'Form tutor',
+        colour: '#7c3aed',
+        narration: 'I noticed Priya sitting alone after lunch looking withdrawn. When I asked, she said everything was fine, but I could see it was not. Friendship difficulties at this age can be incredibly painful. I need to keep an eye on this without overstepping.',
+        see: 'Priya isolated and quiet. The friend group apparently carrying on as normal. A shift in Priya\u2019s body language over the past few days.',
+        think: 'This could be the start of something more serious. Exclusion can be a form of bullying even when it is not intended. I should check in gently and perhaps speak to the group.',
+        feel: 'Protective of Priya. Cautious about intervening too heavily. Concerned about the group dynamic.'
+      }
+    ],
+    overlaps: [
+      { text: 'Both Priya and Ellie value the friendship group.', type: 'shared' },
+      { text: 'Both Mrs Okafor and Priya recognise something has changed.', type: 'shared' },
+      { text: 'Priya sees deliberate exclusion; Ellie sees an honest mistake.', type: 'diverge' },
+      { text: 'Ellie wants things to blow over; Priya needs acknowledgement and reassurance.', type: 'diverge' }
+    ],
+    reflections: [
+      'Can something be hurtful even if it was not done on purpose? Why?',
+      'What is the difference between explaining your actions and dismissing someone\u2019s feelings?',
+      'How could Ellie respond in a way that shows she understands Priya\u2019s hurt?',
+      'Why might Priya say "I am fine" to Mrs Okafor even though she is not?'
+    ]
+  },
+  {
+    id: 'disruption',
+    title: 'The Classroom Disruption',
+    icon: '\uD83C\uDFEB',
+    summary: 'A pupil keeps calling out in class. The disruption affects everyone, but the reasons behind it are more complex than they appear.',
+    description: 'Tyler has been calling out, tapping the desk, and making jokes during a maths lesson. Other pupils are losing focus. The teacher gives a warning, but Tyler continues.',
+    characters: [
+      {
+        id: 'tyler',
+        name: 'Tyler',
+        role: 'Disruptive pupil',
+        colour: '#f97316',
+        narration: 'I know I should not call out but I cannot help it. The work is too hard and when I do not understand something, the panic builds up and I have to do something. Making people laugh makes me feel less stupid for a moment. But now Miss Singh looks really cross and I have probably ruined everything.',
+        see: 'Numbers on the board that do not make sense. Other pupils writing confidently. Miss Singh\u2019s expression changing from patient to stern.',
+        think: 'Everyone else gets it. I am the only one who cannot do this. If I make a joke, at least people laugh with me instead of at me. I would rather be the funny one than the thick one.',
+        feel: 'Panicky inside. Embarrassed about not understanding. A desperate need to mask the struggle with humour.'
+      },
+      {
+        id: 'singh',
+        name: 'Miss Singh',
+        role: 'Maths teacher',
+        colour: '#14b8a6',
+        narration: 'Tyler is disrupting the lesson again. I have differentiated the work and offered support, but Tyler will not engage. The rest of the class are being pulled off task. I need to address the behaviour, but I also suspect there is something deeper going on.',
+        see: 'Tyler calling out, tapping, distracting others. Some pupils laughing, others looking frustrated. A lesson plan falling behind schedule.',
+        think: 'The behaviour is the symptom, not the cause. Tyler is bright in other subjects. Something about maths triggers this. But I cannot let the class suffer. I will try a private word after the lesson.',
+        feel: 'Frustrated but empathetic. Torn between managing the class and supporting Tyler individually. Tired from managing disruptions all week.'
+      },
+      {
+        id: 'peer',
+        name: 'Aisha',
+        role: 'Classmate',
+        colour: '#7c3aed',
+        narration: 'Tyler keeps messing about and I cannot concentrate. I have a test next week and I need to learn this. It is annoying because every time Tyler makes a joke, Miss Singh has to stop teaching and I fall behind. I do not understand why Tyler cannot just be quiet.',
+        see: 'Tyler talking loudly, Miss Singh stopping the lesson repeatedly. Her own work half-finished. The clock ticking away.',
+        think: 'Why does Tyler always have to ruin the lesson? Some of us are trying to learn. It is not fair that one person\u2019s behaviour affects everyone.',
+        feel: 'Irritated and stressed. Anxious about falling behind. A bit resentful towards Tyler.'
+      }
+    ],
+    overlaps: [
+      { text: 'All three people are affected by the disruption and want the lesson to go well.', type: 'shared' },
+      { text: 'Both Miss Singh and Tyler know the behaviour is linked to something deeper.', type: 'shared' },
+      { text: 'Aisha sees deliberate disruption; Tyler sees a desperate coping strategy.', type: 'diverge' },
+      { text: 'Aisha wants immediate consequences; Miss Singh wants to address the root cause.', type: 'diverge' }
+    ],
+    reflections: [
+      'Why might someone act out in class when they are actually struggling?',
+      'How would knowing Tyler\u2019s feelings change the way Aisha sees the disruption?',
+      'What could the school do so Tyler feels safe to say "I do not understand" instead of masking it with humour?',
+      'Is it possible to be compassionate towards Tyler and still feel frustrated? How do we hold both feelings?'
+    ]
+  }
+];
+
+/* ===== AVATAR SVGs ===== */
+function avatarSVG(colour, type) {
+  const c = colour;
+  const skin = '#fcd5b5';
+  if (type === 'pupil') {
+    return `<svg viewBox="0 0 52 52" class="avatar-svg" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="26" cy="20" r="12" fill="${skin}"/>
+      <ellipse cx="26" cy="48" rx="16" ry="14" fill="${c}"/>
+      <circle cx="22" cy="18" r="1.5" fill="#333"/>
+      <circle cx="30" cy="18" r="1.5" fill="#333"/>
+      <path d="M23 23 Q26 26 29 23" stroke="#333" stroke-width="1" fill="none"/>
+      <path d="M14 14 Q18 6 26 8 Q34 6 38 14" fill="#5b4030" stroke="none"/>
+    </svg>`;
+  }
+  if (type === 'teacher') {
+    return `<svg viewBox="0 0 52 52" class="avatar-svg" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="26" cy="20" r="12" fill="${skin}"/>
+      <ellipse cx="26" cy="48" rx="16" ry="14" fill="${c}"/>
+      <circle cx="22" cy="18" r="1.5" fill="#333"/>
+      <circle cx="30" cy="18" r="1.5" fill="#333"/>
+      <path d="M23 23 Q26 25 29 23" stroke="#333" stroke-width="1" fill="none"/>
+      <path d="M14 15 Q16 6 26 8 Q36 6 38 15" fill="#3d2b1f" stroke="none"/>
+      <rect x="18" y="14" width="16" height="2" rx="1" fill="${c}" opacity="0.5"/>
+    </svg>`;
+  }
+  /* parent */
+  return `<svg viewBox="0 0 52 52" class="avatar-svg" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="26" cy="20" r="12" fill="${skin}"/>
+    <ellipse cx="26" cy="48" rx="16" ry="14" fill="${c}"/>
+    <circle cx="22" cy="18" r="1.5" fill="#333"/>
+    <circle cx="30" cy="18" r="1.5" fill="#333"/>
+    <path d="M23 23 Q26 25 29 23" stroke="#333" stroke-width="1" fill="none"/>
+    <path d="M13 16 Q16 4 26 7 Q36 4 39 16" fill="#6b4226" stroke="none"/>
+    <line x1="17" y1="8" x2="35" y2="8" stroke="${c}" stroke-width="2" opacity="0.5"/>
+  </svg>`;
+}
+
+function getCharType(role) {
+  const r = role.toLowerCase();
+  if (r.includes('teacher') || r.includes('tutor') || r.includes('form')) return 'teacher';
+  if (r.includes('parent') || r.includes('mum') || r.includes('dad')) return 'parent';
+  return 'pupil';
+}
+
+/* ===== STATE ===== */
+let currentScenario = null;
+let activeCharIdx = 0;
+let exploredSet = new Set();
+
+/* ===== DOM REFS ===== */
+const $ = id => document.getElementById(id);
+const scenarioGrid = $('scenarioGrid');
+const scenarioSelect = $('scenarioSelect');
+const simArea = $('simArea');
+const avatarsRow = $('avatarsRow');
+const connectionsSvg = $('connectionsSvg');
+const narrationPanel = $('narrationPanel');
+const overlapList = $('overlapList');
+const overlapSection = $('overlapSection');
+const progressFill = $('progressFill');
+const progressLabel = $('progressLabel');
+const reflectionPanel = $('reflectionPanel');
+const headerScore = $('headerScore');
+
+/* ===== BUILD SCENARIO GRID ===== */
+function buildGrid() {
+  scenarioGrid.innerHTML = '';
+  scenarios.forEach((s, i) => {
+    const card = document.createElement('div');
+    card.className = 'scenario-card';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.innerHTML = `<span class="scenario-icon">${s.icon}</span><h3>${s.title}</h3><p>${s.summary}</p>`;
+    card.addEventListener('click', () => openScenario(i));
+    card.addEventListener('keydown', e => { if (e.key === 'Enter') openScenario(i); });
+    scenarioGrid.appendChild(card);
+  });
+}
+
+/* ===== OPEN SCENARIO ===== */
+function openScenario(idx) {
+  currentScenario = scenarios[idx];
+  activeCharIdx = 0;
+  exploredSet = new Set();
+  scenarioSelect.style.display = 'none';
+  simArea.classList.add('visible');
+  $('scenarioTitle').textContent = currentScenario.title;
+  $('scenarioDesc').textContent = currentScenario.description;
+  reflectionPanel.classList.remove('visible');
+  buildAvatars();
+  selectCharacter(0);
+  buildOverlaps();
+  updateProgress();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ===== BUILD AVATARS ===== */
+function buildAvatars() {
+  avatarsRow.innerHTML = '';
+  currentScenario.characters.forEach((ch, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'avatar-btn';
+    btn.setAttribute('aria-label', `View ${ch.name}'s perspective`);
+    btn.dataset.idx = i;
+    const type = getCharType(ch.role);
+    btn.innerHTML = `
+      ${avatarSVG(ch.colour, type)}
+      <span class="avatar-label">${ch.name}</span>
+      <span class="avatar-role">${ch.role}</span>
+      <span class="explored-tick"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5 L4 7 L8 3" stroke="#fff" stroke-width="1.5" fill="none"/></svg></span>
+    `;
+    btn.addEventListener('click', () => selectCharacter(i));
+    avatarsRow.appendChild(btn);
+  });
+}
+
+/* ===== SELECT CHARACTER ===== */
+function selectCharacter(idx) {
+  activeCharIdx = idx;
+  exploredSet.add(idx);
+  const ch = currentScenario.characters[idx];
+
+  /* Update avatar active states */
+  avatarsRow.querySelectorAll('.avatar-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === idx);
+    if (exploredSet.has(i)) btn.classList.add('explored');
+  });
+
+  /* Narration */
+  $('narrationName').textContent = `${ch.name}\u2019s Perspective`;
+  $('narrationText').textContent = ch.narration;
+  narrationPanel.style.borderLeftColor = ch.colour;
+
+  /* Triple panel */
+  $('panelSee').textContent = ch.see;
+  $('panelThink').textContent = ch.think;
+  $('panelFeel').textContent = ch.feel;
+
+  updateProgress();
+  drawConnections();
+
+  /* Check for reflection unlock */
+  if (exploredSet.size === currentScenario.characters.length) {
+    showReflection();
+  }
+}
+
+/* ===== DRAW SVG CONNECTION LINES ===== */
+function drawConnections() {
+  connectionsSvg.innerHTML = '';
+  if (exploredSet.size < 2) return;
+
+  const btns = avatarsRow.querySelectorAll('.avatar-btn');
+  const rowRect = avatarsRow.getBoundingClientRect();
+  const svgRect = connectionsSvg.getBoundingClientRect();
+  const explored = [...exploredSet];
+
+  for (let i = 0; i < explored.length; i++) {
+    for (let j = i + 1; j < explored.length; j++) {
+      const a = btns[explored[i]].getBoundingClientRect();
+      const b = btns[explored[j]].getBoundingClientRect();
+      const x1 = a.left + a.width / 2 - svgRect.left;
+      const y1 = 5;
+      const x2 = b.left + b.width / 2 - svgRect.left;
+      const y2 = 5;
+      const midY = 30;
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M${x1},${y1} Q${(x1+x2)/2},${midY} ${x2},${y2}`);
+      path.setAttribute('stroke', exploredSet.size === currentScenario.characters.length ? '#14b8a6' : '#fdba74');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-dasharray', '6,4');
+      path.setAttribute('opacity', '0.6');
+      connectionsSvg.appendChild(path);
+    }
+  }
+}
+
+/* ===== BUILD OVERLAPS ===== */
+function buildOverlaps() {
+  overlapList.innerHTML = '';
+  currentScenario.overlaps.forEach(o => {
+    const li = document.createElement('li');
+    li.className = o.type === 'shared' ? 'shared' : 'diverge';
+    li.textContent = o.text;
+    overlapList.appendChild(li);
+  });
+}
+
+/* ===== UPDATE PROGRESS ===== */
+function updateProgress() {
+  if (!currentScenario) return;
+  const total = currentScenario.characters.length;
+  const done = exploredSet.size;
+  const pct = Math.round((done / total) * 100);
+  progressFill.style.width = pct + '%';
+  progressLabel.textContent = `${done} of ${total} perspectives explored`;
+  headerScore.textContent = `Empathy: ${pct}%`;
+}
+
+/* ===== SHOW REFLECTION ===== */
+function showReflection() {
+  const total = currentScenario.characters.length;
+  const pct = 100;
+  $('reflectionScore').textContent = `${pct}%`;
+  $('reflectionMsg').textContent = `Well done! You explored all ${total} perspectives. Seeing a situation through different eyes is a powerful skill.`;
+
+  const prompts = $('reflectionPrompts');
+  prompts.innerHTML = '';
+  currentScenario.reflections.forEach(r => {
+    const li = document.createElement('li');
+    li.textContent = r;
+    prompts.appendChild(li);
+  });
+
+  reflectionPanel.classList.add('visible');
+  setTimeout(() => {
+    reflectionPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 300);
+}
+
+/* ===== BACK / RESET ===== */
+$('btnBack').addEventListener('click', () => {
+  simArea.classList.remove('visible');
+  scenarioSelect.style.display = 'block';
+  currentScenario = null;
+  headerScore.textContent = 'Empathy: 0%';
+});
+
+$('btnReset').addEventListener('click', () => {
+  simArea.classList.remove('visible');
+  scenarioSelect.style.display = 'block';
+  currentScenario = null;
+  headerScore.textContent = 'Empathy: 0%';
+});
+
+/* ===== INFO MODAL ===== */
+$('infoBtn').addEventListener('click', () => $('infoModal').classList.add('visible'));
+$('closeModal').addEventListener('click', () => $('infoModal').classList.remove('visible'));
+$('infoModal').addEventListener('click', e => { if (e.target === $('infoModal')) $('infoModal').classList.remove('visible'); });
+
+/* ===== REDRAW CONNECTIONS ON RESIZE ===== */
+window.addEventListener('resize', () => { if (currentScenario) drawConnections(); });
+
+/* ===== INIT ===== */
+buildGrid();
+</script>
+</body>
+</html>

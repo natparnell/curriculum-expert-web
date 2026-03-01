@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Change &amp; Continuity Analyser</title>
+<style>
+:root {
+  --parchment: #f5eed6;
+  --parchment-dark: #e8dcc0;
+  --sepia: #704214;
+  --sepia-light: #a0734a;
+  --timeline-gold: #c9a227;
+  --timeline-gold-light: #e6c84e;
+  --card-cream: #faf6eb;
+  --card-border: #d4c9a8;
+  --text-primary: #3a2d1a;
+  --text-secondary: #6b5a3e;
+  --accent-blue: #4a6fa5;
+  --change-none: #4caf50;
+  --change-low: #8bc34a;
+  --change-mid: #ffc107;
+  --change-high: #ff9800;
+  --change-rev: #f44336;
+  --header-bg: #3a2d1a;
+  --shadow: 0 2px 8px rgba(58,45,26,0.15);
+  --radius: 8px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--parchment);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--header-bg);
+  color: var(--parchment);
+  padding: 14px 24px;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.3);
+}
+header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.5px; }
+header p { font-size: 0.85rem; opacity: 0.8; margin-top: 2px; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 20px 16px 40px; }
+
+/* Period selector tabs */
+.period-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.period-tab {
+  padding: 8px 20px;
+  border: 2px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--card-cream);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.period-tab:hover { border-color: var(--timeline-gold); }
+.period-tab.active {
+  background: var(--timeline-gold);
+  color: #fff;
+  border-color: var(--timeline-gold);
+}
+
+/* Mode toggle */
+.mode-toggle {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+.mode-btn {
+  padding: 7px 16px;
+  border: 2px solid var(--sepia-light);
+  border-radius: var(--radius);
+  background: var(--card-cream);
+  color: var(--sepia);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.mode-btn:hover { background: var(--parchment-dark); }
+.mode-btn.active { background: var(--sepia); color: #fff; border-color: var(--sepia); }
+
+/* Timeline section */
+.timeline-section {
+  background: var(--card-cream);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+}
+.timeline-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.timeline-year {
+  text-align: center;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--sepia);
+  margin-bottom: 8px;
+}
+.slider-row { display: flex; align-items: center; gap: 12px; }
+.slider-row input[type="range"] { flex: 1; }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, var(--timeline-gold-light), var(--timeline-gold));
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--sepia);
+  border: 3px solid var(--timeline-gold);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--sepia);
+  border: 3px solid var(--timeline-gold);
+  cursor: pointer;
+}
+
+.overall-score {
+  text-align: center;
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: var(--radius);
+  background: var(--parchment-dark);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.overall-score span { font-size: 1.2rem; }
+
+/* Compare mode sliders */
+.compare-sliders {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.compare-sliders > div { flex: 1; }
+.compare-year {
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--sepia);
+  margin-bottom: 6px;
+}
+.compare-label-tag {
+  text-align: center;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+/* Aspect cards grid */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 30px;
+}
+.aspect-card {
+  background: var(--card-cream);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  transition: transform 0.15s, box-shadow 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.aspect-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(58,45,26,0.2); }
+.aspect-card .change-strip {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 5px;
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  margin-top: 4px;
+}
+.card-icon { font-size: 1.6rem; }
+.card-title { font-size: 1rem; font-weight: 700; color: var(--sepia); }
+.card-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  min-height: 48px;
+}
+.change-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+.meter-bar {
+  flex: 1;
+  height: 10px;
+  background: #ddd;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.4s, background 0.4s;
+}
+.change-label { font-weight: 600; white-space: nowrap; }
+
+/* Compare cards */
+.compare-card {
+  background: var(--card-cream);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.compare-card .card-header { margin-bottom: 12px; }
+.compare-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.compare-col {
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+.compare-col.left { background: rgba(74,111,165,0.08); border: 1px solid rgba(74,111,165,0.2); }
+.compare-col.right { background: rgba(201,162,39,0.1); border: 1px solid rgba(201,162,39,0.3); }
+.compare-col strong { display: block; font-size: 0.75rem; color: var(--text-primary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.compare-change {
+  margin-top: 10px;
+  padding: 8px;
+  background: var(--parchment-dark);
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+/* Chart section */
+.chart-section {
+  background: var(--card-cream);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 30px;
+  box-shadow: var(--shadow);
+}
+.chart-section h2 {
+  font-size: 1.15rem;
+  color: var(--sepia);
+  margin-bottom: 16px;
+}
+.bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bar-label {
+  width: 130px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: right;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+.bar-track {
+  flex: 1;
+  height: 24px;
+  background: #e8e0cc;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s;
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Info panel */
+.info-panel {
+  background: var(--card-cream);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+.info-panel h2 {
+  font-size: 1.15rem;
+  color: var(--sepia);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.info-panel h2::after {
+  content: '\25BC';
+  font-size: 0.7rem;
+  transition: transform 0.3s;
+}
+.info-panel h2.collapsed::after { transform: rotate(-90deg); }
+.info-content { overflow: hidden; transition: max-height 0.4s; }
+.info-content.hidden { max-height: 0 !important; }
+.info-content h3 { font-size: 0.95rem; color: var(--sepia-light); margin: 14px 0 6px; }
+.info-content h3:first-child { margin-top: 0; }
+.info-content p, .info-content ul { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; }
+.info-content ul { padding-left: 20px; }
+.info-content li { margin-bottom: 4px; }
+.key-term { font-weight: 700; color: var(--sepia); }
+
+/* Responsive */
+@media (max-width: 700px) {
+  header { padding: 12px 16px; }
+  header h1 { font-size: 1.2rem; }
+  .cards-grid { grid-template-columns: 1fr; }
+  .compare-sliders { grid-template-columns: 1fr; }
+  .compare-columns { grid-template-columns: 1fr; }
+  .bar-label { width: 90px; font-size: 0.75rem; }
+  .container { padding: 14px 10px 30px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Change &amp; Continuity Analyser</h1>
+  <p>Compare aspects of life across time periods to see what changed and what stayed the same</p>
+</header>
+
+<div class="container">
+
+  <!-- Period selector -->
+  <div class="period-tabs" id="periodTabs"></div>
+
+  <!-- Mode toggle -->
+  <div class="mode-toggle">
+    <button class="mode-btn active" data-mode="explore" onclick="setMode('explore')">Timeline Explorer</button>
+    <button class="mode-btn" data-mode="compare" onclick="setMode('compare')">Compare Two Periods</button>
+    <button class="mode-btn" data-mode="chart" onclick="setMode('chart')">Overview Chart</button>
+    <button class="mode-btn" data-mode="info" onclick="setMode('info')">Key Concepts</button>
+  </div>
+
+  <!-- Timeline Explorer -->
+  <div id="exploreView">
+    <div class="timeline-section">
+      <div class="timeline-year" id="currentYear">1066</div>
+      <div class="timeline-label">
+        <span id="startLabel">1066</span>
+        <span id="endLabel">2000</span>
+      </div>
+      <div class="slider-row">
+        <input type="range" id="mainSlider" min="0" max="100" value="0" oninput="onSliderChange()">
+      </div>
+      <div class="overall-score" id="overallScore"></div>
+    </div>
+    <div class="cards-grid" id="cardsGrid"></div>
+  </div>
+
+  <!-- Compare View -->
+  <div id="compareView" style="display:none;">
+    <div class="timeline-section">
+      <div class="compare-sliders">
+        <div>
+          <div class="compare-label-tag">Period A</div>
+          <div class="compare-year" id="compareYearA">1066</div>
+          <div class="timeline-label"><span id="cStartA"></span><span id="cEndA"></span></div>
+          <input type="range" id="sliderA" min="0" max="100" value="0" oninput="onCompareChange()">
+        </div>
+        <div>
+          <div class="compare-label-tag">Period B</div>
+          <div class="compare-year" id="compareYearB">2000</div>
+          <div class="timeline-label"><span id="cStartB"></span><span id="cEndB"></span></div>
+          <input type="range" id="sliderB" min="0" max="100" value="100" oninput="onCompareChange()">
+        </div>
+      </div>
+      <div class="overall-score" id="compareOverall"></div>
+    </div>
+    <div class="cards-grid" id="compareGrid"></div>
+  </div>
+
+  <!-- Chart View -->
+  <div id="chartView" style="display:none;">
+    <div class="chart-section">
+      <h2>Total Change Across the Full Period</h2>
+      <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:16px;">This chart shows which aspects of life experienced the most change from the start to the end of the selected period.</p>
+      <div class="bar-chart" id="barChart"></div>
+    </div>
+  </div>
+
+  <!-- Info Panel -->
+  <div id="infoView" style="display:none;">
+    <div class="info-panel">
+      <h2 onclick="toggleInfo()" id="infoToggle">Understanding Change and Continuity</h2>
+      <div class="info-content" id="infoContent">
+        <h3>What are Change and Continuity?</h3>
+        <p><span class="key-term">Change</span> and <span class="key-term">continuity</span> are two of the most important second-order concepts in history. Historians use them to understand how societies have developed over time.</p>
+        <p><span class="key-term">Change</span> refers to ways in which things became different over time. Changes can be political, economic, social, cultural, technological, or religious. Some changes happen quickly (revolutions, inventions), while others unfold slowly over decades or centuries.</p>
+        <p><span class="key-term">Continuity</span> refers to things that stayed the same, or changed very little, over a period of time. Recognising continuity is just as important as identifying change; it helps us avoid assuming that everything transformed at once.</p>
+
+        <h3>Rates of Change</h3>
+        <ul>
+          <li><span class="key-term">Rapid change</span> happens quickly, often within a few years. Examples include the impact of the printing press on communication or the introduction of the NHS in 1948.</li>
+          <li><span class="key-term">Gradual change</span> unfolds over decades or centuries. The slow decline of feudalism or the long shift from rural to urban living are good examples.</li>
+          <li><span class="key-term">Uneven change</span> occurs when some aspects of life transform quickly while others remain largely unchanged. During the Industrial Revolution, technology leapt forward, but many social attitudes shifted far more slowly.</li>
+        </ul>
+
+        <h3>Turning Points</h3>
+        <p>A <span class="key-term">turning point</span> is a moment or event after which things were significantly different from before. Historians debate which events truly qualify as turning points and which were simply steps in a longer process.</p>
+        <ul>
+          <li><strong>1066:</strong> The Norman Conquest reshaped English government, language, and land ownership.</li>
+          <li><strong>1348:</strong> The Black Death killed roughly a third of England's population, disrupting feudalism and labour patterns.</li>
+          <li><strong>1750s onwards:</strong> The Industrial Revolution transformed work, transport, housing, and daily life.</li>
+          <li><strong>1914-1918 / 1939-1945:</strong> The World Wars accelerated social change, including women's rights and the welfare state.</li>
+        </ul>
+
+        <h3>How to Analyse Change and Continuity</h3>
+        <ul>
+          <li><strong>Identify what changed</strong> and what stayed the same in the period you are studying.</li>
+          <li><strong>Consider the pace:</strong> Was the change sudden or gradual?</li>
+          <li><strong>Think about extent:</strong> Did it affect everyone, or only certain groups or regions?</li>
+          <li><strong>Look for causes:</strong> Why did change happen (or not happen)?</li>
+          <li><strong>Evaluate significance:</strong> How much difference did the change actually make to people's lives?</li>
+          <li><strong>Use evidence:</strong> Support your claims with specific historical examples.</li>
+        </ul>
+
+        <h3>Common Mistakes</h3>
+        <ul>
+          <li>Assuming everything changed at once; in reality, change is often partial and uneven.</li>
+          <li>Ignoring continuity; things that did not change are historically significant too.</li>
+          <li>Confusing the date of a law or invention with the date people's lives actually changed.</li>
+          <li>Treating change as always positive ("progress"); some changes brought hardship.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ===== DATA ===== */
+
+const ASPECTS = [
+  { id: 'transport', name: 'Transport', icon: '\u{1F6B6}' },
+  { id: 'communication', name: 'Communication', icon: '\u{1F4DC}' },
+  { id: 'housing', name: 'Housing', icon: '\u{1F3E0}' },
+  { id: 'food', name: 'Food', icon: '\u{1F35E}' },
+  { id: 'health', name: 'Health & Medicine', icon: '\u2695\uFE0F' },
+  { id: 'law', name: 'Law & Order', icon: '\u2696\uFE0F' },
+  { id: 'religion', name: 'Religion', icon: '\u{1F54C}' },
+  { id: 'education', name: 'Education', icon: '\u{1F4D6}' },
+  { id: 'work', name: 'Work & Employment', icon: '\u{1F528}' },
+  { id: 'entertainment', name: 'Entertainment', icon: '\u{1F3AD}' }
+];
+
+const PERIODS = {
+  medieval_modern: {
+    name: 'Medieval to Modern (1066\u20132000)',
+    startYear: 1066,
+    endYear: 2000,
+    snapPoints: [1066, 1200, 1348, 1500, 1600, 1750, 1850, 1900, 1945, 2000],
+    data: {
+      transport: [
+        { year: 1066, desc: 'Travel on foot, horseback, or by cart on muddy tracks. Sea voyages are dangerous and slow.', change: 1 },
+        { year: 1200, desc: 'Roads remain poor. Horses and carts for the wealthy; most walk. Rivers used for heavy goods.', change: 1 },
+        { year: 1348, desc: 'Little change. Plague disrupts travel but methods remain the same: horse, foot, sail.', change: 1 },
+        { year: 1500, desc: 'Some road improvements. Larger sailing ships enable longer voyages of exploration.', change: 2 },
+        { year: 1600, desc: 'Stagecoach services begin. Sailing technology improves steadily for trade and warfare.', change: 2 },
+        { year: 1750, desc: 'Turnpike roads improve key routes. Canal network expanding for industrial goods.', change: 3 },
+        { year: 1850, desc: 'Railway revolution. Steam trains connect towns at 50+ mph. Steamships cross oceans reliably.', change: 5 },
+        { year: 1900, desc: 'Early motor cars appear. Electric trams in cities. Bicycles widely affordable.', change: 4 },
+        { year: 1945, desc: 'Cars becoming common. Commercial aviation begins. Road networks expand rapidly.', change: 4 },
+        { year: 2000, desc: 'Motorways, budget air travel, high-speed rail. Most households own a car. Global travel routine.', change: 4 }
+      ],
+      communication: [
+        { year: 1066, desc: 'Messages carried by riders. Most people never receive written communication. Latin for the Church.', change: 1 },
+        { year: 1200, desc: 'Royal messengers and monastic letters. Most people rely on word of mouth.', change: 1 },
+        { year: 1348, desc: 'Still largely oral. News spreads slowly and unreliably from town to town.', change: 1 },
+        { year: 1500, desc: 'Printing press arrives in England. Books and pamphlets begin to spread ideas more widely.', change: 3 },
+        { year: 1600, desc: 'Printed broadsheets and early newsbooks. Postal services beginning for the wealthy.', change: 3 },
+        { year: 1750, desc: 'Newspapers established. Royal Mail improving. Coffeehouses as hubs for exchanging news.', change: 3 },
+        { year: 1850, desc: 'Electric telegraph transforms long-distance messaging. Penny Post makes letters affordable for all.', change: 5 },
+        { year: 1900, desc: 'Telephone spreading. Mass-circulation newspapers. Early radio experiments.', change: 4 },
+        { year: 1945, desc: 'Radio in most homes. Television emerging. Telephone networks widespread.', change: 4 },
+        { year: 2000, desc: 'Internet, email, mobile phones. Instant global communication available to millions.', change: 5 }
+      ],
+      housing: [
+        { year: 1066, desc: 'Peasants in one-room wooden huts with thatched roofs. Lords in stone castles or halls.', change: 1 },
+        { year: 1200, desc: 'Similar pattern. Towns growing slowly with timber-framed houses. No glass for ordinary people.', change: 1 },
+        { year: 1348, desc: 'Plague leaves empty homes. Survivors sometimes move into better housing. Conditions still basic.', change: 2 },
+        { year: 1500, desc: '"Great Rebuilding" begins for yeoman class. More chimneys, glass windows, separate rooms.', change: 2 },
+        { year: 1600, desc: 'Wealthier homes improve with more rooms and furnishings. Poor still in basic cottages.', change: 2 },
+        { year: 1750, desc: 'Georgian townhouses for the wealthy. Rural cottages little changed. Growing urban population.', change: 2 },
+        { year: 1850, desc: 'Rapid urban growth creates overcrowded slums. Back-to-back terraces. No sanitation at first.', change: 4 },
+        { year: 1900, desc: 'By-law housing improves standards. Running water more common. Gas lighting in homes.', change: 3 },
+        { year: 1945, desc: 'Bomb damage prompts mass council house building. Indoor plumbing now standard.', change: 4 },
+        { year: 2000, desc: 'Central heating, double glazing, modern kitchens standard. Mix of owned and rented property.', change: 3 }
+      ],
+      food: [
+        { year: 1066, desc: 'Peasants eat bread, pottage (thick stew), and seasonal vegetables. Meat rare for the poor.', change: 1 },
+        { year: 1200, desc: 'Diet similar. Ale the main drink. Harvest failure means famine. Lords eat better variety.', change: 1 },
+        { year: 1348, desc: 'Plague reduces population; survivors eat slightly better as land is more available.', change: 2 },
+        { year: 1500, desc: 'Some new foods arriving (sugar, spices) but diet still mainly bread, cheese, and vegetables.', change: 2 },
+        { year: 1600, desc: 'New World foods appearing: potatoes, tomatoes, chocolate, tobacco. Tea and coffee arrive.', change: 3 },
+        { year: 1750, desc: 'Potatoes now a staple for the poor. Agricultural improvements increase yields. Enclosures displace some.', change: 3 },
+        { year: 1850, desc: 'Canned food, imported grain, urban food markets. Adulteration a problem. Diet improving slowly.', change: 3 },
+        { year: 1900, desc: 'Refrigeration transforms food supply. Fish and chips, branded goods. Malnutrition still exists among the poor.', change: 3 },
+        { year: 1945, desc: 'Rationing followed by post-war abundance. School meals, welfare milk. Diet diversifying.', change: 3 },
+        { year: 2000, desc: 'Supermarkets, global food supply, ready meals, fast food. Obesity now a concern rather than famine.', change: 4 }
+      ],
+      health: [
+        { year: 1066, desc: 'Herbal remedies, prayer, and superstition. No understanding of germs. Life expectancy around 30-35.', change: 1 },
+        { year: 1200, desc: 'Monastic hospitals offer basic care. Bloodletting and the four humours guide treatment.', change: 1 },
+        { year: 1348, desc: 'Black Death kills roughly a third of the population. Medicine is powerless against plague.', change: 1 },
+        { year: 1500, desc: 'Renaissance brings renewed interest in anatomy. Vesalius challenges Galen. Treatment mostly unchanged.', change: 2 },
+        { year: 1600, desc: 'Harvey discovers blood circulation. Plague and smallpox still devastating. Quack remedies widespread.', change: 2 },
+        { year: 1750, desc: 'Jenner develops smallpox vaccination (1796). Hospitals growing. Surgery still brutal without anaesthetic.', change: 3 },
+        { year: 1850, desc: 'Germ theory, anaesthetics, antiseptics revolutionise medicine. Public health acts improve sanitation.', change: 5 },
+        { year: 1900, desc: 'X-rays, aspirin, improved surgery. Life expectancy rising. Infant mortality still high among the poor.', change: 4 },
+        { year: 1945, desc: 'Penicillin, NHS founded (1948). Vaccination programmes. Life expectancy jumps significantly.', change: 5 },
+        { year: 2000, desc: 'Antibiotics, organ transplants, keyhole surgery, MRI scans. Life expectancy around 77. Chronic diseases now the main challenge.', change: 4 }
+      ],
+      law: [
+        { year: 1066, desc: 'Norman system of shires and hundreds. Trial by ordeal. Harsh forest laws. Feudal justice.', change: 2 },
+        { year: 1200, desc: 'Magna Carta (1215) establishes some legal principles. Royal courts expanding. Trial by jury emerging.', change: 3 },
+        { year: 1348, desc: 'Statute of Labourers (1351) tries to control wages after plague. Laws serve landowners.', change: 2 },
+        { year: 1500, desc: 'Justices of the Peace enforce local law. Church courts still handle moral offences. Harsh punishments.', change: 2 },
+        { year: 1600, desc: 'Civil War and Glorious Revolution reshape governance. Habeas corpus. Bill of Rights (1689).', change: 3 },
+        { year: 1750, desc: '"Bloody Code" with 200+ capital offences. No professional police force. Watchmen and constables.', change: 2 },
+        { year: 1850, desc: 'Metropolitan Police (1829). Prison reform. Reduction in capital offences. Courts professionalise.', change: 4 },
+        { year: 1900, desc: 'Detective forces, forensic science emerging. Probation introduced. Children treated differently in courts.', change: 3 },
+        { year: 1945, desc: 'Legal aid, abolition of death penalty (1965). Human rights become central to law.', change: 4 },
+        { year: 2000, desc: 'Human Rights Act, CCTV, DNA evidence, digital policing. Debates over surveillance and civil liberties.', change: 3 }
+      ],
+      religion: [
+        { year: 1066, desc: 'Catholic Church dominates all aspects of life. Church courts, tithes, saints\' days structure the year.', change: 1 },
+        { year: 1200, desc: 'Church at height of power. Monasteries wealthy and influential. Crusades shape foreign policy.', change: 1 },
+        { year: 1348, desc: 'Plague shakes faith for some but increases devotion for others. Church still central.', change: 2 },
+        { year: 1500, desc: 'Henry VIII breaks with Rome (1534). Dissolution of monasteries. Protestant England begins.', change: 5 },
+        { year: 1600, desc: 'Religious conflict: Puritans, Catholics, Anglicans. Civil War partly driven by religious tension.', change: 4 },
+        { year: 1750, desc: 'Church of England established but Methodist movement grows. Religious observance still widespread.', change: 2 },
+        { year: 1850, desc: 'Church attendance high but declining. Darwin challenges religious explanations. Nonconformists active.', change: 3 },
+        { year: 1900, desc: 'Decline in church attendance accelerating. Secular institutions growing. Faith still shapes many lives.', change: 3 },
+        { year: 1945, desc: 'Further secularisation. Immigration brings greater religious diversity: Islam, Hinduism, Sikhism.', change: 3 },
+        { year: 2000, desc: 'Multicultural, multi-faith society. Church attendance low but religion remains important for many communities.', change: 3 }
+      ],
+      education: [
+        { year: 1066, desc: 'Education only for clergy and some nobility. Latin taught in church schools. Most people illiterate.', change: 1 },
+        { year: 1200, desc: 'First universities (Oxford, Cambridge). Grammar schools for a few boys. Girls rarely educated.', change: 2 },
+        { year: 1348, desc: 'Plague disrupts learning. Some schools close. Demand for literate clerks grows.', change: 1 },
+        { year: 1500, desc: 'Renaissance promotes classical learning. More grammar schools founded. Printing aids education.', change: 2 },
+        { year: 1600, desc: 'Petty schools for basic reading. Literacy slowly rising. Education still linked to social class and gender.', change: 2 },
+        { year: 1750, desc: 'Charity schools and Sunday schools for the poor. No state education. Dame schools in villages.', change: 2 },
+        { year: 1850, desc: 'Forster Act (1870) creates board schools. Education becoming more widespread but not yet compulsory for all.', change: 4 },
+        { year: 1900, desc: 'Compulsory schooling to age 12. Secondary education emerging. Still divided by class and gender.', change: 4 },
+        { year: 1945, desc: '1944 Education Act: free secondary education for all. Grammar, secondary modern, technical schools.', change: 4 },
+        { year: 2000, desc: 'Comprehensive system, National Curriculum, GCSEs, university expansion. Near-universal literacy.', change: 3 }
+      ],
+      work: [
+        { year: 1066, desc: 'Feudal system: peasants work lord\'s land in exchange for protection. Farming dominates.', change: 1 },
+        { year: 1200, desc: 'Guild system in towns. Most people still farm. Serfdom ties workers to the land.', change: 1 },
+        { year: 1348, desc: 'Labour shortage after plague gives workers bargaining power. Peasants\' Revolt (1381). Serfdom declining.', change: 3 },
+        { year: 1500, desc: 'Wool trade booming. Enclosures begin displacing some farmers. Craft workshops in towns.', change: 2 },
+        { year: 1600, desc: 'Growing merchant class. Domestic system (putting-out) for textiles. Agriculture still employs the majority.', change: 2 },
+        { year: 1750, desc: 'Domestic system widespread. Agricultural revolution reduces need for farm labour. Proto-industry.', change: 3 },
+        { year: 1850, desc: 'Factory system dominates. Long hours, dangerous conditions, child labour. Trade unions forming.', change: 5 },
+        { year: 1900, desc: 'Factory Acts improve conditions. Office work growing. Women in some workplaces. Still long hours.', change: 3 },
+        { year: 1945, desc: 'Welfare state, full employment, trade union power. Women\'s roles expanded by wartime experience.', change: 4 },
+        { year: 2000, desc: 'Service economy dominates. Technology reshaping work. Minimum wage, flexible working, globalisation.', change: 4 }
+      ],
+      entertainment: [
+        { year: 1066, desc: 'Feasts, storytelling, music, wrestling, archery. Holy days provide breaks from work. Local fairs.', change: 1 },
+        { year: 1200, desc: 'Tournaments for knights. Mystery plays. Minstrels and troubadours. Ale and socialising at the tavern.', change: 1 },
+        { year: 1348, desc: 'Flagellant processions. Entertainment disrupted by plague but traditions continue where possible.', change: 1 },
+        { year: 1500, desc: 'Theatre emerging (Shakespeare\'s era approaching). Bear-baiting, cock-fighting popular. Music in churches.', change: 2 },
+        { year: 1600, desc: 'Golden age of theatre. Puritans ban many entertainments during Commonwealth. Restoration revives them.', change: 3 },
+        { year: 1750, desc: 'Theatre, concerts, pleasure gardens. Print culture (novels, magazines). Coffee houses for discussion.', change: 3 },
+        { year: 1850, desc: 'Music halls, public parks, seaside trips by rail. Football and cricket formalised. Reading widespread.', change: 4 },
+        { year: 1900, desc: 'Cinema arrives. Spectator sports huge. Bank holidays established. Recorded music (gramophone).', change: 4 },
+        { year: 1945, desc: 'Television transforms home entertainment. Pop music, youth culture emerging. Holiday camps.', change: 4 },
+        { year: 2000, desc: 'Internet, gaming, streaming, social media. Global entertainment culture. Heritage tourism. Festivals.', change: 5 }
+      ]
+    }
+  },
+  industrial: {
+    name: 'Industrial Revolution (1750\u20131900)',
+    startYear: 1750,
+    endYear: 1900,
+    snapPoints: [1750, 1770, 1790, 1810, 1830, 1850, 1870, 1890, 1900],
+    data: {
+      transport: [
+        { year: 1750, desc: 'Turnpike roads, horse-drawn carts. Packhorse trains for goods. Canals just beginning.', change: 1 },
+        { year: 1770, desc: 'Canal mania underway. Bridgewater Canal (1761) shows profit. Roads improving with turnpikes.', change: 3 },
+        { year: 1790, desc: 'Canal network extensive. Mail coaches faster on improved roads. Coastal shipping important.', change: 3 },
+        { year: 1810, desc: 'Steam engine applied to transport experiments. Trevithick\'s locomotive (1804). Roads still main arteries.', change: 3 },
+        { year: 1830, desc: 'Liverpool-Manchester Railway (1830) launches the railway age. Canals begin to decline.', change: 5 },
+        { year: 1850, desc: 'Railway mania: thousands of miles of track. "Railway time" standardised. Cheap travel for all classes.', change: 5 },
+        { year: 1870, desc: 'Railway network mature. Underground railway in London (1863). Steamships dominate seas.', change: 4 },
+        { year: 1890, desc: 'Electric trams in cities. Bicycles widely popular. Early motor car experiments.', change: 4 },
+        { year: 1900, desc: 'Motor cars emerging. Dense rail network. Trams in most cities. Britain connected nationally.', change: 4 }
+      ],
+      communication: [
+        { year: 1750, desc: 'Newspapers in towns. Letters carried by mail coach (slow, expensive). Word of mouth dominates.', change: 1 },
+        { year: 1770, desc: 'Provincial newspapers growing. Coffeehouses share news. Postal service improving.', change: 2 },
+        { year: 1790, desc: 'Radical pamphlets spread political ideas. Government tries to control press. Literacy slowly rising.', change: 2 },
+        { year: 1810, desc: 'Steam printing presses increase newspaper production. Government stamps tax on newspapers.', change: 3 },
+        { year: 1830, desc: 'Cheap printed material expanding. Railways speed mail delivery. Literacy growing.', change: 3 },
+        { year: 1850, desc: 'Electric telegraph (1837) revolutionises long-distance messaging. Penny Post (1840) makes letters affordable.', change: 5 },
+        { year: 1870, desc: 'Transatlantic telegraph cable. Mass-circulation newspapers. Education Act (1870) boosts literacy.', change: 4 },
+        { year: 1890, desc: 'Telephone exchanges in cities. Typewriters in offices. Journalism professionalising.', change: 4 },
+        { year: 1900, desc: 'Telephone spreading. Marconi\'s radio experiments. Mass literacy. Daily newspapers for all.', change: 4 }
+      ],
+      housing: [
+        { year: 1750, desc: 'Rural cottages, often one or two rooms. Some fine Georgian houses in towns. No piped water.', change: 1 },
+        { year: 1770, desc: 'Towns growing as workers arrive. Existing housing becoming more crowded.', change: 2 },
+        { year: 1790, desc: 'Rapid urban growth outpaces building. Cellar dwellings, overcrowded courts appear.', change: 3 },
+        { year: 1810, desc: 'Back-to-back terraces built quickly and cheaply. No sanitation, shared privies. Conditions grim.', change: 4 },
+        { year: 1830, desc: 'Slum conditions widespread. Cholera outbreaks in overcrowded areas. Reformers begin campaigning.', change: 4 },
+        { year: 1850, desc: 'Public Health Act (1848). Model housing experiments. Still vast inequality in conditions.', change: 4 },
+        { year: 1870, desc: 'By-law housing with minimum standards: wider streets, backyards, better drainage.', change: 3 },
+        { year: 1890, desc: 'Council housing begins. Gas lighting, running water in better homes. Slum clearance starting.', change: 3 },
+        { year: 1900, desc: 'Most urban homes have piped water. Gas or electric lighting. Standards steadily improving.', change: 3 }
+      ],
+      food: [
+        { year: 1750, desc: 'Bread, cheese, vegetables, and ale. Seasonal eating. Local markets. Potatoes becoming important.', change: 1 },
+        { year: 1770, desc: 'Enclosures disrupt access to common land for food. Urban poor dependent on bought food.', change: 2 },
+        { year: 1790, desc: 'Bread prices rise during wars. Food riots common. Poor diet for factory workers.', change: 2 },
+        { year: 1810, desc: 'Corn Laws keep bread expensive. Adulterated food widespread in cities. Malnutrition common.', change: 2 },
+        { year: 1830, desc: 'Imported food slowly increasing. Street food in cities. Tea now a staple drink for working class.', change: 2 },
+        { year: 1850, desc: 'Railways distribute fresh food more widely. Canned goods available. Food quality improving.', change: 3 },
+        { year: 1870, desc: 'Refrigerated ships bring cheap meat from abroad. Fish and chips spreading. Branded goods appear.', change: 4 },
+        { year: 1890, desc: 'Food more varied and affordable. Margarine replaces butter for the poor. School meals debated.', change: 3 },
+        { year: 1900, desc: 'Wider diet with imported goods. Branded foods, chain shops. Malnutrition still found among poorest.', change: 3 }
+      ],
+      health: [
+        { year: 1750, desc: 'Herbal remedies, bleeding, purging. No understanding of germs. Hospitals few and feared.', change: 1 },
+        { year: 1770, desc: 'Some hospitals founded. Quack doctors. Smallpox inoculation debated.', change: 1 },
+        { year: 1790, desc: 'Jenner\'s vaccination experiments (1796). Industrial diseases emerging. Little workplace protection.', change: 2 },
+        { year: 1810, desc: 'Vaccination spreading but resisted. Cholera, typhus, TB rife in industrial towns.', change: 2 },
+        { year: 1830, desc: 'Cholera epidemics (1831-32). Chadwick investigates sanitary conditions. Calls for reform.', change: 3 },
+        { year: 1850, desc: 'Snow identifies contaminated water (1854). Anaesthetics (1846). Public Health Acts begin sanitary reform.', change: 4 },
+        { year: 1870, desc: 'Pasteur and Koch prove germ theory. Lister introduces antiseptic surgery. Death rates falling.', change: 5 },
+        { year: 1890, desc: 'Improved surgery and hospital care. Trained nurses (Nightingale). Vaccines for more diseases.', change: 4 },
+        { year: 1900, desc: 'X-rays, aspirin, diphtheria antitoxin. Life expectancy rising. Infant mortality still high in slums.', change: 4 }
+      ],
+      law: [
+        { year: 1750, desc: '"Bloody Code": 200+ capital offences. No police force. Parish constables and watchmen.', change: 1 },
+        { year: 1770, desc: 'Smuggling widespread. Bow Street Runners (London only). Transportation to colonies as punishment.', change: 1 },
+        { year: 1790, desc: 'Government fears revolution. Repressive laws against radical meetings and publications.', change: 2 },
+        { year: 1810, desc: 'Luddite unrest met with harsh punishment. Calls for reform of "Bloody Code" growing.', change: 2 },
+        { year: 1830, desc: 'Metropolitan Police (1829). Capital offences reduced. Reform of criminal law underway.', change: 4 },
+        { year: 1850, desc: 'Professional police forces spread nationally. Prisons reformed (separate system). Detectives established.', change: 4 },
+        { year: 1870, desc: 'Habitual Criminals Act. Photography used for identification. Probation experiments begin.', change: 3 },
+        { year: 1890, desc: 'Fingerprinting developing. Children\'s courts. More humane prison conditions debated.', change: 3 },
+        { year: 1900, desc: 'Professional policing nationwide. Forensic science beginning. Juvenile justice established.', change: 3 }
+      ],
+      religion: [
+        { year: 1750, desc: 'Church of England dominant but complacent. Methodism growing rapidly among working class.', change: 1 },
+        { year: 1770, desc: 'Methodist chapels spreading. Nonconformist worship growing. Established church under criticism.', change: 2 },
+        { year: 1790, desc: 'Dissenting traditions support reform movements. Sunday schools teach reading through Bible study.', change: 2 },
+        { year: 1810, desc: 'Evangelical revival within Church of England. Campaigns against slavery draw on religious conviction.', change: 2 },
+        { year: 1830, desc: 'Nonconformists gain political rights. Oxford Movement revives High Church traditions.', change: 2 },
+        { year: 1850, desc: 'Religious census (1851) reveals many do not attend church, especially in industrial towns.', change: 3 },
+        { year: 1870, desc: 'Darwin\'s ideas challenge literal Bible reading. Secularism growing. Sunday observance weakening.', change: 3 },
+        { year: 1890, desc: 'Salvation Army serves the urban poor. Church attendance declining among working class.', change: 3 },
+        { year: 1900, desc: 'Religion still important but influence waning. Secular alternatives for education and welfare growing.', change: 3 }
+      ],
+      education: [
+        { year: 1750, desc: 'No state education. Charity schools, dame schools for a few. Apprenticeships for trades.', change: 1 },
+        { year: 1770, desc: 'Sunday schools starting (1780s). Literacy low, especially among working class and women.', change: 1 },
+        { year: 1790, desc: 'Debate over educating the poor. Some fear it will make workers rebellious.', change: 1 },
+        { year: 1810, desc: 'Bell and Lancaster "monitorial" schools: cheap mass education using pupil monitors.', change: 2 },
+        { year: 1830, desc: 'Government grants to schools begin (1833). Two main religious societies run most schools.', change: 3 },
+        { year: 1850, desc: 'Still no state system. Ragged schools for the poorest. Wide variation in quality and access.', change: 3 },
+        { year: 1870, desc: 'Forster Act (1870) creates board schools to fill gaps. Attendance rising but not yet compulsory.', change: 4 },
+        { year: 1890, desc: 'Free elementary education (1891). Attendance compulsory. Curriculum includes reading, writing, arithmetic.', change: 4 },
+        { year: 1900, desc: 'Near-universal elementary education. Secondary schools for the few. Leaving age 12.', change: 4 }
+      ],
+      work: [
+        { year: 1750, desc: 'Domestic system: families spin and weave at home. Most people farm. Seasonal rhythms.', change: 1 },
+        { year: 1770, desc: 'Early factories appear (Arkwright\'s mill, 1771). Domestic system still widespread.', change: 3 },
+        { year: 1790, desc: 'Factory system growing. Long hours (14-16 per day). Children as young as 5 employed.', change: 4 },
+        { year: 1810, desc: 'Luddites protest against machines replacing skilled workers. Factory conditions harsh.', change: 4 },
+        { year: 1830, desc: 'Factory Act (1833) limits child labour. Trade unions legalised (1824). Working conditions slowly improving.', change: 4 },
+        { year: 1850, desc: 'Ten Hours Act limits the working day. Skilled workers form "New Model" unions. Coal mining dangerous.', change: 3 },
+        { year: 1870, desc: 'Trade unions gaining rights. Women and children better protected by law. Some mechanisation.', change: 3 },
+        { year: 1890, desc: '"New Unionism" organises unskilled workers. Dock strike (1889). Labour movement growing.', change: 4 },
+        { year: 1900, desc: 'Labour Party founded (1900). Factory work dominates. Service sector growing. Women in limited roles.', change: 3 }
+      ],
+      entertainment: [
+        { year: 1750, desc: 'Local fairs, blood sports (cock-fighting, bear-baiting), taverns, folk music. Theatre for the wealthy.', change: 1 },
+        { year: 1770, desc: 'Pleasure gardens (Vauxhall). Cricket formalising. Circuses appear. Reading for the literate.', change: 2 },
+        { year: 1790, desc: 'Theatre popular across classes. Horse racing established. Novels growing in popularity.', change: 2 },
+        { year: 1810, desc: 'Blood sports declining (banned 1835). Pub culture central to working-class life. Boxing popular.', change: 2 },
+        { year: 1830, desc: 'Railways enable seaside excursions. Music halls emerging. Spectator sports growing.', change: 3 },
+        { year: 1850, desc: 'Music halls booming. Football rules codified. Public parks created. Penny dreadfuls popular.', change: 4 },
+        { year: 1870, desc: 'FA Cup (1871). Bank Holidays (1871). Mass spectator sports. Seaside resorts accessible by rail.', change: 4 },
+        { year: 1890, desc: 'Football league, county cricket. Photography for amateurs. Gramophone invented.', change: 4 },
+        { year: 1900, desc: 'Cinema arriving. Mass entertainment culture established. Spectator sports draw huge crowds.', change: 4 }
+      ]
+    }
+  }
+};
+
+/* ===== STATE ===== */
+let currentPeriodKey = 'medieval_modern';
+let currentMode = 'explore';
+
+/* ===== HELPERS ===== */
+function getPeriod() { return PERIODS[currentPeriodKey]; }
+
+function snapToNearestYear(fraction) {
+  const p = getPeriod();
+  const rawYear = p.startYear + fraction * (p.endYear - p.startYear);
+  let closest = p.snapPoints[0];
+  let minDist = Infinity;
+  for (const sp of p.snapPoints) {
+    const d = Math.abs(rawYear - sp);
+    if (d < minDist) { minDist = d; closest = sp; }
+  }
+  return closest;
+}
+
+function getDataAtYear(aspectId, year) {
+  const entries = getPeriod().data[aspectId];
+  if (!entries || entries.length === 0) return { desc: 'No data available.', change: 1 };
+  let best = entries[0];
+  for (const e of entries) {
+    if (e.year <= year) best = e;
+  }
+  return best;
+}
+
+function getChangeColor(rating) {
+  const colors = ['', 'var(--change-none)', 'var(--change-low)', 'var(--change-mid)', 'var(--change-high)', 'var(--change-rev)'];
+  return colors[Math.max(1, Math.min(5, rating))];
+}
+
+function getChangeText(rating) {
+  const labels = ['', 'No change', 'Minor change', 'Moderate change', 'Major change', 'Revolutionary change'];
+  return labels[Math.max(1, Math.min(5, rating))];
+}
+
+function computeOverallChange(year) {
+  let total = 0, count = 0;
+  for (const a of ASPECTS) {
+    const d = getDataAtYear(a.id, year);
+    total += d.change;
+    count++;
+  }
+  return (total / count).toFixed(1);
+}
+
+function computeTotalChange(aspectId) {
+  const p = getPeriod();
+  const entries = p.data[aspectId];
+  if (!entries || entries.length < 2) return 1;
+  let total = 0;
+  for (let i = 1; i < entries.length; i++) {
+    total += entries[i].change;
+  }
+  return Math.min(5, total / (entries.length - 1)).toFixed(1);
+}
+
+/* ===== RENDERING ===== */
+
+function buildPeriodTabs() {
+  const container = document.getElementById('periodTabs');
+  container.innerHTML = '';
+  for (const [key, val] of Object.entries(PERIODS)) {
+    const btn = document.createElement('button');
+    btn.className = 'period-tab' + (key === currentPeriodKey ? ' active' : '');
+    btn.textContent = val.name;
+    btn.onclick = () => {
+      currentPeriodKey = key;
+      buildPeriodTabs();
+      refreshAll();
+    };
+    container.appendChild(btn);
+  }
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  document.getElementById('exploreView').style.display = mode === 'explore' ? '' : 'none';
+  document.getElementById('compareView').style.display = mode === 'compare' ? '' : 'none';
+  document.getElementById('chartView').style.display = mode === 'chart' ? '' : 'none';
+  document.getElementById('infoView').style.display = mode === 'info' ? '' : 'none';
+  if (mode === 'compare') renderCompare();
+  if (mode === 'chart') renderChart();
+}
+
+function onSliderChange() {
+  const slider = document.getElementById('mainSlider');
+  const fraction = slider.value / 100;
+  const year = snapToNearestYear(fraction);
+  document.getElementById('currentYear').textContent = year;
+  renderExploreCards(year);
+  const avg = computeOverallChange(year);
+  document.getElementById('overallScore').innerHTML =
+    'Overall change rating for this era: <span style="color:' + getChangeColor(Math.round(avg)) + '">' + avg + ' / 5</span>';
+}
+
+function renderExploreCards(year) {
+  const grid = document.getElementById('cardsGrid');
+  grid.innerHTML = '';
+  for (const a of ASPECTS) {
+    const d = getDataAtYear(a.id, year);
+    const color = getChangeColor(d.change);
+    const card = document.createElement('div');
+    card.className = 'aspect-card';
+    card.innerHTML =
+      '<div class="change-strip" style="background:' + color + '"></div>' +
+      '<div class="card-header"><span class="card-icon">' + a.icon + '</span><span class="card-title">' + a.name + '</span></div>' +
+      '<div class="card-desc">' + d.desc + '</div>' +
+      '<div class="change-meter">' +
+        '<div class="meter-bar"><div class="meter-fill" style="width:' + (d.change * 20) + '%;background:' + color + '"></div></div>' +
+        '<span class="change-label" style="color:' + color + '">' + d.change + '/5 ' + getChangeText(d.change) + '</span>' +
+      '</div>';
+    grid.appendChild(card);
+  }
+}
+
+/* Compare mode */
+function onCompareChange() {
+  renderCompare();
+}
+
+function renderCompare() {
+  const p = getPeriod();
+  document.getElementById('cStartA').textContent = p.startYear;
+  document.getElementById('cEndA').textContent = p.endYear;
+  document.getElementById('cStartB').textContent = p.startYear;
+  document.getElementById('cEndB').textContent = p.endYear;
+
+  const fracA = document.getElementById('sliderA').value / 100;
+  const fracB = document.getElementById('sliderB').value / 100;
+  const yearA = snapToNearestYear(fracA);
+  const yearB = snapToNearestYear(fracB);
+  document.getElementById('compareYearA').textContent = yearA;
+  document.getElementById('compareYearB').textContent = yearB;
+
+  const grid = document.getElementById('compareGrid');
+  grid.innerHTML = '';
+  let totalDiff = 0;
+  for (const a of ASPECTS) {
+    const dA = getDataAtYear(a.id, yearA);
+    const dB = getDataAtYear(a.id, yearB);
+    const diff = Math.abs(dB.change - dA.change);
+    totalDiff += diff;
+    const card = document.createElement('div');
+    card.className = 'compare-card';
+    card.innerHTML =
+      '<div class="card-header"><span class="card-icon">' + a.icon + '</span><span class="card-title">' + a.name + '</span></div>' +
+      '<div class="compare-columns">' +
+        '<div class="compare-col left"><strong>' + yearA + '</strong>' + dA.desc +
+          '<div style="margin-top:6px;font-weight:600;color:' + getChangeColor(dA.change) + '">' + dA.change + '/5 ' + getChangeText(dA.change) + '</div></div>' +
+        '<div class="compare-col right"><strong>' + yearB + '</strong>' + dB.desc +
+          '<div style="margin-top:6px;font-weight:600;color:' + getChangeColor(dB.change) + '">' + dB.change + '/5 ' + getChangeText(dB.change) + '</div></div>' +
+      '</div>' +
+      '<div class="compare-change">Change between periods: <strong style="color:' + getChangeColor(Math.max(dA.change, dB.change)) + '">' +
+        (diff === 0 ? 'Continuity (no difference in change rating)' : 'Shift of ' + diff + ' point' + (diff > 1 ? 's' : '') + ' in change rating') +
+      '</strong></div>';
+    grid.appendChild(card);
+  }
+  const avgDiff = (totalDiff / ASPECTS.length).toFixed(1);
+  document.getElementById('compareOverall').innerHTML =
+    'Average change-rating difference between ' + yearA + ' and ' + yearB + ': <span>' + avgDiff + '</span> points';
+}
+
+/* Chart */
+function renderChart() {
+  const container = document.getElementById('barChart');
+  container.innerHTML = '';
+  const scored = ASPECTS.map(a => ({ aspect: a, score: parseFloat(computeTotalChange(a.id)) }));
+  scored.sort((a, b) => b.score - a.score);
+  const maxScore = 5;
+  for (const item of scored) {
+    const pct = (item.score / maxScore) * 100;
+    const color = getChangeColor(Math.round(item.score));
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML =
+      '<span class="bar-label">' + item.aspect.icon + ' ' + item.aspect.name + '</span>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;background:' + color + '">' + item.score + '</div></div>';
+    container.appendChild(row);
+  }
+}
+
+/* Info toggle */
+function toggleInfo() {
+  const content = document.getElementById('infoContent');
+  const toggle = document.getElementById('infoToggle');
+  content.classList.toggle('hidden');
+  toggle.classList.toggle('collapsed');
+}
+
+/* Refresh all views */
+function refreshAll() {
+  const p = getPeriod();
+  document.getElementById('startLabel').textContent = p.startYear;
+  document.getElementById('endLabel').textContent = p.endYear;
+  document.getElementById('mainSlider').value = 0;
+  document.getElementById('sliderA').value = 0;
+  document.getElementById('sliderB').value = 100;
+  onSliderChange();
+  if (currentMode === 'compare') renderCompare();
+  if (currentMode === 'chart') renderChart();
+}
+
+/* ===== INIT ===== */
+buildPeriodTabs();
+refreshAll();
+</script>
+</body>
+</html>

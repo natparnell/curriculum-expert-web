@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cohort Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f8f9fa;
+  --surface: #ffffff;
+  --text: #1a1a2e;
+  --text-light: #5a5a7a;
+  --border: #dee2e6;
+  --border-light: #e9ecef;
+  --green: #28a745;
+  --green-bg: #d4edda;
+  --green-text: #155724;
+  --amber: #f59e0b;
+  --amber-bg: #fff3cd;
+  --amber-text: #856404;
+  --red: #dc3545;
+  --red-bg: #f8d7da;
+  --red-text: #721c24;
+  --blue: #2563eb;
+  --blue-light: #dbeafe;
+  --blue-dark: #1d4ed8;
+  --header-bg: #1a1a2e;
+  --header-text: #ffffff;
+  --radius: 8px;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--header-bg);
+  color: var(--header-text);
+  padding: 14px 24px;
+  box-shadow: var(--shadow-lg);
+}
+
+header h1 { font-size: 1.4rem; font-weight: 700; }
+header p { font-size: 0.85rem; opacity: 0.8; margin-top: 2px; }
+
+.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+
+.card h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card h2 .icon { font-size: 1.2rem; }
+
+/* Setup */
+.setup-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.setup-group { display: flex; flex-direction: column; gap: 4px; }
+.setup-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
+
+select, input, button {
+  font-family: inherit;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+select:focus, input:focus { border-color: var(--blue); }
+
+.btn {
+  cursor: pointer;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.btn:hover { opacity: 0.9; }
+.btn:active { transform: scale(0.98); }
+.btn-primary { background: var(--blue); color: white; }
+.btn-success { background: var(--green); color: white; }
+.btn-danger { background: var(--red); color: white; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn-outline:hover { background: var(--bg); }
+.btn-sm { padding: 5px 10px; font-size: 0.8rem; }
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+
+.tab {
+  padding: 10px 18px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-light);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+
+th {
+  background: var(--bg);
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+th:hover { background: var(--border-light); }
+th .sort-arrow { font-size: 0.7rem; margin-left: 4px; opacity: 0.4; }
+th.sorted .sort-arrow { opacity: 1; }
+
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+
+tr:hover td { background: var(--blue-light); }
+
+td.editable {
+  cursor: pointer;
+  position: relative;
+}
+
+td.editable:hover { background: #eef2ff; }
+
+td.editable select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--blue);
+  border-radius: 0;
+  font-size: 0.85rem;
+  padding: 0 8px;
+}
+
+.rag-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.rag-green { background: var(--green-bg); color: var(--green-text); }
+.rag-amber { background: var(--amber-bg); color: var(--amber-text); }
+.rag-red { background: var(--red-bg); color: var(--red-text); }
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: var(--red);
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.remove-btn:hover { background: var(--red-bg); }
+
+/* Charts grid */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.chart-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.chart-box h3 { font-size: 0.95rem; margin-bottom: 10px; color: var(--text); }
+.chart-box canvas { width: 100% !important; max-height: 320px; }
+
+/* Intervention */
+.intervention-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+.intervention-card {
+  border-radius: var(--radius);
+  padding: 16px;
+  border-left: 4px solid;
+}
+
+.intervention-card.red-group { background: var(--red-bg); border-color: var(--red); }
+.intervention-card.amber-group { background: var(--amber-bg); border-color: var(--amber); }
+.intervention-card.declining-group { background: var(--blue-light); border-color: var(--blue); }
+
+.intervention-card h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 8px; }
+.intervention-card p { font-size: 0.8rem; margin-bottom: 10px; opacity: 0.8; }
+.intervention-card ul { list-style: none; }
+.intervention-card li { font-size: 0.85rem; padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,0.08); }
+.intervention-card li:last-child { border-bottom: none; }
+.intervention-card .empty { font-style: italic; opacity: 0.6; font-size: 0.8rem; }
+
+/* Summary stats */
+.stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat-box {
+  flex: 1;
+  min-width: 140px;
+  text-align: center;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.stat-box .stat-value { font-size: 1.8rem; font-weight: 700; }
+.stat-box .stat-label { font-size: 0.75rem; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+.stat-box.green .stat-value { color: var(--green); }
+.stat-box.amber .stat-value { color: var(--amber); }
+.stat-box.red .stat-value { color: var(--red); }
+.stat-box.blue .stat-value { color: var(--blue); }
+
+/* Info panel */
+.info-section { margin-bottom: 16px; }
+.info-section h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; color: var(--blue-dark); }
+.info-section p, .info-section li { font-size: 0.85rem; color: var(--text-light); line-height: 1.6; }
+.info-section ul { margin-left: 18px; margin-top: 4px; }
+
+/* Toolbar */
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
+.toolbar-spacer { flex: 1; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--header-bg);
+  color: white;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s;
+  z-index: 200;
+}
+
+.toast.show { opacity: 1; transform: translateY(0); }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .charts-grid { grid-template-columns: 1fr; }
+  .intervention-grid { grid-template-columns: 1fr; }
+  .container { padding: 12px; }
+}
+
+@media (max-width: 600px) {
+  header { padding: 10px 16px; }
+  header h1 { font-size: 1.1rem; }
+  .setup-row { flex-direction: column; }
+  .stats-row { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Cohort Tracker</h1>
+  <p>Track year group progress across assessment points. RAG rate students, visualise flight paths, and identify intervention groups.</p>
+</header>
+
+<div class="container">
+  <!-- Setup -->
+  <div class="card" id="setup-card">
+    <h2><span class="icon">&#9881;</span> Setup</h2>
+    <div class="setup-row">
+      <div class="setup-group">
+        <label>Assessment Points</label>
+        <select id="ap-count">
+          <option value="3">3</option>
+          <option value="4" selected>4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+        </select>
+      </div>
+      <div class="setup-group">
+        <label>Grade Scale</label>
+        <select id="grade-scale">
+          <option value="9-1">9-1 (GCSE)</option>
+          <option value="A*-E">A*-E (A Level)</option>
+        </select>
+      </div>
+      <div class="setup-group">
+        <label>Cohort Target Grade</label>
+        <select id="cohort-target"></select>
+      </div>
+      <div class="setup-group">
+        <label>&nbsp;</label>
+        <button class="btn btn-primary" onclick="applySetup()">Apply Setup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="stats-row" id="stats-row">
+    <div class="stat-box blue"><div class="stat-value" id="stat-total">20</div><div class="stat-label">Students</div></div>
+    <div class="stat-box green"><div class="stat-value" id="stat-green">0</div><div class="stat-label">On/Above Target</div></div>
+    <div class="stat-box amber"><div class="stat-value" id="stat-amber">0</div><div class="stat-label">1 Below</div></div>
+    <div class="stat-box red"><div class="stat-value" id="stat-red">0</div><div class="stat-label">2+ Below</div></div>
+    <div class="stat-box blue"><div class="stat-value" id="stat-ontrack">0%</div><div class="stat-label">On Track</div></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="data">Student Data</div>
+    <div class="tab" data-tab="charts">Visualisations</div>
+    <div class="tab" data-tab="intervention">Intervention Groups</div>
+    <div class="tab" data-tab="info">Information</div>
+  </div>
+
+  <!-- Data Tab -->
+  <div class="tab-content active" id="tab-data">
+    <div class="toolbar">
+      <button class="btn btn-success btn-sm" onclick="addStudent()">+ Add Student</button>
+      <button class="btn btn-outline btn-sm" onclick="loadDemoData()">Reset Demo Data</button>
+      <div class="toolbar-spacer"></div>
+      <button class="btn btn-outline btn-sm" onclick="copyTable()">Copy Table</button>
+    </div>
+    <div class="table-wrap">
+      <table id="student-table">
+        <thead id="table-head"></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Charts Tab -->
+  <div class="tab-content" id="tab-charts">
+    <div class="charts-grid">
+      <div class="chart-box"><h3>Flight Paths</h3><canvas id="chart-flight"></canvas></div>
+      <div class="chart-box"><h3>RAG Summary</h3><canvas id="chart-rag"></canvas></div>
+      <div class="chart-box"><h3>Grade Distribution (Latest AP)</h3><canvas id="chart-dist"></canvas></div>
+      <div class="chart-box"><h3>On-Track Trend</h3><canvas id="chart-trend"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Intervention Tab -->
+  <div class="tab-content" id="tab-intervention">
+    <div class="intervention-grid" id="intervention-grid"></div>
+  </div>
+
+  <!-- Info Tab -->
+  <div class="tab-content" id="tab-info">
+    <div class="card">
+      <div class="info-section">
+        <h3>Assessment Point Tracking</h3>
+        <p>Assessment points (APs) are scheduled data collection moments across the academic year, typically 3 to 6 per year depending on your school's data calendar. At each AP, teachers record a current working grade for each student. By tracking these over time, leaders can spot trends, celebrate progress, and intervene early when students fall behind.</p>
+      </div>
+      <div class="info-section">
+        <h3>Flight Paths</h3>
+        <p>A flight path shows a student's grade trajectory plotted across assessment points, compared against their target grade. Ideally, a student's line stays at or above the dashed target line. A flight path that dips below target signals the need for investigation. Flight paths are most powerful when examined alongside qualitative teacher knowledge: a dip may reflect absence, a curriculum difficulty spike, or a personal issue rather than a sustained concern.</p>
+      </div>
+      <div class="info-section">
+        <h3>RAG Ratings</h3>
+        <p>RAG (Red, Amber, Green) ratings give a quick visual summary of where students sit relative to their target:</p>
+        <ul>
+          <li><strong>Green:</strong> On or above target. The student is meeting expectations. Continue current provision.</li>
+          <li><strong>Amber:</strong> One grade below target. Monitor closely. Consider light-touch interventions, parent contact, or seating/grouping changes.</li>
+          <li><strong>Red:</strong> Two or more grades below target. Intensive intervention needed. Identify root causes and implement a structured support plan.</li>
+        </ul>
+      </div>
+      <div class="info-section">
+        <h3>Data-Driven Intervention</h3>
+        <p>Effective intervention begins with accurate, timely data. Use this tracker to:</p>
+        <ul>
+          <li>Identify students who need intensive support (Red group) and allocate resources accordingly.</li>
+          <li>Monitor borderline students (Amber group) so they do not slip further.</li>
+          <li>Spot declining students: those whose grades are dropping across APs even if they remain Green. Early action prevents future underperformance.</li>
+          <li>Track whether interventions are working by comparing RAG distributions across assessment points.</li>
+          <li>Inform conversations with parents, tutors, and senior leaders with clear evidence.</li>
+        </ul>
+      </div>
+      <div class="info-section">
+        <h3>Using This Tool</h3>
+        <p>Start by choosing your assessment points and grade scale. The demo data gives you 20 sample students to explore. Edit grades by clicking any cell in the table. Add or remove students as needed. Switch between tabs to view charts, intervention groups, and this information panel. Use the "Copy Table" button to paste data into a spreadsheet for further analysis or reporting.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const GRADES_9_1 = ['9','8','7','6','5','4','3','2','1'];
+const GRADES_ALevel = ['A*','A','B','C','D','E'];
+
+const DEMO_NAMES = [
+  'Amara Okafor','Ben Whitmore','Chloe Tran','Daniel Reeves','Ellie Hayward',
+  'Finn McCormack','Grace Ellison','Harry Patel','Isla Corrigan','Jake Thornton',
+  'Katie Burgess','Liam Farrow','Maisie Chen','Nathan Briggs','Olivia Dunn',
+  'Priya Sharma','Quinn Gallagher','Ruby Saunders','Sam Holloway','Tara Mitchell'
+];
+
+let state = {
+  apCount: 4,
+  gradeScale: '9-1',
+  cohortTarget: '5',
+  students: [],
+  sortCol: null,
+  sortAsc: true
+};
+
+let charts = { flight: null, rag: null, dist: null, trend: null };
+
+function getGrades() {
+  return state.gradeScale === '9-1' ? GRADES_9_1 : GRADES_ALevel;
+}
+
+function gradeIndex(g) {
+  return getGrades().indexOf(g);
+}
+
+function gradeValue(g) {
+  const grades = getGrades();
+  const idx = grades.indexOf(g);
+  return idx === -1 ? -1 : grades.length - 1 - idx;
+}
+
+function gradeFromValue(v) {
+  const grades = getGrades();
+  const idx = grades.length - 1 - v;
+  return idx >= 0 && idx < grades.length ? grades[idx] : grades[grades.length - 1];
+}
+
+function ragStatus(student) {
+  const latest = getLatestGrade(student);
+  if (latest === null) return 'none';
+  const targetVal = gradeValue(student.target);
+  const currentVal = gradeValue(latest);
+  const diff = targetVal - currentVal;
+  if (diff <= 0) return 'green';
+  if (diff === 1) return 'amber';
+  return 'red';
+}
+
+function getLatestGrade(student) {
+  for (let i = state.apCount - 1; i >= 0; i--) {
+    if (student.grades[i] && student.grades[i] !== '') return student.grades[i];
+  }
+  return null;
+}
+
+function isDeclining(student) {
+  const filled = [];
+  for (let i = 0; i < state.apCount; i++) {
+    if (student.grades[i] && student.grades[i] !== '') {
+      filled.push({ ap: i, val: gradeValue(student.grades[i]) });
+    }
+  }
+  if (filled.length < 2) return false;
+  let declining = true;
+  for (let i = 1; i < filled.length; i++) {
+    if (filled[i].val >= filled[i-1].val) { declining = false; break; }
+  }
+  return declining;
+}
+
+function populateCohortTarget() {
+  const sel = document.getElementById('cohort-target');
+  const grades = getGrades();
+  sel.innerHTML = '';
+  grades.forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g;
+    opt.textContent = g;
+    sel.appendChild(opt);
+  });
+  const defaultIdx = state.gradeScale === '9-1' ? grades.indexOf('5') : grades.indexOf('C');
+  sel.selectedIndex = defaultIdx >= 0 ? defaultIdx : 0;
+  state.cohortTarget = sel.value;
+}
+
+function generateDemoData() {
+  const grades = getGrades();
+  const targetIdx = grades.indexOf(state.cohortTarget);
+  const students = [];
+
+  DEMO_NAMES.forEach((name, i) => {
+    const targetOffset = Math.floor(Math.random() * 3) - 1;
+    const tIdx = Math.max(0, Math.min(grades.length - 1, targetIdx + targetOffset));
+    const target = grades[tIdx];
+    const targetVal = gradeValue(target);
+    const gradeArr = [];
+
+    for (let ap = 0; ap < 6; ap++) {
+      if (ap < state.apCount) {
+        const variance = Math.floor(Math.random() * 5) - 2;
+        const progressBonus = Math.random() > 0.5 ? Math.floor(ap * 0.3) : 0;
+        const val = Math.max(0, Math.min(grades.length - 1, targetVal + variance + progressBonus));
+        gradeArr.push(gradeFromValue(val));
+      } else {
+        gradeArr.push('');
+      }
+    }
+
+    students.push({ id: Date.now() + i, name, target, grades: gradeArr });
+  });
+
+  return students;
+}
+
+function loadDemoData() {
+  state.students = generateDemoData();
+  renderAll();
+  showToast('Demo data loaded');
+}
+
+function applySetup() {
+  state.apCount = parseInt(document.getElementById('ap-count').value);
+  state.gradeScale = document.getElementById('grade-scale').value;
+  state.cohortTarget = document.getElementById('cohort-target').value;
+  state.students.forEach(s => {
+    if (getGrades().indexOf(s.target) === -1) s.target = state.cohortTarget;
+    s.grades.forEach((g, i) => {
+      if (g && getGrades().indexOf(g) === -1) s.grades[i] = '';
+    });
+  });
+  renderAll();
+  showToast('Setup applied');
+}
+
+function addStudent() {
+  const grades = [];
+  for (let i = 0; i < 6; i++) grades.push('');
+  state.students.push({
+    id: Date.now(),
+    name: 'New Student',
+    target: state.cohortTarget,
+    grades
+  });
+  renderAll();
+}
+
+function removeStudent(id) {
+  state.students = state.students.filter(s => s.id !== id);
+  renderAll();
+}
+
+function sortBy(col) {
+  if (state.sortCol === col) {
+    state.sortAsc = !state.sortAsc;
+  } else {
+    state.sortCol = col;
+    state.sortAsc = true;
+  }
+  renderAll();
+}
+
+function getSorted() {
+  const arr = [...state.students];
+  const col = state.sortCol;
+  if (!col) return arr;
+
+  const ragOrder = { red: 0, amber: 1, green: 2, none: 3 };
+
+  arr.sort((a, b) => {
+    let va, vb;
+    if (col === 'name') { va = a.name.toLowerCase(); vb = b.name.toLowerCase(); }
+    else if (col === 'target') { va = gradeValue(a.target); vb = gradeValue(b.target); }
+    else if (col === 'current') { va = gradeValue(getLatestGrade(a) || ''); vb = gradeValue(getLatestGrade(b) || ''); }
+    else if (col === 'rag') { va = ragOrder[ragStatus(a)]; vb = ragOrder[ragStatus(b)]; }
+    else return 0;
+
+    if (va < vb) return state.sortAsc ? -1 : 1;
+    if (va > vb) return state.sortAsc ? 1 : -1;
+    return 0;
+  });
+
+  return arr;
+}
+
+function renderTable() {
+  const thead = document.getElementById('table-head');
+  const tbody = document.getElementById('table-body');
+  const grades = getGrades();
+
+  const sortArrow = (col) => {
+    const active = state.sortCol === col;
+    const arrow = active ? (state.sortAsc ? '&#9650;' : '&#9660;') : '&#9650;';
+    return `<span class="sort-arrow">${arrow}</span>`;
+  };
+
+  let headHtml = `<tr>
+    <th onclick="sortBy('name')" class="${state.sortCol==='name'?'sorted':''}">Student ${sortArrow('name')}</th>
+    <th onclick="sortBy('target')" class="${state.sortCol==='target'?'sorted':''}">Target ${sortArrow('target')}</th>`;
+
+  for (let i = 0; i < state.apCount; i++) {
+    headHtml += `<th>AP${i+1}</th>`;
+  }
+
+  headHtml += `<th onclick="sortBy('rag')" class="${state.sortCol==='rag'?'sorted':''}">RAG ${sortArrow('rag')}</th>
+    <th></th></tr>`;
+  thead.innerHTML = headHtml;
+
+  const sorted = getSorted();
+  let bodyHtml = '';
+
+  sorted.forEach(student => {
+    const rag = ragStatus(student);
+    const ragClass = rag === 'green' ? 'rag-green' : rag === 'amber' ? 'rag-amber' : rag === 'red' ? 'rag-red' : '';
+    const ragLabel = rag === 'none' ? '-' : rag.charAt(0).toUpperCase() + rag.slice(1);
+
+    bodyHtml += `<tr>`;
+    bodyHtml += `<td class="editable" onclick="editName(this, ${student.id})">${student.name}</td>`;
+    bodyHtml += `<td class="editable" onclick="editGrade(this, ${student.id}, 'target')">${student.target}</td>`;
+
+    for (let i = 0; i < state.apCount; i++) {
+      const g = student.grades[i] || '-';
+      bodyHtml += `<td class="editable" onclick="editGrade(this, ${student.id}, ${i})">${g}</td>`;
+    }
+
+    bodyHtml += `<td><span class="rag-badge ${ragClass}">${ragLabel}</span></td>`;
+    bodyHtml += `<td><button class="remove-btn" onclick="removeStudent(${student.id})" title="Remove student">&#215;</button></td>`;
+    bodyHtml += `</tr>`;
+  });
+
+  tbody.innerHTML = bodyHtml;
+}
+
+function editName(td, id) {
+  const student = state.students.find(s => s.id === id);
+  if (!student) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = student.name;
+  input.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:2px solid var(--blue);border-radius:0;font-size:0.85rem;padding:0 8px;';
+  td.style.position = 'relative';
+  td.appendChild(input);
+  input.focus();
+  input.select();
+
+  const finish = () => {
+    student.name = input.value.trim() || 'Unnamed';
+    input.remove();
+    renderAll();
+  };
+
+  input.addEventListener('blur', finish);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+}
+
+function editGrade(td, id, field) {
+  const student = state.students.find(s => s.id === id);
+  if (!student) return;
+  const grades = getGrades();
+  const current = field === 'target' ? student.target : (student.grades[field] || '');
+
+  const sel = document.createElement('select');
+  if (field !== 'target') {
+    const emptyOpt = document.createElement('option');
+    emptyOpt.value = '';
+    emptyOpt.textContent = '-';
+    sel.appendChild(emptyOpt);
+  }
+  grades.forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g;
+    opt.textContent = g;
+    if (g === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
+  td.style.position = 'relative';
+  td.appendChild(sel);
+  sel.focus();
+
+  const finish = () => {
+    if (field === 'target') {
+      student.target = sel.value;
+    } else {
+      student.grades[field] = sel.value;
+    }
+    sel.remove();
+    renderAll();
+  };
+
+  sel.addEventListener('blur', finish);
+  sel.addEventListener('change', () => sel.blur());
+}
+
+function renderStats() {
+  const total = state.students.length;
+  let green = 0, amber = 0, red = 0;
+
+  state.students.forEach(s => {
+    const r = ragStatus(s);
+    if (r === 'green') green++;
+    else if (r === 'amber') amber++;
+    else if (r === 'red') red++;
+  });
+
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-green').textContent = green;
+  document.getElementById('stat-amber').textContent = amber;
+  document.getElementById('stat-red').textContent = red;
+  document.getElementById('stat-ontrack').textContent = total > 0 ? Math.round((green / total) * 100) + '%' : '0%';
+}
+
+function renderCharts() {
+  renderFlightChart();
+  renderRagChart();
+  renderDistChart();
+  renderTrendChart();
+}
+
+function renderFlightChart() {
+  const ctx = document.getElementById('chart-flight').getContext('2d');
+  if (charts.flight) charts.flight.destroy();
+
+  const labels = [];
+  for (let i = 0; i < state.apCount; i++) labels.push('AP' + (i + 1));
+
+  const colours = [
+    '#2563eb','#dc3545','#28a745','#f59e0b','#8b5cf6',
+    '#ec4899','#06b6d4','#84cc16','#f97316','#6366f1',
+    '#14b8a6','#e11d48','#0ea5e9','#a855f7','#65a30d',
+    '#d946ef','#0891b2','#ea580c','#7c3aed','#059669'
+  ];
+
+  const datasets = state.students.map((s, i) => ({
+    label: s.name,
+    data: s.grades.slice(0, state.apCount).map(g => g ? gradeValue(g) : null),
+    borderColor: colours[i % colours.length],
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    pointRadius: 4,
+    tension: 0.3,
+    spanGaps: true
+  }));
+
+  const avgTarget = state.students.length > 0
+    ? state.students.reduce((sum, s) => sum + gradeValue(s.target), 0) / state.students.length
+    : 0;
+
+  datasets.push({
+    label: 'Avg Target',
+    data: labels.map(() => avgTarget),
+    borderColor: '#1a1a2e',
+    borderDash: [8, 4],
+    borderWidth: 2,
+    pointRadius: 0,
+    fill: false
+  });
+
+  const grades = getGrades();
+
+  charts.flight = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          min: 0,
+          max: grades.length - 1,
+          ticks: {
+            stepSize: 1,
+            callback: v => gradeFromValue(v)
+          },
+          title: { display: true, text: 'Grade' }
+        }
+      }
+    }
+  });
+}
+
+function renderRagChart() {
+  const ctx = document.getElementById('chart-rag').getContext('2d');
+  if (charts.rag) charts.rag.destroy();
+
+  let green = 0, amber = 0, red = 0;
+  state.students.forEach(s => {
+    const r = ragStatus(s);
+    if (r === 'green') green++;
+    else if (r === 'amber') amber++;
+    else if (r === 'red') red++;
+  });
+
+  charts.rag = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Green (On/Above)', 'Amber (1 Below)', 'Red (2+ Below)'],
+      datasets: [{
+        data: [green, amber, red],
+        backgroundColor: ['#28a745', '#f59e0b', '#dc3545'],
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 12 } } }
+      }
+    }
+  });
+}
+
+function renderDistChart() {
+  const ctx = document.getElementById('chart-dist').getContext('2d');
+  if (charts.dist) charts.dist.destroy();
+
+  const grades = getGrades();
+  const counts = {};
+  grades.forEach(g => counts[g] = 0);
+
+  state.students.forEach(s => {
+    const latest = getLatestGrade(s);
+    if (latest && counts[latest] !== undefined) counts[latest]++;
+  });
+
+  charts.dist = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: [...grades].reverse(),
+      datasets: [{
+        label: 'Students',
+        data: [...grades].reverse().map(g => counts[g]),
+        backgroundColor: '#2563eb',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1 },
+          title: { display: true, text: 'Students' }
+        },
+        x: { title: { display: true, text: 'Grade' } }
+      }
+    }
+  });
+}
+
+function renderTrendChart() {
+  const ctx = document.getElementById('chart-trend').getContext('2d');
+  if (charts.trend) charts.trend.destroy();
+
+  const labels = [];
+  const data = [];
+
+  for (let ap = 0; ap < state.apCount; ap++) {
+    labels.push('AP' + (ap + 1));
+    let onTrack = 0;
+    let total = 0;
+
+    state.students.forEach(s => {
+      const g = s.grades[ap];
+      if (g && g !== '') {
+        total++;
+        if (gradeValue(g) >= gradeValue(s.target)) onTrack++;
+      }
+    });
+
+    data.push(total > 0 ? Math.round((onTrack / total) * 100) : null);
+  }
+
+  charts.trend = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '% On Track',
+        data,
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+        fill: true,
+        borderWidth: 3,
+        pointRadius: 6,
+        pointBackgroundColor: '#2563eb',
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          min: 0,
+          max: 100,
+          ticks: { callback: v => v + '%' },
+          title: { display: true, text: '% On Track' }
+        }
+      }
+    }
+  });
+}
+
+function renderIntervention() {
+  const grid = document.getElementById('intervention-grid');
+
+  const redStudents = [];
+  const amberStudents = [];
+  const decliningStudents = [];
+
+  state.students.forEach(s => {
+    const rag = ragStatus(s);
+    if (rag === 'red') redStudents.push(s);
+    else if (rag === 'amber') amberStudents.push(s);
+    if (isDeclining(s)) decliningStudents.push(s);
+  });
+
+  const renderList = (students) => {
+    if (students.length === 0) return '<p class="empty">No students in this group.</p>';
+    return '<ul>' + students.map(s => {
+      const latest = getLatestGrade(s) || '-';
+      return `<li><strong>${s.name}</strong> (Target: ${s.target}, Current: ${latest})</li>`;
+    }).join('') + '</ul>';
+  };
+
+  grid.innerHTML = `
+    <div class="intervention-card red-group">
+      <h3>Red: Intensive Intervention (${redStudents.length})</h3>
+      <p>Two or more grades below target. Requires urgent support, root cause analysis, and a structured plan.</p>
+      ${renderList(redStudents)}
+    </div>
+    <div class="intervention-card amber-group">
+      <h3>Amber: Monitoring/Light Touch (${amberStudents.length})</h3>
+      <p>One grade below target. Monitor closely, consider targeted support, parent contact, or grouping changes.</p>
+      ${renderList(amberStudents)}
+    </div>
+    <div class="intervention-card declining-group">
+      <h3>Declining Trajectory (${decliningStudents.length})</h3>
+      <p>Grades dropping across assessment points, regardless of current RAG status. Early intervention can prevent further decline.</p>
+      ${renderList(decliningStudents)}
+    </div>
+  `;
+}
+
+function copyTable() {
+  const grades = getGrades();
+  const sorted = getSorted();
+  let tsv = 'Student\tTarget';
+  for (let i = 0; i < state.apCount; i++) tsv += '\tAP' + (i + 1);
+  tsv += '\tRAG\n';
+
+  sorted.forEach(s => {
+    tsv += s.name + '\t' + s.target;
+    for (let i = 0; i < state.apCount; i++) {
+      tsv += '\t' + (s.grades[i] || '');
+    }
+    tsv += '\t' + ragStatus(s) + '\n';
+  });
+
+  navigator.clipboard.writeText(tsv).then(() => {
+    showToast('Table copied to clipboard');
+  }).catch(() => {
+    showToast('Copy failed: use HTTPS or localhost');
+  });
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+function renderAll() {
+  renderTable();
+  renderStats();
+  renderCharts();
+  renderIntervention();
+}
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'charts') renderCharts();
+  });
+});
+
+// Scale change handler
+document.getElementById('grade-scale').addEventListener('change', function() {
+  state.gradeScale = this.value;
+  populateCohortTarget();
+});
+
+document.getElementById('cohort-target').addEventListener('change', function() {
+  state.cohortTarget = this.value;
+});
+
+// Init
+populateCohortTarget();
+loadDemoData();
+</script>
+</body>
+</html>

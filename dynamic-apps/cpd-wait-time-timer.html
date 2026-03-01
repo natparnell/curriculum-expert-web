@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wait Time Analyser</title>
+  <style>
+    :root {
+      --c-primary:   #5b21b6;
+      --c-prim-l:    #7c3aed;
+      --c-prim-d:    #3b0764;
+      --c-prim-f:    #ede9fe;
+      --c-accent:    #818cf8;
+      --c-accent-l:  #c7d2fe;
+      --c-surface:   #ffffff;
+      --c-s2:        #f5f3ff;
+      --c-s3:        #ede9fe;
+      --c-border:    #ddd6fe;
+      --c-text:      #1e1b4b;
+      --c-tsec:      #4c1d95;
+      --c-tmut:      #6d28d9;
+      --c-red:       #dc2626;
+      --c-red-bg:    #fef2f2;
+      --c-red-b:     #fecaca;
+      --c-red-l:     #fee2e2;
+      --c-amb:       #d97706;
+      --c-amb-bg:    #fffbeb;
+      --c-amb-b:     #fde68a;
+      --c-amb-l:     #fef3c7;
+      --c-grn:       #059669;
+      --c-grn-bg:    #ecfdf5;
+      --c-grn-b:     #a7f3d0;
+      --c-grn-l:     #d1fae5;
+      --r:           12px;
+      --r-sm:        8px;
+      --r-lg:        16px;
+      --shadow:      0 1px 3px rgba(91,33,182,.08), 0 4px 16px rgba(91,33,182,.06);
+      --shadow-md:   0 4px 12px rgba(91,33,182,.12), 0 8px 32px rgba(91,33,182,.08);
+      --tr:          .2s ease;
+      --font:        'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--c-s2);
+      color: var(--c-text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Header ---- */
+    header {
+      background: var(--c-prim-d);
+      color: #fff;
+      padding: .9rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    }
+    .hd-left { display: flex; align-items: center; gap: .75rem; }
+    .hd-icon {
+      width: 36px; height: 36px;
+      background: var(--c-prim-l);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.15rem;
+    }
+    header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: .01em; }
+    header p  { font-size: .75rem; opacity: .75; margin-top: .1rem; }
+    .hd-badge {
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 20px;
+      padding: .25rem .75rem;
+      font-size: .72rem;
+      color: rgba(255,255,255,.9);
+      white-space: nowrap;
+    }
+
+    /* ---- Layout grid ---- */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      grid-template-rows: auto 1fr;
+      gap: 1.25rem;
+      padding: 1.25rem;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .timer-panel {
+      grid-column: 1; grid-row: 1;
+      background: var(--c-surface);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-md);
+      padding: 2rem 1.5rem 1.75rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+    }
+    .plot-panel {
+      grid-column: 1; grid-row: 2;
+      background: var(--c-surface);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow);
+      padding: 1.25rem 1.5rem;
+    }
+    .stats-panel {
+      grid-column: 2; grid-row: 1 / 3;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    /* ---- Ring timer ---- */
+    .ring-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 240px;
+      height: 240px;
+    }
+    .ring-svg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      transform: rotate(-90deg);
+    }
+    .ring-track { fill: none; stroke: var(--c-border); stroke-width: 10; }
+    .ring-fill  {
+      fill: none;
+      stroke: var(--c-red);
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-dasharray: 659.7;
+      stroke-dashoffset: 659.7;
+      transition: stroke-dashoffset .25s linear, stroke .4s ease;
+    }
+    .ring-pulse {
+      fill: none;
+      stroke: var(--c-grn);
+      stroke-width: 2;
+      opacity: 0;
+      stroke-dasharray: 659.7;
+      stroke-dashoffset: 0;
+    }
+    .ring-center {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .1rem;
+    }
+    .timer-display {
+      font-size: 3.8rem;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -.03em;
+      color: var(--c-text);
+      transition: color var(--tr);
+      font-variant-numeric: tabular-nums;
+    }
+    .timer-unit {
+      font-size: .8rem;
+      color: var(--c-tmut);
+      font-weight: 500;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .zone-label {
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: .2rem .6rem;
+      border-radius: 20px;
+      background: var(--c-s2);
+      color: var(--c-tmut);
+      transition: background var(--tr), color var(--tr);
+    }
+
+    /* Zone colour states (applied via body class) */
+    body.zone-red .ring-fill    { stroke: var(--c-red); }
+    body.zone-red .timer-display { color: var(--c-red); }
+    body.zone-red .zone-label   { background: var(--c-red-l); color: var(--c-red); }
+    body.zone-amber .ring-fill   { stroke: var(--c-amb); }
+    body.zone-amber .timer-display { color: var(--c-amb); }
+    body.zone-amber .zone-label  { background: var(--c-amb-l); color: var(--c-amb); }
+    body.zone-green .ring-fill   { stroke: var(--c-grn); }
+    body.zone-green .timer-display { color: var(--c-grn); }
+    body.zone-green .zone-label  { background: var(--c-grn-l); color: var(--c-grn); }
+    body.zone-green .btn-main.timing { background: var(--c-grn); box-shadow: 0 4px 14px rgba(5,150,105,.35); }
+    body.zone-amber .btn-main.timing { background: var(--c-amb); box-shadow: 0 4px 14px rgba(217,119,6,.35); }
+    body.idle .ring-fill  { stroke: var(--c-border); }
+    body.idle .timer-display { color: var(--c-tmut); }
+
+    /* ---- Zone guide pills ---- */
+    .zone-guide { display: flex; gap: .5rem; width: 100%; max-width: 360px; }
+    .zone-pill  { flex: 1; border-radius: var(--r-sm); padding: .5rem .4rem; text-align: center; font-size: .68rem; font-weight: 700; line-height: 1.3; }
+    .zone-pill span { display: block; font-size: .78rem; margin-bottom: .15rem; }
+    .zone-pill.red   { background: var(--c-red-bg); color: var(--c-red);  border: 1px solid var(--c-red-b); }
+    .zone-pill.amber { background: var(--c-amb-bg); color: var(--c-amb);  border: 1px solid var(--c-amb-b); }
+    .zone-pill.green { background: var(--c-grn-bg); color: var(--c-grn);  border: 1px solid var(--c-grn-b); }
+
+    /* ---- Controls ---- */
+    .controls-row {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .75rem;
+      width: 100%;
+    }
+    .btn-main {
+      width: 100%;
+      max-width: 320px;
+      padding: 1rem 2rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      border: none;
+      border-radius: var(--r);
+      cursor: pointer;
+      transition: background var(--tr), transform .1s, box-shadow var(--tr);
+      letter-spacing: .02em;
+      background: var(--c-prim-l);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(124,58,237,.35);
+    }
+    .btn-main:hover   { background: var(--c-primary); box-shadow: 0 6px 20px rgba(91,33,182,.4); }
+    .btn-main:active  { transform: scale(.98); }
+    .btn-main.timing  { background: var(--c-red); box-shadow: 0 4px 14px rgba(220,38,38,.35); }
+    .spacebar-hint { font-size: .72rem; color: var(--c-tmut); display: flex; align-items: center; gap: .4rem; }
+    .kbd {
+      background: var(--c-s2);
+      border: 1px solid var(--c-border);
+      border-radius: 4px;
+      padding: .1rem .4rem;
+      font-size: .68rem;
+      font-family: monospace;
+      color: var(--c-text);
+    }
+
+    /* ---- Question type selector ---- */
+    .qtype-row { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: .4rem; }
+    .qtype-row label { font-size: .72rem; font-weight: 600; color: var(--c-tmut); text-transform: uppercase; letter-spacing: .06em; }
+    .type-btns { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: center; }
+    .type-btn {
+      padding: .35rem .8rem;
+      border-radius: 20px;
+      border: 1.5px solid var(--c-border);
+      background: var(--c-surface);
+      color: var(--c-tmut);
+      font-size: .75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--tr);
+    }
+    .type-btn.active         { background: var(--c-prim-f); border-color: var(--c-prim-l); color: var(--c-primary); }
+    .type-btn:hover:not(.active) { border-color: var(--c-accent); color: var(--c-text); }
+
+    /* ---- Rowe research note ---- */
+    .rowe-banner {
+      background: var(--c-prim-f);
+      border: 1px solid var(--c-accent-l);
+      border-radius: var(--r-sm);
+      padding: .65rem 1rem;
+      font-size: .72rem;
+      color: var(--c-tsec);
+      line-height: 1.55;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+    .rowe-banner strong { color: var(--c-primary); }
+
+    /* ---- Dot plot ---- */
+    .plot-panel h2 {
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--c-text);
+      margin-bottom: .75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .plot-panel h2 span { font-size: .72rem; font-weight: 400; color: var(--c-tmut); }
+    .dot-plot-container {
+      position: relative;
+      height: 90px;
+      border-radius: var(--r-sm);
+      overflow: hidden;
+      background: var(--c-s2);
+      border: 1px solid var(--c-border);
+    }
+    .dot-plot-axis { position: absolute; bottom: 18px; left: 0; right: 0; height: 1px; background: var(--c-border); }
+    .dot-plot-zones { position: absolute; top: 0; bottom: 18px; left: 0; right: 0; display: flex; }
+    .dz-red   { background: rgba(220,38,38,.04);  border-right: 1px dashed rgba(220,38,38,.2); }
+    .dz-amber { background: rgba(217,119,6,.04);  border-right: 1px dashed rgba(217,119,6,.2); }
+    .dz-green { background: rgba(5,150,105,.04); }
+    .plot-dots { position: absolute; top: 0; bottom: 18px; left: 0; right: 0; }
+    .plot-dot {
+      position: absolute;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      transform: translate(-50%, 50%);
+      bottom: 0;
+      cursor: pointer;
+      border: 2px solid rgba(255,255,255,.8);
+      box-shadow: 0 1px 3px rgba(0,0,0,.15);
+      animation: dot-appear .3s ease;
+      transition: transform .15s;
+    }
+    .plot-dot:hover { transform: translate(-50%, 50%) scale(1.4); z-index: 10; }
+    .plot-dot.red   { background: var(--c-red); }
+    .plot-dot.amber { background: var(--c-amb); }
+    .plot-dot.green { background: var(--c-grn); }
+    .dot-tooltip {
+      position: absolute;
+      background: var(--c-text);
+      color: #fff;
+      font-size: .65rem;
+      padding: .25rem .5rem;
+      border-radius: 4px;
+      pointer-events: none;
+      white-space: nowrap;
+      transform: translate(-50%, -120%);
+      z-index: 20;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    .plot-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 90px;
+      color: var(--c-tmut);
+      font-size: .78rem;
+      border-radius: var(--r-sm);
+      border: 1px dashed var(--c-border);
+      background: var(--c-s2);
+    }
+
+    /* ---- Stats cards ---- */
+    .card { background: var(--c-surface); border-radius: var(--r); box-shadow: var(--shadow); padding: 1rem 1.1rem; }
+    .card h3 { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--c-tmut); margin-bottom: .7rem; }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+    .stat-item { background: var(--c-s2); border-radius: var(--r-sm); padding: .55rem .6rem; text-align: center; }
+    .stat-value { font-size: 1.4rem; font-weight: 800; color: var(--c-primary); letter-spacing: -.02em; line-height: 1; }
+    .stat-label { font-size: .62rem; color: var(--c-tmut); margin-top: .2rem; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+    .stat-item.total .stat-value { color: var(--c-text); font-size: 1.6rem; }
+
+    /* ---- Zone bars ---- */
+    .zone-bars { display: flex; flex-direction: column; gap: .45rem; }
+    .zone-bar-row { display: flex; align-items: center; gap: .5rem; }
+    .zone-bar-label { width: 38px; font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .zone-bar-label.red   { color: var(--c-red); }
+    .zone-bar-label.amber { color: var(--c-amb); }
+    .zone-bar-label.green { color: var(--c-grn); }
+    .zone-bar-track { flex: 1; height: 8px; background: var(--c-s2); border-radius: 4px; overflow: hidden; }
+    .zone-bar-fill  { height: 100%; border-radius: 4px; width: 0%; transition: width .5s ease; }
+    .zone-bar-fill.red   { background: var(--c-red); }
+    .zone-bar-fill.amber { background: var(--c-amb); }
+    .zone-bar-fill.green { background: var(--c-grn); }
+    .zone-bar-pct   { width: 30px; text-align: right; font-size: .68rem; font-weight: 700; color: var(--c-text); }
+    .zone-bar-count { width: 18px; text-align: right; font-size: .62rem; color: var(--c-tmut); }
+
+    /* ---- History ---- */
+    .history-list {
+      max-height: 260px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: .35rem;
+    }
+    .history-list::-webkit-scrollbar { width: 4px; }
+    .history-list::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 2px; }
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .4rem .5rem;
+      border-radius: var(--r-sm);
+      background: var(--c-s2);
+      font-size: .72rem;
+      border-left: 3px solid transparent;
+      transition: background var(--tr);
+    }
+    .history-item:hover { background: var(--c-s3); }
+    .history-item.red   { border-left-color: var(--c-red); }
+    .history-item.amber { border-left-color: var(--c-amb); }
+    .history-item.green { border-left-color: var(--c-grn); }
+    .history-num {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      font-size: .6rem;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      color: #fff;
+    }
+    .history-item.red   .history-num { background: var(--c-red); }
+    .history-item.amber .history-num { background: var(--c-amb); }
+    .history-item.green .history-num { background: var(--c-grn); }
+    .history-time  { font-weight: 700; color: var(--c-text); min-width: 32px; }
+    .history-type  { flex: 1; color: var(--c-tmut); font-style: italic; font-size: .67rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-stamp { color: var(--c-tmut); font-size: .62rem; white-space: nowrap; }
+    .history-empty { text-align: center; padding: 1.2rem 0; color: var(--c-tmut); font-size: .75rem; }
+
+    .btn-reset {
+      width: 100%;
+      margin-top: .75rem;
+      padding: .6rem;
+      border: 1.5px solid var(--c-border);
+      border-radius: var(--r-sm);
+      background: transparent;
+      color: var(--c-tmut);
+      font-size: .75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--tr);
+    }
+    .btn-reset:hover { border-color: var(--c-red); color: var(--c-red); background: var(--c-red-bg); }
+
+    /* ---- Animations ---- */
+    @keyframes pulse-ring {
+      0%   { stroke-dashoffset: 0;      opacity: .5; stroke-width: 2;  }
+      100% { stroke-dashoffset: -659.7; opacity: 0;  stroke-width: 12; }
+    }
+    .ring-pulse.active { animation: pulse-ring 1.8s ease-out infinite; }
+
+    @keyframes dot-appear {
+      from { opacity: 0; transform: translate(-50%, 50%) scale(0); }
+      to   { opacity: 1; transform: translate(-50%, 50%) scale(1); }
+    }
+
+    @keyframes flash-record {
+      0%   { box-shadow: var(--shadow-md); }
+      40%  { box-shadow: 0 0 0 6px rgba(5,150,105,.25), var(--shadow-md); }
+      100% { box-shadow: var(--shadow-md); }
+    }
+    .flash { animation: flash-record .6s ease; }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+      .stats-panel { grid-column: 1; grid-row: 3; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+      .stats-panel .card:last-child { grid-column: 1 / -1; }
+    }
+    @media (max-width: 600px) {
+      main { padding: .75rem; gap: .75rem; }
+      .timer-panel { padding: 1.5rem 1rem 1.25rem; }
+      .ring-container { width: 200px; height: 200px; }
+      .timer-display { font-size: 3rem; }
+      header h1 { font-size: 1rem; }
+      .hd-badge { display: none; }
+      .stats-panel { grid-template-columns: 1fr; }
+      .stats-panel .card:last-child { grid-column: 1; }
+      .btn-main { font-size: .95rem; padding: .9rem 1.5rem; }
+    }
+    @media (max-width: 400px) {
+      .ring-container { width: 170px; height: 170px; }
+      .timer-display { font-size: 2.5rem; }
+    }
+  </style>
+</head>
+<body class="idle">
+
+<header>
+  <div class="hd-left">
+    <div class="hd-icon">&#9201;</div>
+    <div>
+      <h1>Wait Time Analyser</h1>
+      <p>Time the gap between question and answer</p>
+    </div>
+  </div>
+  <div class="hd-badge">CPD Classroom Observation Tool</div>
+</header>
+
+<main>
+
+  <!-- Timer panel -->
+  <section class="timer-panel" aria-label="Timer">
+
+    <div class="ring-container" role="img" aria-label="Timer ring">
+      <svg class="ring-svg" viewBox="0 0 240 240" aria-hidden="true">
+        <circle class="ring-track" cx="120" cy="120" r="105" />
+        <circle class="ring-fill"  cx="120" cy="120" r="105" id="ringFill" />
+        <circle class="ring-pulse" cx="120" cy="120" r="105" id="ringPulse" />
+      </svg>
+      <div class="ring-center">
+        <div class="timer-display" id="timerDisplay" aria-live="polite">0.0</div>
+        <div class="timer-unit">seconds</div>
+        <div class="zone-label" id="zoneLabel">Ready</div>
+      </div>
+    </div>
+
+    <div class="zone-guide" aria-label="Zone guide">
+      <div class="zone-pill red">  <span>0 to 3s</span>Red zone</div>
+      <div class="zone-pill amber"><span>3 to 7s</span>Amber zone</div>
+      <div class="zone-pill green"><span>7s+</span>Green zone</div>
+    </div>
+
+    <div class="controls-row">
+      <button class="btn-main" id="mainBtn" aria-label="Start timing">
+        Start Timing (Question Posed)
+      </button>
+      <div class="spacebar-hint">
+        Press <kbd class="kbd">Space</kbd> to start / stop
+      </div>
+    </div>
+
+    <div class="qtype-row">
+      <label>Question type (optional)</label>
+      <div class="type-btns" role="group" aria-label="Select question type">
+        <button class="type-btn active" data-type=""           aria-pressed="true" >None</button>
+        <button class="type-btn"        data-type="knowledge"  aria-pressed="false">Knowledge recall</button>
+        <button class="type-btn"        data-type="analysis"   aria-pressed="false">Analysis</button>
+        <button class="type-btn"        data-type="evaluation" aria-pressed="false">Evaluation</button>
+      </div>
+    </div>
+
+    <div class="rowe-banner" role="note">
+      <strong>Research context (Rowe, 1974):</strong> increasing wait time from under 1 second to
+      3 seconds or more led to longer and more complex pupil responses, more discussion between
+      pupils, and fewer classroom disruptions. The amber and green zones reflect this evidence base.
+    </div>
+
+  </section>
+
+  <!-- Dot plot panel -->
+  <section class="plot-panel" aria-label="Session dot plot">
+    <h2>
+      Dot plot: wait times this session
+      <span id="plotCount">No recordings yet</span>
+    </h2>
+    <div id="dotPlotWrapper">
+      <div class="plot-empty" id="plotEmpty" aria-live="polite">
+        Start timing questions to see your wait times plotted here
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats sidebar -->
+  <aside class="stats-panel" aria-label="Session statistics">
+
+    <div class="card">
+      <h3>Session statistics</h3>
+      <div class="stat-grid">
+        <div class="stat-item total"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Questions</div></div>
+        <div class="stat-item"><div class="stat-value" id="statMean">--</div><div class="stat-label">Mean (s)</div></div>
+        <div class="stat-item"><div class="stat-value" id="statMedian">--</div><div class="stat-label">Median (s)</div></div>
+        <div class="stat-item"><div class="stat-value" id="statShortest">--</div><div class="stat-label">Shortest (s)</div></div>
+        <div class="stat-item"><div class="stat-value" id="statLongest">--</div><div class="stat-label">Longest (s)</div></div>
+        <div class="stat-item"><div class="stat-value" id="statOver3">--</div><div class="stat-label">Over 3s (%)</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Zone breakdown</h3>
+      <div class="zone-bars">
+        <div class="zone-bar-row">
+          <div class="zone-bar-label red">Red</div>
+          <div class="zone-bar-track"><div class="zone-bar-fill red" id="barRed"></div></div>
+          <div class="zone-bar-pct" id="pctRed">0%</div>
+          <div class="zone-bar-count" id="cntRed">0</div>
+        </div>
+        <div class="zone-bar-row">
+          <div class="zone-bar-label amber">Amber</div>
+          <div class="zone-bar-track"><div class="zone-bar-fill amber" id="barAmber"></div></div>
+          <div class="zone-bar-pct" id="pctAmber">0%</div>
+          <div class="zone-bar-count" id="cntAmber">0</div>
+        </div>
+        <div class="zone-bar-row">
+          <div class="zone-bar-label green">Green</div>
+          <div class="zone-bar-track"><div class="zone-bar-fill green" id="barGreen"></div></div>
+          <div class="zone-bar-pct" id="pctGreen">0%</div>
+          <div class="zone-bar-count" id="cntGreen">0</div>
+        </div>
+      </div>
+      <div style="margin-top:.75rem;font-size:.65rem;color:var(--c-tmut);line-height:1.5;">
+        Red: 0 to 3s (too brief) &middot; Amber: 3 to 7s (good) &middot; Green: 7s+ (extended thinking)
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Recorded timings</h3>
+      <div class="history-list" id="historyList" role="log" aria-live="polite" aria-label="Session history">
+        <div class="history-empty" id="historyEmpty">No timings recorded yet.</div>
+      </div>
+      <button class="btn-reset" id="resetBtn" aria-label="Reset session">
+        &#8635; Reset session
+      </button>
+    </div>
+
+  </aside>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  const CIRC    = 2 * Math.PI * 105; // 659.73
+  const MAX_S   = 20;   // ring fills over this many seconds
+  const RED_T   = 3;
+  const AMB_T   = 7;
+  const TYPES   = { '': 'None', knowledge: 'Knowledge recall', analysis: 'Analysis', evaluation: 'Evaluation' };
+
+  const state = { timing: false, startTime: null, elapsed: 0, rafId: null, recordings: [], selType: '' };
+
+  // Element refs
+  const el = id => document.getElementById(id);
+  const ringFill       = el('ringFill');
+  const ringPulse      = el('ringPulse');
+  const timerDisplay   = el('timerDisplay');
+  const zoneLabel      = el('zoneLabel');
+  const mainBtn        = el('mainBtn');
+  const resetBtn       = el('resetBtn');
+  const historyList    = el('historyList');
+  const historyEmpty   = el('historyEmpty');
+  const dotPlotWrapper = el('dotPlotWrapper');
+  const plotEmpty      = el('plotEmpty');
+  const plotCount      = el('plotCount');
+  const statTotal      = el('statTotal');
+  const statMean       = el('statMean');
+  const statMedian     = el('statMedian');
+  const statShortest   = el('statShortest');
+  const statLongest    = el('statLongest');
+  const statOver3      = el('statOver3');
+  const barRed         = el('barRed');
+  const barAmber       = el('barAmber');
+  const barGreen       = el('barGreen');
+  const pctRed         = el('pctRed');
+  const pctAmber       = el('pctAmber');
+  const pctGreen       = el('pctGreen');
+  const cntRed         = el('cntRed');
+  const cntAmber       = el('cntAmber');
+  const cntGreen       = el('cntGreen');
+
+  // Helpers
+  function zone(s)    { return s < RED_T ? 'red' : s < AMB_T ? 'amber' : 'green'; }
+  function fmtS(s)    { return s < 10 ? s.toFixed(1) : Math.round(s).toFixed(0) + '.0'; }
+  function fmtTs(d)   { return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':'); }
+  function r1(n)      { return Math.round(n * 10) / 10; }
+  function pct(a, b)  { return Math.round((a / b) * 100); }
+  function median(arr) {
+    const s = arr.slice().sort((a, b) => a - b), m = Math.floor(s.length / 2);
+    return s.length % 2 === 0 ? (s[m-1] + s[m]) / 2 : s[m];
+  }
+
+  // Ring
+  function updateRing(s) {
+    ringFill.style.strokeDashoffset = CIRC * (1 - Math.min(s / MAX_S, 1));
+    const z = state.timing ? zone(s) : null;
+    document.body.classList.remove('idle', 'zone-red', 'zone-amber', 'zone-green');
+    if (!state.timing) {
+      document.body.classList.add('idle');
+      zoneLabel.textContent = 'Ready';
+    } else {
+      document.body.classList.add('zone-' + z);
+      zoneLabel.textContent = z.charAt(0).toUpperCase() + z.slice(1) + ' zone';
+    }
+    state.timing && z === 'green' ? ringPulse.classList.add('active') : ringPulse.classList.remove('active');
+  }
+
+  // Animation loop
+  function tick() {
+    if (!state.timing) return;
+    state.elapsed = (performance.now() - state.startTime) / 1000;
+    timerDisplay.textContent = fmtS(state.elapsed);
+    updateRing(state.elapsed);
+    state.rafId = requestAnimationFrame(tick);
+  }
+
+  function startTiming() {
+    state.timing = true;
+    state.startTime = performance.now();
+    state.elapsed = 0;
+    mainBtn.textContent = 'Stop Timing (Answer Taken)';
+    mainBtn.classList.add('timing');
+    mainBtn.setAttribute('aria-label', 'Stop timing');
+    state.rafId = requestAnimationFrame(tick);
+  }
+
+  function stopTiming() {
+    cancelAnimationFrame(state.rafId);
+    state.timing = false;
+    const secs = r1(state.elapsed);
+    const rec  = { seconds: secs, zone: zone(secs), type: state.selType, ts: new Date(), idx: state.recordings.length + 1 };
+    state.recordings.push(rec);
+    mainBtn.textContent = 'Start Timing (Question Posed)';
+    mainBtn.classList.remove('timing');
+    mainBtn.setAttribute('aria-label', 'Start timing');
+    updateRing(0);
+    timerDisplay.textContent = '0.0';
+    document.body.classList.remove('zone-red', 'zone-amber', 'zone-green');
+    document.body.classList.add('idle');
+    addHistoryItem(rec);
+    updateStats();
+    updatePlot();
+    const tp = document.querySelector('.timer-panel');
+    tp.classList.remove('flash');
+    void tp.offsetWidth;
+    tp.classList.add('flash');
+    setTimeout(() => tp.classList.remove('flash'), 700);
+  }
+
+  // Controls
+  mainBtn.addEventListener('click', () => state.timing ? stopTiming() : startTiming());
+
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && e.target === document.body) {
+      e.preventDefault();
+      state.timing ? stopTiming() : startTiming();
+    }
+  });
+
+  document.querySelectorAll('.type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.type-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
+      btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
+      state.selType = btn.dataset.type;
+    });
+  });
+
+  resetBtn.addEventListener('click', () => {
+    if (!state.recordings.length) return;
+    if (!confirm('Reset the session? All recorded timings will be cleared.')) return;
+    cancelAnimationFrame(state.rafId);
+    Object.assign(state, { timing: false, elapsed: 0, recordings: [] });
+    timerDisplay.textContent = '0.0';
+    updateRing(0);
+    mainBtn.textContent = 'Start Timing (Question Posed)';
+    mainBtn.classList.remove('timing');
+    historyList.innerHTML = '';
+    historyList.appendChild(historyEmpty);
+    historyEmpty.style.display = '';
+    dotPlotWrapper.innerHTML = '';
+    dotPlotWrapper.appendChild(plotEmpty);
+    plotEmpty.style.display = '';
+    plotCount.textContent = 'No recordings yet';
+    [statTotal, statMean, statMedian, statShortest, statLongest, statOver3].forEach((e, i) => e.textContent = i === 0 ? '0' : '--');
+    [barRed, barAmber, barGreen].forEach(b => b.style.width = '0%');
+    [pctRed, pctAmber, pctGreen].forEach(p => p.textContent = '0%');
+    [cntRed, cntAmber, cntGreen].forEach(c => c.textContent = '0');
+  });
+
+  // History list
+  function addHistoryItem(rec) {
+    historyEmpty.style.display = 'none';
+    const div = document.createElement('div');
+    div.className = 'history-item ' + rec.zone;
+    div.innerHTML =
+      `<div class="history-num">${rec.idx}</div>` +
+      `<div class="history-time">${rec.seconds}s</div>` +
+      `<div class="history-type">${rec.type ? TYPES[rec.type] : ''}</div>` +
+      `<div class="history-stamp">${fmtTs(rec.ts)}</div>`;
+    historyList.insertBefore(div, historyList.firstChild);
+  }
+
+  // Stats
+  function updateStats() {
+    const recs = state.recordings, n = recs.length;
+    if (!n) return;
+    const secs = recs.map(r => r.seconds);
+    const sum  = secs.reduce((a, b) => a + b, 0);
+    statTotal.textContent    = n;
+    statMean.textContent     = r1(sum / n);
+    statMedian.textContent   = r1(median(secs));
+    statShortest.textContent = r1(Math.min(...secs));
+    statLongest.textContent  = r1(Math.max(...secs));
+    const over3 = recs.filter(r => r.seconds >= RED_T).length;
+    statOver3.textContent    = pct(over3, n) + '%';
+    const redC   = recs.filter(r => r.zone === 'red').length;
+    const ambC   = recs.filter(r => r.zone === 'amber').length;
+    const grnC   = recs.filter(r => r.zone === 'green').length;
+    barRed.style.width   = pct(redC, n) + '%';
+    barAmber.style.width = pct(ambC, n) + '%';
+    barGreen.style.width = pct(grnC, n) + '%';
+    pctRed.textContent   = pct(redC, n) + '%';
+    pctAmber.textContent = pct(ambC, n) + '%';
+    pctGreen.textContent = pct(grnC, n) + '%';
+    cntRed.textContent   = redC;
+    cntAmber.textContent = ambC;
+    cntGreen.textContent = grnC;
+  }
+
+  // Dot plot
+  function updatePlot() {
+    const recs = state.recordings, n = recs.length;
+    if (!n) {
+      dotPlotWrapper.innerHTML = '';
+      dotPlotWrapper.appendChild(plotEmpty);
+      plotEmpty.style.display = '';
+      plotCount.textContent = 'No recordings yet';
+      return;
+    }
+    plotCount.textContent = n + ' recording' + (n === 1 ? '' : 's');
+    const maxVal  = Math.max(...recs.map(r => r.seconds));
+    const axisMax = Math.max(15, Math.ceil((maxVal + 2) / 5) * 5);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'dot-plot-container';
+    wrap.setAttribute('role', 'img');
+    wrap.setAttribute('aria-label', 'Dot plot of recorded wait times');
+
+    // Zone backgrounds
+    const zonesDiv = document.createElement('div');
+    zonesDiv.className = 'dot-plot-zones';
+    const rW = Math.min(RED_T / axisMax, 1) * 100;
+    const aW = Math.min((AMB_T - RED_T) / axisMax, 1) * 100;
+    const gW = 100 - rW - aW;
+    [['dz-red', rW], ['dz-amber', aW], ['dz-green', gW]].forEach(([cls, w]) => {
+      const d = document.createElement('div');
+      d.className = cls;
+      d.style.width = w + '%';
+      zonesDiv.appendChild(d);
+    });
+    wrap.appendChild(zonesDiv);
+
+    // Axis
+    const axis = document.createElement('div');
+    axis.className = 'dot-plot-axis';
+    wrap.appendChild(axis);
+
+    // Tick labels
+    const lblRow = document.createElement('div');
+    lblRow.style.cssText = 'position:absolute;bottom:2px;left:0;right:0;';
+    for (let t = 0; t <= axisMax; t += 5) {
+      const lbl = document.createElement('span');
+      lbl.textContent = t + 's';
+      lbl.style.cssText = `position:absolute;left:${(t/axisMax)*100}%;transform:translateX(-50%);font-size:.6rem;color:var(--c-tmut);`;
+      lblRow.appendChild(lbl);
+    }
+    wrap.appendChild(lblRow);
+
+    // Dots (stacked by bucket)
+    const dotsLayer = document.createElement('div');
+    dotsLayer.className = 'plot-dots';
+    const buckets = {};
+    recs.forEach(rec => {
+      const k = Math.round(rec.seconds * 2);
+      if (!buckets[k]) buckets[k] = [];
+      buckets[k].push(rec);
+    });
+    Object.values(buckets).forEach(grp => {
+      const xPct = Math.min((grp[0].seconds / axisMax) * 100, 98);
+      grp.forEach((rec, si) => {
+        const dot = document.createElement('div');
+        dot.className = 'plot-dot ' + rec.zone;
+        dot.style.left   = xPct + '%';
+        dot.style.bottom = (2 + si * 14) + 'px';
+        dot.setAttribute('aria-label', `${rec.seconds}s${rec.type ? ', ' + TYPES[rec.type] : ''}`);
+        const tip = document.createElement('div');
+        tip.className = 'dot-tooltip';
+        tip.textContent = rec.seconds + 's' + (rec.type ? ' \u00b7 ' + TYPES[rec.type] : '') + ' (' + fmtTs(rec.ts) + ')';
+        dot.appendChild(tip);
+        dot.addEventListener('mouseenter', () => tip.style.opacity = '1');
+        dot.addEventListener('mouseleave', () => tip.style.opacity = '0');
+        dotsLayer.appendChild(dot);
+      });
+    });
+    wrap.appendChild(dotsLayer);
+
+    dotPlotWrapper.innerHTML = '';
+    dotPlotWrapper.appendChild(wrap);
+  }
+
+  // Init
+  ringFill.style.strokeDasharray  = CIRC;
+  ringFill.style.strokeDashoffset = CIRC;
+  ringPulse.style.strokeDasharray = CIRC;
+  updateRing(0);
+
+}());
+</script>
+</body>
+</html>

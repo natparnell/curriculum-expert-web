@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attainment Gap Visualiser</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+    :root {
+        --bg: #ffffff;
+        --bg-alt: #f7f7fa;
+        --text: #1e1e2f;
+        --text-muted: #5a5a72;
+        --border: #dcdce6;
+        --purple: #7c3aed;
+        --purple-light: rgba(124, 58, 237, 0.15);
+        --teal: #0d9488;
+        --teal-light: rgba(13, 148, 136, 0.15);
+        --red: #dc2626;
+        --red-light: rgba(220, 38, 38, 0.12);
+        --amber: #d97706;
+        --green: #16a34a;
+        --national: #6b7280;
+        --radius: 8px;
+        --shadow: 0 1px 3px rgba(0,0,0,0.08);
+        --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: var(--bg-alt);
+        color: var(--text);
+        line-height: 1.6;
+    }
+
+    header {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: linear-gradient(135deg, var(--purple), #5b21b6);
+        color: #fff;
+        padding: 1rem 1.5rem;
+        box-shadow: var(--shadow-md);
+    }
+
+    header h1 { font-size: 1.4rem; font-weight: 700; }
+    header p { font-size: 0.85rem; opacity: 0.88; margin-top: 0.15rem; }
+
+    .container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 1.25rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .card {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.25rem;
+        box-shadow: var(--shadow);
+    }
+
+    .card h2 {
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
+        color: var(--purple);
+    }
+
+    .card h3 {
+        font-size: 0.95rem;
+        margin: 0.75rem 0 0.5rem;
+        color: var(--text);
+    }
+
+    .controls-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
+
+    select, input[type="number"] {
+        padding: 0.45rem 0.6rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-size: 0.9rem;
+        background: var(--bg);
+        color: var(--text);
+    }
+
+    select:focus, input:focus { outline: 2px solid var(--purple); outline-offset: 1px; }
+
+    .toggle-btn {
+        padding: 0.5rem 1rem;
+        border: 2px solid var(--purple);
+        border-radius: var(--radius);
+        background: var(--bg);
+        color: var(--purple);
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .toggle-btn:hover { background: var(--purple-light); }
+    .toggle-btn.active { background: var(--purple); color: #fff; }
+
+    .charts-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.25rem;
+    }
+
+    .chart-wrap {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1rem;
+        box-shadow: var(--shadow);
+    }
+
+    .chart-wrap h3 {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+    }
+
+    .chart-wrap canvas { width: 100% !important; max-height: 300px; }
+
+    .gap-analysis {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .gap-stat {
+        flex: 1;
+        min-width: 140px;
+        padding: 0.75rem;
+        border-radius: var(--radius);
+        text-align: center;
+    }
+
+    .gap-stat .value { font-size: 1.5rem; font-weight: 700; }
+    .gap-stat .label { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
+
+    .gap-closing { background: rgba(22, 163, 74, 0.1); }
+    .gap-closing .value { color: var(--green); }
+    .gap-widening { background: var(--red-light); }
+    .gap-widening .value { color: var(--red); }
+    .gap-stable { background: rgba(217, 119, 6, 0.1); }
+    .gap-stable .value { color: var(--amber); }
+    .gap-neutral { background: var(--bg-alt); }
+    .gap-neutral .value { color: var(--text); }
+
+    .analysis-text {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        background: var(--bg-alt);
+        border-radius: var(--radius);
+        font-size: 0.88rem;
+        line-height: 1.7;
+        border-left: 3px solid var(--purple);
+    }
+
+    .data-input-grid {
+        display: grid;
+        grid-template-columns: auto repeat(5, 1fr);
+        gap: 0.4rem;
+        align-items: center;
+        font-size: 0.85rem;
+    }
+
+    .data-input-grid .header { font-weight: 700; text-align: center; font-size: 0.8rem; color: var(--text-muted); }
+    .data-input-grid .row-label { font-weight: 600; padding-right: 0.5rem; white-space: nowrap; }
+    .data-input-grid input { width: 100%; text-align: center; }
+
+    .strategies-list { list-style: none; }
+
+    .strategies-list li {
+        padding: 0.6rem 0.75rem;
+        margin-bottom: 0.5rem;
+        background: var(--bg-alt);
+        border-radius: var(--radius);
+        border-left: 3px solid var(--teal);
+        font-size: 0.88rem;
+    }
+
+    .strategies-list li strong { color: var(--teal); }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+
+    .info-block {
+        padding: 0.75rem;
+        background: var(--bg-alt);
+        border-radius: var(--radius);
+        font-size: 0.85rem;
+    }
+
+    .info-block h3 { color: var(--purple); font-size: 0.9rem; margin-bottom: 0.35rem; }
+
+    .legend-row {
+        display: flex;
+        gap: 1.25rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.5rem;
+        font-size: 0.82rem;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .legend-swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+    }
+
+    .legend-line {
+        width: 20px;
+        height: 0;
+        border-top: 2px dashed var(--national);
+    }
+
+    footer {
+        text-align: center;
+        padding: 1.5rem;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    @media (max-width: 768px) {
+        .charts-grid { grid-template-columns: 1fr; }
+        .info-grid { grid-template-columns: 1fr; }
+        header h1 { font-size: 1.15rem; }
+        .gap-analysis { flex-direction: column; }
+        .data-input-grid {
+            grid-template-columns: auto repeat(3, 1fr);
+            font-size: 0.8rem;
+        }
+    }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>Attainment Gap Visualiser</h1>
+    <p>Compare disadvantaged vs non-disadvantaged student outcomes with interactive charts</p>
+</header>
+
+<div class="container">
+
+    <!-- Controls -->
+    <div class="card">
+        <div class="controls-row">
+            <div>
+                <label for="metricSelect">Metric</label><br>
+                <select id="metricSelect"></select>
+            </div>
+            <div style="margin-left:auto;">
+                <button class="toggle-btn" id="editToggle" onclick="toggleEditMode()">Enter Your Own Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend-row" style="padding: 0 0.25rem;">
+        <div class="legend-item">
+            <div class="legend-swatch" style="background:var(--purple);"></div>
+            <span>Disadvantaged</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-swatch" style="background:var(--teal);"></div>
+            <span>Non-disadvantaged</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-swatch" style="background:var(--red);"></div>
+            <span>Gap</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line"></div>
+            <span>National disadv. average</span>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+        <div class="chart-wrap">
+            <h3>Grouped Comparison</h3>
+            <canvas id="barChart"></canvas>
+        </div>
+        <div class="chart-wrap">
+            <h3>Trend Over Time</h3>
+            <canvas id="lineChart"></canvas>
+        </div>
+        <div class="chart-wrap">
+            <h3>Gap Size by Year</h3>
+            <canvas id="gapChart"></canvas>
+        </div>
+        <div class="chart-wrap">
+            <h3>National Comparison</h3>
+            <canvas id="nationalChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Gap Analysis -->
+    <div class="card">
+        <h2>Gap Analysis</h2>
+        <div class="gap-analysis" id="gapStats"></div>
+        <div class="analysis-text" id="analysisText"></div>
+    </div>
+
+    <!-- Data Input -->
+    <div class="card" id="dataInputCard" style="display:none;">
+        <h2>Enter Your Own Data</h2>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.75rem;">
+            Edit the values below. Charts update automatically as you type.
+        </p>
+        <div class="data-input-grid" id="dataInputGrid"></div>
+        <div style="margin-top:0.75rem;">
+            <button class="toggle-btn" onclick="resetToDemo()">Reset to Demo Data</button>
+        </div>
+    </div>
+
+    <!-- Strategies -->
+    <div class="card">
+        <h2>Evidence-Based Strategies for Closing the Gap</h2>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.75rem;">
+            Based on the Education Endowment Foundation (EEF) Pupil Premium guidance and Sutton Trust research.
+        </p>
+        <ul class="strategies-list">
+            <li><strong>High-quality teaching:</strong> The most important lever. Focus on professional development that improves pedagogy for all, which disproportionately benefits disadvantaged learners.</li>
+            <li><strong>Structured literacy interventions:</strong> Targeted small-group and 1:1 reading programmes (e.g. phonics catch-up, reciprocal reading) yield high impact at low cost, typically +5 months progress.</li>
+            <li><strong>Metacognition and self-regulation:</strong> Explicitly teaching planning, monitoring and evaluation strategies. High impact (+7 months) and very low cost to implement across the curriculum.</li>
+            <li><strong>Feedback:</strong> Providing specific, actionable feedback that moves learning forward. Most effective when focused on the task, not the learner. High impact at low cost.</li>
+            <li><strong>One-to-one and small group tuition:</strong> The National Tutoring Programme model. Most effective when linked to classroom teaching, delivered by trained staff, and sustained over time (+5 months).</li>
+            <li><strong>Attendance and engagement:</strong> Address barriers to attendance first. Disadvantaged pupils are twice as likely to be persistently absent. Parental engagement, mentoring and breakfast clubs can help.</li>
+            <li><strong>Cultural capital and enrichment:</strong> Providing access to experiences, trips, extra-curricular activities and wider reading that non-disadvantaged peers often take for granted.</li>
+            <li><strong>Diagnostic assessment:</strong> Use reliable assessment data to identify specific gaps in knowledge and skills rather than making assumptions based on demographic group.</li>
+        </ul>
+    </div>
+
+    <!-- Info Panel -->
+    <div class="card">
+        <h2>Understanding the Disadvantaged Attainment Gap</h2>
+        <div class="info-grid">
+            <div class="info-block">
+                <h3>What is the attainment gap?</h3>
+                <p>The attainment gap is the difference in academic outcomes between disadvantaged pupils and their non-disadvantaged peers. It is one of the most important measures of educational equity and social mobility in England's school system.</p>
+            </div>
+            <div class="info-block">
+                <h3>How is it measured?</h3>
+                <p>The DfE uses the Disadvantage Gap Index (DGI), which ranks pupils by attainment and compares the average position of disadvantaged vs non-disadvantaged students. Schools also track Attainment 8, Progress 8, English and Maths threshold measures, and EBacc entry and scores.</p>
+            </div>
+            <div class="info-block">
+                <h3>Who counts as disadvantaged?</h3>
+                <p>Pupils who have been registered for free school meals (FSM) at any point in the last six years, or who are (or have been) looked-after children, or those adopted from care. Schools receive Pupil Premium funding for these students.</p>
+            </div>
+            <div class="info-block">
+                <h3>Pupil Premium funding</h3>
+                <p>Schools receive additional funding per disadvantaged pupil: currently around 1,480 per primary pupil and 1,050 per secondary pupil. Schools must publish a Pupil Premium strategy statement outlining how they spend this funding and the impact it has.</p>
+            </div>
+            <div class="info-block">
+                <h3>Why does it matter?</h3>
+                <p>By the end of secondary school, disadvantaged pupils are on average 18 months behind their peers nationally. This gap widened during the pandemic. Closing it is central to social mobility and ensuring every child can access opportunity regardless of background.</p>
+            </div>
+            <div class="info-block">
+                <h3>National context</h3>
+                <p>The national Attainment 8 gap is approximately 13 to 14 points. Progress was being made in narrowing the gap before 2020, but the pandemic reversed several years of progress. Recovery has been uneven, with some regions and school types seeing wider gaps than before.</p>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<footer>
+    Attainment Gap Visualiser. Built for educational data analysis. Data shown is fictional demo data unless you enter your own.
+</footer>
+
+<script>
+(function() {
+    // ── Demo data for a fictional school over 5 years ──
+    const YEARS = ['2020', '2021', '2022', '2023', '2024'];
+
+    const METRICS = {
+        att8: {
+            label: 'Attainment 8',
+            disadv:    [34.2, 32.8, 35.1, 36.5, 37.8],
+            nonDisadv: [49.1, 48.5, 50.2, 51.0, 52.3],
+            national:  [36.7, 34.9, 36.0, 37.1, 37.5],
+            unit: 'points',
+            decimals: 1
+        },
+        prog8: {
+            label: 'Progress 8',
+            disadv:    [-0.62, -0.71, -0.55, -0.42, -0.35],
+            nonDisadv: [0.18, 0.15, 0.22, 0.28, 0.31],
+            national:  [-0.45, -0.52, -0.43, -0.38, -0.36],
+            unit: '',
+            decimals: 2
+        },
+        eng_maths_5: {
+            label: '% Grade 5+ English and Maths',
+            disadv:    [21.5, 19.8, 23.2, 25.6, 27.1],
+            nonDisadv: [48.3, 46.9, 50.1, 52.4, 54.0],
+            national:  [24.8, 22.1, 25.0, 26.3, 27.0],
+            unit: '%',
+            decimals: 1
+        },
+        eng_maths_4: {
+            label: '% Grade 4+ English and Maths',
+            disadv:    [42.1, 39.5, 44.3, 46.8, 48.5],
+            nonDisadv: [71.2, 69.8, 73.1, 74.5, 76.0],
+            national:  [45.2, 42.0, 45.8, 47.1, 48.0],
+            unit: '%',
+            decimals: 1
+        },
+        ebacc_entry: {
+            label: '% Entering EBacc',
+            disadv:    [18.0, 16.5, 20.3, 22.8, 25.1],
+            nonDisadv: [40.2, 38.7, 42.5, 45.1, 47.3],
+            national:  [22.5, 20.1, 23.8, 25.0, 26.2],
+            unit: '%',
+            decimals: 1
+        },
+        ebacc_aps: {
+            label: 'EBacc APS',
+            disadv:    [3.21, 3.05, 3.38, 3.55, 3.72],
+            nonDisadv: [4.52, 4.41, 4.65, 4.78, 4.91],
+            national:  [3.45, 3.28, 3.50, 3.61, 3.70],
+            unit: 'points',
+            decimals: 2
+        }
+    };
+
+    // Working copy of data (mutated in edit mode)
+    let data = JSON.parse(JSON.stringify(METRICS));
+    let currentMetric = 'att8';
+    let editMode = false;
+
+    // Chart instances
+    let barChart, lineChart, gapChart, nationalChart;
+
+    // ── Build metric selector ──
+    const select = document.getElementById('metricSelect');
+    Object.entries(METRICS).forEach(([key, m]) => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = m.label;
+        select.appendChild(opt);
+    });
+    select.addEventListener('change', function() {
+        currentMetric = this.value;
+        updateAll();
+    });
+
+    // ── Chart creation ──
+    function createCharts() {
+        const barCtx = document.getElementById('barChart').getContext('2d');
+        barChart = new Chart(barCtx, {
+            type: 'bar',
+            data: { labels: [], datasets: [] },
+            options: chartOpts('Grouped Comparison', false)
+        });
+
+        const lineCtx = document.getElementById('lineChart').getContext('2d');
+        lineChart = new Chart(lineCtx, {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: chartOpts('Trend Over Time', false)
+        });
+
+        const gapCtx = document.getElementById('gapChart').getContext('2d');
+        gapChart = new Chart(gapCtx, {
+            type: 'bar',
+            data: { labels: [], datasets: [] },
+            options: chartOpts('Gap Size', true)
+        });
+
+        const natCtx = document.getElementById('nationalChart').getContext('2d');
+        nationalChart = new Chart(natCtx, {
+            type: 'bar',
+            data: { labels: [], datasets: [] },
+            options: chartOpts('National Comparison', false)
+        });
+    }
+
+    function chartOpts(title, showNegative) {
+        return {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(30,30,47,0.92)',
+                    cornerRadius: 6,
+                    padding: 10,
+                    titleFont: { size: 13 },
+                    bodyFont: { size: 12 }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 12 } }
+                },
+                y: {
+                    beginAtZero: !showNegative,
+                    grid: { color: '#eee' },
+                    ticks: { font: { size: 11 } }
+                }
+            }
+        };
+    }
+
+    // ── Update all charts and analysis ──
+    function updateAll() {
+        const m = data[currentMetric];
+        const gaps = m.disadv.map((d, i) => +(m.nonDisadv[i] - d).toFixed(m.decimals));
+
+        // Bar chart: grouped
+        barChart.data = {
+            labels: YEARS,
+            datasets: [
+                {
+                    label: 'Disadvantaged',
+                    data: m.disadv,
+                    backgroundColor: 'rgba(124,58,237,0.75)',
+                    borderColor: '#7c3aed',
+                    borderWidth: 1,
+                    borderRadius: 4
+                },
+                {
+                    label: 'Non-disadvantaged',
+                    data: m.nonDisadv,
+                    backgroundColor: 'rgba(13,148,136,0.75)',
+                    borderColor: '#0d9488',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }
+            ]
+        };
+        barChart.update();
+
+        // Line chart: trend
+        lineChart.data = {
+            labels: YEARS,
+            datasets: [
+                {
+                    label: 'Disadvantaged',
+                    data: m.disadv,
+                    borderColor: '#7c3aed',
+                    backgroundColor: 'rgba(124,58,237,0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#7c3aed',
+                    borderWidth: 2.5
+                },
+                {
+                    label: 'Non-disadvantaged',
+                    data: m.nonDisadv,
+                    borderColor: '#0d9488',
+                    backgroundColor: 'rgba(13,148,136,0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#0d9488',
+                    borderWidth: 2.5
+                }
+            ]
+        };
+        lineChart.options.scales.y.beginAtZero = (Math.min(...m.disadv, ...m.nonDisadv) >= 0);
+        lineChart.update();
+
+        // Gap chart
+        const gapColors = gaps.map((g, i) => {
+            if (i === 0) return 'rgba(220,38,38,0.7)';
+            return g < gaps[i - 1] ? 'rgba(22,163,74,0.7)' : g > gaps[i - 1] ? 'rgba(220,38,38,0.7)' : 'rgba(217,119,6,0.7)';
+        });
+        const gapBorders = gaps.map((g, i) => {
+            if (i === 0) return '#dc2626';
+            return g < gaps[i - 1] ? '#16a34a' : g > gaps[i - 1] ? '#dc2626' : '#d97706';
+        });
+
+        gapChart.data = {
+            labels: YEARS,
+            datasets: [{
+                label: 'Gap',
+                data: gaps,
+                backgroundColor: gapColors,
+                borderColor: gapBorders,
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        };
+        gapChart.options.scales.y.beginAtZero = (Math.min(...gaps) >= 0);
+        gapChart.update();
+
+        // National comparison chart
+        nationalChart.data = {
+            labels: YEARS,
+            datasets: [
+                {
+                    label: 'School Disadvantaged',
+                    data: m.disadv,
+                    backgroundColor: 'rgba(124,58,237,0.75)',
+                    borderColor: '#7c3aed',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    order: 2
+                },
+                {
+                    label: 'National Disadv. Average',
+                    data: m.national,
+                    type: 'line',
+                    borderColor: '#6b7280',
+                    borderDash: [6, 4],
+                    borderWidth: 2.5,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#6b7280',
+                    fill: false,
+                    tension: 0.3,
+                    order: 1
+                }
+            ]
+        };
+        nationalChart.options.scales.y.beginAtZero = (Math.min(...m.disadv, ...m.national) >= 0);
+        nationalChart.update();
+
+        updateAnalysis(m, gaps);
+    }
+
+    // ── Gap analysis panel ──
+    function updateAnalysis(m, gaps) {
+        const statsEl = document.getElementById('gapStats');
+        const textEl = document.getElementById('analysisText');
+
+        const latestGap = gaps[gaps.length - 1];
+        const firstGap = gaps[0];
+        const change = +(latestGap - firstGap).toFixed(m.decimals);
+        const absChange = Math.abs(change);
+
+        // Average gap
+        const avgGap = +(gaps.reduce((a, b) => a + b, 0) / gaps.length).toFixed(m.decimals);
+
+        // Trend direction
+        let trendClass, trendLabel;
+        if (change < -0.5) { trendClass = 'gap-closing'; trendLabel = 'Closing'; }
+        else if (change > 0.5) { trendClass = 'gap-widening'; trendLabel = 'Widening'; }
+        else { trendClass = 'gap-stable'; trendLabel = 'Stable'; }
+
+        // vs national
+        const latestNat = m.national[m.national.length - 1];
+        const vsNational = +(m.disadv[m.disadv.length - 1] - latestNat).toFixed(m.decimals);
+        let natClass = vsNational >= 0 ? 'gap-closing' : 'gap-widening';
+        let natText = vsNational >= 0 ? '+' + vsNational : '' + vsNational;
+
+        statsEl.innerHTML = `
+            <div class="gap-stat gap-neutral">
+                <div class="value">${latestGap}${m.unit === '%' ? ' pp' : ''}</div>
+                <div class="label">Latest gap (${YEARS[YEARS.length - 1]})</div>
+            </div>
+            <div class="gap-stat ${trendClass}">
+                <div class="value">${trendLabel}</div>
+                <div class="label">${change > 0 ? '+' : ''}${change} since ${YEARS[0]}</div>
+            </div>
+            <div class="gap-stat gap-neutral">
+                <div class="value">${avgGap}</div>
+                <div class="label">5-year average gap</div>
+            </div>
+            <div class="gap-stat ${natClass}">
+                <div class="value">${natText}</div>
+                <div class="label">vs national disadv. avg</div>
+            </div>
+        `;
+
+        // Narrative
+        let narrative = '';
+        const metricName = m.label;
+
+        if (change < -0.5) {
+            narrative += `The ${metricName} gap has narrowed by ${absChange} ${m.unit === '%' ? 'percentage points' : 'points'} between ${YEARS[0]} and ${YEARS[YEARS.length - 1]}, from ${firstGap} to ${latestGap}. This is positive progress and suggests that strategies to support disadvantaged pupils are having an effect.`;
+        } else if (change > 0.5) {
+            narrative += `The ${metricName} gap has widened by ${absChange} ${m.unit === '%' ? 'percentage points' : 'points'} between ${YEARS[0]} and ${YEARS[YEARS.length - 1]}, from ${firstGap} to ${latestGap}. This is a concerning trend that warrants investigation into what barriers disadvantaged pupils are facing.`;
+        } else {
+            narrative += `The ${metricName} gap has remained broadly stable between ${YEARS[0]} and ${YEARS[YEARS.length - 1]}, moving from ${firstGap} to ${latestGap}. While stability is better than widening, there is still a significant gap to address.`;
+        }
+
+        if (vsNational >= 0) {
+            narrative += ` In ${YEARS[YEARS.length - 1]}, disadvantaged pupils at this school scored ${Math.abs(vsNational)} ${m.unit === '%' ? 'percentage points' : 'points'} above the national disadvantaged average, which is encouraging.`;
+        } else {
+            narrative += ` In ${YEARS[YEARS.length - 1]}, disadvantaged pupils at this school scored ${Math.abs(vsNational)} ${m.unit === '%' ? 'percentage points' : 'points'} below the national disadvantaged average, indicating a need for targeted improvement.`;
+        }
+
+        // Year-on-year
+        let improving = 0;
+        for (let i = 1; i < gaps.length; i++) {
+            if (gaps[i] < gaps[i - 1]) improving++;
+        }
+        const total = gaps.length - 1;
+        narrative += ` Year-on-year, the gap narrowed in ${improving} out of ${total} transitions.`;
+
+        textEl.textContent = narrative;
+    }
+
+    // ── Edit mode ──
+    window.toggleEditMode = function() {
+        editMode = !editMode;
+        const btn = document.getElementById('editToggle');
+        const card = document.getElementById('dataInputCard');
+        btn.classList.toggle('active', editMode);
+        card.style.display = editMode ? 'block' : 'none';
+        if (editMode) buildInputGrid();
+    };
+
+    function buildInputGrid() {
+        const grid = document.getElementById('dataInputGrid');
+        const m = data[currentMetric];
+        let html = '<div class="header"></div>';
+        YEARS.forEach(y => { html += `<div class="header">${y}</div>`; });
+
+        html += '<div class="row-label" style="color:var(--purple);">Disadvantaged</div>';
+        YEARS.forEach((y, i) => {
+            html += `<input type="number" step="any" value="${m.disadv[i]}" data-group="disadv" data-index="${i}">`;
+        });
+
+        html += '<div class="row-label" style="color:var(--teal);">Non-disadvantaged</div>';
+        YEARS.forEach((y, i) => {
+            html += `<input type="number" step="any" value="${m.nonDisadv[i]}" data-group="nonDisadv" data-index="${i}">`;
+        });
+
+        html += '<div class="row-label" style="color:var(--national);">National disadv.</div>';
+        YEARS.forEach((y, i) => {
+            html += `<input type="number" step="any" value="${m.national[i]}" data-group="national" data-index="${i}">`;
+        });
+
+        grid.innerHTML = html;
+
+        grid.querySelectorAll('input').forEach(inp => {
+            inp.addEventListener('input', function() {
+                const group = this.dataset.group;
+                const idx = parseInt(this.dataset.index);
+                const val = parseFloat(this.value);
+                if (!isNaN(val)) {
+                    data[currentMetric][group][idx] = val;
+                    updateAll();
+                }
+            });
+        });
+    }
+
+    window.resetToDemo = function() {
+        data = JSON.parse(JSON.stringify(METRICS));
+        if (editMode) buildInputGrid();
+        updateAll();
+    };
+
+    // Rebuild input grid when metric changes
+    select.addEventListener('change', function() {
+        if (editMode) buildInputGrid();
+    });
+
+    // ── Initialise ──
+    createCharts();
+    updateAll();
+})();
+</script>
+</body>
+</html>

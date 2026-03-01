@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emotion Thermometer &amp; Strategy Matcher</title>
+<style>
+:root {
+    --orange-50: #fff7ed;
+    --orange-100: #ffedd5;
+    --orange-200: #fed7aa;
+    --orange-300: #fdba74;
+    --orange-400: #fb923c;
+    --orange-500: #f97316;
+    --orange-600: #ea580c;
+    --orange-700: #c2410c;
+    --teal-50: #f0fdfa;
+    --teal-100: #ccfbf1;
+    --teal-200: #99f6e4;
+    --teal-300: #5eead4;
+    --teal-400: #2dd4bf;
+    --teal-500: #14b8a6;
+    --teal-600: #0d9488;
+    --teal-700: #0f766e;
+    --teal-800: #115e59;
+    --bg: #f8fafc;
+    --text: #1e293b;
+    --text-light: #64748b;
+    --card-bg: #ffffff;
+    --border: #e2e8f0;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
+    --radius: 12px;
+    --zone-calm: #3b82f6;
+    --zone-content: #22c55e;
+    --zone-alert: #eab308;
+    --zone-elevated: #f97316;
+    --zone-crisis: #ef4444;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+
+/* Sticky Header */
+.header { position: sticky; top: 0; z-index: 100; background: linear-gradient(135deg, var(--teal-700), var(--teal-600)); color: white; padding: 12px 20px; box-shadow: var(--shadow-lg); }
+.header h1 { font-size: 1.25rem; font-weight: 700; }
+.header p { font-size: 0.8rem; opacity: 0.85; margin-top: 2px; }
+
+/* Nav tabs */
+.nav { display: flex; gap: 4px; background: var(--card-bg); padding: 8px 12px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.nav button { padding: 8px 16px; border: none; background: transparent; border-radius: 8px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; color: var(--text-light); font-weight: 500; transition: all 0.2s; }
+.nav button:hover { background: var(--teal-50); color: var(--teal-700); }
+.nav button.active { background: var(--teal-600); color: white; }
+
+.main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+/* Panels */
+.panel { display: none; }
+.panel.active { display: block; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Cards */
+.card { background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; margin-bottom: 20px; border: 1px solid var(--border); }
+.card h2 { font-size: 1.1rem; color: var(--teal-700); margin-bottom: 12px; }
+.card h3 { font-size: 0.95rem; color: var(--text); margin-bottom: 8px; }
+
+/* Thermometer layout */
+.thermo-layout { display: grid; grid-template-columns: 140px 1fr; gap: 28px; align-items: start; }
+
+/* SVG Thermometer */
+.thermo-wrap { display: flex; flex-direction: column; align-items: center; }
+.thermo-svg { cursor: pointer; touch-action: none; user-select: none; }
+.thermo-label { font-size: 0.75rem; color: var(--text-light); margin-top: 8px; text-align: center; }
+
+/* Zone indicator */
+.zone-badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-weight: 700; font-size: 0.9rem; color: white; margin-bottom: 16px; transition: background 0.3s; }
+
+/* Strategy cards */
+.strategy-grid { display: grid; gap: 12px; }
+.strategy-card { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--card-bg); transition: all 0.3s ease; animation: cardIn 0.35s ease both; }
+.strategy-card:nth-child(2) { animation-delay: 0.08s; }
+.strategy-card:nth-child(3) { animation-delay: 0.16s; }
+.strategy-card:nth-child(4) { animation-delay: 0.24s; }
+@keyframes cardIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
+.strategy-icon { font-size: 1.5rem; flex-shrink: 0; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: var(--teal-50); }
+.strategy-info { flex: 1; }
+.strategy-info strong { display: block; font-size: 0.9rem; margin-bottom: 2px; }
+.strategy-info p { font-size: 0.8rem; color: var(--text-light); line-height: 1.5; }
+.bookmark-btn { border: none; background: none; cursor: pointer; font-size: 1.2rem; padding: 4px; opacity: 0.4; transition: all 0.2s; flex-shrink: 0; }
+.bookmark-btn:hover, .bookmark-btn.saved { opacity: 1; }
+.bookmark-btn.saved { color: var(--orange-500); }
+
+/* Body map */
+.body-map-wrap { display: flex; flex-direction: column; align-items: center; }
+.body-signals-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; width: 100%; }
+.body-signal { font-size: 0.8rem; padding: 8px 12px; background: var(--orange-50); border-radius: 8px; border-left: 3px solid var(--orange-400); }
+
+/* Scenarios */
+.scenario-list { display: grid; gap: 12px; }
+.scenario-item { padding: 16px; border-radius: 10px; border: 2px solid var(--border); cursor: pointer; transition: all 0.2s; }
+.scenario-item:hover { border-color: var(--teal-400); background: var(--teal-50); }
+.scenario-item.selected { border-color: var(--teal-500); background: var(--teal-50); }
+.scenario-item h3 { font-size: 0.9rem; margin-bottom: 4px; }
+.scenario-item p { font-size: 0.82rem; color: var(--text-light); }
+.scenario-response { margin-top: 16px; padding: 16px; background: var(--teal-50); border-radius: 10px; border: 1px solid var(--teal-200); }
+.scenario-response h3 { color: var(--teal-700); margin-bottom: 8px; }
+
+/* Journal */
+.journal-textarea { width: 100%; min-height: 120px; border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-family: inherit; font-size: 0.9rem; resize: vertical; line-height: 1.6; }
+.journal-textarea:focus { outline: none; border-color: var(--teal-400); box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
+.journal-actions { display: flex; gap: 8px; margin-top: 10px; }
+.btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-primary { background: var(--teal-600); color: white; }
+.btn-primary:hover { background: var(--teal-700); }
+.btn-secondary { background: var(--orange-100); color: var(--orange-700); }
+.btn-secondary:hover { background: var(--orange-200); }
+.btn-danger { background: #fee2e2; color: #dc2626; }
+.btn-danger:hover { background: #fecaca; }
+.journal-entries { margin-top: 16px; }
+.journal-entry { padding: 14px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 10px; position: relative; }
+.journal-entry .entry-date { font-size: 0.75rem; color: var(--text-light); margin-bottom: 4px; }
+.journal-entry .entry-text { font-size: 0.85rem; white-space: pre-wrap; }
+.journal-entry .entry-level { display: inline-block; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; color: white; font-weight: 600; margin-left: 8px; }
+.journal-entry .delete-entry { position: absolute; top: 10px; right: 10px; border: none; background: none; cursor: pointer; color: var(--text-light); font-size: 0.8rem; opacity: 0.5; }
+.journal-entry .delete-entry:hover { opacity: 1; color: #dc2626; }
+
+/* Info panel */
+.info-section { margin-bottom: 16px; }
+.info-section h3 { color: var(--teal-700); font-size: 0.95rem; margin-bottom: 6px; }
+.info-section p, .info-section li { font-size: 0.85rem; color: var(--text-light); line-height: 1.7; }
+.info-section ul { padding-left: 20px; }
+
+/* Bookmarks panel */
+.bookmarks-empty { text-align: center; padding: 40px; color: var(--text-light); font-size: 0.9rem; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .thermo-layout { grid-template-columns: 1fr; justify-items: center; }
+    .strategy-grid { width: 100%; }
+    .body-signals-list { grid-template-columns: 1fr; }
+    .nav { gap: 2px; padding: 6px 8px; }
+    .nav button { padding: 6px 12px; font-size: 0.8rem; }
+    .main { padding: 12px; }
+    .card { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Emotion Thermometer &amp; Strategy Matcher</h1>
+    <p>Rate how you're feeling, then discover strategies that can help</p>
+</div>
+
+<div class="nav" role="tablist">
+    <button class="active" onclick="showPanel('thermometer')" role="tab">Thermometer</button>
+    <button onclick="showPanel('bodymap')" role="tab">Body Map</button>
+    <button onclick="showPanel('scenarios')" role="tab">Scenarios</button>
+    <button onclick="showPanel('journal')" role="tab">Journal</button>
+    <button onclick="showPanel('bookmarks')" role="tab">My Strategies</button>
+    <button onclick="showPanel('info')" role="tab">Info</button>
+</div>
+
+<div class="main">
+
+<!-- ===== THERMOMETER PANEL ===== -->
+<div id="panel-thermometer" class="panel active">
+    <div class="card">
+        <h2>How intense is your emotion right now?</h2>
+        <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:16px;">Click or drag on the thermometer to set your level. Strategies will appear to match.</p>
+        <div class="thermo-layout">
+            <div class="thermo-wrap">
+                <svg class="thermo-svg" id="thermoSvg" width="100" height="380" viewBox="0 0 100 380" aria-label="Emotion thermometer. Click or drag to set your emotional intensity level.">
+                    <defs>
+                        <linearGradient id="mercuryGrad" x1="0" y1="1" x2="0" y2="0">
+                            <stop offset="0%" stop-color="var(--zone-calm)"/>
+                            <stop offset="25%" stop-color="var(--zone-content)"/>
+                            <stop offset="50%" stop-color="var(--zone-alert)"/>
+                            <stop offset="75%" stop-color="var(--zone-elevated)"/>
+                            <stop offset="100%" stop-color="var(--zone-crisis)"/>
+                        </linearGradient>
+                        <clipPath id="tubeClip">
+                            <rect x="32" y="20" width="36" height="280" rx="18"/>
+                            <circle cx="50" cy="330" r="36"/>
+                        </clipPath>
+                        <filter id="innerShadow">
+                            <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur"/>
+                            <feOffset dx="1" dy="1"/>
+                            <feComposite in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1"/>
+                            <feFlood flood-color="rgba(0,0,0,0.15)"/>
+                            <feComposite in2="SourceGraphic" operator="in"/>
+                            <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter>
+                    </defs>
+                    <!-- Outer tube -->
+                    <rect x="30" y="18" width="40" height="284" rx="20" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1.5"/>
+                    <circle cx="50" cy="330" r="38" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1.5"/>
+                    <!-- Mercury fill -->
+                    <g clip-path="url(#tubeClip)">
+                        <rect id="mercuryBg" x="32" y="20" width="36" height="346" fill="#f1f5f9"/>
+                        <rect id="mercuryFill" x="32" width="36" fill="url(#mercuryGrad)" filter="url(#innerShadow)"/>
+                    </g>
+                    <!-- Zone ticks and labels -->
+                    <line x1="72" y1="300" x2="82" y2="300" stroke="#94a3b8" stroke-width="1"/>
+                    <text x="86" y="304" font-size="9" fill="var(--zone-calm)" font-weight="600">Calm</text>
+                    <line x1="72" y1="244" x2="82" y2="244" stroke="#94a3b8" stroke-width="1"/>
+                    <text x="86" y="248" font-size="9" fill="var(--zone-content)" font-weight="600">OK</text>
+                    <line x1="72" y1="188" x2="82" y2="188" stroke="#94a3b8" stroke-width="1"/>
+                    <text x="86" y="192" font-size="9" fill="var(--zone-alert)" font-weight="600">Alert</text>
+                    <line x1="72" y1="132" x2="82" y2="132" stroke="#94a3b8" stroke-width="1"/>
+                    <text x="86" y="136" font-size="9" fill="var(--zone-elevated)" font-weight="600">High</text>
+                    <line x1="72" y1="76" x2="82" y2="76" stroke="#94a3b8" stroke-width="1"/>
+                    <text x="86" y="80" font-size="9" fill="var(--zone-crisis)" font-weight="600">Crisis</text>
+                    <!-- Drag handle -->
+                    <circle id="thermoHandle" cx="50" r="10" fill="white" stroke="#94a3b8" stroke-width="2" style="cursor:grab;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.2))"/>
+                </svg>
+                <div class="thermo-label">Drag or click to set level</div>
+            </div>
+            <div>
+                <div id="zoneBadge" class="zone-badge" style="background:var(--zone-calm);">Zone 1: Calm</div>
+                <div id="zoneDesc" style="font-size:0.85rem;color:var(--text-light);margin-bottom:16px;">You're feeling relaxed and in control. A great time to build good habits.</div>
+                <div id="strategyGrid" class="strategy-grid"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== BODY MAP PANEL ===== -->
+<div id="panel-bodymap" class="panel">
+    <div class="card">
+        <h2>Where Do You Feel It?</h2>
+        <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:16px;">Emotions show up in our bodies. Tap a zone on the figure to see common physical signals.</p>
+        <div class="body-map-wrap">
+            <svg id="bodyMapSvg" width="200" height="380" viewBox="0 0 200 380" style="cursor:pointer;">
+                <!-- Head -->
+                <circle cx="100" cy="45" r="30" fill="#fde68a" stroke="#f59e0b" stroke-width="1.5" class="body-zone" data-zone="head"/>
+                <!-- Torso -->
+                <rect x="65" y="78" width="70" height="100" rx="10" fill="#bbf7d0" stroke="#22c55e" stroke-width="1.5" class="body-zone" data-zone="chest"/>
+                <!-- Stomach -->
+                <rect x="70" y="178" width="60" height="50" rx="8" fill="#bfdbfe" stroke="#3b82f6" stroke-width="1.5" class="body-zone" data-zone="stomach"/>
+                <!-- Left arm -->
+                <rect x="20" y="85" width="38" height="80" rx="12" fill="#e9d5ff" stroke="#a855f7" stroke-width="1.5" class="body-zone" data-zone="arms"/>
+                <!-- Right arm -->
+                <rect x="142" y="85" width="38" height="80" rx="12" fill="#e9d5ff" stroke="#a855f7" stroke-width="1.5" class="body-zone" data-zone="arms"/>
+                <!-- Left hand -->
+                <circle cx="39" cy="180" r="14" fill="#fce7f3" stroke="#ec4899" stroke-width="1.5" class="body-zone" data-zone="hands"/>
+                <!-- Right hand -->
+                <circle cx="161" cy="180" r="14" fill="#fce7f3" stroke="#ec4899" stroke-width="1.5" class="body-zone" data-zone="hands"/>
+                <!-- Left leg -->
+                <rect x="60" y="235" width="32" height="100" rx="10" fill="#fed7aa" stroke="#f97316" stroke-width="1.5" class="body-zone" data-zone="legs"/>
+                <!-- Right leg -->
+                <rect x="108" y="235" width="32" height="100" rx="10" fill="#fed7aa" stroke="#f97316" stroke-width="1.5" class="body-zone" data-zone="legs"/>
+                <!-- Feet -->
+                <ellipse cx="76" cy="348" rx="18" ry="10" fill="#fecdd3" stroke="#f43f5e" stroke-width="1.5" class="body-zone" data-zone="feet"/>
+                <ellipse cx="124" cy="348" rx="18" ry="10" fill="#fecdd3" stroke="#f43f5e" stroke-width="1.5" class="body-zone" data-zone="feet"/>
+            </svg>
+            <div id="bodySignals" class="body-signals-list"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SCENARIOS PANEL ===== -->
+<div id="panel-scenarios" class="panel">
+    <div class="card">
+        <h2>Scenario Mode</h2>
+        <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:16px;">Read each situation. Think about how you'd feel and which zone you'd be in, then tap to see suggested strategies.</p>
+        <div id="scenarioList" class="scenario-list"></div>
+        <div id="scenarioResponse" class="scenario-response" style="display:none;"></div>
+    </div>
+</div>
+
+<!-- ===== JOURNAL PANEL ===== -->
+<div id="panel-journal" class="panel">
+    <div class="card">
+        <h2>Reflection Journal</h2>
+        <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:16px;">Record how you're feeling, what happened, and what helped. Your entries are saved privately on this device.</p>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <label style="font-size:0.85rem;font-weight:600;">Current zone:</label>
+            <span id="journalZoneBadge" class="zone-badge" style="font-size:0.8rem;padding:4px 12px;">Zone 1: Calm</span>
+        </div>
+        <textarea id="journalInput" class="journal-textarea" placeholder="What's on your mind? What happened? What helped (or didn't)?"></textarea>
+        <div class="journal-actions">
+            <button class="btn btn-primary" onclick="saveJournalEntry()">Save Entry</button>
+            <button class="btn btn-danger" onclick="clearAllJournal()">Clear All</button>
+        </div>
+        <div id="journalEntries" class="journal-entries"></div>
+    </div>
+</div>
+
+<!-- ===== BOOKMARKS PANEL ===== -->
+<div id="panel-bookmarks" class="panel">
+    <div class="card">
+        <h2>My Saved Strategies</h2>
+        <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:16px;">Strategies you've bookmarked that work for you. These are saved on this device.</p>
+        <div id="bookmarksList"></div>
+    </div>
+</div>
+
+<!-- ===== INFO PANEL ===== -->
+<div id="panel-info" class="panel">
+    <div class="card">
+        <div class="info-section">
+            <h3>What Is Emotional Literacy?</h3>
+            <p>Emotional literacy is the ability to recognise, understand, and express emotions in yourself and others. When students develop emotional literacy, they are better equipped to manage relationships, make thoughtful decisions, and cope with challenges.</p>
+        </div>
+        <div class="info-section">
+            <h3>The Five Zones</h3>
+            <ul>
+                <li><strong style="color:var(--zone-calm)">Zone 1 (Calm):</strong> Relaxed, settled, and in control. The ideal state for learning and reflection.</li>
+                <li><strong style="color:var(--zone-content)">Zone 2 (Content):</strong> Mild emotions are present but manageable. You might feel a bit frustrated or excited.</li>
+                <li><strong style="color:var(--zone-alert)">Zone 3 (Alert):</strong> Emotions are building. You may feel anxious, annoyed, or stressed. Coping strategies are important here.</li>
+                <li><strong style="color:var(--zone-elevated)">Zone 4 (Elevated):</strong> Strong emotions are making it hard to think clearly. Action is needed to de-escalate.</li>
+                <li><strong style="color:var(--zone-crisis)">Zone 5 (Crisis):</strong> Overwhelmed. Safety and support from a trusted adult come first.</li>
+            </ul>
+        </div>
+        <div class="info-section">
+            <h3>Self-Regulation Theory</h3>
+            <p>Self-regulation is the ability to manage your thoughts, emotions, and behaviours to achieve goals. Research shows that self-regulation develops over time with practice. The key steps are:</p>
+            <ul>
+                <li><strong>Awareness:</strong> Recognise what you are feeling and how intense it is (that's what the thermometer helps with).</li>
+                <li><strong>Understanding:</strong> Connect the emotion to a trigger or situation (the body map and scenarios support this).</li>
+                <li><strong>Strategy selection:</strong> Choose a coping approach matched to the intensity (the strategy matcher does this).</li>
+                <li><strong>Reflection:</strong> Review what worked, and build a personal toolkit over time (the journal and bookmarks support this).</li>
+            </ul>
+        </div>
+        <div class="info-section">
+            <h3>When to Seek Help</h3>
+            <p>If you frequently find yourself in Zones 4 or 5, or if difficult emotions last for a long time, talking to a trusted adult, tutor, or school counsellor is a positive and brave step. You do not have to manage everything on your own.</p>
+        </div>
+        <div class="info-section">
+            <h3>Tips for Staff</h3>
+            <p>This tool can be used in PSHE lessons, tutor time, or as part of a pastoral conversation. Encourage students to explore the thermometer and identify which strategies resonate with them. The journal feature helps build a habit of reflective practice.</p>
+        </div>
+    </div>
+</div>
+
+</div><!-- end .main -->
+
+<script>
+/* ===== DATA ===== */
+const ZONES = [
+    { id: 1, name: 'Calm', colour: 'var(--zone-calm)', hex: '#3b82f6', desc: "You're feeling relaxed and in control. A great time to build good habits." },
+    { id: 2, name: 'Content', colour: 'var(--zone-content)', hex: '#22c55e', desc: 'Mild emotions are present but manageable. You can focus and learn effectively.' },
+    { id: 3, name: 'Alert', colour: 'var(--zone-alert)', hex: '#eab308', desc: 'Emotions are building. Pausing and using a strategy now can prevent escalation.' },
+    { id: 4, name: 'Elevated', colour: 'var(--zone-elevated)', hex: '#f97316', desc: 'Strong feelings are making it harder to think clearly. Take action to bring things down.' },
+    { id: 5, name: 'Crisis', colour: 'var(--zone-crisis)', hex: '#ef4444', desc: 'You feel overwhelmed. Safety comes first. Seek support from a trusted adult.' }
+];
+
+const STRATEGIES = {
+    1: [
+        { icon: '🧘', title: 'Mindful breathing', desc: 'Breathe in for 4 counts, hold for 4, out for 4. Repeat three times to stay grounded.' },
+        { icon: '📝', title: 'Gratitude list', desc: 'Write down three things that are going well today, however small.' },
+        { icon: '🎯', title: 'Set a micro-goal', desc: 'Choose one small, achievable goal for the next hour to maintain focus.' },
+        { icon: '😊', title: 'Positive affirmation', desc: 'Repeat a phrase like "I can handle what comes my way" to reinforce calm thinking.' }
+    ],
+    2: [
+        { icon: '🚶', title: 'Take a short walk', desc: 'A brief walk (even to the water fountain and back) can reset your mood.' },
+        { icon: '🎵', title: 'Listen to calming music', desc: 'A favourite calming track can help keep mild emotions from building.' },
+        { icon: '💬', title: 'Talk to a friend', desc: 'Share what you are feeling with someone you trust. Naming it helps.' },
+        { icon: '✏️', title: 'Doodle or draw', desc: 'Expressive drawing can channel mild frustration or nervous energy.' }
+    ],
+    3: [
+        { icon: '🧊', title: 'Cold water reset', desc: 'Splash cold water on your wrists or hold something cool. This activates the dive reflex and slows your heart rate.' },
+        { icon: '🔢', title: '5-4-3-2-1 grounding', desc: 'Name 5 things you see, 4 you hear, 3 you can touch, 2 you smell, 1 you taste.' },
+        { icon: '⏸️', title: 'Take a break', desc: 'Ask for a short time-out. A change of environment can interrupt the escalation cycle.' },
+        { icon: '📓', title: 'Write it out', desc: 'Putting feelings into words on paper helps the brain process emotions more effectively.' }
+    ],
+    4: [
+        { icon: '🏃', title: 'Physical release', desc: 'Do 10 star jumps, press your palms against a wall, or squeeze a stress ball to discharge tension.' },
+        { icon: '🐢', title: 'Turtle technique', desc: 'Imagine retreating into a shell. Tuck your chin, wrap your arms around yourself, and breathe slowly.' },
+        { icon: '🗣️', title: 'Use an "I feel" statement', desc: 'Say "I feel [emotion] because [reason]." This helps others understand without conflict.' },
+        { icon: '🚪', title: 'Move to a safe space', desc: 'Go to a designated calm area. Removing yourself from the trigger is a strength, not a weakness.' }
+    ],
+    5: [
+        { icon: '🆘', title: 'Tell a trusted adult', desc: 'Find a teacher, tutor, or pastoral lead immediately. You deserve support.' },
+        { icon: '🛑', title: 'Stop and breathe', desc: 'Pause everything. Focus only on your breathing. Nothing else needs to happen right now.' },
+        { icon: '📱', title: 'Use a helpline', desc: 'Childline: 0800 1111. Shout text service: text SHOUT to 85258. Available 24/7, free and confidential.' },
+        { icon: '🤝', title: 'Stay with someone safe', desc: 'Do not be alone if you feel unsafe. Stay close to a person you trust until the intensity passes.' }
+    ]
+};
+
+const BODY_SIGNALS = {
+    head: [
+        'Racing thoughts or "mind going blank"',
+        'Headache or pressure behind the eyes',
+        'Feeling dizzy or lightheaded',
+        'Jaw clenching or teeth grinding'
+    ],
+    chest: [
+        'Heart beating faster or pounding',
+        'Tightness or pressure in the chest',
+        'Shallow, rapid breathing',
+        'Feeling a lump in the throat'
+    ],
+    stomach: [
+        'Butterflies or churning feeling',
+        'Feeling sick or nauseous',
+        'Loss of appetite or sudden hunger',
+        'A "sinking" feeling in the gut'
+    ],
+    arms: [
+        'Tension or stiffness in shoulders',
+        'Urge to push, hit, or throw things',
+        'Arms feeling heavy or weak',
+        'Restlessness or fidgeting'
+    ],
+    hands: [
+        'Sweaty or clammy palms',
+        'Hands trembling or shaking',
+        'Making fists without realising',
+        'Tingling or numbness in fingers'
+    ],
+    legs: [
+        'Legs feeling shaky or weak',
+        'Urge to run away or pace',
+        'Knees feeling "wobbly"',
+        'Restless legs or bouncing'
+    ],
+    feet: [
+        'Feeling "rooted to the spot"',
+        'Tapping or stamping feet',
+        'Wanting to kick something',
+        'Cold feet (literally and figuratively)'
+    ]
+};
+
+const SCENARIOS = [
+    {
+        title: 'The group project',
+        text: 'You have been put in a group with people who are not doing their share of the work. The deadline is tomorrow and you are worried your grade will suffer.',
+        zone: 3,
+        strategies: [2, 3],
+        response: 'This situation often triggers frustration and anxiety. Talking to your teacher about the unequal workload is a proactive step. Using grounding techniques can help you stay calm while you decide what to do.'
+    },
+    {
+        title: 'The online comment',
+        text: 'Someone has posted something unkind about you in a group chat. Several people have seen it. You feel your face getting hot as you read it.',
+        zone: 4,
+        strategies: [3, 4],
+        response: 'Online negativity can feel very intense because it is public and persistent. Stepping away from the screen, telling a trusted adult, and not responding immediately are all strong choices. Screenshot the comment but do not engage.'
+    },
+    {
+        title: 'The surprise test',
+        text: 'Your teacher announces a pop quiz on a topic you did not revise. You feel your stomach drop and your mind goes blank.',
+        zone: 3,
+        strategies: [1, 3],
+        response: 'Test anxiety is extremely common. Deep breathing can help your brain switch from "panic mode" back to "thinking mode". Focus on what you do know rather than what you do not. One test does not define you.'
+    },
+    {
+        title: 'The friendship fallout',
+        text: 'Your best friend has started spending all their time with someone else and barely talks to you. At lunch, they walk straight past you without saying hello.',
+        zone: 4,
+        strategies: [2, 4],
+        response: 'Feeling rejected by a close friend is one of the most painful social experiences. Name the feeling (hurt, jealousy, confusion) to help process it. Talking to the friend calmly using "I feel" statements can open a conversation.'
+    },
+    {
+        title: 'The celebration',
+        text: 'You have just found out you got the highest mark in the class on an assessment you worked really hard for. Your teacher reads your name out.',
+        zone: 2,
+        strategies: [1, 2],
+        response: 'Positive emotions matter too. Pride and excitement are healthy, and acknowledging your effort reinforces a growth mindset. Enjoy the moment and consider what study habits contributed to this success.'
+    },
+    {
+        title: 'The home worry',
+        text: 'Things at home have been difficult lately. Your parents have been arguing a lot and you overheard them talking about money problems. You cannot concentrate in lessons.',
+        zone: 5,
+        strategies: [4, 5],
+        response: 'Worrying about home life is one of the heaviest burdens a young person can carry. This is not your fault or your responsibility to fix. Speaking to a school counsellor, head of year, or calling Childline (0800 1111) is a brave and important step.'
+    }
+];
+
+/* ===== STATE ===== */
+let currentLevel = 0.1; // 0 to 1
+let currentZone = 1;
+let bookmarks = JSON.parse(localStorage.getItem('emotionThermo_bookmarks') || '[]');
+let journalEntries = JSON.parse(localStorage.getItem('emotionThermo_journal') || '[]');
+
+/* ===== THERMOMETER ===== */
+const TUBE_TOP = 20;
+const TUBE_BOTTOM = 300;
+const BULB_BOTTOM = 366;
+const thermoSvg = document.getElementById('thermoSvg');
+const mercuryFill = document.getElementById('mercuryFill');
+const thermoHandle = document.getElementById('thermoHandle');
+
+function levelToY(level) {
+    return TUBE_BOTTOM - level * (TUBE_BOTTOM - TUBE_TOP);
+}
+
+function yToLevel(y) {
+    const clamped = Math.max(TUBE_TOP, Math.min(TUBE_BOTTOM, y));
+    return (TUBE_BOTTOM - clamped) / (TUBE_BOTTOM - TUBE_TOP);
+}
+
+function levelToZone(level) {
+    if (level < 0.2) return 1;
+    if (level < 0.4) return 2;
+    if (level < 0.6) return 3;
+    if (level < 0.8) return 4;
+    return 5;
+}
+
+function updateThermometer(level) {
+    currentLevel = Math.max(0, Math.min(1, level));
+    currentZone = levelToZone(currentLevel);
+    const y = levelToY(currentLevel);
+    mercuryFill.setAttribute('y', y);
+    mercuryFill.setAttribute('height', BULB_BOTTOM - y);
+    thermoHandle.setAttribute('cy', y);
+
+    const zone = ZONES[currentZone - 1];
+    document.getElementById('zoneBadge').style.background = zone.colour;
+    document.getElementById('zoneBadge').textContent = 'Zone ' + zone.id + ': ' + zone.name;
+    document.getElementById('zoneDesc').textContent = zone.desc;
+    document.getElementById('journalZoneBadge').style.background = zone.colour;
+    document.getElementById('journalZoneBadge').textContent = 'Zone ' + zone.id + ': ' + zone.name;
+    renderStrategies();
+}
+
+function renderStrategies() {
+    const grid = document.getElementById('strategyGrid');
+    const strats = STRATEGIES[currentZone];
+    grid.innerHTML = strats.map(s => {
+        const key = s.title;
+        const isSaved = bookmarks.includes(key);
+        return '<div class="strategy-card">' +
+            '<div class="strategy-icon">' + s.icon + '</div>' +
+            '<div class="strategy-info"><strong>' + s.title + '</strong><p>' + s.desc + '</p></div>' +
+            '<button class="bookmark-btn ' + (isSaved ? 'saved' : '') + '" onclick="toggleBookmark(\'' + escapeAttr(key) + '\')" title="' + (isSaved ? 'Remove bookmark' : 'Bookmark this strategy') + '">' + (isSaved ? '\u2605' : '\u2606') + '</button>' +
+            '</div>';
+    }).join('');
+}
+
+function escapeAttr(str) {
+    return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+/* Thermometer interaction */
+let dragging = false;
+function getSvgY(e) {
+    const rect = thermoSvg.getBoundingClientRect();
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const scaleY = 380 / rect.height;
+    return (clientY - rect.top) * scaleY;
+}
+
+thermoSvg.addEventListener('mousedown', e => { dragging = true; updateThermometer(yToLevel(getSvgY(e))); });
+thermoSvg.addEventListener('touchstart', e => { dragging = true; updateThermometer(yToLevel(getSvgY(e))); e.preventDefault(); }, { passive: false });
+document.addEventListener('mousemove', e => { if (dragging) updateThermometer(yToLevel(getSvgY(e))); });
+document.addEventListener('touchmove', e => { if (dragging) updateThermometer(yToLevel(getSvgY(e))); }, { passive: true });
+document.addEventListener('mouseup', () => { dragging = false; });
+document.addEventListener('touchend', () => { dragging = false; });
+
+/* ===== BOOKMARKS ===== */
+function toggleBookmark(name) {
+    const idx = bookmarks.indexOf(name);
+    if (idx === -1) { bookmarks.push(name); }
+    else { bookmarks.splice(idx, 1); }
+    localStorage.setItem('emotionThermo_bookmarks', JSON.stringify(bookmarks));
+    renderStrategies();
+    renderBookmarks();
+}
+
+function renderBookmarks() {
+    const container = document.getElementById('bookmarksList');
+    if (bookmarks.length === 0) {
+        container.innerHTML = '<div class="bookmarks-empty">No strategies bookmarked yet. Use the star icon on the Thermometer tab to save strategies that work for you.</div>';
+        return;
+    }
+    let html = '<div class="strategy-grid">';
+    for (const name of bookmarks) {
+        let found = null;
+        for (const zone in STRATEGIES) {
+            const match = STRATEGIES[zone].find(s => s.title === name);
+            if (match) { found = { ...match, zone: parseInt(zone) }; break; }
+        }
+        if (!found) continue;
+        const zoneData = ZONES[found.zone - 1];
+        html += '<div class="strategy-card">' +
+            '<div class="strategy-icon">' + found.icon + '</div>' +
+            '<div class="strategy-info"><strong>' + found.title + '</strong>' +
+            '<p>' + found.desc + '</p>' +
+            '<span style="font-size:0.7rem;padding:2px 8px;border-radius:10px;color:white;background:' + zoneData.colour + '">Zone ' + zoneData.id + '</span></div>' +
+            '<button class="bookmark-btn saved" onclick="toggleBookmark(\'' + escapeAttr(name) + '\')" title="Remove bookmark">\u2605</button></div>';
+    }
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+/* ===== BODY MAP ===== */
+document.querySelectorAll('.body-zone').forEach(el => {
+    el.addEventListener('click', function () {
+        document.querySelectorAll('.body-zone').forEach(z => z.style.opacity = '0.5');
+        this.style.opacity = '1';
+        const zone = this.getAttribute('data-zone');
+        const signals = BODY_SIGNALS[zone];
+        const container = document.getElementById('bodySignals');
+        container.innerHTML = '<h3 style="grid-column:1/-1;font-size:0.9rem;color:var(--teal-700);margin-bottom:4px;">' +
+            zone.charAt(0).toUpperCase() + zone.slice(1) + ' signals:</h3>' +
+            signals.map(s => '<div class="body-signal">' + s + '</div>').join('');
+    });
+});
+
+/* ===== SCENARIOS ===== */
+function renderScenarios() {
+    const list = document.getElementById('scenarioList');
+    list.innerHTML = SCENARIOS.map((s, i) =>
+        '<div class="scenario-item" onclick="selectScenario(' + i + ')" id="scenario-' + i + '">' +
+        '<h3>' + s.title + '</h3><p>' + s.text + '</p></div>'
+    ).join('');
+}
+
+function selectScenario(idx) {
+    document.querySelectorAll('.scenario-item').forEach(el => el.classList.remove('selected'));
+    document.getElementById('scenario-' + idx).classList.add('selected');
+    const s = SCENARIOS[idx];
+    const zone = ZONES[s.zone - 1];
+    const stratHtml = s.strategies.map(zId => {
+        return STRATEGIES[zId].map(st =>
+            '<div class="strategy-card"><div class="strategy-icon">' + st.icon + '</div>' +
+            '<div class="strategy-info"><strong>' + st.title + '</strong><p>' + st.desc + '</p></div></div>'
+        ).join('');
+    }).join('');
+    const resp = document.getElementById('scenarioResponse');
+    resp.style.display = 'block';
+    resp.innerHTML = '<h3>Likely zone: <span style="color:' + zone.colour + '">Zone ' + zone.id + ' (' + zone.name + ')</span></h3>' +
+        '<p style="font-size:0.85rem;color:var(--text-light);margin-bottom:14px;">' + s.response + '</p>' +
+        '<h3 style="margin-bottom:10px;">Suggested strategies:</h3>' +
+        '<div class="strategy-grid">' + stratHtml + '</div>';
+}
+
+/* ===== JOURNAL ===== */
+function saveJournalEntry() {
+    const input = document.getElementById('journalInput');
+    const text = input.value.trim();
+    if (!text) return;
+    const entry = {
+        text: text,
+        zone: currentZone,
+        zoneName: ZONES[currentZone - 1].name,
+        colour: ZONES[currentZone - 1].hex,
+        date: new Date().toISOString()
+    };
+    journalEntries.unshift(entry);
+    localStorage.setItem('emotionThermo_journal', JSON.stringify(journalEntries));
+    input.value = '';
+    renderJournal();
+}
+
+function deleteJournalEntry(idx) {
+    journalEntries.splice(idx, 1);
+    localStorage.setItem('emotionThermo_journal', JSON.stringify(journalEntries));
+    renderJournal();
+}
+
+function clearAllJournal() {
+    if (!confirm('Are you sure you want to delete all journal entries? This cannot be undone.')) return;
+    journalEntries = [];
+    localStorage.setItem('emotionThermo_journal', JSON.stringify(journalEntries));
+    renderJournal();
+}
+
+function renderJournal() {
+    const container = document.getElementById('journalEntries');
+    if (journalEntries.length === 0) {
+        container.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:20px;font-size:0.85rem;">No entries yet. Write about how you are feeling above.</p>';
+        return;
+    }
+    container.innerHTML = journalEntries.map((e, i) => {
+        const d = new Date(e.date);
+        const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ' at ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        return '<div class="journal-entry">' +
+            '<button class="delete-entry" onclick="deleteJournalEntry(' + i + ')" title="Delete entry">&times;</button>' +
+            '<div class="entry-date">' + dateStr + '<span class="entry-level" style="background:' + e.colour + '">Zone ' + e.zone + ': ' + e.zoneName + '</span></div>' +
+            '<div class="entry-text">' + escapeHtml(e.text) + '</div></div>';
+    }).join('');
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+/* ===== NAVIGATION ===== */
+function showPanel(id) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + id).classList.add('active');
+    document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+    const btns = document.querySelectorAll('.nav button');
+    const map = ['thermometer', 'bodymap', 'scenarios', 'journal', 'bookmarks', 'info'];
+    const idx = map.indexOf(id);
+    if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
+    if (id === 'bookmarks') renderBookmarks();
+    if (id === 'journal') renderJournal();
+}
+
+/* ===== INIT ===== */
+updateThermometer(0.1);
+renderScenarios();
+renderJournal();
+renderBookmarks();
+</script>
+</body>
+</html>

@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Argument Mapper</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --purple-deep:#2d1b4e;--purple-mid:#4a2d7a;--purple-light:#7b5ea7;
+  --teal-deep:#0d4f4f;--teal-mid:#1a8a8a;--teal-light:#2ec4b6;
+  --gold-soft:#d4a853;--gold-light:#f0d48a;--gold-pale:#faf0d7;
+  --bg:#1a1128;--bg-card:#251a3a;--bg-card2:#2f2248;
+  --text:#e8e0f0;--text-muted:#a898c0;--text-dim:#776a90;
+  --border:#3d2d5c;--border-light:#5a4580;
+  --green:#2ecc71;--green-dim:#1a7a42;--red:#e74c3c;--red-dim:#8b2e26;
+  --blue:#5dade2;--blue-dim:#2e6d8e;
+  --radius:12px;--radius-sm:8px;
+  --shadow:0 4px 24px rgba(0,0,0,.35);
+  --transition:all .25s ease;
+}
+html{font-size:16px;scroll-behavior:smooth}
+body{
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+  background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;
+  background-image:radial-gradient(ellipse at 20% 50%,rgba(45,27,78,.6) 0%,transparent 60%),
+                    radial-gradient(ellipse at 80% 20%,rgba(13,79,79,.4) 0%,transparent 50%);
+}
+h1,h2,h3,h4{font-weight:600;line-height:1.3}
+button{cursor:pointer;font-family:inherit;font-size:inherit}
+
+/* Header */
+.site-header{
+  position:sticky;top:0;z-index:100;
+  text-align:center;padding:20px 24px 16px;
+  background:rgba(26,17,40,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+}
+.site-header h1{
+  font-size:clamp(1.6rem,4vw,2.4rem);
+  background:linear-gradient(135deg,var(--teal-light),var(--gold-soft));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;letter-spacing:-.5px;
+}
+.site-header p{color:var(--text-muted);font-size:.95rem;margin-top:2px;font-style:italic}
+
+/* Layout */
+.app-container{display:flex;height:calc(100vh - 80px);overflow:hidden}
+.sidebar{
+  width:300px;min-width:260px;background:var(--bg-card);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;
+  overflow-y:auto;flex-shrink:0;
+}
+.main-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* Topic Selector */
+.topic-selector{padding:16px;border-bottom:1px solid var(--border)}
+.topic-selector h3{font-size:.85rem;text-transform:uppercase;letter-spacing:1px;color:var(--teal-light);margin-bottom:10px}
+.topic-btn{
+  display:block;width:100%;text-align:left;padding:10px 14px;margin-bottom:6px;
+  background:var(--bg-card2);border:1px solid var(--border);color:var(--text);
+  border-radius:var(--radius-sm);font-size:.88rem;transition:var(--transition);
+}
+.topic-btn:hover{border-color:var(--teal-mid);background:var(--purple-mid)}
+.topic-btn.active{border-color:var(--teal-light);background:var(--purple-mid);color:var(--teal-light)}
+
+/* Card Bank */
+.card-bank{flex:1;overflow-y:auto;padding:16px}
+.card-bank h3{font-size:.8rem;text-transform:uppercase;letter-spacing:1px;color:var(--gold-soft);margin-bottom:10px}
+.bank-section{margin-bottom:18px}
+.bank-section h4{font-size:.78rem;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.bank-card{
+  padding:10px 12px;margin-bottom:6px;border-radius:var(--radius-sm);
+  font-size:.84rem;cursor:grab;border:1px solid transparent;
+  transition:var(--transition);user-select:none;line-height:1.4;
+}
+.bank-card:active{cursor:grabbing}
+.bank-card.premise-for{background:rgba(46,204,113,.12);border-color:rgba(46,204,113,.3);color:#8aedb8}
+.bank-card.premise-against{background:rgba(231,76,60,.12);border-color:rgba(231,76,60,.3);color:#f0a8a0}
+.bank-card.conclusion{background:rgba(93,173,226,.12);border-color:rgba(93,173,226,.3);color:#a8d4f0}
+.bank-card:hover{transform:translateX(4px);border-color:var(--teal-light)}
+.bank-card.used{opacity:.4;cursor:default;pointer-events:none}
+
+/* Custom premise */
+.custom-premise{padding:12px 16px;border-top:1px solid var(--border)}
+.custom-premise input{
+  width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);
+  color:var(--text);border-radius:var(--radius-sm);font-size:.85rem;margin-bottom:8px;
+}
+.custom-premise input::placeholder{color:var(--text-dim)}
+.custom-premise .btn-row{display:flex;gap:6px}
+.custom-premise button{
+  flex:1;padding:6px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  font-size:.78rem;color:var(--text);transition:var(--transition);
+}
+.btn-for{background:rgba(46,204,113,.2)}
+.btn-for:hover{background:rgba(46,204,113,.35)}
+.btn-against{background:rgba(231,76,60,.2)}
+.btn-against:hover{background:rgba(231,76,60,.35)}
+.btn-concl{background:rgba(93,173,226,.2)}
+.btn-concl:hover{background:rgba(93,173,226,.35)}
+
+/* Canvas */
+.canvas-wrapper{flex:1;position:relative;overflow:hidden}
+.canvas-wrapper.drag-over{background:rgba(46,204,113,.03)}
+#canvas{width:100%;height:100%;position:absolute;top:0;left:0;pointer-events:none;z-index:2}
+.workspace{width:100%;height:100%;position:relative;overflow:auto}
+.workspace-inner{width:2000px;height:1400px;position:relative}
+
+.node{
+  position:absolute;padding:14px 16px;border-radius:var(--radius);
+  min-width:180px;max-width:260px;font-size:.85rem;line-height:1.4;
+  cursor:move;user-select:none;z-index:10;
+  box-shadow:var(--shadow);border:2px solid transparent;
+  transition:box-shadow .2s ease;
+}
+.node:hover{box-shadow:0 6px 32px rgba(0,0,0,.5)}
+.node.selected{box-shadow:0 0 0 3px var(--gold-soft),var(--shadow)}
+.node.connecting{box-shadow:0 0 0 3px var(--teal-light),var(--shadow)}
+.node-for{background:rgba(46,204,113,.15);border-color:var(--green-dim);color:#8aedb8}
+.node-against{background:rgba(231,76,60,.15);border-color:var(--red-dim);color:#f0a8a0}
+.node-conclusion{background:rgba(93,173,226,.15);border-color:var(--blue-dim);color:#a8d4f0}
+.node-label{
+  position:absolute;top:-10px;left:12px;font-size:.6rem;text-transform:uppercase;
+  letter-spacing:1px;padding:1px 8px;border-radius:4px;font-weight:700;
+}
+.node-for .node-label{background:var(--green);color:#111}
+.node-against .node-label{background:var(--red);color:#fff}
+.node-conclusion .node-label{background:var(--blue);color:#111}
+.node-delete{
+  position:absolute;top:4px;right:8px;background:none;border:none;
+  color:var(--text-dim);font-size:1rem;line-height:1;padding:2px;
+  opacity:0;transition:opacity .2s;
+}
+.node:hover .node-delete{opacity:1}
+.node-delete:hover{color:var(--red)}
+
+/* Toolbar */
+.toolbar{
+  display:flex;align-items:center;gap:10px;padding:10px 16px;
+  background:var(--bg-card);border-bottom:1px solid var(--border);flex-wrap:wrap;
+}
+.toolbar button{
+  padding:7px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--bg-card2);color:var(--text);font-size:.82rem;
+  transition:var(--transition);
+}
+.toolbar button:hover{border-color:var(--teal-mid);background:var(--purple-mid)}
+.toolbar button.active{border-color:var(--teal-light);color:var(--teal-light)}
+.toolbar .spacer{flex:1}
+.toolbar .mode-label{font-size:.78rem;color:var(--text-dim)}
+.connect-mode-indicator{
+  display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:var(--text-dim);margin-right:4px;
+}
+.connect-mode-indicator.on{background:var(--teal-light);box-shadow:0 0 6px var(--teal-light)}
+
+/* Right Panel */
+.right-panel{
+  width:320px;min-width:280px;background:var(--bg-card);
+  border-left:1px solid var(--border);display:flex;flex-direction:column;
+  overflow-y:auto;flex-shrink:0;
+}
+.panel-tabs{display:flex;border-bottom:1px solid var(--border)}
+.panel-tab{
+  flex:1;padding:10px;text-align:center;font-size:.82rem;
+  background:none;border:none;color:var(--text-dim);
+  border-bottom:2px solid transparent;transition:var(--transition);
+}
+.panel-tab:hover{color:var(--text-muted)}
+.panel-tab.active{color:var(--teal-light);border-bottom-color:var(--teal-light)}
+.panel-content{flex:1;overflow-y:auto;padding:16px}
+
+/* Validation */
+.validation-result{
+  padding:14px;border-radius:var(--radius-sm);margin-bottom:12px;
+  border:1px solid var(--border);
+}
+.validation-result h4{font-size:.9rem;margin-bottom:6px}
+.strength-bar{
+  height:8px;border-radius:4px;background:var(--bg);margin:8px 0;overflow:hidden;
+}
+.strength-fill{height:100%;border-radius:4px;transition:width .5s ease}
+.strength-weak{background:var(--red)}
+.strength-moderate{background:var(--gold-soft)}
+.strength-strong{background:var(--green)}
+.feedback-item{
+  padding:8px 12px;margin-bottom:6px;border-radius:var(--radius-sm);
+  font-size:.82rem;line-height:1.4;border-left:3px solid;
+}
+.feedback-success{background:rgba(46,204,113,.08);border-color:var(--green);color:#8aedb8}
+.feedback-warning{background:rgba(212,168,83,.08);border-color:var(--gold-soft);color:var(--gold-light)}
+.feedback-error{background:rgba(231,76,60,.08);border-color:var(--red);color:#f0a8a0}
+
+/* Evaluation */
+.eval-section{margin-bottom:16px}
+.eval-section label{display:block;font-size:.82rem;color:var(--text-muted);margin-bottom:6px}
+.eval-section textarea{
+  width:100%;min-height:100px;padding:10px;background:var(--bg);
+  border:1px solid var(--border);color:var(--text);border-radius:var(--radius-sm);
+  font-family:inherit;font-size:.85rem;resize:vertical;
+}
+.eval-section textarea::placeholder{color:var(--text-dim)}
+.star-rating{display:flex;gap:4px;margin-bottom:8px}
+.star{
+  font-size:1.4rem;background:none;border:none;color:var(--text-dim);
+  transition:var(--transition);padding:0;
+}
+.star.filled{color:var(--gold-soft)}
+.star:hover{color:var(--gold-light)}
+
+/* Info Panel */
+.info-section{margin-bottom:20px}
+.info-section h4{
+  font-size:.9rem;color:var(--teal-light);margin-bottom:8px;
+  padding-bottom:4px;border-bottom:1px solid var(--border);
+}
+.info-section p,.info-section li{font-size:.83rem;color:var(--text-muted);margin-bottom:6px;line-height:1.5}
+.info-section ul{padding-left:18px}
+.info-section .example{
+  padding:8px 12px;background:var(--bg);border-radius:var(--radius-sm);
+  font-size:.8rem;color:var(--text-dim);margin:6px 0;border-left:2px solid var(--purple-light);
+}
+
+/* Empty state */
+.empty-state{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  text-align:center;color:var(--text-dim);pointer-events:none;z-index:1;
+}
+.empty-state h3{font-size:1.1rem;margin-bottom:6px;color:var(--text-muted)}
+.empty-state p{font-size:.88rem}
+
+/* Legend */
+.legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:.75rem;color:var(--text-muted)}
+.legend-dot{width:10px;height:10px;border-radius:3px}
+
+/* Responsive */
+@media(max-width:1100px){
+  .right-panel{width:260px;min-width:220px}
+  .sidebar{width:260px;min-width:220px}
+}
+@media(max-width:860px){
+  .app-container{flex-direction:column;height:auto}
+  .sidebar{width:100%;max-height:280px;border-right:none;border-bottom:1px solid var(--border)}
+  .right-panel{width:100%;max-height:350px;border-left:none;border-top:1px solid var(--border)}
+  .canvas-wrapper{min-height:450px}
+  .main-area{min-height:500px}
+}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <h1>Argument Mapper</h1>
+  <p>Build, connect and evaluate philosophical and theological arguments</p>
+</header>
+
+<div class="app-container">
+  <!-- Left Sidebar -->
+  <aside class="sidebar">
+    <div class="topic-selector" id="topicSelector">
+      <h3>Choose a Topic</h3>
+    </div>
+    <div class="card-bank" id="cardBank">
+      <h3>Premise &amp; Conclusion Cards</h3>
+      <p style="font-size:.8rem;color:var(--text-dim);margin-bottom:12px">Click a card to place it on the workspace.</p>
+      <div id="bankCards"></div>
+    </div>
+    <div class="custom-premise">
+      <input type="text" id="customText" placeholder="Write a custom premise or conclusion..." maxlength="200">
+      <div class="btn-row">
+        <button class="btn-for" onclick="addCustomNode('for')">+ For</button>
+        <button class="btn-against" onclick="addCustomNode('against')">+ Against</button>
+        <button class="btn-concl" onclick="addCustomNode('conclusion')">+ Conclusion</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main workspace -->
+  <div class="main-area">
+    <div class="toolbar">
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Supporting</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Counter</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>Conclusion</div>
+      </div>
+      <div class="spacer"></div>
+      <span class="mode-label"><span class="connect-mode-indicator" id="connectIndicator"></span>Connect mode</span>
+      <button id="connectBtn" onclick="toggleConnectMode()">Connect Nodes</button>
+      <button onclick="validateArgument()">Validate</button>
+      <button onclick="clearWorkspace()">Clear All</button>
+    </div>
+    <div class="canvas-wrapper" id="canvasWrapper">
+      <div class="workspace" id="workspace">
+        <div class="workspace-inner" id="workspaceInner">
+          <canvas id="canvas"></canvas>
+          <div class="empty-state" id="emptyState">
+            <h3>Your workspace is empty</h3>
+            <p>Select a topic, then click premise cards to add them here.<br>Use "Connect Nodes" to draw arrows between them.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <aside class="right-panel">
+    <div class="panel-tabs">
+      <button class="panel-tab active" data-tab="validate" onclick="switchTab('validate')">Validation</button>
+      <button class="panel-tab" data-tab="evaluate" onclick="switchTab('evaluate')">Evaluate</button>
+      <button class="panel-tab" data-tab="info" onclick="switchTab('info')">Info</button>
+    </div>
+    <div class="panel-content" id="panelContent">
+      <!-- Filled by JS -->
+    </div>
+  </aside>
+</div>
+
+<script>
+/* ── Data ─────────────────────────────────────────────────────────── */
+const TOPICS = [
+  {
+    id:'god-exist',
+    title:'Does God exist?',
+    premises:[
+      {text:'Everything that begins to exist has a cause; the universe began to exist, therefore there must be an uncaused first cause (cosmological argument).',type:'for'},
+      {text:'The fine-tuning of the universe (physical constants, laws of nature) suggests an intelligent designer (teleological argument).',type:'for'},
+      {text:'The concept of a maximally great being that must exist in all possible worlds proves God\'s existence by definition (ontological argument).',type:'for'},
+      {text:'Billions of people across diverse cultures and times have experienced a sense of the divine; this shared experience is evidence of God\'s reality.',type:'for'},
+      {text:'The existence of objective moral values points to a moral lawgiver beyond humanity.',type:'for'},
+      {text:'An all-powerful, all-loving God would not allow the scale of suffering seen in the world (problem of evil).',type:'against'},
+      {text:'Natural explanations (Big Bang, evolution) account for the universe and life without requiring a creator.',type:'against'},
+      {text:'Religious experiences can be explained by psychology and neuroscience; they do not require a supernatural source.',type:'against'},
+      {text:'The existence of thousands of contradictory religions undermines the truth claim of any single faith.',type:'against'},
+      {text:'The burden of proof lies with those claiming God exists; absence of evidence is evidence of absence.',type:'against'},
+    ],
+    conclusions:[
+      {text:'God\'s existence is the most rational explanation for the origin and order of the universe.',type:'conclusion'},
+      {text:'There is insufficient evidence to justify belief in God; naturalism offers better explanations.',type:'conclusion'},
+      {text:'The question of God\'s existence cannot be resolved by reason alone and requires faith.',type:'conclusion'},
+    ]
+  },
+  {
+    id:'euthanasia',
+    title:'Is euthanasia morally acceptable?',
+    premises:[
+      {text:'Personal autonomy means individuals have the right to choose when and how they die.',type:'for'},
+      {text:'Euthanasia can end unbearable suffering when no cure or relief exists.',type:'for'},
+      {text:'Medical resources could be redirected to patients who can recover, benefiting more people overall (utilitarian reasoning).',type:'for'},
+      {text:'Compassion requires us to help those who are in intractable pain, even if that means assisting death.',type:'for'},
+      {text:'Human life has inherent sanctity and should not be deliberately ended (sanctity of life principle).',type:'against'},
+      {text:'Legalising euthanasia creates a slippery slope: voluntary cases may lead to non-voluntary or involuntary killing.',type:'against'},
+      {text:'Palliative care advances can manage nearly all end-of-life pain, making euthanasia unnecessary.',type:'against'},
+      {text:'Doctors should heal, not kill; euthanasia violates the Hippocratic tradition of "do no harm".',type:'against'},
+      {text:'Vulnerable people (elderly, disabled) may feel pressured to request euthanasia to avoid being a burden.',type:'against'},
+    ],
+    conclusions:[
+      {text:'Euthanasia is morally justified when a competent individual freely chooses it to end irremediable suffering.',type:'conclusion'},
+      {text:'Euthanasia is morally wrong because it violates the sanctity of life and endangers the vulnerable.',type:'conclusion'},
+      {text:'Euthanasia should be permitted only under strict safeguards, balancing autonomy with protection of the vulnerable.',type:'conclusion'},
+    ]
+  },
+  {
+    id:'animal-rights',
+    title:'Should animals have rights?',
+    premises:[
+      {text:'Animals are sentient beings capable of feeling pain and pleasure; sentience is a sufficient basis for rights.',type:'for'},
+      {text:'Religious stewardship teaches that humans have a duty to care for and protect other creatures.',type:'for'},
+      {text:'Scientific research shows many animals possess intelligence, emotions and social bonds similar to humans.',type:'for'},
+      {text:'Granting animals rights would reduce unnecessary suffering caused by factory farming and testing.',type:'for'},
+      {text:'The Bible grants humanity dominion over animals, implying they exist for human use (dominion theology).',type:'against'},
+      {text:'Rights require the ability to fulfil duties and enter social contracts; animals cannot do this.',type:'against'},
+      {text:'Animal agriculture and testing provide essential food and medical advances that benefit humanity.',type:'against'},
+      {text:'Giving animals legal rights could conflict with human rights and create unworkable legal complexity.',type:'against'},
+    ],
+    conclusions:[
+      {text:'Animals deserve fundamental rights to life and freedom from suffering, based on their sentience.',type:'conclusion'},
+      {text:'Animals do not hold rights but humans have moral duties to treat them humanely.',type:'conclusion'},
+      {text:'A balance is needed: animals should be protected from cruelty without being granted full legal rights.',type:'conclusion'},
+    ]
+  },
+  {
+    id:'just-war',
+    title:'Is war ever justified?',
+    premises:[
+      {text:'Just War Theory (Augustine, Aquinas) holds war is permissible when fought for a just cause, as a last resort, with proportional force and legitimate authority.',type:'for'},
+      {text:'Self-defence against aggression is a fundamental right of nations and peoples.',type:'for'},
+      {text:'Intervention can prevent genocide and mass atrocities when diplomatic options have failed.',type:'for'},
+      {text:'War can restore justice and protect the innocent from tyranny and oppression.',type:'for'},
+      {text:'All war involves killing, which violates the commandment "You shall not murder" and the principle of the sanctity of life.',type:'against'},
+      {text:'Jesus taught non-violence and love of enemies; Christians should follow pacifism, not war.',type:'against'},
+      {text:'Modern warfare causes indiscriminate civilian casualties, making "proportional force" impossible.',type:'against'},
+      {text:'War rarely resolves underlying conflicts and often creates cycles of revenge and further violence.',type:'against'},
+      {text:'Non-violent resistance (Gandhi, MLK) has proven effective and morally superior to armed conflict.',type:'against'},
+    ],
+    conclusions:[
+      {text:'War can be morally justified when it meets the strict criteria of Just War Theory.',type:'conclusion'},
+      {text:'War is never morally justified; non-violent alternatives must always be pursued.',type:'conclusion'},
+      {text:'War may sometimes be a tragic necessity, but it should be the absolute last resort with maximum restraint.',type:'conclusion'},
+    ]
+  },
+];
+
+/* ── State ────────────────────────────────────────────────────────── */
+let currentTopic = null;
+let nodes = [];
+let connections = [];
+let nextNodeId = 1;
+let connectMode = false;
+let connectSource = null;
+let dragging = null;
+let dragOffset = {x:0,y:0};
+let activeTab = 'validate';
+let evalRating = 0;
+let usedCards = new Set();
+
+/* ── Initialise ───────────────────────────────────────────────────── */
+function init(){
+  renderTopics();
+  selectTopic(TOPICS[0].id);
+  setupCanvas();
+  renderPanel();
+  window.addEventListener('resize', ()=>{ setupCanvas(); drawConnections(); });
+}
+
+function renderTopics(){
+  const el = document.getElementById('topicSelector');
+  let html = '<h3>Choose a Topic</h3>';
+  TOPICS.forEach(t=>{
+    html += `<button class="topic-btn" data-id="${t.id}" onclick="selectTopic('${t.id}')">${t.title}</button>`;
+  });
+  el.innerHTML = html;
+}
+
+function selectTopic(id){
+  currentTopic = TOPICS.find(t=>t.id===id);
+  document.querySelectorAll('.topic-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.id===id);
+  });
+  usedCards.clear();
+  nodes.forEach(n=>{ if(!n.custom) usedCards.add(n.sourceText); });
+  renderBank();
+}
+
+function renderBank(){
+  if(!currentTopic) return;
+  const el = document.getElementById('bankCards');
+  let html = '<div class="bank-section"><h4>Supporting Premises</h4>';
+  currentTopic.premises.filter(p=>p.type==='for').forEach((p,i)=>{
+    const used = usedCards.has(p.text) ? ' used' : '';
+    html += `<div class="bank-card premise-for${used}" onclick="addFromBank('for',${i},'premise')" title="Click to add">${p.text}</div>`;
+  });
+  html += '</div><div class="bank-section"><h4>Counter Premises</h4>';
+  currentTopic.premises.filter(p=>p.type==='against').forEach((p,i)=>{
+    const used = usedCards.has(p.text) ? ' used' : '';
+    html += `<div class="bank-card premise-against${used}" onclick="addFromBank('against',${i},'premise')" title="Click to add">${p.text}</div>`;
+  });
+  html += '</div><div class="bank-section"><h4>Conclusions</h4>';
+  currentTopic.conclusions.forEach((c,i)=>{
+    const used = usedCards.has(c.text) ? ' used' : '';
+    html += `<div class="bank-card conclusion${used}" onclick="addFromBank('conclusion',${i},'conclusion')" title="Click to add">${c.text}</div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+/* ── Node management ──────────────────────────────────────────────── */
+function addFromBank(type, index, category){
+  if(!currentTopic) return;
+  const list = category === 'conclusion' ? currentTopic.conclusions : currentTopic.premises.filter(p=>p.type===type);
+  const item = list[index];
+  if(!item || usedCards.has(item.text)) return;
+  usedCards.add(item.text);
+  placeNode(item.text, type === 'conclusion' ? 'conclusion' : type, false, item.text);
+  renderBank();
+}
+
+function addCustomNode(type){
+  const input = document.getElementById('customText');
+  const text = input.value.trim();
+  if(!text) return;
+  placeNode(text, type, true);
+  input.value = '';
+}
+
+function placeNode(text, type, custom, sourceText){
+  const ws = document.getElementById('workspace');
+  const scroll = {x: ws.scrollLeft, y: ws.scrollTop};
+  const rect = ws.getBoundingClientRect();
+  const baseX = scroll.x + rect.width * 0.15 + Math.random() * rect.width * 0.5;
+  const baseY = scroll.y + 40 + Math.random() * 250;
+  const node = {
+    id: nextNodeId++,
+    text: text,
+    type: type,  // 'for','against','conclusion'
+    x: baseX,
+    y: baseY,
+    custom: custom || false,
+    sourceText: sourceText || text
+  };
+  nodes.push(node);
+  renderNodes();
+  updateEmptyState();
+}
+
+function removeNode(id){
+  nodes = nodes.filter(n=>{
+    if(n.id === id){
+      usedCards.delete(n.sourceText);
+      return false;
+    }
+    return true;
+  });
+  connections = connections.filter(c=> c.from !== id && c.to !== id);
+  if(connectSource === id) connectSource = null;
+  renderNodes();
+  drawConnections();
+  renderBank();
+  updateEmptyState();
+}
+
+function renderNodes(){
+  const container = document.getElementById('workspaceInner');
+  container.querySelectorAll('.node').forEach(el=>el.remove());
+  nodes.forEach(n=>{
+    const cls = n.type === 'for' ? 'node-for' : n.type === 'against' ? 'node-against' : 'node-conclusion';
+    const label = n.type === 'for' ? 'Supporting' : n.type === 'against' ? 'Counter' : 'Conclusion';
+    const sel = connectSource === n.id ? ' connecting' : '';
+    const div = document.createElement('div');
+    div.className = `node ${cls}${sel}`;
+    div.dataset.id = n.id;
+    div.style.left = n.x + 'px';
+    div.style.top = n.y + 'px';
+    div.innerHTML = `<span class="node-label">${label}</span><button class="node-delete" onclick="event.stopPropagation();removeNode(${n.id})">&times;</button>${n.text}`;
+    div.addEventListener('mousedown', e=>startDrag(e, n));
+    div.addEventListener('click', e=>handleNodeClick(e, n));
+    container.appendChild(div);
+  });
+}
+
+function updateEmptyState(){
+  document.getElementById('emptyState').style.display = nodes.length ? 'none' : 'block';
+}
+
+/* ── Dragging ─────────────────────────────────────────────────────── */
+function startDrag(e, node){
+  if(connectMode || e.target.classList.contains('node-delete')) return;
+  e.preventDefault();
+  dragging = node;
+  const el = document.querySelector(`.node[data-id="${node.id}"]`);
+  const rect = el.getBoundingClientRect();
+  const ws = document.getElementById('workspace');
+  const wsRect = ws.getBoundingClientRect();
+  dragOffset.x = e.clientX - rect.left;
+  dragOffset.y = e.clientY - rect.top;
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', endDrag);
+}
+
+function onDrag(e){
+  if(!dragging) return;
+  const ws = document.getElementById('workspace');
+  const wsRect = ws.getBoundingClientRect();
+  const x = e.clientX - wsRect.left + ws.scrollLeft - dragOffset.x;
+  const y = e.clientY - wsRect.top + ws.scrollTop - dragOffset.y;
+  dragging.x = Math.max(0, x);
+  dragging.y = Math.max(0, y);
+  const el = document.querySelector(`.node[data-id="${dragging.id}"]`);
+  if(el){
+    el.style.left = dragging.x + 'px';
+    el.style.top = dragging.y + 'px';
+  }
+  drawConnections();
+}
+
+function endDrag(){
+  dragging = null;
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', endDrag);
+}
+
+/* ── Connect mode ─────────────────────────────────────────────────── */
+function toggleConnectMode(){
+  connectMode = !connectMode;
+  connectSource = null;
+  document.getElementById('connectBtn').classList.toggle('active', connectMode);
+  document.getElementById('connectIndicator').classList.toggle('on', connectMode);
+  renderNodes();
+}
+
+function handleNodeClick(e, node){
+  if(!connectMode) return;
+  e.stopPropagation();
+  if(!connectSource){
+    connectSource = node.id;
+    renderNodes();
+  } else {
+    if(connectSource !== node.id){
+      const exists = connections.some(c=>c.from===connectSource && c.to===node.id);
+      if(!exists){
+        connections.push({from:connectSource, to:node.id});
+        drawConnections();
+      }
+    }
+    connectSource = null;
+    renderNodes();
+  }
+}
+
+/* ── Canvas drawing ───────────────────────────────────────────────── */
+function setupCanvas(){
+  const canvas = document.getElementById('canvas');
+  const inner = document.getElementById('workspaceInner');
+  canvas.width = inner.offsetWidth;
+  canvas.height = inner.offsetHeight;
+}
+
+function drawConnections(){
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  canvas.style.pointerEvents = 'none';
+
+  connections.forEach(conn=>{
+    const fromNode = nodes.find(n=>n.id===conn.from);
+    const toNode = nodes.find(n=>n.id===conn.to);
+    if(!fromNode || !toNode) return;
+
+    const fromEl = document.querySelector(`.node[data-id="${fromNode.id}"]`);
+    const toEl = document.querySelector(`.node[data-id="${toNode.id}"]`);
+    if(!fromEl || !toEl) return;
+
+    const fx = fromNode.x + fromEl.offsetWidth / 2;
+    const fy = fromNode.y + fromEl.offsetHeight / 2;
+    const tx = toNode.x + toEl.offsetWidth / 2;
+    const ty = toNode.y + toEl.offsetHeight / 2;
+
+    // Edge clipping for arrowhead
+    const angle = Math.atan2(ty - fy, tx - fx);
+    const toW = toEl.offsetWidth / 2 + 8;
+    const toH = toEl.offsetHeight / 2 + 8;
+    const ex = tx - Math.cos(angle) * Math.min(toW, toH);
+    const ey = ty - Math.sin(angle) * Math.min(toW, toH);
+
+    // Colour based on source node
+    let color = fromNode.type === 'for' ? '#2ecc71' : fromNode.type === 'against' ? '#e74c3c' : '#5dade2';
+
+    ctx.beginPath();
+    ctx.moveTo(fx, fy);
+    ctx.lineTo(ex, ey);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.globalAlpha = 0.7;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Arrowhead
+    const headLen = 14;
+    ctx.beginPath();
+    ctx.moveTo(ex, ey);
+    ctx.lineTo(ex - headLen * Math.cos(angle - 0.4), ey - headLen * Math.sin(angle - 0.4));
+    ctx.lineTo(ex - headLen * Math.cos(angle + 0.4), ey - headLen * Math.sin(angle + 0.4));
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.85;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
+  // Delete buttons for connections (via overlay click areas stored separately)
+}
+
+/* ── Validation ───────────────────────────────────────────────────── */
+function validateArgument(){
+  activeTab = 'validate';
+  document.querySelectorAll('.panel-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab==='validate'));
+  const feedback = [];
+  const forPremises = nodes.filter(n=>n.type==='for');
+  const againstPremises = nodes.filter(n=>n.type==='against');
+  const conclusionNodes = nodes.filter(n=>n.type==='conclusion');
+
+  if(nodes.length === 0){
+    feedback.push({type:'warning',msg:'Add some premise and conclusion nodes to the workspace to begin building an argument.'});
+    renderValidation(0, feedback);
+    return;
+  }
+
+  let score = 0;
+  let maxScore = 100;
+
+  // Check for conclusions
+  if(conclusionNodes.length === 0){
+    feedback.push({type:'error',msg:'No conclusion found. Every argument needs at least one conclusion.'});
+  } else {
+    score += 20;
+    feedback.push({type:'success',msg:`${conclusionNodes.length} conclusion${conclusionNodes.length>1?'s':''} identified.`});
+  }
+
+  // Check for premises
+  const totalPremises = forPremises.length + againstPremises.length;
+  if(totalPremises === 0){
+    feedback.push({type:'error',msg:'No premises found. An argument requires premises that support or challenge the conclusion.'});
+  } else if(totalPremises < 2){
+    score += 5;
+    feedback.push({type:'warning',msg:'Only 1 premise. Stronger arguments typically use multiple premises.'});
+  } else {
+    score += 15;
+    feedback.push({type:'success',msg:`${totalPremises} premises in the workspace (${forPremises.length} supporting, ${againstPremises.length} counter).`});
+  }
+
+  // Balance check
+  if(forPremises.length > 0 && againstPremises.length > 0){
+    score += 15;
+    feedback.push({type:'success',msg:'Good balance: you have considered both sides of the argument.'});
+  } else if(totalPremises > 0){
+    feedback.push({type:'warning',msg:'One-sided argument. Consider adding premises from the opposing viewpoint for a more balanced analysis.'});
+  }
+
+  // Connection checks
+  if(connections.length === 0 && nodes.length > 1){
+    feedback.push({type:'error',msg:'No connections between nodes. Use "Connect Nodes" to link premises to conclusions with arrows.'});
+  } else if(connections.length > 0){
+    score += 15;
+
+    // Check if conclusions are connected
+    const connectedToConclusion = conclusionNodes.filter(c=>
+      connections.some(conn=>conn.to === c.id)
+    );
+    if(conclusionNodes.length > 0 && connectedToConclusion.length === conclusionNodes.length){
+      score += 15;
+      feedback.push({type:'success',msg:'All conclusions have premises connected to them.'});
+    } else if(conclusionNodes.length > 0){
+      feedback.push({type:'warning',msg:'Some conclusions have no premises linked to them. Connect premises to show how they support or challenge the conclusion.'});
+    }
+
+    // Check for unconnected premises
+    const connectedPremises = new Set(connections.map(c=>c.from));
+    const unconnected = nodes.filter(n=>n.type!=='conclusion' && !connectedPremises.has(n.id));
+    if(unconnected.length > 0){
+      feedback.push({type:'warning',msg:`${unconnected.length} premise${unconnected.length>1?'s':''} not connected to any conclusion. Link them to show their role in the argument.`});
+    } else if(totalPremises > 0){
+      score += 10;
+      feedback.push({type:'success',msg:'All premises are connected, forming a clear argument structure.'});
+    }
+
+    feedback.push({type:'success',msg:`${connections.length} connection${connections.length>1?'s':''} mapped.`});
+  }
+
+  // Logical structure hints
+  if(totalPremises >= 3 && conclusionNodes.length >= 1 && connections.length >= 3){
+    score += 10;
+    feedback.push({type:'success',msg:'Strong argument structure with multiple connected premises leading to a conclusion.'});
+  }
+
+  // Check for potential fallacies
+  if(forPremises.length > 0 && againstPremises.length === 0 && conclusionNodes.length > 0){
+    feedback.push({type:'warning',msg:'Potential confirmation bias: only supporting evidence is presented. Consider counter-arguments.'});
+  }
+  if(connections.filter(c=>c.to===connections[0]?.to).length > 4){
+    feedback.push({type:'warning',msg:'Many premises point to one conclusion. Check if any are redundant or could be grouped.'});
+  }
+
+  score = Math.min(100, Math.round(score));
+  renderValidation(score, feedback);
+}
+
+function renderValidation(score, feedback){
+  const strengthClass = score >= 70 ? 'strength-strong' : score >= 40 ? 'strength-moderate' : 'strength-weak';
+  const strengthLabel = score >= 70 ? 'Strong' : score >= 40 ? 'Moderate' : 'Needs work';
+  let html = `<div class="validation-result">
+    <h4>Argument Strength: ${strengthLabel} (${score}%)</h4>
+    <div class="strength-bar"><div class="strength-fill ${strengthClass}" style="width:${score}%"></div></div>
+  </div>`;
+  feedback.forEach(f=>{
+    html += `<div class="feedback-item feedback-${f.type}">${f.msg}</div>`;
+  });
+  document.getElementById('panelContent').innerHTML = html;
+}
+
+/* ── Evaluation ───────────────────────────────────────────────────── */
+function renderEvaluation(){
+  let stars = '';
+  for(let i=1;i<=5;i++){
+    stars += `<button class="star${i<=evalRating?' filled':''}" onclick="setRating(${i})">&#9733;</button>`;
+  }
+  return `
+    <div class="eval-section">
+      <label>Rate this argument's overall strength:</label>
+      <div class="star-rating">${stars}</div>
+    </div>
+    <div class="eval-section">
+      <label>Identify any logical fallacies you notice:</label>
+      <textarea id="fallacyNotes" placeholder="e.g. straw man, ad hominem, false dichotomy, slippery slope, appeal to authority..."></textarea>
+    </div>
+    <div class="eval-section">
+      <label>Write your final evaluation of the argument:</label>
+      <textarea id="evalNotes" placeholder="Consider: Does the conclusion follow from the premises? Are the premises true? Is the argument balanced? What are the strongest and weakest points?"></textarea>
+    </div>
+  `;
+}
+
+function setRating(n){
+  evalRating = n;
+  renderPanel();
+}
+
+/* ── Info panel ────────────────────────────────────────────────────── */
+function getInfoHTML(){
+  return `
+    <div class="info-section">
+      <h4>Deductive vs Inductive Arguments</h4>
+      <p><strong>Deductive:</strong> If the premises are true, the conclusion must be true. The conclusion is contained within the premises.</p>
+      <div class="example">All mammals are warm-blooded. Dolphins are mammals. Therefore, dolphins are warm-blooded.</div>
+      <p><strong>Inductive:</strong> The premises make the conclusion probable, but not certain. The conclusion goes beyond the premises.</p>
+      <div class="example">Every swan I have seen is white. Therefore, all swans are probably white.</div>
+    </div>
+    <div class="info-section">
+      <h4>Premises and Conclusions</h4>
+      <p>A <strong>premise</strong> is a statement offered as evidence or a reason. A <strong>conclusion</strong> is the claim that the premises are meant to support.</p>
+      <p>Indicator words for premises: because, since, given that, as shown by.</p>
+      <p>Indicator words for conclusions: therefore, thus, so, it follows that, consequently.</p>
+    </div>
+    <div class="info-section">
+      <h4>Common Logical Fallacies</h4>
+      <ul>
+        <li><strong>Ad hominem:</strong> Attacking the person rather than their argument.</li>
+        <li><strong>Straw man:</strong> Misrepresenting someone's argument to make it easier to attack.</li>
+        <li><strong>False dichotomy:</strong> Presenting only two options when more exist.</li>
+        <li><strong>Slippery slope:</strong> Claiming one event will inevitably lead to extreme consequences without justification.</li>
+        <li><strong>Appeal to authority:</strong> Using an authority figure's opinion as proof, especially outside their expertise.</li>
+        <li><strong>Circular reasoning:</strong> Using the conclusion as a premise (begging the question).</li>
+        <li><strong>Red herring:</strong> Introducing an irrelevant topic to divert attention from the argument.</li>
+        <li><strong>Appeal to emotion:</strong> Using emotional persuasion instead of logical reasoning.</li>
+      </ul>
+    </div>
+    <div class="info-section">
+      <h4>How to Evaluate an Argument</h4>
+      <ul>
+        <li>1. Identify the conclusion: what is being claimed?</li>
+        <li>2. Identify the premises: what reasons are given?</li>
+        <li>3. Check validity: does the conclusion follow logically from the premises?</li>
+        <li>4. Check soundness: are the premises actually true?</li>
+        <li>5. Look for fallacies: are any reasoning errors present?</li>
+        <li>6. Consider counter-arguments: what would the other side say?</li>
+        <li>7. Assess overall strength: how persuasive is the argument?</li>
+      </ul>
+    </div>
+    <div class="info-section">
+      <h4>Using This Tool</h4>
+      <ul>
+        <li>Select a topic from the sidebar to load pre-written cards.</li>
+        <li>Click cards to place them on the workspace.</li>
+        <li>Drag nodes to arrange your argument visually.</li>
+        <li>Click "Connect Nodes", then click a source node followed by a target node to draw an arrow.</li>
+        <li>Click "Validate" to check your argument structure.</li>
+        <li>Use the Evaluate tab to write your own assessment.</li>
+      </ul>
+    </div>
+  `;
+}
+
+/* ── Panel rendering ──────────────────────────────────────────────── */
+function switchTab(tab){
+  activeTab = tab;
+  document.querySelectorAll('.panel-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
+  renderPanel();
+}
+
+function renderPanel(){
+  const el = document.getElementById('panelContent');
+  if(activeTab === 'validate'){
+    el.innerHTML = '<div class="feedback-item feedback-warning">Click "Validate" in the toolbar to analyse your argument structure.</div>';
+  } else if(activeTab === 'evaluate'){
+    el.innerHTML = renderEvaluation();
+  } else {
+    el.innerHTML = getInfoHTML();
+  }
+}
+
+/* ── Clear ─────────────────────────────────────────────────────────── */
+function clearWorkspace(){
+  if(nodes.length === 0) return;
+  if(!confirm('Clear all nodes and connections from the workspace?')) return;
+  nodes = [];
+  connections = [];
+  connectSource = null;
+  usedCards.clear();
+  renderNodes();
+  drawConnections();
+  renderBank();
+  updateEmptyState();
+}
+
+/* ── Init ──────────────────────────────────────────────────────────── */
+init();
+</script>
+</body>
+</html>

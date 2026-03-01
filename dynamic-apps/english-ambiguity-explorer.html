@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ambiguity Explorer</title>
+<style>
+:root {
+  --parchment: #faf6f0;
+  --ink: #2c2420;
+  --sepia: #8b6f4e;
+  --burgundy: #7a2e3b;
+  --burgundy-light: #a34455;
+  --gold: #c9a84c;
+  --gold-pale: #f0e6c8;
+  --sage: #6b7f5e;
+  --sage-light: #e8eddf;
+  --slate: #4a5568;
+  --cream: #fef9ef;
+  --shadow: rgba(44, 36, 32, 0.12);
+  --shadow-strong: rgba(44, 36, 32, 0.22);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --transition: 0.25s ease;
+  --font-body: Georgia, 'Times New Roman', serif;
+  --font-ui: 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Consolas', 'Courier New', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--parchment);
+  color: var(--ink);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* Sticky Header */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: linear-gradient(135deg, var(--burgundy) 0%, #5a1e2a 100%);
+  color: var(--cream);
+  padding: 1rem 1.5rem;
+  box-shadow: 0 3px 12px var(--shadow-strong);
+}
+.header h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.header p {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  opacity: 0.85;
+  margin-top: 0.15rem;
+}
+
+/* Layout */
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Panels */
+.panel {
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 2px 8px var(--shadow);
+  padding: 1.25rem 1.5rem;
+  border: 1px solid #e8e0d6;
+}
+.panel-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--burgundy);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.panel-title .icon { font-size: 1.2rem; }
+
+/* Sentence Selector */
+.sentence-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.sentence-btn {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  padding: 0.4rem 0.75rem;
+  border: 2px solid #d4c8b8;
+  border-radius: 20px;
+  background: var(--cream);
+  color: var(--slate);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.sentence-btn:hover { border-color: var(--sepia); color: var(--sepia); }
+.sentence-btn.active {
+  background: var(--burgundy);
+  color: white;
+  border-color: var(--burgundy);
+}
+.sentence-btn.custom-btn {
+  background: var(--sage-light);
+  border-color: var(--sage);
+  color: var(--sage);
+  font-weight: 600;
+}
+.sentence-btn.custom-btn.active {
+  background: var(--sage);
+  color: white;
+}
+
+/* Ambiguity type badge */
+.ambiguity-badge {
+  display: inline-block;
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.6rem;
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+}
+.badge-lexical { background: #fce4ec; color: #c62828; }
+.badge-syntactic { background: #e3f2fd; color: #1565c0; }
+.badge-scope { background: #f3e5f5; color: #7b1fa2; }
+.badge-pragmatic { background: #e8f5e9; color: #2e7d32; }
+
+/* Word tokens area */
+.token-workspace {
+  background: var(--gold-pale);
+  border: 2px dashed var(--sepia);
+  border-radius: var(--radius);
+  padding: 1rem;
+  min-height: 70px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  position: relative;
+  transition: background var(--transition);
+}
+.token-workspace.drag-over {
+  background: #f5e6b8;
+  border-color: var(--burgundy);
+}
+
+.word-token {
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  padding: 0.4rem 0.7rem;
+  background: white;
+  border: 2px solid var(--sepia);
+  border-radius: var(--radius);
+  cursor: grab;
+  user-select: none;
+  transition: all 0.15s ease;
+  position: relative;
+  white-space: nowrap;
+}
+.word-token:hover {
+  box-shadow: 0 3px 8px var(--shadow);
+  transform: translateY(-1px);
+}
+.word-token.dragging {
+  opacity: 0.4;
+  transform: scale(0.95);
+}
+.word-token.stressed {
+  background: var(--burgundy);
+  color: white;
+  border-color: var(--burgundy);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+.word-token .stress-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 1px solid var(--sepia);
+  cursor: pointer;
+}
+.word-token.stressed .stress-dot {
+  background: var(--gold);
+  border-color: white;
+}
+
+/* Comma toggles */
+.comma-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 36px;
+  cursor: pointer;
+  font-size: 1.4rem;
+  color: #ccc;
+  border-radius: 4px;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.comma-slot:hover { background: rgba(0,0,0,0.05); }
+.comma-slot.active {
+  color: var(--burgundy);
+  font-weight: 700;
+}
+
+/* Controls row */
+.controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+.control-btn {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #d4c8b8;
+  border-radius: var(--radius);
+  background: var(--cream);
+  color: var(--slate);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.control-btn:hover { background: var(--gold-pale); border-color: var(--sepia); }
+.control-btn.active { background: var(--sepia); color: white; border-color: var(--sepia); }
+
+/* Current reading display */
+.current-reading {
+  font-size: 1.25rem;
+  font-style: italic;
+  color: var(--sepia);
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e8e0d6;
+  margin-bottom: 0.75rem;
+  min-height: 2.5rem;
+}
+
+/* Interpretation tree (SVG) */
+.tree-container {
+  width: 100%;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+}
+.tree-container svg {
+  display: block;
+  margin: 0 auto;
+}
+.tree-container text {
+  font-family: var(--font-ui);
+}
+
+/* Info panel */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+.info-card {
+  padding: 1rem;
+  border-radius: var(--radius);
+  border-left: 4px solid;
+}
+.info-card h4 {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.3rem;
+}
+.info-card p {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.info-card .example {
+  font-style: italic;
+  color: var(--sepia);
+  margin-top: 0.3rem;
+  font-size: 0.85rem;
+}
+.info-card.lexical { border-color: #c62828; background: #fce4ec30; }
+.info-card.syntactic { border-color: #1565c0; background: #e3f2fd30; }
+.info-card.scope { border-color: #7b1fa2; background: #f3e5f530; }
+.info-card.pragmatic { border-color: #2e7d32; background: #e8f5e930; }
+
+/* Custom sentence input */
+.custom-input-area {
+  display: none;
+  margin-top: 0.75rem;
+}
+.custom-input-area.visible { display: block; }
+.custom-input-area textarea {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #d4c8b8;
+  border-radius: var(--radius);
+  resize: vertical;
+  min-height: 60px;
+  background: var(--cream);
+}
+.custom-input-area textarea:focus {
+  outline: none;
+  border-color: var(--burgundy);
+}
+.custom-submit {
+  margin-top: 0.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  padding: 0.4rem 1.2rem;
+  background: var(--burgundy);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.custom-submit:hover { background: var(--burgundy-light); }
+
+/* Interpretation cards */
+.interpretations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+.interp-card {
+  padding: 0.75rem 1rem;
+  background: var(--cream);
+  border-radius: var(--radius);
+  border-left: 4px solid var(--gold);
+  transition: all var(--transition);
+}
+.interp-card.highlighted {
+  border-left-color: var(--burgundy);
+  background: #fdf2f4;
+}
+.interp-card .interp-label {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sepia);
+  margin-bottom: 0.2rem;
+}
+.interp-card .interp-text {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+/* Footer note */
+.footer-note {
+  text-align: centre;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--sepia);
+  padding: 1rem 0;
+  opacity: 0.7;
+  text-align: center;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .header { padding: 0.75rem 1rem; }
+  .header h1 { font-size: 1.25rem; }
+  .container { padding: 1rem; gap: 1rem; }
+  .panel { padding: 1rem; }
+  .info-grid { grid-template-columns: 1fr; }
+  .word-token { font-size: 0.95rem; padding: 0.3rem 0.5rem; }
+  .current-reading { font-size: 1.05rem; }
+  .sentence-btn { font-size: 0.72rem; padding: 0.3rem 0.6rem; }
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <h1>Ambiguity Explorer</h1>
+  <p>Explore how word order, punctuation, and emphasis change the meaning of sentences</p>
+</header>
+
+<div class="container">
+
+  <!-- Sentence Selector Panel -->
+  <div class="panel">
+    <div class="panel-title"><span class="icon">&#9997;</span> Choose a Sentence</div>
+    <div class="sentence-selector" id="sentenceSelector"></div>
+    <div class="custom-input-area" id="customArea">
+      <textarea id="customInput" placeholder="Type your own ambiguous sentence here..."></textarea>
+      <button class="custom-submit" id="customSubmit">Load Sentence</button>
+    </div>
+  </div>
+
+  <!-- Workspace Panel -->
+  <div class="panel">
+    <div class="panel-title"><span class="icon">&#9998;</span> Rearrange, Stress, and Punctuate</div>
+    <div id="ambiguityBadge"></div>
+    <div class="current-reading" id="currentReading"></div>
+    <div class="token-workspace" id="tokenWorkspace"></div>
+    <div class="controls-row">
+      <button class="control-btn" id="resetBtn">Reset Order</button>
+      <button class="control-btn" id="clearStressBtn">Clear Stress</button>
+      <button class="control-btn" id="clearCommasBtn">Clear Commas</button>
+      <span style="font-family:var(--font-ui);font-size:0.78rem;color:var(--slate);">
+        Click a word to toggle stress. Click between words to toggle commas. Drag words to reorder.
+      </span>
+    </div>
+  </div>
+
+  <!-- Interpretation Tree Panel -->
+  <div class="panel">
+    <div class="panel-title"><span class="icon">&#128466;</span> Interpretation Tree</div>
+    <div class="tree-container" id="treeContainer"></div>
+    <div class="interpretations" id="interpretations"></div>
+  </div>
+
+  <!-- Info Panel -->
+  <div class="panel">
+    <div class="panel-title"><span class="icon">&#128218;</span> Types of Ambiguity</div>
+    <div class="info-grid">
+      <div class="info-card lexical">
+        <h4>Lexical Ambiguity</h4>
+        <p>A single word has multiple meanings. The context does not fully resolve which sense is intended.</p>
+        <div class="example">"The bank was steep." (riverside or financial?)</div>
+      </div>
+      <div class="info-card syntactic">
+        <h4>Syntactic Ambiguity</h4>
+        <p>The grammatical structure of a sentence allows more than one parse, each producing a different meaning.</p>
+        <div class="example">"I saw the man with the telescope." (who had it?)</div>
+      </div>
+      <div class="info-card scope">
+        <h4>Scope Ambiguity</h4>
+        <p>Quantifiers, negation, or modifiers can attach at different levels, changing what is being claimed.</p>
+        <div class="example">"Every student passed a test." (same test or different?)</div>
+      </div>
+      <div class="info-card pragmatic">
+        <h4>Pragmatic Ambiguity</h4>
+        <p>The literal words are clear, but the speaker's intended meaning depends on context, tone, or implication.</p>
+        <div class="example">"That's a nice effort." (sincere praise or sarcasm?)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    Ambiguity Explorer: a tool for exploring the richness and complexity of the English language.
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ── Sentence Data ── */
+  const SENTENCES = [
+    {
+      id: 0,
+      label: 'Telescope',
+      words: ['I', 'saw', 'the', 'man', 'with', 'the', 'telescope'],
+      type: 'syntactic',
+      interpretations: [
+        { label: 'Reading A', text: 'I used a telescope to see the man. ("with the telescope" modifies "saw")', trigger: { commasAfter: [], stressOn: ['saw'] } },
+        { label: 'Reading B', text: 'The man was holding a telescope. ("with the telescope" modifies "the man")', trigger: { commasAfter: [], stressOn: ['man'] } }
+      ]
+    },
+    {
+      id: 1,
+      label: 'Flying planes',
+      words: ['Flying', 'planes', 'can', 'be', 'dangerous'],
+      type: 'syntactic',
+      interpretations: [
+        { label: 'Reading A', text: 'The act of piloting aircraft is dangerous. ("Flying" is a gerund acting as subject.)', trigger: { stressOn: ['Flying'] } },
+        { label: 'Reading B', text: 'Planes that are in flight are dangerous. ("Flying" is an adjective modifying "planes".)', trigger: { stressOn: ['planes'] } }
+      ]
+    },
+    {
+      id: 2,
+      label: 'Time flies',
+      words: ['Time', 'flies', 'like', 'an', 'arrow'],
+      type: 'lexical',
+      interpretations: [
+        { label: 'Reading A', text: 'Time passes as swiftly as an arrow. (Conventional simile: "time" is a noun, "flies" is a verb.)', trigger: { stressOn: ['Time'] } },
+        { label: 'Reading B', text: 'Measure the speed of flies in the manner of an arrow. (Imperative: "time" is a verb, "flies" is a noun.)', trigger: { stressOn: ['flies'] } },
+        { label: 'Reading C', text: 'A species called "time flies" are fond of an arrow. ("Time flies" as a compound noun, "like" meaning "enjoy".)', trigger: { stressOn: ['like'] } }
+      ]
+    },
+    {
+      id: 3,
+      label: 'Every student',
+      words: ['Every', 'student', 'read', 'a', 'book'],
+      type: 'scope',
+      interpretations: [
+        { label: 'Reading A', text: 'There is one particular book that all students read. (The book has wide scope: one book, many readers.)', trigger: { stressOn: ['book'] } },
+        { label: 'Reading B', text: 'Each student read some book or other, possibly different ones. (The student has wide scope: many books.)', trigger: { stressOn: ['Every'] } }
+      ]
+    },
+    {
+      id: 4,
+      label: 'Visiting relatives',
+      words: ['Visiting', 'relatives', 'can', 'be', 'tedious'],
+      type: 'syntactic',
+      interpretations: [
+        { label: 'Reading A', text: 'Going to visit one\'s relatives can be tedious. ("Visiting" is a gerund: the act of visiting.)', trigger: { stressOn: ['Visiting'] } },
+        { label: 'Reading B', text: 'Relatives who come to visit can be tedious. ("Visiting" is an adjective: relatives who visit.)', trigger: { stressOn: ['relatives'] } }
+      ]
+    },
+    {
+      id: 5,
+      label: 'The chicken',
+      words: ['The', 'chicken', 'is', 'ready', 'to', 'eat'],
+      type: 'lexical',
+      interpretations: [
+        { label: 'Reading A', text: 'The cooked chicken is prepared and can now be eaten. ("chicken" as food.)', trigger: { stressOn: ['ready'] } },
+        { label: 'Reading B', text: 'The live chicken is hungry and wants its food. ("chicken" as an animal.)', trigger: { stressOn: ['chicken'] } }
+      ]
+    },
+    {
+      id: 6,
+      label: 'Let\'s eat',
+      words: ['Let\'s', 'eat', 'Grandma'],
+      type: 'pragmatic',
+      interpretations: [
+        { label: 'Without comma', text: 'A cannibalistic invitation to consume Grandma. ("Grandma" is the object of "eat".)', trigger: { commasAfter: [] } },
+        { label: 'With comma', text: 'An invitation to Grandma to join in eating. ("Grandma" is a vocative, set off by a comma.)', trigger: { commasAfter: ['eat'] } }
+      ]
+    },
+    {
+      id: 7,
+      label: 'Nice effort',
+      words: ['That\'s', 'a', 'really', 'nice', 'effort'],
+      type: 'pragmatic',
+      interpretations: [
+        { label: 'Sincere', text: 'Genuine praise for someone\'s work: the speaker is impressed by the effort made.', trigger: { stressOn: ['really'] } },
+        { label: 'Sarcastic', text: 'Ironic or dismissive: the speaker actually thinks the effort was poor. Stress on "nice" or "effort" may signal sarcasm.', trigger: { stressOn: ['nice'] } }
+      ]
+    },
+    {
+      id: 8,
+      label: 'Old men and women',
+      words: ['Old', 'men', 'and', 'women', 'left'],
+      type: 'scope',
+      interpretations: [
+        { label: 'Reading A', text: 'Both the men and the women who left were old. ("Old" has wide scope, modifying both nouns.)', trigger: { stressOn: ['Old'] } },
+        { label: 'Reading B', text: 'The old men left, along with the women (who may be any age). ("Old" has narrow scope, modifying only "men".)', trigger: { stressOn: ['women'] } }
+      ]
+    },
+    {
+      id: 9,
+      label: 'King and country',
+      words: ['I', 'shot', 'an', 'elephant', 'in', 'my', 'pyjamas'],
+      type: 'syntactic',
+      interpretations: [
+        { label: 'Reading A', text: 'I was wearing pyjamas when I shot the elephant. ("in my pyjamas" modifies the subject "I".)', trigger: { stressOn: ['I'] } },
+        { label: 'Reading B', text: 'The elephant was wearing my pyjamas. ("in my pyjamas" modifies "elephant". The classic Groucho Marx joke.)', trigger: { stressOn: ['elephant'] } }
+      ]
+    }
+  ];
+
+  /* ── State ── */
+  let currentSentence = null;
+  let tokenOrder = [];
+  let stressedTokens = new Set();
+  let commaPositions = new Set(); // indices: comma appears AFTER token at this index
+  let isCustomMode = false;
+  let dragSrcIndex = null;
+
+  /* ── DOM refs ── */
+  const selectorEl = document.getElementById('sentenceSelector');
+  const workspaceEl = document.getElementById('tokenWorkspace');
+  const readingEl = document.getElementById('currentReading');
+  const badgeEl = document.getElementById('ambiguityBadge');
+  const treeEl = document.getElementById('treeContainer');
+  const interpsEl = document.getElementById('interpretations');
+  const customArea = document.getElementById('customArea');
+  const customInput = document.getElementById('customInput');
+  const customSubmit = document.getElementById('customSubmit');
+  const resetBtn = document.getElementById('resetBtn');
+  const clearStressBtn = document.getElementById('clearStressBtn');
+  const clearCommasBtn = document.getElementById('clearCommasBtn');
+
+  /* ── Initialise sentence buttons ── */
+  function initSelector() {
+    SENTENCES.forEach((s, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'sentence-btn';
+      btn.textContent = s.label;
+      btn.dataset.index = i;
+      btn.addEventListener('click', () => selectSentence(i));
+      selectorEl.appendChild(btn);
+    });
+    const customBtn = document.createElement('button');
+    customBtn.className = 'sentence-btn custom-btn';
+    customBtn.textContent = '+ Create Your Own';
+    customBtn.id = 'customToggle';
+    customBtn.addEventListener('click', toggleCustomMode);
+    selectorEl.appendChild(customBtn);
+  }
+
+  function toggleCustomMode() {
+    isCustomMode = !isCustomMode;
+    document.getElementById('customToggle').classList.toggle('active', isCustomMode);
+    customArea.classList.toggle('visible', isCustomMode);
+    if (isCustomMode) {
+      document.querySelectorAll('.sentence-btn:not(.custom-btn)').forEach(b => b.classList.remove('active'));
+    }
+  }
+
+  customSubmit.addEventListener('click', () => {
+    const text = customInput.value.trim();
+    if (!text) return;
+    const words = text.split(/\s+/);
+    currentSentence = {
+      id: -1,
+      label: 'Custom',
+      words: words,
+      type: 'pragmatic',
+      interpretations: [
+        { label: 'Your reading', text: 'Rearrange the words, add stress and commas, then consider how meaning changes.', trigger: {} }
+      ]
+    };
+    tokenOrder = [...words];
+    stressedTokens.clear();
+    commaPositions.clear();
+    render();
+  });
+
+  function selectSentence(index) {
+    isCustomMode = false;
+    customArea.classList.remove('visible');
+    document.getElementById('customToggle').classList.remove('active');
+    document.querySelectorAll('.sentence-btn').forEach(b => b.classList.remove('active'));
+    selectorEl.children[index].classList.add('active');
+
+    currentSentence = SENTENCES[index];
+    tokenOrder = [...currentSentence.words];
+    stressedTokens.clear();
+    commaPositions.clear();
+    render();
+  }
+
+  /* ── Render ── */
+  function render() {
+    renderBadge();
+    renderWorkspace();
+    renderReading();
+    renderInterpretations();
+    renderTree();
+  }
+
+  function renderBadge() {
+    if (!currentSentence) { badgeEl.innerHTML = ''; return; }
+    const typeMap = {
+      lexical: ['badge-lexical', 'Lexical Ambiguity'],
+      syntactic: ['badge-syntactic', 'Syntactic Ambiguity'],
+      scope: ['badge-scope', 'Scope Ambiguity'],
+      pragmatic: ['badge-pragmatic', 'Pragmatic Ambiguity']
+    };
+    const [cls, lbl] = typeMap[currentSentence.type] || ['', ''];
+    badgeEl.innerHTML = `<span class="ambiguity-badge ${cls}">${lbl}</span>`;
+  }
+
+  function renderWorkspace() {
+    workspaceEl.innerHTML = '';
+    if (!currentSentence) {
+      workspaceEl.innerHTML = '<span style="color:var(--sepia);font-family:var(--font-ui);font-size:0.9rem;">Select a sentence above to begin.</span>';
+      return;
+    }
+    tokenOrder.forEach((word, i) => {
+      // Word token
+      const token = document.createElement('div');
+      token.className = 'word-token' + (stressedTokens.has(i) ? ' stressed' : '');
+      token.textContent = word;
+      token.draggable = true;
+      token.dataset.index = i;
+
+      // Stress dot
+      const dot = document.createElement('span');
+      dot.className = 'stress-dot';
+      dot.title = 'Toggle stress';
+      dot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleStress(i);
+      });
+      token.appendChild(dot);
+
+      // Click to stress
+      token.addEventListener('click', () => toggleStress(i));
+
+      // Drag events
+      token.addEventListener('dragstart', onDragStart);
+      token.addEventListener('dragover', onDragOver);
+      token.addEventListener('drop', onDrop);
+      token.addEventListener('dragend', onDragEnd);
+      token.addEventListener('dragenter', (e) => e.preventDefault());
+
+      workspaceEl.appendChild(token);
+
+      // Comma slot (between words)
+      if (i < tokenOrder.length - 1) {
+        const comma = document.createElement('span');
+        comma.className = 'comma-slot' + (commaPositions.has(i) ? ' active' : '');
+        comma.textContent = commaPositions.has(i) ? ',' : '\u00B7';
+        comma.title = 'Toggle comma';
+        comma.dataset.after = i;
+        comma.addEventListener('click', () => toggleComma(i));
+        workspaceEl.appendChild(comma);
+      }
+    });
+  }
+
+  function renderReading() {
+    if (!currentSentence) { readingEl.textContent = ''; return; }
+    let parts = [];
+    tokenOrder.forEach((word, i) => {
+      let w = stressedTokens.has(i) ? word.toUpperCase() : word;
+      parts.push(w);
+      if (commaPositions.has(i)) parts.push(',');
+    });
+    // Capitalise first word, add full stop
+    let text = parts.join(' ').replace(/\s+,/g, ',');
+    text = text.charAt(0).toUpperCase() + text.slice(1);
+    if (!/[.!?]$/.test(text)) text += '.';
+    readingEl.textContent = text;
+  }
+
+  function renderInterpretations() {
+    interpsEl.innerHTML = '';
+    if (!currentSentence) return;
+    currentSentence.interpretations.forEach((interp) => {
+      const card = document.createElement('div');
+      card.className = 'interp-card';
+      // Check if this interpretation is "active" based on triggers
+      if (matchesTrigger(interp.trigger)) {
+        card.classList.add('highlighted');
+      }
+      card.innerHTML = `<div class="interp-label">${interp.label}</div><div class="interp-text">${interp.text}</div>`;
+      interpsEl.appendChild(card);
+    });
+  }
+
+  function matchesTrigger(trigger) {
+    if (!trigger) return false;
+    let match = false;
+    if (trigger.stressOn && trigger.stressOn.length > 0) {
+      match = trigger.stressOn.some(w => {
+        const idx = tokenOrder.indexOf(w);
+        return idx !== -1 && stressedTokens.has(idx);
+      });
+    }
+    if (trigger.commasAfter !== undefined) {
+      const commaMatch = trigger.commasAfter.length === commaPositions.size &&
+        trigger.commasAfter.every(w => {
+          const idx = tokenOrder.indexOf(w);
+          return idx !== -1 && commaPositions.has(idx);
+        });
+      if (trigger.commasAfter.length === 0 && commaPositions.size === 0 && !trigger.stressOn) {
+        match = true;
+      } else if (commaMatch && trigger.commasAfter.length > 0) {
+        match = true;
+      }
+    }
+    return match;
+  }
+
+  /* ── SVG Interpretation Tree ── */
+  function renderTree() {
+    if (!currentSentence) { treeEl.innerHTML = ''; return; }
+    const interps = currentSentence.interpretations;
+    const sentenceText = tokenOrder.join(' ');
+
+    // Calculate dimensions
+    const nodeW = 180;
+    const nodeH = 36;
+    const levelGap = 60;
+    const leafGap = 20;
+    const totalLeaves = interps.length;
+    const treeW = Math.max(400, totalLeaves * (nodeW + leafGap));
+    const treeH = nodeH + levelGap + nodeH + 40;
+
+    // Root position
+    const rootX = treeW / 2;
+    const rootY = 28;
+
+    let svg = `<svg width="${treeW}" height="${treeH}" viewBox="0 0 ${treeW} ${treeH}" xmlns="http://www.w3.org/2000/svg">`;
+
+    // Root node
+    svg += drawNode(rootX, rootY, truncate(sentenceText, 28), 'var(--burgundy)', 'white');
+
+    // Leaf nodes
+    const leafY = rootY + levelGap + nodeH;
+    const totalWidth = totalLeaves * nodeW + (totalLeaves - 1) * leafGap;
+    const startX = (treeW - totalWidth) / 2 + nodeW / 2;
+
+    interps.forEach((interp, i) => {
+      const lx = startX + i * (nodeW + leafGap);
+      const highlighted = matchesTrigger(interp.trigger);
+      const fill = highlighted ? 'var(--burgundy-light)' : 'var(--sepia)';
+
+      // Connector line
+      svg += `<line x1="${rootX}" y1="${rootY + nodeH / 2 + 2}" x2="${lx}" y2="${leafY - nodeH / 2 - 2}" stroke="${fill}" stroke-width="2" stroke-dasharray="${highlighted ? '' : '4,3'}"/>`;
+
+      // Leaf node
+      svg += drawNode(lx, leafY, interp.label, fill, 'white');
+    });
+
+    svg += '</svg>';
+    treeEl.innerHTML = svg;
+  }
+
+  function drawNode(cx, cy, text, fill, textFill) {
+    const w = 160;
+    const h = 32;
+    const r = 6;
+    return `<rect x="${cx - w/2}" y="${cy - h/2}" width="${w}" height="${h}" rx="${r}" fill="${fill}"/>` +
+      `<text x="${cx}" y="${cy + 5}" text-anchor="middle" fill="${textFill}" font-size="13" font-weight="600">${escapeHtml(text)}</text>`;
+  }
+
+  function truncate(str, max) {
+    return str.length > max ? str.slice(0, max - 1) + '\u2026' : str;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* ── Interactions ── */
+  function toggleStress(index) {
+    if (stressedTokens.has(index)) stressedTokens.delete(index);
+    else stressedTokens.add(index);
+    render();
+  }
+
+  function toggleComma(afterIndex) {
+    if (commaPositions.has(afterIndex)) commaPositions.delete(afterIndex);
+    else commaPositions.add(afterIndex);
+    render();
+  }
+
+  /* ── Drag and Drop ── */
+  function onDragStart(e) {
+    dragSrcIndex = parseInt(e.target.dataset.index);
+    e.target.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', dragSrcIndex);
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    const target = e.target.closest('.word-token');
+    if (!target) return;
+    const dropIndex = parseInt(target.dataset.index);
+    if (dragSrcIndex === null || dragSrcIndex === dropIndex) return;
+
+    // Reorder tokens
+    const moved = tokenOrder.splice(dragSrcIndex, 1)[0];
+    tokenOrder.splice(dropIndex, 0, moved);
+
+    // Remap stress and commas
+    const newStress = new Set();
+    const newCommas = new Set();
+    // After reorder, indices shift; simplest to clear positional data
+    stressedTokens.clear();
+    commaPositions.clear();
+
+    dragSrcIndex = null;
+    render();
+  }
+
+  function onDragEnd(e) {
+    e.target.classList.remove('dragging');
+    dragSrcIndex = null;
+  }
+
+  /* ── Touch drag support ── */
+  let touchSrcIndex = null;
+  let touchClone = null;
+
+  workspaceEl.addEventListener('touchstart', (e) => {
+    const token = e.target.closest('.word-token');
+    if (!token || e.target.classList.contains('stress-dot')) return;
+    touchSrcIndex = parseInt(token.dataset.index);
+    token.classList.add('dragging');
+
+    touchClone = token.cloneNode(true);
+    touchClone.style.position = 'fixed';
+    touchClone.style.pointerEvents = 'none';
+    touchClone.style.opacity = '0.8';
+    touchClone.style.zIndex = '1000';
+    document.body.appendChild(touchClone);
+
+    const touch = e.touches[0];
+    touchClone.style.left = (touch.clientX - 30) + 'px';
+    touchClone.style.top = (touch.clientY - 20) + 'px';
+  }, { passive: true });
+
+  workspaceEl.addEventListener('touchmove', (e) => {
+    if (touchSrcIndex === null) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (touchClone) {
+      touchClone.style.left = (touch.clientX - 30) + 'px';
+      touchClone.style.top = (touch.clientY - 20) + 'px';
+    }
+  }, { passive: false });
+
+  workspaceEl.addEventListener('touchend', (e) => {
+    if (touchSrcIndex === null) return;
+    if (touchClone) { touchClone.remove(); touchClone = null; }
+
+    const touch = e.changedTouches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const target = el ? el.closest('.word-token') : null;
+
+    if (target && target.dataset.index !== undefined) {
+      const dropIndex = parseInt(target.dataset.index);
+      if (touchSrcIndex !== dropIndex) {
+        const moved = tokenOrder.splice(touchSrcIndex, 1)[0];
+        tokenOrder.splice(dropIndex, 0, moved);
+        stressedTokens.clear();
+        commaPositions.clear();
+      }
+    }
+    touchSrcIndex = null;
+    render();
+  }, { passive: true });
+
+  /* ── Control buttons ── */
+  resetBtn.addEventListener('click', () => {
+    if (!currentSentence) return;
+    tokenOrder = [...currentSentence.words];
+    stressedTokens.clear();
+    commaPositions.clear();
+    render();
+  });
+
+  clearStressBtn.addEventListener('click', () => {
+    stressedTokens.clear();
+    render();
+  });
+
+  clearCommasBtn.addEventListener('click', () => {
+    commaPositions.clear();
+    render();
+  });
+
+  /* ── Boot ── */
+  initSelector();
+  selectSentence(0);
+
+})();
+</script>
+</body>
+</html>

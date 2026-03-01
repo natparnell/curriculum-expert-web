@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Self-Regulation Cycle Visualiser</title>
+  <style>
+    /* ===== DESIGN TOKENS ===== */
+    :root {
+      --clr-teal-dark:    #0d7377;
+      --clr-teal:         #14a085;
+      --clr-teal-light:   #d0f0ec;
+      --clr-orange-dark:  #c0500a;
+      --clr-orange:       #e8712a;
+      --clr-orange-light: #fdecd9;
+      --clr-amber:        #f5a623;
+      --clr-amber-light:  #fef3d0;
+      --clr-red:          #c0392b;
+      --clr-red-light:    #fdecea;
+      --clr-purple:       #7b4ea0;
+      --clr-purple-light: #f0e8f8;
+      --clr-blue:         #2980b9;
+      --clr-blue-light:   #e8f4fd;
+      --clr-green:        #27ae60;
+      --clr-green-light:  #e9f7ef;
+
+      /* Stage colours */
+      --stage-trigger:     #e8712a;
+      --stage-thought:     #2980b9;
+      --stage-feeling:     #7b4ea0;
+      --stage-behaviour:   #c0392b;
+      --stage-consequence: #27ae60;
+
+      --bg:          #f5f7f9;
+      --surface:     #ffffff;
+      --border:      #d8dde3;
+      --text:        #1a2332;
+      --text-muted:  #5a6a7a;
+      --radius:      12px;
+      --radius-sm:   8px;
+      --shadow:      0 2px 12px rgba(0,0,0,0.09);
+      --shadow-lg:   0 6px 28px rgba(0,0,0,0.14);
+
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    /* ===== RESET ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.55;
+    }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+    input, textarea, select { font-family: inherit; }
+    ul { list-style: none; }
+
+    /* ===== LAYOUT ===== */
+    .app-header {
+      background: linear-gradient(135deg, var(--clr-teal-dark), var(--clr-teal));
+      color: #fff;
+      padding: 18px 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+    }
+    .app-header .logo-icon {
+      width: 44px; height: 44px;
+      background: rgba(255,255,255,0.18);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .app-header h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+    .app-header p  { font-size: 0.82rem; opacity: 0.85; margin-top: 1px; }
+
+    .app-body {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      grid-template-rows: auto 1fr;
+      gap: 0;
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 24px 20px;
+      gap: 20px;
+    }
+
+    .main-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ===== CARDS ===== */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+    }
+    .card-header {
+      padding: 14px 18px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-header h2 { font-size: 0.95rem; font-weight: 700; }
+    .card-body { padding: 16px 18px; }
+
+    /* ===== SCENARIO PACK SELECTOR ===== */
+    .scenario-selector {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .scenario-btn {
+      padding: 7px 14px;
+      border-radius: 20px;
+      border: 2px solid var(--border);
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      transition: all 0.18s;
+      background: var(--surface);
+    }
+    .scenario-btn:hover { border-color: var(--clr-teal); color: var(--clr-teal); }
+    .scenario-btn.active {
+      background: var(--clr-teal);
+      border-color: var(--clr-teal);
+      color: #fff;
+    }
+    .scenario-btn.custom-btn.active {
+      background: var(--clr-orange);
+      border-color: var(--clr-orange);
+    }
+
+    /* ===== SVG CYCLE DIAGRAM ===== */
+    .cycle-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 10px 0 4px;
+      position: relative;
+    }
+    .cycle-svg-container {
+      position: relative;
+      width: 380px;
+      height: 380px;
+      flex-shrink: 0;
+    }
+    .cycle-svg-container svg {
+      width: 100%; height: 100%;
+      overflow: visible;
+    }
+    .stage-arc {
+      cursor: pointer;
+      transition: opacity 0.18s;
+    }
+    .stage-arc:hover path { opacity: 0.82; }
+    .stage-arc.active path { stroke: #fff; stroke-width: 3; filter: drop-shadow(0 0 8px rgba(0,0,0,0.25)); }
+    .stage-arc path { transition: all 0.2s; }
+
+    /* centre circle */
+    .cycle-centre {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 120px; height: 120px;
+      background: var(--surface);
+      border-radius: 50%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      box-shadow: var(--shadow-lg);
+      border: 3px solid var(--border);
+      pointer-events: none;
+      text-align: center;
+      padding: 10px;
+    }
+    .cycle-centre .centre-icon { font-size: 26px; line-height: 1; }
+    .cycle-centre .centre-label { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .cycle-centre .centre-stage { font-size: 0.82rem; font-weight: 700; color: var(--text); margin-top: 2px; }
+
+    /* ===== STAGE DETAIL PANEL ===== */
+    .stage-detail {
+      border-radius: var(--radius);
+      border: 2px solid var(--border);
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .stage-detail-header {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+    }
+    .stage-detail-header .stage-icon { font-size: 20px; }
+    .stage-detail-header h3 { font-size: 1rem; font-weight: 700; }
+    .stage-detail-header .stage-desc { font-size: 0.78rem; opacity: 0.88; margin-top: 1px; }
+    .stage-detail-body { padding: 14px 16px; }
+
+    .card-pack-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .pack-card {
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.18s;
+      user-select: none;
+    }
+    .pack-card.selected { color: #fff !important; }
+    .pack-card:not(.selected) { background: var(--bg); color: var(--text-muted); border-color: var(--border); }
+    .pack-card:not(.selected):hover { border-color: currentColor; }
+
+    .custom-input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .custom-input-row input {
+      flex: 1;
+      padding: 7px 11px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.18s;
+    }
+    .custom-input-row input:focus { border-color: var(--clr-teal); }
+    .custom-input-row button {
+      padding: 7px 14px;
+      background: var(--clr-teal);
+      color: #fff;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: background 0.18s;
+    }
+    .custom-input-row button:hover { background: var(--clr-teal-dark); }
+
+    .selected-value-row {
+      background: var(--clr-teal-light);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--clr-teal-dark);
+      margin-top: 4px;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .selected-value-row.empty { color: var(--text-muted); font-weight: 400; font-style: italic; }
+
+    /* ===== DRAG CARD BANK ===== */
+    .card-bank {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+    .draggable-card {
+      padding: 5px 11px;
+      border-radius: 16px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      cursor: grab;
+      transition: box-shadow 0.15s, transform 0.15s;
+      user-select: none;
+    }
+    .draggable-card:active { cursor: grabbing; }
+    .draggable-card.dragging { opacity: 0.45; }
+
+    .stage-drop-zone {
+      min-height: 44px;
+      border: 2.5px dashed var(--border);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 10px;
+      transition: border-color 0.2s, background 0.2s;
+      padding: 8px;
+    }
+    .stage-drop-zone.drag-over {
+      border-color: var(--clr-teal);
+      background: var(--clr-teal-light);
+    }
+    .stage-drop-zone .dropped-item {
+      padding: 4px 12px;
+      border-radius: 14px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    /* ===== BODY SENSATIONS ===== */
+    .body-sensations {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .sensation-tag {
+      padding: 3px 9px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      background: var(--clr-purple-light);
+      color: var(--clr-purple);
+      font-weight: 600;
+    }
+
+    /* ===== REFRAME PANEL ===== */
+    .reframe-panel {
+      border-radius: var(--radius);
+      border: 2px solid var(--clr-amber);
+      overflow: hidden;
+    }
+    .reframe-header {
+      background: var(--clr-amber);
+      color: #fff;
+      padding: 11px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    .reframe-body { padding: 14px 16px; }
+    .reframe-item {
+      background: var(--clr-amber-light);
+      border-radius: var(--radius-sm);
+      padding: 9px 12px;
+      margin-bottom: 8px;
+      font-size: 0.84rem;
+      border-left: 4px solid var(--clr-amber);
+    }
+    .reframe-item:last-child { margin-bottom: 0; }
+    .reframe-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--clr-orange-dark); margin-bottom: 3px; }
+
+    /* ===== COPING STRATEGIES ===== */
+    .coping-panel {
+      border-radius: var(--radius);
+      border: 2px solid var(--clr-blue);
+      overflow: hidden;
+    }
+    .coping-header {
+      background: var(--clr-blue);
+      color: #fff;
+      padding: 11px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    .coping-body { padding: 14px 16px; }
+    .coping-strategy {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.84rem;
+    }
+    .coping-strategy:last-child { border-bottom: none; padding-bottom: 0; }
+    .coping-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .coping-strategy strong { display: block; font-size: 0.83rem; margin-bottom: 2px; }
+
+    /* ===== PROGRESS TRACKER ===== */
+    .progress-bar-wrapper {
+      padding: 0 18px 14px;
+    }
+    .progress-steps {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+    .progress-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      position: relative;
+    }
+    .progress-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      width: 100%;
+      height: 3px;
+      background: var(--border);
+      z-index: 0;
+      transition: background 0.3s;
+    }
+    .progress-step.done:not(:last-child)::after { background: var(--clr-teal); }
+    .step-dot {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 3px solid var(--border);
+      background: var(--surface);
+      z-index: 1;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .progress-step.active .step-dot {
+      border-color: var(--clr-teal);
+      background: var(--clr-teal);
+      color: #fff;
+      box-shadow: 0 0 0 4px var(--clr-teal-light);
+    }
+    .progress-step.done .step-dot {
+      border-color: var(--clr-teal);
+      background: var(--clr-teal);
+      color: #fff;
+    }
+    .step-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .progress-step.active .step-label { color: var(--clr-teal); }
+
+    /* ===== NAVIGATION BUTTONS ===== */
+    .nav-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      padding: 0 18px 18px;
+    }
+    .btn {
+      padding: 9px 20px;
+      border-radius: 8px;
+      font-size: 0.87rem;
+      font-weight: 700;
+      transition: all 0.18s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-secondary {
+      border: 2px solid var(--border);
+      color: var(--text-muted);
+    }
+    .btn-secondary:hover { border-color: var(--clr-teal); color: var(--clr-teal); }
+    .btn-primary {
+      background: var(--clr-teal);
+      color: #fff;
+      border: 2px solid transparent;
+    }
+    .btn-primary:hover { background: var(--clr-teal-dark); }
+    .btn-primary:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
+    .btn-orange { background: var(--clr-orange); color: #fff; border: 2px solid transparent; }
+    .btn-orange:hover { background: var(--clr-orange-dark); }
+    .btn-reset { border: 2px solid var(--border); color: var(--text-muted); font-size: 0.8rem; }
+    .btn-reset:hover { border-color: var(--clr-red); color: var(--clr-red); }
+
+    /* ===== REFLECTION PANEL ===== */
+    .reflection-panel {
+      border-radius: var(--radius);
+      border: 2px solid var(--clr-green);
+      overflow: hidden;
+    }
+    .reflection-header {
+      background: linear-gradient(135deg, var(--clr-green), #1e8449);
+      color: #fff;
+      padding: 14px 18px;
+      font-weight: 700;
+      font-size: 1rem;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .reflection-body { padding: 18px; }
+    .reflection-question {
+      background: var(--clr-green-light);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      border-left: 4px solid var(--clr-green);
+    }
+    .reflection-question p { font-size: 0.87rem; font-weight: 600; margin-bottom: 6px; }
+    .reflection-question textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.83rem;
+      resize: vertical;
+      min-height: 60px;
+      outline: none;
+    }
+    .reflection-question textarea:focus { border-color: var(--clr-green); }
+
+    /* ===== CYCLE SUMMARY ===== */
+    .cycle-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .summary-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+    }
+    .summary-badge {
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+      min-width: 90px;
+      text-align: center;
+    }
+    .summary-value { font-size: 0.85rem; color: var(--text); }
+
+    /* ===== CHAIN ARROW VISUAL ===== */
+    .chain-visual {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 12px 0;
+    }
+    .chain-node {
+      padding: 5px 12px;
+      border-radius: 16px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #fff;
+      max-width: 130px;
+      text-align: center;
+      word-break: break-word;
+    }
+    .chain-arrow { color: var(--text-muted); font-size: 1rem; flex-shrink: 0; }
+
+    /* ===== HIDDEN / VISIBLE HELPERS ===== */
+    .hidden { display: none !important; }
+
+    /* ===== TOOLTIP ===== */
+    [data-tooltip] { position: relative; }
+    [data-tooltip]::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a2332;
+      color: #fff;
+      font-size: 0.72rem;
+      padding: 4px 9px;
+      border-radius: 6px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.18s;
+      z-index: 100;
+    }
+    [data-tooltip]:hover::after { opacity: 1; }
+
+    /* ===== INFO BOX ===== */
+    .info-box {
+      background: var(--clr-blue-light);
+      border-radius: var(--radius-sm);
+      padding: 10px 13px;
+      font-size: 0.8rem;
+      color: var(--clr-blue);
+      border-left: 4px solid var(--clr-blue);
+      margin-bottom: 12px;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 900px) {
+      .app-body { grid-template-columns: 1fr; }
+      .side-panel { order: -1; }
+    }
+    @media (max-width: 600px) {
+      .app-header { padding: 14px 16px; }
+      .app-header h1 { font-size: 1.1rem; }
+      .app-body { padding: 14px 10px; gap: 12px; }
+      .cycle-svg-container { width: 300px; height: 300px; }
+      .cycle-centre { width: 96px; height: 96px; }
+      .progress-steps { gap: 0; }
+      .step-label { font-size: 0.58rem; }
+    }
+
+    /* ===== STAGE COLOUR OVERRIDES ===== */
+    .stage-trigger     .stage-detail-header { background: var(--stage-trigger); }
+    .stage-thought     .stage-detail-header { background: var(--stage-thought); }
+    .stage-feeling     .stage-detail-header { background: var(--stage-feeling); }
+    .stage-behaviour   .stage-detail-header { background: var(--stage-behaviour); }
+    .stage-consequence .stage-detail-header { background: var(--stage-consequence); }
+
+    .stage-trigger     { border-color: var(--stage-trigger); }
+    .stage-thought     { border-color: var(--stage-thought); }
+    .stage-feeling     { border-color: var(--stage-feeling); }
+    .stage-behaviour   { border-color: var(--stage-behaviour); }
+    .stage-consequence { border-color: var(--stage-consequence); }
+
+    /* pack card colours per stage */
+    .pack-card-trigger.selected     { background: var(--stage-trigger); border-color: var(--stage-trigger); }
+    .pack-card-thought.selected     { background: var(--stage-thought); border-color: var(--stage-thought); }
+    .pack-card-feeling.selected     { background: var(--stage-feeling); border-color: var(--stage-feeling); }
+    .pack-card-behaviour.selected   { background: var(--stage-behaviour); border-color: var(--stage-behaviour); }
+    .pack-card-consequence.selected { background: var(--stage-consequence); border-color: var(--stage-consequence); }
+
+    .pack-card-trigger:not(.selected)     { border-color: var(--stage-trigger); color: var(--stage-trigger); background: var(--clr-orange-light); }
+    .pack-card-thought:not(.selected)     { border-color: var(--stage-thought); color: var(--stage-thought); background: var(--clr-blue-light); }
+    .pack-card-feeling:not(.selected)     { border-color: var(--stage-feeling); color: var(--stage-feeling); background: var(--clr-purple-light); }
+    .pack-card-behaviour:not(.selected)   { border-color: var(--stage-behaviour); color: var(--stage-behaviour); background: var(--clr-red-light); }
+    .pack-card-consequence:not(.selected) { border-color: var(--stage-consequence); color: var(--stage-consequence); background: var(--clr-green-light); }
+
+    .step-dot[data-stage="trigger"]     { font-size: 12px; }
+    .step-dot[data-stage="thought"]     { font-size: 12px; }
+    .step-dot[data-stage="feeling"]     { font-size: 12px; }
+    .step-dot[data-stage="behaviour"]   { font-size: 12px; }
+    .step-dot[data-stage="consequence"] { font-size: 12px; }
+
+    /* completion screen */
+    .complete-banner {
+      background: linear-gradient(135deg, var(--clr-teal-dark), var(--clr-teal));
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .complete-banner .big-icon { font-size: 38px; }
+    .complete-banner h2 { font-size: 1.2rem; font-weight: 800; margin-bottom: 3px; }
+    .complete-banner p { font-size: 0.85rem; opacity: 0.9; }
+
+    /* cascade suggestion tag */
+    .cascade-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--clr-amber-light);
+      border: 1px solid var(--clr-amber);
+      color: var(--clr-orange-dark);
+      border-radius: 12px;
+      padding: 3px 9px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+
+    .suggested-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="logo-icon">&#129504;</div>
+  <div>
+    <h1>Self-Regulation Cycle Visualiser</h1>
+    <p>Explore how triggers, thoughts, feelings and behaviours connect</p>
+  </div>
+</header>
+
+<div class="app-body">
+
+  <!-- ===== MAIN PANEL ===== -->
+  <div class="main-panel">
+
+    <!-- Scenario selector -->
+    <div class="card">
+      <div class="card-header">
+        <span>&#127922;</span>
+        <h2>Choose a Scenario Pack or build your own</h2>
+      </div>
+      <div class="card-body">
+        <div class="scenario-selector" id="scenarioSelector">
+          <button class="scenario-btn active" data-pack="classroom">&#128218; Classroom Conflict</button>
+          <button class="scenario-btn" data-pack="exam">&#128221; Test Anxiety</button>
+          <button class="scenario-btn" data-pack="social">&#129309; Social Exclusion</button>
+          <button class="scenario-btn" data-pack="family">&#127968; Family Stress</button>
+          <button class="scenario-btn custom-btn" data-pack="custom">&#9999;&#65039; My Own</button>
+        </div>
+        <div class="info-box" id="packDesc" style="margin-top:12px;margin-bottom:0;">
+          A scenario about conflict in the classroom, such as being told off by a teacher or disagreeing with a classmate.
+        </div>
+      </div>
+    </div>
+
+    <!-- SVG Cycle + Stage Detail -->
+    <div class="card">
+      <div class="card-header" style="justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span>&#128257;</span>
+          <h2>The Self-Regulation Cycle</h2>
+        </div>
+        <button class="btn btn-reset" onclick="resetAll()">&#8635; Reset</button>
+      </div>
+
+      <!-- Progress steps -->
+      <div class="progress-bar-wrapper">
+        <div class="progress-steps" id="progressSteps">
+          <!-- injected by JS -->
+        </div>
+      </div>
+
+      <!-- SVG Diagram -->
+      <div class="cycle-wrapper">
+        <div class="cycle-svg-container">
+          <svg id="cycleSvg" viewBox="-10 -10 420 420" xmlns="http://www.w3.org/2000/svg">
+            <!-- Arcs injected by JS -->
+          </svg>
+          <div class="cycle-centre" id="cycleCentre">
+            <div class="centre-icon" id="centreIcon">&#128257;</div>
+            <div class="centre-label">Click a stage</div>
+            <div class="centre-stage" id="centreStage">to begin</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chain visual -->
+      <div style="padding:0 18px 8px;">
+        <div class="chain-visual" id="chainVisual"></div>
+      </div>
+
+      <!-- Stage Detail -->
+      <div style="padding:0 18px 4px;" id="stageDetailContainer">
+        <div class="stage-detail" id="stageDetail">
+          <div class="stage-detail-header">
+            <span class="stage-icon" id="detailIcon">&#127775;</span>
+            <div>
+              <h3 id="detailTitle">Select a stage</h3>
+              <div class="stage-desc" id="detailDesc">Click any segment on the diagram above, or use the step buttons below.</div>
+            </div>
+          </div>
+          <div class="stage-detail-body" id="stageDetailBody">
+            <p style="color:var(--text-muted);font-size:0.85rem;">Choose a stage above to see options and build your cycle.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Nav buttons -->
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" id="btnPrev" onclick="prevStage()">&#8592; Back</button>
+        <button class="btn btn-primary" id="btnNext" onclick="nextStage()">Next &#8594;</button>
+      </div>
+
+    </div>
+
+    <!-- Reflection (shown after completing all stages) -->
+    <div id="reflectionSection" class="hidden">
+      <div class="complete-banner">
+        <div class="big-icon">&#127881;</div>
+        <div>
+          <h2>You have completed the cycle!</h2>
+          <p>Take a moment to reflect on what you have explored.</p>
+        </div>
+      </div>
+      <div class="reflection-panel">
+        <div class="reflection-header">
+          <span>&#128161;</span> What Went Well? Reflection
+        </div>
+        <div class="reflection-body">
+          <div class="cycle-summary" id="cycleSummaryFinal"></div>
+          <div class="reflection-question">
+            <p>What went well, or what would you do differently next time?</p>
+            <textarea placeholder="Write your thoughts here..."></textarea>
+          </div>
+          <div class="reflection-question">
+            <p>What was the most useful thing you noticed about your thoughts or feelings?</p>
+            <textarea placeholder="Write your thoughts here..."></textarea>
+          </div>
+          <div class="reflection-question">
+            <p>Which coping strategy do you think would help you most? Why?</p>
+            <textarea placeholder="Write your thoughts here..."></textarea>
+          </div>
+          <button class="btn btn-orange" style="margin-top:10px;" onclick="resetAll()">&#8635; Start a new cycle</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== SIDE PANEL ===== -->
+  <div class="side-panel">
+
+    <!-- Reframe Panel -->
+    <div class="reframe-panel" id="reframePanel">
+      <div class="reframe-header">
+        <span>&#128260;</span> Reframe This Stage
+      </div>
+      <div class="reframe-body" id="reframeBody">
+        <p style="color:var(--text-muted);font-size:0.83rem;">Select a stage to see alternative, more helpful thoughts and behaviours.</p>
+      </div>
+    </div>
+
+    <!-- Coping Strategies -->
+    <div class="coping-panel" id="copingPanel">
+      <div class="coping-header">
+        <span>&#129504;</span> Coping Strategies
+      </div>
+      <div class="coping-body" id="copingBody">
+        <p style="color:var(--text-muted);font-size:0.83rem;">Select a feeling to see strategies that can help.</p>
+      </div>
+    </div>
+
+    <!-- About the model -->
+    <div class="card">
+      <div class="card-header">
+        <span>&#128218;</span>
+        <h2>About the CBT Cycle</h2>
+      </div>
+      <div class="card-body" style="font-size:0.82rem;color:var(--text-muted);line-height:1.65;">
+        <p>This tool is based on the <strong>ABC model</strong> and <strong>cognitive triangle</strong> from Cognitive Behavioural Therapy (CBT).</p>
+        <p style="margin-top:8px;">The idea is that our <em>thoughts</em> about a situation, not just the situation itself, shape how we <em>feel</em> and then <em>behave</em>.</p>
+        <p style="margin-top:8px;">By spotting patterns in this chain, we can choose different thoughts and responses.</p>
+        <div style="margin-top:12px;padding:10px;background:var(--clr-teal-light);border-radius:8px;color:var(--clr-teal-dark);">
+          <strong>Key idea:</strong> You cannot always control what happens, but you can learn to influence what you think and do next.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// =====================================================================
+//  DATA
+// =====================================================================
+
+const STAGE_META = [
+  {
+    id: 'trigger',
+    label: 'Trigger',
+    icon: '⚡',
+    colour: '#e8712a',
+    desc: 'Something that happens in the world around you',
+    hint: 'What happened? What set things off?'
+  },
+  {
+    id: 'thought',
+    label: 'Thought',
+    icon: '💭',
+    colour: '#2980b9',
+    desc: 'Your automatic first thought about what happened',
+    hint: 'What went through your mind straight away?'
+  },
+  {
+    id: 'feeling',
+    label: 'Feeling',
+    icon: '❤️',
+    colour: '#7b4ea0',
+    desc: 'The emotion you felt in your body',
+    hint: 'How did you feel? Where in your body?'
+  },
+  {
+    id: 'behaviour',
+    label: 'Behaviour',
+    icon: '🏃',
+    colour: '#c0392b',
+    desc: 'What you actually did in response',
+    hint: 'What did you do or say?'
+  },
+  {
+    id: 'consequence',
+    label: 'Consequence',
+    icon: '🔮',
+    colour: '#27ae60',
+    desc: 'What happened as a result, short and long term',
+    hint: 'What happened straight after? How did things turn out?'
+  }
+];
+
+const SCENARIO_PACKS = {
+  classroom: {
+    name: 'Classroom Conflict',
+    desc: 'A scenario about conflict in the classroom, such as being told off by a teacher or disagreeing with a classmate.',
+    trigger: [
+      'Teacher tells me off in front of the class',
+      'A classmate laughs at my answer',
+      'I am moved to sit somewhere I do not want',
+      'I am accused of something I did not do',
+      'A teacher ignores my hand when I put it up'
+    ],
+    thought: [
+      'Everyone thinks I am stupid',
+      'The teacher hates me',
+      'This is so unfair',
+      'I cannot do anything right',
+      'I just want to get out of here'
+    ],
+    feeling: [
+      'Embarrassed', 'Angry', 'Anxious', 'Humiliated', 'Frustrated', 'Defeated'
+    ],
+    behaviour: [
+      'Shout back at the teacher',
+      'Go quiet and look at the floor',
+      'Walk out of the room',
+      'Roll my eyes and fold my arms',
+      'Make a joke to deflect'
+    ],
+    consequence: [
+      'Sent out of class / detention',
+      'Fall further behind with work',
+      'Friends feel awkward around me',
+      'Feel worse about myself',
+      'Miss an important lesson'
+    ]
+  },
+  exam: {
+    name: 'Test Anxiety',
+    desc: 'A scenario about the stress and worry that can build around tests, exams or important assessments.',
+    trigger: [
+      'Teacher announces a surprise test',
+      'I turn over the exam paper and go blank',
+      'I see others writing when I am stuck',
+      'I get my test back with a low mark',
+      'Parents ask how the test went'
+    ],
+    thought: [
+      'I am going to fail',
+      'My mind has gone completely blank',
+      'Everyone else finds this easy',
+      'I am not clever enough',
+      'This will ruin everything'
+    ],
+    feeling: [
+      'Panicked', 'Ashamed', 'Hopeless', 'Overwhelmed', 'Nervous', 'Tense'
+    ],
+    behaviour: [
+      'Freeze and do not write anything',
+      'Rush through and make mistakes',
+      'Copy from someone nearby',
+      'Give up and put my head down',
+      'Avoid revision because it feels pointless'
+    ],
+    consequence: [
+      'Poorer result than I could have got',
+      'Lose confidence for future tests',
+      'Fall out with parents over marks',
+      'Avoid school on results day',
+      'Feel even more anxious next time'
+    ]
+  },
+  social: {
+    name: 'Social Exclusion',
+    desc: 'A scenario about feeling left out, ignored or rejected by peers or friendship groups.',
+    trigger: [
+      'My friends walk past without saying hello',
+      'I am not included in a group chat',
+      'Nobody sits with me at lunch',
+      'I overhear people talking about a party I was not invited to',
+      'Someone unfollows me on social media'
+    ],
+    thought: [
+      'Nobody likes me',
+      'I must have done something wrong',
+      'I will always be on the outside',
+      'There is something wrong with me',
+      'I am invisible to everyone'
+    ],
+    feeling: [
+      'Lonely', 'Rejected', 'Sad', 'Insecure', 'Jealous', 'Worthless'
+    ],
+    behaviour: [
+      'Withdraw and spend lunch alone',
+      'Post something to get attention',
+      'Act like I do not care when I do',
+      'Try too hard to join in and seem desperate',
+      'Take it out on someone else at home'
+    ],
+    consequence: [
+      'Become more isolated over time',
+      'Damage existing friendships',
+      'Feel worse about myself',
+      'Conflict at home with family',
+      'Miss chances to make new friends'
+    ]
+  },
+  family: {
+    name: 'Family Stress',
+    desc: 'A scenario about tension or stress at home, such as arguments, changes in family circumstances or pressure from parents.',
+    trigger: [
+      'Parents argue loudly at home',
+      'I am told we cannot afford something important to me',
+      'A sibling gets me in trouble unfairly',
+      'I am given extra responsibilities I did not ask for',
+      'A parent is unwell and I am worried'
+    ],
+    thought: [
+      'This is my fault somehow',
+      'Nobody cares about how I feel',
+      'My home is not safe or calm',
+      'I have to sort everything out myself',
+      'Things will never get better'
+    ],
+    feeling: [
+      'Worried', 'Guilty', 'Helpless', 'Resentful', 'Scared', 'Drained'
+    ],
+    behaviour: [
+      'Lock myself in my room',
+      'Snap at friends or teachers',
+      'Stop concentrating at school',
+      'Try to fix the problem and take on too much',
+      'Comfort eat or skip meals'
+    ],
+    consequence: [
+      'Schoolwork begins to slip',
+      'Friendships become strained',
+      'Feel exhausted and burnt out',
+      'Adults at school notice a change',
+      'Problem at home stays unresolved'
+    ]
+  },
+  custom: {
+    name: 'My Own Scenario',
+    desc: 'Build your own cycle using your own words. Type into the box for each stage.',
+    trigger: [],
+    thought: [],
+    feeling: [],
+    behaviour: [],
+    consequence: []
+  }
+};
+
+const BODY_SENSATIONS = {
+  'Embarrassed': ['Hot cheeks', 'Urge to hide', 'Sweating'],
+  'Angry': ['Tight chest', 'Clenched jaw', 'Heat rising', 'Shaking hands'],
+  'Anxious': ['Racing heart', 'Shallow breathing', 'Butterflies', 'Sweating'],
+  'Humiliated': ['Wanting the ground to swallow you', 'Burning face', 'Can\'t look up'],
+  'Frustrated': ['Tension in shoulders', 'Sighing', 'Gritted teeth'],
+  'Defeated': ['Heavy limbs', 'Slumped posture', 'Tired eyes'],
+  'Panicked': ['Heart racing', 'Can\'t breathe', 'Shaking', 'Mind blank'],
+  'Ashamed': ['Head down', 'Hollow feeling', 'Can\'t speak'],
+  'Hopeless': ['Empty feeling', 'Heavy', 'Low energy'],
+  'Overwhelmed': ['Can\'t focus', 'Tight chest', 'Head swimming'],
+  'Nervous': ['Jittery legs', 'Dry mouth', 'Stomach churning'],
+  'Tense': ['Stiff neck', 'Clenched fists', 'Headache'],
+  'Lonely': ['Ache in chest', 'Hollow', 'Withdrawn'],
+  'Rejected': ['Sinking feeling', 'Tight throat', 'Eyes stinging'],
+  'Sad': ['Heavy heart', 'Tears', 'Low energy'],
+  'Insecure': ['Self-conscious', 'Fidgeting', 'Avoiding eye contact'],
+  'Jealous': ['Knot in stomach', 'Hot face', 'Tight throat'],
+  'Worthless': ['Hunched posture', 'Empty', 'Numb'],
+  'Worried': ['Racing thoughts', 'Can\'t sit still', 'Stomach tight'],
+  'Guilty': ['Sinking stomach', 'Can\'t relax', 'Distracted'],
+  'Helpless': ['Paralysed', 'Exhausted', 'Numb hands'],
+  'Resentful': ['Boiling feeling', 'Crossed arms', 'Won\'t make eye contact'],
+  'Scared': ['Heart hammering', 'Can\'t move', 'Cold sweat'],
+  'Drained': ['Heavy limbs', 'Yawning', 'Foggy head']
+};
+
+const COPING_BY_FEELING = {
+  anxious:     ['breathing', 'grounding', 'movement'],
+  panicked:    ['breathing', 'grounding', 'coldwater'],
+  nervous:     ['breathing', 'positive', 'movement'],
+  overwhelmed: ['grounding', 'breathing', 'chunking'],
+  tense:       ['movement', 'breathing', 'muscle'],
+  angry:       ['breathing', 'movement', 'writing'],
+  frustrated:  ['breathing', 'movement', 'writing'],
+  sad:         ['talking', 'positive', 'music'],
+  lonely:      ['talking', 'connection', 'positive'],
+  rejected:    ['talking', 'positive', 'writing'],
+  embarrassed: ['breathing', 'selfcompassion', 'positive'],
+  humiliated:  ['selfcompassion', 'talking', 'writing'],
+  ashamed:     ['selfcompassion', 'talking', 'positive'],
+  guilty:      ['talking', 'writing', 'selfcompassion'],
+  helpless:    ['chunking', 'talking', 'positive'],
+  hopeless:    ['talking', 'positive', 'connection'],
+  worried:     ['grounding', 'breathing', 'writing'],
+  scared:      ['breathing', 'grounding', 'talking'],
+  drained:     ['movement', 'music', 'rest'],
+  worthless:   ['selfcompassion', 'positive', 'talking'],
+  insecure:    ['positive', 'selfcompassion', 'talking'],
+  resentful:   ['writing', 'movement', 'breathing'],
+  defeated:    ['positive', 'selfcompassion', 'chunking'],
+  jealous:     ['writing', 'positive', 'talking']
+};
+
+const COPING_STRATEGIES = {
+  breathing: {
+    icon: '🌬️',
+    name: '4-7-8 Breathing',
+    detail: 'Breathe in for 4 counts, hold for 7, breathe out slowly for 8. Repeat 3 times. This calms your nervous system.'
+  },
+  grounding: {
+    icon: '🌍',
+    name: '5-4-3-2-1 Grounding',
+    detail: 'Name 5 things you can see, 4 you can touch, 3 you can hear, 2 you can smell, 1 you can taste. Brings you into the present.'
+  },
+  movement: {
+    icon: '🚶',
+    name: 'Move Your Body',
+    detail: 'Go for a walk, stretch, shake out your hands, or do 10 star jumps. Physical movement releases tension.'
+  },
+  muscle: {
+    icon: '💪',
+    name: 'Muscle Relaxation',
+    detail: 'Tense each muscle group for 5 seconds then release, starting with your toes and working up to your shoulders.'
+  },
+  writing: {
+    icon: '📝',
+    name: 'Write It Down',
+    detail: 'Write out exactly what happened and how you feel. Getting it out of your head and onto paper helps you see it more clearly.'
+  },
+  talking: {
+    icon: '🗣️',
+    name: 'Talk to Someone You Trust',
+    detail: 'Share how you are feeling with a trusted adult, friend or school counsellor. You do not have to deal with things alone.'
+  },
+  positive: {
+    icon: '⭐',
+    name: 'Challenge the Thought',
+    detail: 'Ask yourself: "Is this thought 100% true? What would I say to a friend who thought this?" Look for evidence for and against.'
+  },
+  selfcompassion: {
+    icon: '🤍',
+    name: 'Self-Compassion Pause',
+    detail: 'Put your hand on your heart and say: "This is hard. It is okay to struggle. I am doing my best." Treat yourself as you would a friend.'
+  },
+  coldwater: {
+    icon: '💧',
+    name: 'Cold Water Technique',
+    detail: 'Splash cold water on your face or hold an ice cube. This triggers the diving reflex and slows your heart rate quickly.'
+  },
+  chunking: {
+    icon: '🧩',
+    name: 'Break It Into Steps',
+    detail: 'Write down one tiny first step you can take. Focus only on that. Do not think about everything at once.'
+  },
+  connection: {
+    icon: '🤝',
+    name: 'Reach Out',
+    detail: 'Send a message to a friend, join a club, or sit near people even if you do not talk at first. Small steps build connection.'
+  },
+  music: {
+    icon: '🎵',
+    name: 'Music or Creativity',
+    detail: 'Listen to a song that matches or lifts your mood. Draw, doodle or do something creative to express what you are feeling.'
+  },
+  rest: {
+    icon: '🛌',
+    name: 'Rest and Restore',
+    detail: 'Fatigue makes everything harder. Give yourself permission to rest, take a break, or do something gentle and calming.'
+  }
+};
+
+const REFRAMES = {
+  trigger: {
+    original: 'The trigger itself',
+    reframes: [
+      { label: 'Ask yourself', text: 'Can I change this situation, or do I need to focus on how I respond to it?' },
+      { label: 'Perspective', text: 'Is this as bad as it feels right now? How might it seem in a week?' },
+      { label: 'Control', text: 'What is actually in my control here, and what is outside it?' }
+    ]
+  },
+  thought: {
+    original: 'The automatic thought',
+    reframes: [
+      { label: 'Evidence check', text: 'What evidence do I actually have for this thought? Is there another explanation?' },
+      { label: 'Friend test', text: 'If my best friend had this thought, what would I tell them?' },
+      { label: 'Alternative', text: 'What is one slightly more balanced thought I could try on instead?' }
+    ]
+  },
+  feeling: {
+    original: 'The emotion',
+    reframes: [
+      { label: 'Name it', text: 'Naming the feeling out loud or in writing reduces its intensity.' },
+      { label: 'Body cue', text: 'Notice where you feel it in your body. Breathe into that area and let it soften.' },
+      { label: 'Remind yourself', text: 'Feelings are not facts. Having this feeling does not make it the truth.' }
+    ]
+  },
+  behaviour: {
+    original: 'The action taken',
+    reframes: [
+      { label: 'Pause', text: 'Before acting, count to 10 or take three slow breaths. What is the most helpful thing to do right now?' },
+      { label: 'THINK', text: 'Is what I am about to do True, Helpful, Inspiring, Necessary and Kind (THINK)?' },
+      { label: 'Future self', text: 'Will I be glad I did this in an hour? What would my calmer future self choose?' }
+    ]
+  },
+  consequence: {
+    original: 'The outcome',
+    reframes: [
+      { label: 'Learning', text: 'What can I take from this situation to help me next time?' },
+      { label: 'Growth', text: 'Is this consequence permanent, or is there a way to repair or move forward?' },
+      { label: 'Strength', text: 'What does getting through this tell me about my own resilience?' }
+    ]
+  }
+};
+
+// Cascade suggestions: given a thought, suggest possible feelings
+const CASCADE_THOUGHT_TO_FEELING = {
+  'Everyone thinks I am stupid':        ['Embarrassed', 'Humiliated', 'Sad'],
+  'The teacher hates me':               ['Angry', 'Frustrated', 'Sad'],
+  'This is so unfair':                  ['Angry', 'Frustrated', 'Resentful'],
+  'I cannot do anything right':         ['Defeated', 'Ashamed', 'Hopeless'],
+  'I just want to get out of here':     ['Anxious', 'Panicked', 'Overwhelmed'],
+  'I am going to fail':                 ['Panicked', 'Anxious', 'Nervous'],
+  'My mind has gone completely blank':  ['Panicked', 'Overwhelmed', 'Anxious'],
+  'Everyone else finds this easy':      ['Ashamed', 'Insecure', 'Humiliated'],
+  'I am not clever enough':             ['Defeated', 'Worthless', 'Hopeless'],
+  'This will ruin everything':          ['Panicked', 'Anxious', 'Overwhelmed'],
+  'Nobody likes me':                    ['Lonely', 'Sad', 'Worthless'],
+  'I must have done something wrong':   ['Guilty', 'Anxious', 'Worried'],
+  'I will always be on the outside':    ['Hopeless', 'Lonely', 'Sad'],
+  'There is something wrong with me':   ['Ashamed', 'Worthless', 'Hopeless'],
+  'I am invisible to everyone':         ['Lonely', 'Sad', 'Worthless'],
+  'This is my fault somehow':           ['Guilty', 'Ashamed', 'Worried'],
+  'Nobody cares about how I feel':      ['Lonely', 'Resentful', 'Sad'],
+  'My home is not safe or calm':        ['Scared', 'Anxious', 'Worried'],
+  'I have to sort everything out myself':['Overwhelmed', 'Drained', 'Anxious'],
+  'Things will never get better':       ['Hopeless', 'Defeated', 'Sad']
+};
+
+const CASCADE_FEELING_TO_BEHAVIOUR = {
+  'Angry':       ['Shout back at the teacher', 'Walk out of the room'],
+  'Anxious':     ['Freeze and do not write anything', 'Avoid revision because it feels pointless'],
+  'Embarrassed': ['Go quiet and look at the floor', 'Make a joke to deflect'],
+  'Panicked':    ['Freeze and do not write anything', 'Rush through and make mistakes'],
+  'Lonely':      ['Withdraw and spend lunch alone', 'Post something to get attention'],
+  'Guilty':      ['Try to fix the problem and take on too much', 'Lock myself in my room'],
+  'Overwhelmed': ['Give up and put my head down', 'Lock myself in my room'],
+  'Hopeless':    ['Avoid revision because it feels pointless', 'Stop concentrating at school']
+};
+
+// =====================================================================
+//  APP STATE
+// =====================================================================
+let currentPack = 'classroom';
+let activeStageIndex = 0;
+let selections = { trigger: null, thought: null, feeling: null, behaviour: null, consequence: null };
+let completed = false;
+let cascadeSuggestions = { feeling: null, behaviour: null };
+
+// =====================================================================
+//  INIT
+// =====================================================================
+document.addEventListener('DOMContentLoaded', () => {
+  buildProgressSteps();
+  buildSVG();
+  renderScenarioSelector();
+  setActiveStage(0);
+});
+
+// =====================================================================
+//  PROGRESS STEPS
+// =====================================================================
+function buildProgressSteps() {
+  const container = document.getElementById('progressSteps');
+  container.innerHTML = '';
+  STAGE_META.forEach((s, i) => {
+    const step = document.createElement('div');
+    step.className = 'progress-step';
+    step.id = `step-${s.id}`;
+    step.innerHTML = `
+      <div class="step-dot" data-stage="${s.id}" onclick="setActiveStage(${i})">${s.icon}</div>
+      <div class="step-label">${s.label}</div>
+    `;
+    container.appendChild(step);
+  });
+  updateProgressSteps();
+}
+
+function updateProgressSteps() {
+  STAGE_META.forEach((s, i) => {
+    const step = document.getElementById(`step-${s.id}`);
+    if (!step) return;
+    step.classList.remove('active', 'done');
+    if (i === activeStageIndex) step.classList.add('active');
+    else if (selections[s.id] !== null) step.classList.add('done');
+  });
+}
+
+// =====================================================================
+//  SVG CYCLE DIAGRAM
+// =====================================================================
+function buildSVG() {
+  const svg = document.getElementById('cycleSvg');
+  svg.innerHTML = '';
+
+  const cx = 200, cy = 200, outerR = 190, innerR = 100;
+  const n = STAGE_META.length;
+  const gapDeg = 4;
+  const sliceDeg = (360 / n) - gapDeg;
+  const startOffset = -90; // start at top
+
+  STAGE_META.forEach((stage, i) => {
+    const startDeg = startOffset + i * (360 / n) + gapDeg / 2;
+    const endDeg = startDeg + sliceDeg;
+    const midDeg = (startDeg + endDeg) / 2;
+
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.setAttribute('class', 'stage-arc');
+    group.setAttribute('id', `arc-${stage.id}`);
+    group.setAttribute('tabindex', '0');
+    group.setAttribute('role', 'button');
+    group.setAttribute('aria-label', `${stage.label} stage`);
+    group.addEventListener('click', () => setActiveStage(i));
+    group.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') setActiveStage(i); });
+
+    // Arc path
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', describeArc(cx, cy, outerR, innerR, startDeg, endDeg));
+    path.setAttribute('fill', stage.colour);
+    path.setAttribute('opacity', '0.88');
+    group.appendChild(path);
+
+    // Label
+    const labelR = (outerR + innerR) / 2;
+    const lx = cx + labelR * Math.cos(toRad(midDeg));
+    const ly = cy + labelR * Math.sin(toRad(midDeg));
+
+    const iconText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    iconText.setAttribute('x', lx);
+    iconText.setAttribute('y', ly - 8);
+    iconText.setAttribute('text-anchor', 'middle');
+    iconText.setAttribute('dominant-baseline', 'middle');
+    iconText.setAttribute('font-size', '18');
+    iconText.setAttribute('pointer-events', 'none');
+    iconText.textContent = stage.icon;
+    group.appendChild(iconText);
+
+    const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    labelText.setAttribute('x', lx);
+    labelText.setAttribute('y', ly + 12);
+    labelText.setAttribute('text-anchor', 'middle');
+    labelText.setAttribute('dominant-baseline', 'middle');
+    labelText.setAttribute('font-size', '10');
+    labelText.setAttribute('font-weight', '700');
+    labelText.setAttribute('fill', '#fff');
+    labelText.setAttribute('letter-spacing', '0.04em');
+    labelText.setAttribute('pointer-events', 'none');
+    labelText.textContent = stage.label.toUpperCase();
+    group.appendChild(labelText);
+
+    svg.appendChild(group);
+  });
+}
+
+function toRad(deg) { return deg * Math.PI / 180; }
+
+function polarToCartesian(cx, cy, r, deg) {
+  return {
+    x: cx + r * Math.cos(toRad(deg)),
+    y: cy + r * Math.sin(toRad(deg))
+  };
+}
+
+function describeArc(cx, cy, outerR, innerR, startDeg, endDeg) {
+  const o1 = polarToCartesian(cx, cy, outerR, startDeg);
+  const o2 = polarToCartesian(cx, cy, outerR, endDeg);
+  const i1 = polarToCartesian(cx, cy, innerR, endDeg);
+  const i2 = polarToCartesian(cx, cy, innerR, startDeg);
+  const largeArc = (endDeg - startDeg) > 180 ? 1 : 0;
+  return [
+    `M ${o1.x} ${o1.y}`,
+    `A ${outerR} ${outerR} 0 ${largeArc} 1 ${o2.x} ${o2.y}`,
+    `L ${i1.x} ${i1.y}`,
+    `A ${innerR} ${innerR} 0 ${largeArc} 0 ${i2.x} ${i2.y}`,
+    'Z'
+  ].join(' ');
+}
+
+function updateSVGActive() {
+  STAGE_META.forEach((s, i) => {
+    const arc = document.getElementById(`arc-${s.id}`);
+    if (!arc) return;
+    arc.classList.toggle('active', i === activeStageIndex);
+  });
+  const stage = STAGE_META[activeStageIndex];
+  document.getElementById('centreIcon').textContent = stage.icon;
+  document.getElementById('centreStage').textContent = stage.label;
+}
+
+// =====================================================================
+//  SCENARIO SELECTOR
+// =====================================================================
+function renderScenarioSelector() {
+  document.querySelectorAll('#scenarioSelector .scenario-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pack = btn.dataset.pack;
+      if (pack === currentPack) return;
+      currentPack = pack;
+      selections = { trigger: null, thought: null, feeling: null, behaviour: null, consequence: null };
+      cascadeSuggestions = { feeling: null, behaviour: null };
+      completed = false;
+      document.getElementById('reflectionSection').classList.add('hidden');
+      document.querySelectorAll('#scenarioSelector .scenario-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('packDesc').textContent = SCENARIO_PACKS[pack].desc;
+      activeStageIndex = 0;
+      renderStageDetail();
+      updateSVGActive();
+      updateProgressSteps();
+      updateChainVisual();
+    });
+  });
+  document.getElementById('packDesc').textContent = SCENARIO_PACKS[currentPack].desc;
+}
+
+// =====================================================================
+//  STAGE NAVIGATION
+// =====================================================================
+function setActiveStage(index) {
+  activeStageIndex = index;
+  updateSVGActive();
+  updateProgressSteps();
+  renderStageDetail();
+  updateNavButtons();
+}
+
+function nextStage() {
+  if (activeStageIndex < STAGE_META.length - 1) {
+    setActiveStage(activeStageIndex + 1);
+  } else {
+    showReflection();
+  }
+}
+
+function prevStage() {
+  if (activeStageIndex > 0) {
+    setActiveStage(activeStageIndex - 1);
+  }
+}
+
+function updateNavButtons() {
+  const prev = document.getElementById('btnPrev');
+  const next = document.getElementById('btnNext');
+  prev.style.visibility = activeStageIndex === 0 ? 'hidden' : 'visible';
+  if (activeStageIndex === STAGE_META.length - 1) {
+    next.textContent = 'Finish ✓';
+    next.classList.add('btn-orange');
+    next.classList.remove('btn-primary');
+  } else {
+    next.innerHTML = 'Next &#8594;';
+    next.classList.add('btn-primary');
+    next.classList.remove('btn-orange');
+  }
+}
+
+// =====================================================================
+//  STAGE DETAIL RENDERER
+// =====================================================================
+function renderStageDetail() {
+  const stage = STAGE_META[activeStageIndex];
+  const pack = SCENARIO_PACKS[currentPack];
+  const items = pack[stage.id] || [];
+  const currentVal = selections[stage.id];
+
+  // Header
+  document.getElementById('detailIcon').textContent = stage.icon;
+  document.getElementById('detailTitle').textContent = stage.label;
+  document.getElementById('detailDesc').textContent = stage.desc;
+
+  const detail = document.getElementById('stageDetail');
+  detail.className = `stage-detail stage-${stage.id}`;
+
+  // Body
+  const body = document.getElementById('stageDetailBody');
+  body.innerHTML = '';
+
+  // Cascade suggestion hint
+  const cascadeKey = stage.id;
+  if (cascadeSuggestions[cascadeKey]) {
+    const hint = document.createElement('div');
+    hint.className = 'cascade-tag';
+    hint.innerHTML = `&#127775; Suggested based on your previous choice: <strong>${cascadeSuggestions[cascadeKey].join(', ')}</strong>`;
+    body.appendChild(hint);
+  }
+
+  // Hint
+  const hintEl = document.createElement('p');
+  hintEl.className = 'suggested-hint';
+  hintEl.textContent = stage.hint;
+  body.appendChild(hintEl);
+
+  // Pack cards
+  if (items.length > 0) {
+    const cardRow = document.createElement('div');
+    cardRow.className = 'card-pack-items';
+    items.forEach(item => {
+      const card = document.createElement('button');
+      card.className = `pack-card pack-card-${stage.id}${currentVal === item ? ' selected' : ''}`;
+      card.textContent = item;
+      card.addEventListener('click', () => selectPackCard(stage.id, item));
+
+      // Highlight cascade suggestions
+      if (cascadeSuggestions[stage.id] && cascadeSuggestions[stage.id].includes(item)) {
+        card.style.boxShadow = '0 0 0 3px gold';
+      }
+      cardRow.appendChild(card);
+    });
+    body.appendChild(cardRow);
+  }
+
+  // Custom input row
+  if (currentPack === 'custom' || items.length === 0) {
+    const label = document.createElement('p');
+    label.style.cssText = 'font-size:0.8rem;font-weight:700;margin-bottom:6px;color:var(--text-muted);';
+    label.textContent = 'Type your own:';
+    body.appendChild(label);
+  } else {
+    const label = document.createElement('p');
+    label.style.cssText = 'font-size:0.8rem;font-weight:700;margin-bottom:6px;color:var(--text-muted);margin-top:10px;';
+    label.textContent = 'Or type your own:';
+    body.appendChild(label);
+  }
+
+  const inputRow = document.createElement('div');
+  inputRow.className = 'custom-input-row';
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.placeholder = `Enter your own ${stage.label.toLowerCase()}...`;
+  inp.id = `customInput-${stage.id}`;
+  const addBtn = document.createElement('button');
+  addBtn.textContent = 'Add';
+  addBtn.addEventListener('click', () => {
+    const val = inp.value.trim();
+    if (val) {
+      selectPackCard(stage.id, val);
+      inp.value = '';
+    }
+  });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
+  inputRow.appendChild(inp);
+  inputRow.appendChild(addBtn);
+  body.appendChild(inputRow);
+
+  // Selected value display
+  const selRow = document.createElement('div');
+  selRow.className = `selected-value-row${currentVal ? '' : ' empty'}`;
+  selRow.id = `selRow-${stage.id}`;
+  selRow.textContent = currentVal ? `Selected: ${currentVal}` : 'Nothing selected yet';
+  body.appendChild(selRow);
+
+  // Drop zone (drag and drop)
+  const dropZone = document.createElement('div');
+  dropZone.className = 'stage-drop-zone';
+  dropZone.id = `dropZone-${stage.id}`;
+  dropZone.setAttribute('data-stage', stage.id);
+  dropZone.innerHTML = currentVal
+    ? `<span class="dropped-item" style="background:${stage.colour}">${currentVal}</span>`
+    : '<span>Drag a card here, or click one above</span>';
+  setupDropZone(dropZone, stage.id);
+  body.appendChild(dropZone);
+
+  // Body sensations (for feeling stage)
+  if (stage.id === 'feeling' && currentVal && BODY_SENSATIONS[currentVal]) {
+    const sensLabel = document.createElement('p');
+    sensLabel.style.cssText = 'font-size:0.8rem;font-weight:700;margin-top:12px;margin-bottom:4px;color:var(--text-muted);';
+    sensLabel.textContent = 'Body sensations you might notice:';
+    body.appendChild(sensLabel);
+    const sensRow = document.createElement('div');
+    sensRow.className = 'body-sensations';
+    BODY_SENSATIONS[currentVal].forEach(s => {
+      const tag = document.createElement('span');
+      tag.className = 'sensation-tag';
+      tag.textContent = s;
+      sensRow.appendChild(tag);
+    });
+    body.appendChild(sensRow);
+  }
+
+  // Draggable card bank (from pack)
+  if (items.length > 0) {
+    const bankLabel = document.createElement('p');
+    bankLabel.style.cssText = 'font-size:0.8rem;font-weight:700;margin-top:14px;margin-bottom:6px;color:var(--text-muted);';
+    bankLabel.textContent = 'Drag cards:';
+    body.appendChild(bankLabel);
+    const bank = document.createElement('div');
+    bank.className = 'card-bank';
+    items.forEach(item => {
+      const dc = document.createElement('div');
+      dc.className = 'draggable-card';
+      dc.draggable = true;
+      dc.textContent = item;
+      dc.style.borderColor = stage.colour;
+      dc.style.color = stage.colour;
+      dc.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('text/plain', item);
+        e.dataTransfer.setData('stage', stage.id);
+        dc.classList.add('dragging');
+      });
+      dc.addEventListener('dragend', () => dc.classList.remove('dragging'));
+      bank.appendChild(dc);
+    });
+    body.appendChild(bank);
+  }
+
+  updateNavButtons();
+  updateReframePanel(stage.id);
+  updateCopingPanel(currentVal, stage.id);
+}
+
+function selectPackCard(stageId, value) {
+  selections[stageId] = value;
+  computeCascades(stageId, value);
+  updateProgressSteps();
+  updateChainVisual();
+  renderStageDetail();
+  updateReframePanel(stageId);
+  updateCopingPanel(value, stageId);
+}
+
+function computeCascades(stageId, value) {
+  if (stageId === 'thought') {
+    const suggested = CASCADE_THOUGHT_TO_FEELING[value];
+    cascadeSuggestions.feeling = suggested || null;
+  }
+  if (stageId === 'feeling') {
+    const key = value ? value.toLowerCase() : null;
+    const suggested = key && CASCADE_FEELING_TO_BEHAVIOUR[value] ? CASCADE_FEELING_TO_BEHAVIOUR[value] : null;
+    cascadeSuggestions.behaviour = suggested || null;
+  }
+}
+
+// =====================================================================
+//  DRAG AND DROP
+// =====================================================================
+function setupDropZone(zone, stageId) {
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const text = e.dataTransfer.getData('text/plain');
+    const fromStage = e.dataTransfer.getData('stage');
+    if (fromStage === stageId && text) {
+      selectPackCard(stageId, text);
+    }
+  });
+}
+
+// =====================================================================
+//  CHAIN VISUAL
+// =====================================================================
+function updateChainVisual() {
+  const container = document.getElementById('chainVisual');
+  container.innerHTML = '';
+  STAGE_META.forEach((s, i) => {
+    const val = selections[s.id];
+    if (!val) return;
+    if (i > 0) {
+      const arrow = document.createElement('span');
+      arrow.className = 'chain-arrow';
+      arrow.textContent = '→';
+      container.appendChild(arrow);
+    }
+    const node = document.createElement('div');
+    node.className = 'chain-node';
+    node.style.background = s.colour;
+    node.title = s.label;
+    node.textContent = val.length > 22 ? val.substring(0, 20) + '…' : val;
+    container.appendChild(node);
+  });
+}
+
+// =====================================================================
+//  REFRAME PANEL
+// =====================================================================
+function updateReframePanel(stageId) {
+  const body = document.getElementById('reframeBody');
+  const data = REFRAMES[stageId];
+  if (!data) {
+    body.innerHTML = '<p style="color:var(--text-muted);font-size:0.83rem;">Select a stage to see reframe ideas.</p>';
+    return;
+  }
+  const stage = STAGE_META.find(s => s.id === stageId);
+  body.innerHTML = '';
+
+  const intro = document.createElement('p');
+  intro.style.cssText = 'font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;';
+  intro.innerHTML = `Reframe ideas for the <strong>${stage.label}</strong> stage:`;
+  body.appendChild(intro);
+
+  data.reframes.forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'reframe-item';
+    item.innerHTML = `<div class="reframe-label">${r.label}</div>${r.text}`;
+    body.appendChild(item);
+  });
+}
+
+// =====================================================================
+//  COPING PANEL
+// =====================================================================
+function updateCopingPanel(value, stageId) {
+  const body = document.getElementById('copingBody');
+  if (stageId !== 'feeling' || !value) {
+    body.innerHTML = '<p style="color:var(--text-muted);font-size:0.83rem;">Select a feeling to see coping strategies that can help.</p>';
+    return;
+  }
+  const key = value.toLowerCase();
+  const keys = COPING_BY_FEELING[key] || ['breathing', 'grounding', 'talking'];
+  body.innerHTML = '';
+
+  const intro = document.createElement('p');
+  intro.style.cssText = 'font-size:0.82rem;color:var(--clr-blue);font-weight:600;margin-bottom:10px;';
+  intro.textContent = `When you feel ${value.toLowerCase()}, try:`;
+  body.appendChild(intro);
+
+  keys.forEach(k => {
+    const s = COPING_STRATEGIES[k];
+    if (!s) return;
+    const row = document.createElement('div');
+    row.className = 'coping-strategy';
+    row.innerHTML = `<span class="coping-icon">${s.icon}</span><div><strong>${s.name}</strong>${s.detail}</div>`;
+    body.appendChild(row);
+  });
+}
+
+// =====================================================================
+//  REFLECTION / COMPLETION
+// =====================================================================
+function showReflection() {
+  completed = true;
+  document.getElementById('reflectionSection').classList.remove('hidden');
+
+  // Cycle summary
+  const summaryEl = document.getElementById('cycleSummaryFinal');
+  summaryEl.innerHTML = '';
+  STAGE_META.forEach(s => {
+    const val = selections[s.id];
+    const row = document.createElement('div');
+    row.className = 'summary-row';
+    const badge = document.createElement('span');
+    badge.className = 'summary-badge';
+    badge.style.background = s.colour;
+    badge.textContent = s.label;
+    const valEl = document.createElement('span');
+    valEl.className = 'summary-value';
+    valEl.textContent = val || '(not completed)';
+    row.appendChild(badge);
+    row.appendChild(valEl);
+    summaryEl.appendChild(row);
+  });
+
+  // Scroll to reflection
+  setTimeout(() => {
+    document.getElementById('reflectionSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 150);
+}
+
+// =====================================================================
+//  RESET
+// =====================================================================
+function resetAll() {
+  selections = { trigger: null, thought: null, feeling: null, behaviour: null, consequence: null };
+  cascadeSuggestions = { feeling: null, behaviour: null };
+  completed = false;
+  activeStageIndex = 0;
+  document.getElementById('reflectionSection').classList.add('hidden');
+  updateProgressSteps();
+  updateSVGActive();
+  updateChainVisual();
+  renderStageDetail();
+  updateNavButtons();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>

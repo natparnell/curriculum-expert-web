@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weather Systems &amp; Fronts Simulator</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --sky-dark:#1b2a4a;--sky-mid:#2c5282;--sky-light:#bee3f8;
+  --warm-red:#e53e3e;--warm-light:#feb2b2;--warm-bg:rgba(229,62,62,0.12);
+  --cold-blue:#2b6cb0;--cold-light:#90cdf4;--cold-bg:rgba(43,108,176,0.12);
+  --occluded-purple:#6b46c1;--occluded-light:#d6bcfa;--occluded-bg:rgba(107,70,193,0.12);
+  --teal-accent:#319795;--teal-dark:#234e52;--teal-light:#81e6d9;
+  --earth-brown:#5d4e37;--earth-light:#d6c9a8;--earth-pale:#faf8f2;
+  --earth-bg:#f7f5ef;--card-bg:#ffffff;
+  --text-primary:#2d3748;--text-secondary:#4a5568;--text-muted:#718096;
+  --border:#d6cbb8;--border-light:#e8e0d0;
+  --radius:10px;--shadow:0 2px 8px rgba(59,47,30,0.10);
+  --panel-bg:#faf8f2;
+}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--earth-bg);color:var(--text-primary);line-height:1.6;overflow-x:hidden;min-height:100vh}
+
+/* Header */
+header{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,var(--teal-dark) 0%,#2a6462 50%,var(--teal-dark) 100%);color:#e6fffa;padding:12px 24px;box-shadow:0 2px 12px rgba(0,0,0,0.2);border-bottom:2px solid var(--teal-accent)}
+header h1{font-size:1.35rem;font-weight:700;letter-spacing:0.3px}
+header p{font-size:0.82rem;opacity:0.8;margin-top:2px}
+
+/* Container */
+.container{max-width:1280px;margin:0 auto;padding:16px}
+
+/* Controls bar */
+.controls-bar{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);padding:10px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow)}
+.control-group{display:flex;align-items:center;gap:8px}
+.control-group label{font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);white-space:nowrap;font-weight:600}
+.btn{background:var(--card-bg);color:var(--text-primary);border:2px solid var(--border);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.2s;font-family:inherit;white-space:nowrap}
+.btn:hover{border-color:var(--teal-accent);color:var(--teal-dark)}
+.btn.active{background:var(--teal-dark);color:#e6fffa;border-color:var(--teal-dark)}
+.btn-warm.active{background:var(--warm-red);border-color:var(--warm-red);color:#fff}
+.btn-cold.active{background:var(--cold-blue);border-color:var(--cold-blue);color:#fff}
+.btn-occluded.active{background:var(--occluded-purple);border-color:var(--occluded-purple);color:#fff}
+.btn-sm{padding:5px 12px;font-size:0.75rem}
+select{background:var(--card-bg);color:var(--text-primary);border:2px solid var(--border);padding:7px 12px;border-radius:8px;font-size:0.82rem;font-family:inherit;cursor:pointer}
+select:focus{outline:none;border-color:var(--teal-accent)}
+.speed-slider{width:80px;accent-color:var(--teal-accent)}
+.separator{width:1px;height:28px;background:var(--border);flex-shrink:0}
+
+/* Main layout */
+.main-grid{display:grid;grid-template-columns:1fr 320px;gap:14px}
+
+/* Canvas card */
+.canvas-card{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);position:relative}
+.canvas-header{background:linear-gradient(90deg,var(--sky-dark),var(--sky-mid));padding:8px 16px;display:flex;justify-content:space-between;align-items:center}
+.canvas-header h2{font-size:0.9rem;color:var(--sky-light);font-weight:600}
+.canvas-wrap{position:relative;width:100%;background:#e8eef5}
+#weatherCanvas{width:100%;display:block;cursor:default}
+.canvas-legend{display:flex;gap:16px;padding:8px 16px;background:#f0ede6;border-top:1px solid var(--border-light);flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:0.72rem;color:var(--text-secondary)}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+/* Readouts overlay */
+.readouts{position:absolute;bottom:12px;left:12px;display:flex;gap:8px;z-index:10;flex-wrap:wrap}
+.readout-box{background:rgba(255,255,255,0.92);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:0.72rem;backdrop-filter:blur(4px);line-height:1.3}
+.readout-box strong{color:var(--teal-dark);display:block;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.5px}
+
+/* Synoptic panel */
+.synoptic-card{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);margin-top:14px}
+.synoptic-header{padding:10px 16px;border-bottom:1px solid var(--border-light)}
+.synoptic-header h2{font-size:0.9rem;color:var(--teal-dark);font-weight:600}
+.synoptic-wrap{position:relative;width:100%;background:#f4f7fa}
+#synopticCanvas{width:100%;display:block}
+
+/* Side panel */
+.side-panel{display:flex;flex-direction:column;gap:14px}
+.info-card{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.info-card h3{font-size:0.85rem;padding:10px 14px;color:var(--teal-dark);background:linear-gradient(90deg,#e6fffa,var(--card-bg));border-bottom:1px solid var(--border-light);font-weight:700;letter-spacing:0.3px}
+.info-section{padding:10px 14px;border-bottom:1px solid var(--border-light)}
+.info-section:last-child{border-bottom:none}
+.info-section h4{font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-weight:700}
+.info-section p{font-size:0.78rem;line-height:1.55;color:var(--text-secondary)}
+.info-section ul{list-style:none;padding:0}
+.info-section li{font-size:0.76rem;padding:3px 0;color:var(--text-secondary);display:flex;align-items:flex-start;gap:6px}
+.info-section li::before{content:'';width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.info-section li.warm::before{background:var(--warm-red)}
+.info-section li.cold::before{background:var(--cold-blue)}
+.info-section li.occluded::before{background:var(--occluded-purple)}
+.info-section li.cloud::before{background:#a0aec0}
+.info-section li.rain::before{background:#3182ce}
+.cloud-card{background:var(--warm-bg);border-radius:6px;padding:8px 10px;margin-top:6px}
+.cloud-card.cold-type{background:var(--cold-bg)}
+.cloud-card.occluded-type{background:var(--occluded-bg)}
+.cloud-card h5{font-size:0.76rem;font-weight:700;margin-bottom:3px;color:var(--text-primary)}
+.cloud-card p{font-size:0.72rem;color:var(--text-secondary);line-height:1.45}
+
+/* Status bar */
+.status-bar{background:var(--teal-dark);color:#e6fffa;padding:6px 16px;font-size:0.72rem;display:flex;justify-content:space-between;align-items:center;border-radius:0 0 var(--radius) var(--radius)}
+
+/* Responsive */
+@media(max-width:768px){
+  header{padding:10px 16px}
+  header h1{font-size:1.15rem}
+  .container{padding:10px}
+  .main-grid{grid-template-columns:1fr}
+  .side-panel{order:2}
+  .controls-bar{gap:8px;padding:8px 12px}
+  .btn{padding:6px 12px;font-size:0.78rem}
+  .readouts{flex-direction:column;gap:4px}
+  .canvas-legend{gap:10px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Weather Systems &amp; Fronts Simulator</h1>
+  <p>Visualise how warm, cold, and occluded fronts form across a cross-section of the atmosphere</p>
+</header>
+
+<div class="container">
+  <!-- Controls -->
+  <div class="controls-bar">
+    <div class="control-group">
+      <label>Front Type</label>
+      <button class="btn btn-warm active" data-front="warm" onclick="selectFront('warm')">Warm Front</button>
+      <button class="btn btn-cold" data-front="cold" onclick="selectFront('cold')">Cold Front</button>
+      <button class="btn btn-occluded" data-front="occluded" onclick="selectFront('occluded')">Occluded</button>
+    </div>
+    <div class="separator"></div>
+    <div class="control-group">
+      <label>Speed</label>
+      <input type="range" class="speed-slider" id="speedSlider" min="0.2" max="3" step="0.1" value="1">
+    </div>
+    <div class="separator"></div>
+    <div class="control-group">
+      <button class="btn btn-sm" id="btnPlay" onclick="togglePlay()">&#9654; Play</button>
+      <button class="btn btn-sm" onclick="resetSim()">&#8635; Reset</button>
+    </div>
+    <div class="separator"></div>
+    <div class="control-group">
+      <label>Stage</label>
+      <span id="stageLabel" style="font-size:0.82rem;font-weight:600;color:var(--teal-dark)">Initial</span>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div class="main-grid">
+    <div>
+      <!-- Cross-section canvas -->
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <h2>Atmospheric Cross-Section</h2>
+          <span style="font-size:0.72rem;color:var(--sky-light);opacity:0.7">Altitude: 0 &ndash; 12 km</span>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="weatherCanvas" width="900" height="420"></canvas>
+          <div class="readouts" id="readouts"></div>
+        </div>
+        <div class="canvas-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--warm-red)"></div>Warm Air Mass</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--cold-blue)"></div>Cold Air Mass</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#a0aec0"></div>Cloud</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#3182ce"></div>Precipitation</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#38a169"></div>Isobars</div>
+        </div>
+        <div class="status-bar">
+          <span id="statusText">Select a front type and press Play to begin the simulation.</span>
+          <span id="timeLabel">t = 0 hrs</span>
+        </div>
+      </div>
+
+      <!-- Synoptic chart -->
+      <div class="synoptic-card">
+        <div class="synoptic-header">
+          <h2>Synoptic Chart View (Plan View)</h2>
+        </div>
+        <div class="synoptic-wrap">
+          <canvas id="synopticCanvas" width="900" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info panel -->
+    <div class="side-panel">
+      <div class="info-card">
+        <h3>Current Front</h3>
+        <div class="info-section" id="frontInfo">
+          <h4>Warm Front</h4>
+          <p>A warm front occurs when a warm air mass advances and rises over a retreating cold air mass. The warm air gently slides upward along a shallow slope, producing widespread cloud cover and steady precipitation.</p>
+        </div>
+        <div class="info-section" id="cloudInfo">
+          <h4>Cloud Sequence</h4>
+          <div id="cloudDetails"></div>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>Air Masses</h3>
+        <div class="info-section">
+          <h4>UK Air Masses</h4>
+          <ul>
+            <li class="warm">Tropical Maritime (mT): warm, moist air from the Atlantic. Brings mild, cloudy conditions with drizzle.</li>
+            <li class="warm">Tropical Continental (cT): warm, dry air from North Africa. Brings heatwaves in summer.</li>
+            <li class="cold">Polar Maritime (mP): cool, moist air from the North Atlantic. Brings showers and bright intervals.</li>
+            <li class="cold">Arctic Maritime (mA): very cold air from near the Arctic. Brings heavy snow in winter.</li>
+            <li class="cold">Polar Continental (cP): cold, dry air from Scandinavia/Russia. Brings bitter cold in winter.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>Cloud Types</h3>
+        <div class="info-section">
+          <ul>
+            <li class="cloud"><strong>Cirrus/Cirrostratus</strong>: high, thin, wispy ice-crystal clouds (6+ km). First sign of an approaching warm front.</li>
+            <li class="cloud"><strong>Altostratus</strong>: mid-level, grey sheet cloud (2 to 6 km). Sun appears watery. Light rain may begin.</li>
+            <li class="cloud"><strong>Nimbostratus</strong>: thick, dark, low-level cloud producing steady rain or snow.</li>
+            <li class="cloud"><strong>Stratus</strong>: low, flat, grey cloud layer. Can produce drizzle.</li>
+            <li class="cloud"><strong>Cumulus</strong>: fluffy, heaped clouds with flat bases. Fair weather or developing showers.</li>
+            <li class="cloud"><strong>Cumulonimbus</strong>: towering storm cloud reaching 10+ km. Brings heavy rain, thunder, and lightning.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>UK Weather Patterns</h3>
+        <div class="info-section">
+          <p>The UK sits in the path of the polar front jet stream, where tropical and polar air masses frequently clash. Depressions (low-pressure systems) form along this front, bringing sequences of warm and cold fronts. Occluded fronts develop as faster-moving cold fronts catch up with warm fronts, lifting the warm sector entirely off the ground.</p>
+          <p style="margin-top:6px">A typical depression passing over the UK brings: high cirrus cloud, then thickening cloud with rain (warm front), a brief warm sector with low stratus, then heavy showers or thunderstorms (cold front), followed by clearing skies.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ── Configuration ────────────────────────── */
+const WARM_COL = '#e53e3e';
+const WARM_LIGHT = 'rgba(229,62,62,0.25)';
+const COLD_COL = '#2b6cb0';
+const COLD_LIGHT = 'rgba(43,108,176,0.25)';
+const OCCL_COL = '#6b46c1';
+const OCCL_LIGHT = 'rgba(107,70,193,0.25)';
+const CLOUD_COL = 'rgba(200,210,220,0.85)';
+const RAIN_COL = '#3182ce';
+const SNOW_COL = '#e2e8f0';
+const ISOBAR_COL = '#38a169';
+const GROUND_COL = '#5d4e37';
+const GROUND_LIGHT = '#a89478';
+
+/* ── State ────────────────────────────────── */
+let currentFront = 'warm';
+let playing = false;
+let simTime = 0;
+let speed = 1;
+let animFrame = null;
+let lastTs = 0;
+let particles = [];
+let cloudPuffs = [];
+
+/* ── Canvas setup ─────────────────────────── */
+const cvs = document.getElementById('weatherCanvas');
+const ctx = cvs.getContext('2d');
+const synCvs = document.getElementById('synopticCanvas');
+const synCtx = synCvs.getContext('2d');
+
+function resizeCanvases(){
+  const wrap = cvs.parentElement;
+  const w = wrap.clientWidth;
+  const h = Math.round(w * 0.47);
+  cvs.width = w * devicePixelRatio;
+  cvs.height = h * devicePixelRatio;
+  cvs.style.height = h + 'px';
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+
+  const sw = synCvs.parentElement.clientWidth;
+  const sh = Math.round(sw * 0.22);
+  synCvs.width = sw * devicePixelRatio;
+  synCvs.height = sh * devicePixelRatio;
+  synCvs.style.height = sh + 'px';
+  synCtx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+}
+window.addEventListener('resize', resizeCanvases);
+resizeCanvases();
+
+/* ── Helpers ───────────────────────────────── */
+const W = ()=> cvs.width / devicePixelRatio;
+const H = ()=> cvs.height / devicePixelRatio;
+const SW = ()=> synCvs.width / devicePixelRatio;
+const SH = ()=> synCvs.height / devicePixelRatio;
+
+function lerp(a,b,t){ return a + (b - a) * Math.max(0, Math.min(1, t)); }
+function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+
+/* Progress: 0 = start, 1 = fully developed */
+function progress(){ return clamp(simTime / 18, 0, 1); }
+
+/* ── Front data ───────────────────────────── */
+const FRONTS = {
+  warm: {
+    name: 'Warm Front',
+    desc: 'A warm front occurs when a warm air mass advances and rises over a retreating cold air mass. The warm air gently slides upward along a shallow slope, producing widespread cloud cover and steady precipitation.',
+    clouds: [
+      { name:'Cirrus / Cirrostratus', desc:'High, thin ice-crystal clouds at 8 to 10 km. First sign of the approaching front, up to 1,000 km ahead.', type:'warm' },
+      { name:'Altostratus', desc:'Mid-level grey sheet cloud at 3 to 6 km. The sun appears watery or disappears. Light rain or drizzle may begin.', type:'warm' },
+      { name:'Nimbostratus', desc:'Thick, dark cloud producing continuous moderate rain or snow near the surface front.', type:'warm' },
+      { name:'Stratus', desc:'Low, flat grey cloud layer just behind the surface front, often producing drizzle in the warm sector.', type:'warm' }
+    ],
+    stages: ['Approach (cirrus appears)','Cloud thickens','Rain begins','Front passes','Warm sector']
+  },
+  cold: {
+    name: 'Cold Front',
+    desc: 'A cold front forms when a dense cold air mass pushes under a warm air mass, forcing it sharply upward. The steep slope creates vigorous uplift, producing towering clouds and heavy but short-lived precipitation.',
+    clouds: [
+      { name:'Cumulus', desc:'Heaped, puffy clouds forming ahead of the front as warm air is first disturbed.', type:'cold' },
+      { name:'Cumulonimbus', desc:'Towering storm cloud reaching 10+ km. Produces heavy rain, hail, thunder, and lightning along the front.', type:'cold' },
+      { name:'Cumulus (clearing)', desc:'Behind the cold front, scattered cumulus and bright intervals develop in the unstable cold air.', type:'cold' }
+    ],
+    stages: ['Approach','Uplift begins','Cb development','Front passes','Clearing showers']
+  },
+  occluded: {
+    name: 'Occluded Front',
+    desc: 'An occluded front forms when a faster-moving cold front catches up with a warm front, lifting the warm sector entirely off the ground. This produces a mix of weather characteristics from both front types.',
+    clouds: [
+      { name:'Mixed high cloud', desc:'Cirrostratus and altostratus mix as both fronts merge at upper levels.', type:'occluded' },
+      { name:'Nimbostratus', desc:'Continuous thick cloud producing prolonged rain across a wide area.', type:'occluded' },
+      { name:'Cumulonimbus (embedded)', desc:'Embedded Cb within the nimbostratus, causing bursts of heavier rain or thunder.', type:'occluded' }
+    ],
+    stages: ['Warm front rain','Cold front catches up','Fronts merge','Occlusion complete','Dissipating']
+  }
+};
+
+/* ── UI updates ───────────────────────────── */
+function selectFront(type){
+  currentFront = type;
+  document.querySelectorAll('[data-front]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.front === type);
+  });
+  updateInfoPanel();
+  resetSim();
+}
+window.selectFront = selectFront;
+
+function updateInfoPanel(){
+  const f = FRONTS[currentFront];
+  const fi = document.getElementById('frontInfo');
+  fi.innerHTML = '<h4>' + f.name + '</h4><p>' + f.desc + '</p>';
+  const cd = document.getElementById('cloudDetails');
+  cd.innerHTML = f.clouds.map(c =>
+    '<div class="cloud-card ' + (currentFront === 'cold' ? 'cold-type' : currentFront === 'occluded' ? 'occluded-type' : '') + '">' +
+    '<h5>' + c.name + '</h5><p>' + c.desc + '</p></div>'
+  ).join('');
+}
+
+function updateStageLabel(){
+  const f = FRONTS[currentFront];
+  const p = progress();
+  const idx = Math.min(Math.floor(p * f.stages.length), f.stages.length - 1);
+  document.getElementById('stageLabel').textContent = f.stages[idx];
+}
+
+function updateReadouts(){
+  const p = progress();
+  let tempL, tempR, pressL, pressR, humidity;
+
+  if(currentFront === 'warm'){
+    tempL = lerp(6, 14, p);   tempR = lerp(6, 6, p);
+    pressL = lerp(1008, 1000, p); pressR = lerp(1016, 1016, p);
+    humidity = lerp(55, 92, p);
+  } else if(currentFront === 'cold'){
+    tempL = lerp(14, 14, p);  tempR = lerp(14, 6, p);
+    pressL = lerp(1004, 1004, p); pressR = lerp(1016, 1008, p);
+    humidity = lerp(50, 85, p);
+  } else {
+    tempL = lerp(8, 5, p);    tempR = lerp(8, 5, p);
+    pressL = lerp(1002, 996, p);  pressR = lerp(1014, 1002, p);
+    humidity = lerp(60, 95, p);
+  }
+
+  const el = document.getElementById('readouts');
+  el.innerHTML =
+    '<div class="readout-box"><strong>Left Temp</strong>' + tempL.toFixed(1) + ' &deg;C</div>' +
+    '<div class="readout-box"><strong>Right Temp</strong>' + tempR.toFixed(1) + ' &deg;C</div>' +
+    '<div class="readout-box"><strong>Pressure (L)</strong>' + pressL.toFixed(0) + ' hPa</div>' +
+    '<div class="readout-box"><strong>Pressure (R)</strong>' + pressR.toFixed(0) + ' hPa</div>' +
+    '<div class="readout-box"><strong>Humidity</strong>' + humidity.toFixed(0) + '%</div>';
+}
+
+function updateStatus(){
+  const p = progress();
+  let msg = '';
+  if(!playing && simTime === 0){
+    msg = 'Select a front type and press Play to begin the simulation.';
+  } else if(p >= 1){
+    msg = FRONTS[currentFront].name + ' fully developed. Press Reset to restart.';
+  } else {
+    const f = FRONTS[currentFront];
+    const idx = Math.min(Math.floor(p * f.stages.length), f.stages.length - 1);
+    msg = f.name + ': ' + f.stages[idx] + ' (' + Math.round(p * 100) + '% complete)';
+  }
+  document.getElementById('statusText').textContent = msg;
+  document.getElementById('timeLabel').textContent = 't = ' + simTime.toFixed(1) + ' hrs';
+}
+
+/* ── Particles ────────────────────────────── */
+function spawnParticles(){
+  const p = progress();
+  if(p < 0.25) return;
+  const w = W(), h = H();
+  const groundY = h * 0.82;
+  const intensity = (p - 0.25) / 0.75;
+  const count = Math.floor(intensity * 4);
+
+  for(let i = 0; i < count; i++){
+    let x, startY;
+    if(currentFront === 'warm'){
+      x = lerp(w * 0.25, w * 0.55, Math.random()) + (1 - p) * w * 0.15;
+      startY = lerp(h * 0.2, h * 0.45, Math.random());
+    } else if(currentFront === 'cold'){
+      x = lerp(w * 0.4, w * 0.65, Math.random());
+      startY = lerp(h * 0.15, h * 0.35, Math.random());
+    } else {
+      x = lerp(w * 0.3, w * 0.6, Math.random());
+      startY = lerp(h * 0.15, h * 0.4, Math.random());
+    }
+
+    const isSnow = (currentFront === 'cold' && Math.random() < 0.15 * intensity) ||
+                   (currentFront === 'occluded' && Math.random() < 0.1 * intensity);
+
+    particles.push({
+      x: x, y: startY,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: isSnow ? 0.6 + Math.random() * 0.4 : 1.5 + Math.random() * 1.2,
+      life: 1,
+      snow: isSnow,
+      size: isSnow ? 2 + Math.random() * 1.5 : 1 + Math.random() * 0.8,
+      groundY: groundY
+    });
+  }
+}
+
+function updateParticles(dt){
+  for(let i = particles.length - 1; i >= 0; i--){
+    const pt = particles[i];
+    pt.x += pt.vx * dt * 40 * speed;
+    pt.y += pt.vy * dt * 40 * speed;
+    if(pt.snow) pt.x += Math.sin(pt.y * 0.05) * 0.3;
+    if(pt.y >= pt.groundY){
+      pt.life -= dt * 3;
+    }
+    if(pt.life <= 0 || pt.y > H()){
+      particles.splice(i, 1);
+    }
+  }
+}
+
+function drawParticles(){
+  for(const pt of particles){
+    ctx.globalAlpha = pt.life * 0.8;
+    if(pt.snow){
+      ctx.fillStyle = SNOW_COL;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = RAIN_COL;
+      ctx.fillRect(pt.x, pt.y, pt.size * 0.6, pt.size * 3);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ── Cloud puffs ──────────────────────────── */
+function generateClouds(){
+  cloudPuffs = [];
+  const w = W(), h = H();
+  const p = progress();
+
+  if(currentFront === 'warm'){
+    /* Cirrus - high, far ahead */
+    for(let i = 0; i < 8; i++){
+      cloudPuffs.push({ x: w * (0.55 + Math.random() * 0.35), y: h * (0.06 + Math.random() * 0.08),
+        rx: 30 + Math.random() * 25, ry: 5 + Math.random() * 4, opacity: 0.35, appear: 0.05 });
+    }
+    /* Altostratus - mid */
+    for(let i = 0; i < 12; i++){
+      cloudPuffs.push({ x: w * (0.35 + Math.random() * 0.3), y: h * (0.18 + Math.random() * 0.12),
+        rx: 35 + Math.random() * 30, ry: 10 + Math.random() * 6, opacity: 0.55, appear: 0.2 });
+    }
+    /* Nimbostratus - low thick */
+    for(let i = 0; i < 16; i++){
+      cloudPuffs.push({ x: w * (0.2 + Math.random() * 0.3), y: h * (0.35 + Math.random() * 0.15),
+        rx: 40 + Math.random() * 35, ry: 14 + Math.random() * 10, opacity: 0.75, appear: 0.4 });
+    }
+    /* Stratus behind */
+    for(let i = 0; i < 8; i++){
+      cloudPuffs.push({ x: w * (0.05 + Math.random() * 0.2), y: h * (0.5 + Math.random() * 0.1),
+        rx: 35 + Math.random() * 30, ry: 8 + Math.random() * 5, opacity: 0.45, appear: 0.7 });
+    }
+  } else if(currentFront === 'cold'){
+    /* Cumulus ahead */
+    for(let i = 0; i < 8; i++){
+      cloudPuffs.push({ x: w * (0.55 + Math.random() * 0.25), y: h * (0.3 + Math.random() * 0.15),
+        rx: 20 + Math.random() * 18, ry: 16 + Math.random() * 12, opacity: 0.6, appear: 0.1 });
+    }
+    /* Cumulonimbus - towering */
+    for(let i = 0; i < 20; i++){
+      const bx = w * (0.38 + Math.random() * 0.2);
+      cloudPuffs.push({ x: bx, y: h * (0.06 + Math.random() * 0.5),
+        rx: 22 + Math.random() * 20, ry: 16 + Math.random() * 14, opacity: 0.8, appear: 0.3 });
+    }
+    /* Anvil top */
+    for(let i = 0; i < 6; i++){
+      cloudPuffs.push({ x: w * (0.42 + Math.random() * 0.2), y: h * (0.04 + Math.random() * 0.05),
+        rx: 35 + Math.random() * 25, ry: 6 + Math.random() * 4, opacity: 0.5, appear: 0.5 });
+    }
+    /* Clearing cumulus */
+    for(let i = 0; i < 5; i++){
+      cloudPuffs.push({ x: w * (0.05 + Math.random() * 0.2), y: h * (0.35 + Math.random() * 0.15),
+        rx: 18 + Math.random() * 14, ry: 12 + Math.random() * 8, opacity: 0.4, appear: 0.75 });
+    }
+  } else {
+    /* Occluded: mix of both */
+    for(let i = 0; i < 8; i++){
+      cloudPuffs.push({ x: w * (0.5 + Math.random() * 0.35), y: h * (0.06 + Math.random() * 0.1),
+        rx: 28 + Math.random() * 22, ry: 6 + Math.random() * 5, opacity: 0.4, appear: 0.05 });
+    }
+    /* Thick nimbostratus */
+    for(let i = 0; i < 18; i++){
+      cloudPuffs.push({ x: w * (0.15 + Math.random() * 0.5), y: h * (0.18 + Math.random() * 0.25),
+        rx: 38 + Math.random() * 30, ry: 14 + Math.random() * 10, opacity: 0.75, appear: 0.2 });
+    }
+    /* Embedded Cb */
+    for(let i = 0; i < 8; i++){
+      cloudPuffs.push({ x: w * (0.3 + Math.random() * 0.15), y: h * (0.08 + Math.random() * 0.35),
+        rx: 20 + Math.random() * 16, ry: 18 + Math.random() * 14, opacity: 0.85, appear: 0.45 });
+    }
+    /* Low stratus */
+    for(let i = 0; i < 8; i++){
+      cloudPuffs.push({ x: w * (0.05 + Math.random() * 0.25), y: h * (0.48 + Math.random() * 0.1),
+        rx: 32 + Math.random() * 24, ry: 8 + Math.random() * 5, opacity: 0.5, appear: 0.65 });
+    }
+  }
+}
+
+function drawClouds(){
+  const p = progress();
+  for(const c of cloudPuffs){
+    if(p < c.appear) continue;
+    const fade = clamp((p - c.appear) / 0.15, 0, 1);
+    ctx.globalAlpha = c.opacity * fade;
+    ctx.fillStyle = CLOUD_COL;
+    /* Dark base for thick clouds */
+    if(c.opacity > 0.65){
+      const grd = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, c.rx);
+      grd.addColorStop(0, 'rgba(160,170,180,0.9)');
+      grd.addColorStop(0.6, 'rgba(130,140,155,0.85)');
+      grd.addColorStop(1, 'rgba(100,110,125,0.0)');
+      ctx.fillStyle = grd;
+    }
+    ctx.beginPath();
+    ctx.ellipse(c.x, c.y, c.rx, c.ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ── Main cross-section draw ──────────────── */
+function drawCrossSection(){
+  const w = W(), h = H();
+  const p = progress();
+  const groundY = h * 0.82;
+
+  /* Sky gradient */
+  const skyGrd = ctx.createLinearGradient(0, 0, 0, groundY);
+  skyGrd.addColorStop(0, '#1a2a4a');
+  skyGrd.addColorStop(0.3, '#2c5282');
+  skyGrd.addColorStop(0.7, '#63b3ed');
+  skyGrd.addColorStop(1, '#bee3f8');
+  ctx.fillStyle = skyGrd;
+  ctx.fillRect(0, 0, w, groundY);
+
+  /* Ground */
+  const grdGround = ctx.createLinearGradient(0, groundY, 0, h);
+  grdGround.addColorStop(0, GROUND_LIGHT);
+  grdGround.addColorStop(0.4, GROUND_COL);
+  grdGround.addColorStop(1, '#3d3425');
+  ctx.fillStyle = grdGround;
+  ctx.fillRect(0, groundY, w, h - groundY);
+
+  /* Altitude markers */
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = '10px system-ui';
+  ctx.textAlign = 'left';
+  for(let km = 2; km <= 10; km += 2){
+    const y = groundY - (km / 12) * groundY;
+    ctx.fillText(km + ' km', 6, y + 3);
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.setLineDash([4,6]);
+    ctx.beginPath(); ctx.moveTo(35, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  /* Air masses */
+  drawAirMasses(w, h, groundY, p);
+
+  /* Front boundary */
+  drawFrontBoundary(w, h, groundY, p);
+
+  /* Isobars */
+  drawIsobars(w, h, groundY, p);
+
+  /* Clouds */
+  drawClouds();
+
+  /* Precipitation */
+  drawParticles();
+
+  /* Labels */
+  drawLabels(w, h, groundY, p);
+}
+
+function drawAirMasses(w, h, groundY, p){
+  /* Warm air mass */
+  ctx.globalAlpha = 0.18;
+  if(currentFront === 'warm'){
+    const warmX = lerp(-w * 0.1, w * 0.35, p);
+    ctx.fillStyle = WARM_COL;
+    ctx.beginPath();
+    ctx.moveTo(warmX, groundY);
+    ctx.quadraticCurveTo(warmX + w * 0.15, groundY * 0.3, warmX + w * 0.5, groundY * 0.05);
+    ctx.lineTo(warmX + w * 0.5, groundY);
+    ctx.closePath();
+    ctx.fill();
+
+    /* Cold air ahead */
+    ctx.fillStyle = COLD_COL;
+    ctx.fillRect(warmX + w * 0.45, groundY * 0.4, w, groundY * 0.6);
+  } else if(currentFront === 'cold'){
+    const coldX = lerp(w * 1.1, w * 0.4, p);
+    ctx.fillStyle = COLD_COL;
+    ctx.beginPath();
+    ctx.moveTo(coldX, groundY);
+    ctx.quadraticCurveTo(coldX - w * 0.08, groundY * 0.15, coldX - w * 0.3, groundY * 0.05);
+    ctx.lineTo(coldX - w * 0.3, groundY);
+    ctx.closePath();
+    ctx.fill();
+
+    /* Warm air ahead being pushed up */
+    ctx.fillStyle = WARM_COL;
+    ctx.beginPath();
+    ctx.moveTo(coldX - w * 0.05, groundY);
+    ctx.quadraticCurveTo(coldX + w * 0.05, groundY * 0.2, coldX + w * 0.3, groundY * 0.05);
+    ctx.lineTo(w, groundY * 0.05);
+    ctx.lineTo(w, groundY);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    /* Occluded */
+    const mergeX = lerp(w * 0.5, w * 0.42, p);
+    ctx.fillStyle = COLD_COL;
+    ctx.beginPath();
+    ctx.moveTo(0, groundY);
+    ctx.lineTo(0, groundY * 0.3);
+    ctx.quadraticCurveTo(mergeX * 0.5, groundY * 0.3, mergeX, groundY);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = WARM_COL;
+    ctx.beginPath();
+    ctx.moveTo(mergeX * 0.3, groundY * 0.05);
+    ctx.quadraticCurveTo(mergeX * 0.7, groundY * 0.08, mergeX, groundY * lerp(0.4, 0.15, p));
+    ctx.quadraticCurveTo(mergeX + w * 0.15, groundY * 0.05, mergeX + w * 0.35, groundY * 0.05);
+    ctx.lineTo(mergeX + w * 0.35, groundY * 0.05);
+    ctx.lineTo(mergeX * 0.3, groundY * 0.05);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = COLD_COL;
+    ctx.globalAlpha = 0.12;
+    ctx.fillRect(mergeX, groundY * 0.5, w - mergeX, groundY * 0.5);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawFrontBoundary(w, h, groundY, p){
+  ctx.lineWidth = 3;
+  ctx.setLineDash([]);
+
+  if(currentFront === 'warm'){
+    const warmX = lerp(-w * 0.1, w * 0.35, p);
+    ctx.strokeStyle = WARM_COL;
+    ctx.beginPath();
+    ctx.moveTo(warmX, groundY);
+    ctx.quadraticCurveTo(warmX + w * 0.15, groundY * 0.3, warmX + w * 0.5, groundY * 0.05);
+    ctx.stroke();
+
+    /* Warm front semicircles */
+    const steps = 8;
+    for(let i = 1; i < steps; i++){
+      const t = i / steps;
+      const bx = warmX + (warmX + w * 0.5 - warmX) * t;
+      const by = groundY + (groundY * 0.05 - groundY) * t + (1 - t) * t * (groundY * 0.3 - groundY) * 2;
+      ctx.fillStyle = WARM_COL;
+      ctx.beginPath();
+      ctx.arc(bx, by, 5, Math.PI, 0);
+      ctx.fill();
+    }
+  } else if(currentFront === 'cold'){
+    const coldX = lerp(w * 1.1, w * 0.4, p);
+    ctx.strokeStyle = COLD_COL;
+    ctx.beginPath();
+    ctx.moveTo(coldX, groundY);
+    ctx.quadraticCurveTo(coldX - w * 0.08, groundY * 0.15, coldX - w * 0.3, groundY * 0.05);
+    ctx.stroke();
+
+    /* Cold front triangles */
+    const steps = 7;
+    for(let i = 1; i < steps; i++){
+      const t = i / steps;
+      const bx = coldX + (coldX - w * 0.3 - coldX) * t;
+      const by = groundY + (groundY * 0.05 - groundY) * t + (1 - t) * t * (groundY * 0.15 - groundY) * 2;
+      ctx.fillStyle = COLD_COL;
+      ctx.beginPath();
+      ctx.moveTo(bx - 5, by); ctx.lineTo(bx, by - 8); ctx.lineTo(bx + 5, by);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else {
+    /* Occluded front: alternating semicircles and triangles */
+    const mergeX = lerp(w * 0.5, w * 0.42, p);
+    ctx.strokeStyle = OCCL_COL;
+    ctx.beginPath();
+    ctx.moveTo(mergeX * 0.3, groundY * 0.3);
+    ctx.quadraticCurveTo(mergeX * 0.6, groundY * 0.25, mergeX, groundY);
+    ctx.stroke();
+
+    const steps = 6;
+    for(let i = 1; i < steps; i++){
+      const t = i / steps;
+      const bx = mergeX * 0.3 + (mergeX - mergeX * 0.3) * t;
+      const by = groundY * 0.3 + (groundY - groundY * 0.3) * t;
+      if(i % 2 === 0){
+        ctx.fillStyle = OCCL_COL;
+        ctx.beginPath();
+        ctx.arc(bx, by, 5, Math.PI, 0);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = OCCL_COL;
+        ctx.beginPath();
+        ctx.moveTo(bx - 5, by); ctx.lineTo(bx, by - 8); ctx.lineTo(bx + 5, by);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+  ctx.lineWidth = 1;
+}
+
+function drawIsobars(w, h, groundY, p){
+  if(p < 0.1) return;
+  const fade = clamp((p - 0.1) / 0.2, 0, 1);
+  ctx.globalAlpha = 0.35 * fade;
+  ctx.strokeStyle = ISOBAR_COL;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6,4]);
+
+  const pressures = [1016, 1012, 1008, 1004, 1000];
+  for(let i = 0; i < pressures.length; i++){
+    const baseY = groundY * (0.65 + i * 0.04);
+    ctx.beginPath();
+    for(let x = 0; x <= w; x += 5){
+      const wobble = Math.sin(x * 0.01 + i * 1.5 + simTime * 0.3) * 8;
+      const frontDip = currentFront === 'warm' ?
+        Math.exp(-Math.pow((x - lerp(w * 0.2, w * 0.5, p)) / (w * 0.15), 2)) * 20 * (pressures.length - i) :
+        currentFront === 'cold' ?
+        Math.exp(-Math.pow((x - lerp(w * 0.7, w * 0.45, p)) / (w * 0.12), 2)) * 25 * (pressures.length - i) :
+        Math.exp(-Math.pow((x - w * 0.45) / (w * 0.18), 2)) * 22 * (pressures.length - i);
+      const y = baseY + wobble - frontDip;
+      if(x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    /* Pressure labels */
+    ctx.fillStyle = ISOBAR_COL;
+    ctx.font = '9px system-ui';
+    ctx.textAlign = 'right';
+    ctx.fillText(pressures[i] + ' hPa', w - 6, groundY * (0.65 + i * 0.04) - 4);
+  }
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 1;
+}
+
+function drawLabels(w, h, groundY, p){
+  ctx.font = 'bold 12px system-ui';
+  ctx.textAlign = 'center';
+
+  if(currentFront === 'warm'){
+    const warmX = lerp(-w * 0.1, w * 0.35, p);
+    ctx.fillStyle = WARM_COL;
+    ctx.fillText('WARM AIR', warmX + w * 0.18, groundY * 0.55);
+    ctx.fillStyle = COLD_COL;
+    ctx.fillText('COLD AIR', Math.min(w * 0.8, warmX + w * 0.6), groundY * 0.7);
+
+    /* Arrows showing movement */
+    if(p > 0.05){
+      drawArrow(ctx, warmX + w * 0.1, groundY * 0.65, warmX + w * 0.25, groundY * 0.45, WARM_COL);
+    }
+  } else if(currentFront === 'cold'){
+    const coldX = lerp(w * 1.1, w * 0.4, p);
+    ctx.fillStyle = COLD_COL;
+    ctx.fillText('COLD AIR', Math.max(w * 0.15, coldX - w * 0.15), groundY * 0.65);
+    ctx.fillStyle = WARM_COL;
+    ctx.fillText('WARM AIR', Math.min(w * 0.85, coldX + w * 0.2), groundY * 0.4);
+
+    if(p > 0.05){
+      drawArrow(ctx, coldX + w * 0.05, groundY * 0.55, coldX + w * 0.15, groundY * 0.3, WARM_COL);
+    }
+  } else {
+    const mergeX = lerp(w * 0.5, w * 0.42, p);
+    ctx.fillStyle = OCCL_COL;
+    ctx.fillText('WARM AIR (lifted)', mergeX, groundY * 0.12);
+    ctx.fillStyle = COLD_COL;
+    ctx.fillText('COLD AIR', w * 0.15, groundY * 0.65);
+    ctx.fillText('COOL AIR', w * 0.75, groundY * 0.65);
+  }
+
+  /* Cloud type labels */
+  ctx.font = '10px system-ui';
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  if(currentFront === 'warm' && p > 0.1){
+    if(p > 0.1) ctx.fillText('Cirrus', w * 0.72, groundY * 0.08);
+    if(p > 0.3) ctx.fillText('Altostratus', w * 0.5, groundY * 0.22);
+    if(p > 0.5) ctx.fillText('Nimbostratus', w * 0.35, groundY * 0.42);
+    if(p > 0.75) ctx.fillText('Stratus', w * 0.12, groundY * 0.56);
+  } else if(currentFront === 'cold' && p > 0.1){
+    if(p > 0.15) ctx.fillText('Cumulus', w * 0.68, groundY * 0.38);
+    if(p > 0.35) ctx.fillText('Cumulonimbus', w * 0.48, groundY * 0.08);
+    if(p > 0.8) ctx.fillText('Cu (clearing)', w * 0.12, groundY * 0.4);
+  } else if(currentFront === 'occluded' && p > 0.1){
+    if(p > 0.1) ctx.fillText('Cirrostratus', w * 0.7, groundY * 0.08);
+    if(p > 0.3) ctx.fillText('Nimbostratus', w * 0.4, groundY * 0.3);
+    if(p > 0.5) ctx.fillText('Embedded Cb', w * 0.35, groundY * 0.15);
+  }
+}
+
+function drawArrow(c, x1, y1, x2, y2, col){
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+  c.strokeStyle = col;
+  c.lineWidth = 2;
+  c.globalAlpha = 0.6;
+  c.beginPath();
+  c.moveTo(x1, y1);
+  c.lineTo(x2, y2);
+  c.stroke();
+  c.fillStyle = col;
+  c.beginPath();
+  c.moveTo(x2, y2);
+  c.lineTo(x2 - 8 * Math.cos(angle - 0.4), y2 - 8 * Math.sin(angle - 0.4));
+  c.lineTo(x2 - 8 * Math.cos(angle + 0.4), y2 - 8 * Math.sin(angle + 0.4));
+  c.closePath();
+  c.fill();
+  c.globalAlpha = 1;
+  c.lineWidth = 1;
+}
+
+/* ── Synoptic chart ───────────────────────── */
+function drawSynoptic(){
+  const w = SW(), h = SH();
+  const p = progress();
+
+  /* Background */
+  const bg = synCtx.createLinearGradient(0, 0, w, h);
+  bg.addColorStop(0, '#edf2f7');
+  bg.addColorStop(1, '#e2e8f0');
+  synCtx.fillStyle = bg;
+  synCtx.fillRect(0, 0, w, h);
+
+  /* Grid lines */
+  synCtx.strokeStyle = 'rgba(160,174,192,0.3)';
+  synCtx.lineWidth = 0.5;
+  for(let x = 0; x < w; x += 40){
+    synCtx.beginPath(); synCtx.moveTo(x, 0); synCtx.lineTo(x, h); synCtx.stroke();
+  }
+  for(let y = 0; y < h; y += 40){
+    synCtx.beginPath(); synCtx.moveTo(0, y); synCtx.lineTo(w, y); synCtx.stroke();
+  }
+
+  /* Isobars (concentric-ish) */
+  const cx = w * 0.45;
+  const cy = h * 0.5;
+  synCtx.strokeStyle = 'rgba(56,161,105,0.5)';
+  synCtx.lineWidth = 1;
+  const isoCount = 4;
+  for(let i = 1; i <= isoCount; i++){
+    const rx = (w * 0.1 + i * w * 0.08) * (0.5 + p * 0.5);
+    const ry = (h * 0.08 + i * h * 0.08) * (0.5 + p * 0.5);
+    synCtx.beginPath();
+    synCtx.ellipse(cx, cy, rx, ry, -0.2, 0, Math.PI * 2);
+    synCtx.stroke();
+    synCtx.fillStyle = 'rgba(56,161,105,0.6)';
+    synCtx.font = '9px system-ui';
+    synCtx.fillText((1000 + i * 4) + '', cx + rx + 4, cy - 2);
+  }
+
+  /* Low pressure label */
+  synCtx.fillStyle = '#e53e3e';
+  synCtx.font = 'bold 14px system-ui';
+  synCtx.textAlign = 'center';
+  synCtx.fillText('L', cx, cy + 5);
+  synCtx.font = '9px system-ui';
+  synCtx.fillStyle = '#e53e3e';
+  synCtx.fillText(Math.round(lerp(1004, 996, p)) + ' hPa', cx, cy + 16);
+
+  /* High pressure */
+  synCtx.fillStyle = '#2b6cb0';
+  synCtx.font = 'bold 14px system-ui';
+  synCtx.fillText('H', w * 0.85, h * 0.3);
+  synCtx.font = '9px system-ui';
+  synCtx.fillText('1024 hPa', w * 0.85, h * 0.3 + 12);
+
+  /* Front lines on synoptic */
+  const frontStartX = cx;
+  const frontStartY = cy;
+
+  if(currentFront === 'warm' || currentFront === 'occluded'){
+    /* Warm front line */
+    const endX = cx + w * 0.28 * p;
+    const endY = cy + h * 0.25 * p;
+    synCtx.strokeStyle = WARM_COL;
+    synCtx.lineWidth = 3;
+    synCtx.beginPath();
+    synCtx.moveTo(frontStartX, frontStartY);
+    synCtx.quadraticCurveTo(frontStartX + (endX - frontStartX) * 0.5, frontStartY + 15, endX, endY);
+    synCtx.stroke();
+
+    /* Semicircles */
+    const segs = Math.floor(p * 6);
+    for(let i = 1; i <= segs; i++){
+      const t = i / 7;
+      const sx = frontStartX + (endX - frontStartX) * t;
+      const sy = frontStartY + (endY - frontStartY) * t + Math.sin(t * 3) * 8;
+      synCtx.fillStyle = WARM_COL;
+      synCtx.beginPath();
+      synCtx.arc(sx, sy, 4, Math.PI, 0);
+      synCtx.fill();
+    }
+  }
+
+  if(currentFront === 'cold' || currentFront === 'occluded'){
+    /* Cold front line */
+    const cEndX = cx - w * 0.22 * p;
+    const cEndY = cy + h * 0.2 * p;
+    synCtx.strokeStyle = COLD_COL;
+    synCtx.lineWidth = 3;
+    synCtx.beginPath();
+    synCtx.moveTo(frontStartX, frontStartY);
+    synCtx.quadraticCurveTo(frontStartX + (cEndX - frontStartX) * 0.4, frontStartY - 12, cEndX, cEndY);
+    synCtx.stroke();
+
+    /* Triangles */
+    const segs = Math.floor(p * 5);
+    for(let i = 1; i <= segs; i++){
+      const t = i / 6;
+      const sx = frontStartX + (cEndX - frontStartX) * t;
+      const sy = frontStartY + (cEndY - frontStartY) * t - Math.sin(t * 2.5) * 6;
+      synCtx.fillStyle = COLD_COL;
+      synCtx.beginPath();
+      synCtx.moveTo(sx - 4, sy); synCtx.lineTo(sx, sy - 6); synCtx.lineTo(sx + 4, sy);
+      synCtx.closePath();
+      synCtx.fill();
+    }
+  }
+
+  if(currentFront === 'occluded' && p > 0.4){
+    /* Occluded line extending */
+    const oP = (p - 0.4) / 0.6;
+    const oEndX = cx + w * 0.05;
+    const oEndY = cy - h * 0.35 * oP;
+    synCtx.strokeStyle = OCCL_COL;
+    synCtx.lineWidth = 3;
+    synCtx.beginPath();
+    synCtx.moveTo(frontStartX, frontStartY);
+    synCtx.lineTo(oEndX, oEndY);
+    synCtx.stroke();
+
+    const segs = Math.floor(oP * 4);
+    for(let i = 1; i <= segs; i++){
+      const t = i / 5;
+      const sx = frontStartX + (oEndX - frontStartX) * t;
+      const sy = frontStartY + (oEndY - frontStartY) * t;
+      if(i % 2 === 0){
+        synCtx.fillStyle = OCCL_COL;
+        synCtx.beginPath();
+        synCtx.arc(sx, sy, 4, Math.PI, 0);
+        synCtx.fill();
+      } else {
+        synCtx.fillStyle = OCCL_COL;
+        synCtx.beginPath();
+        synCtx.moveTo(sx - 4, sy); synCtx.lineTo(sx, sy - 6); synCtx.lineTo(sx + 4, sy);
+        synCtx.closePath();
+        synCtx.fill();
+      }
+    }
+  }
+
+  /* Wind direction arrows */
+  synCtx.strokeStyle = 'rgba(74,85,104,0.5)';
+  synCtx.lineWidth = 1;
+  const windAngles = [
+    { x: cx - w * 0.2, y: cy - h * 0.25, a: 0.3 },
+    { x: cx + w * 0.2, y: cy - h * 0.15, a: 1.8 },
+    { x: cx - w * 0.15, y: cy + h * 0.2, a: -0.5 },
+    { x: cx + w * 0.25, y: cy + h * 0.25, a: 2.5 }
+  ];
+  for(const wa of windAngles){
+    if(p < 0.15) continue;
+    const fade = clamp((p - 0.15) / 0.3, 0, 0.6);
+    synCtx.globalAlpha = fade;
+    const ex = wa.x + Math.cos(wa.a) * 20;
+    const ey = wa.y + Math.sin(wa.a) * 20;
+    synCtx.beginPath(); synCtx.moveTo(wa.x, wa.y); synCtx.lineTo(ex, ey); synCtx.stroke();
+    synCtx.fillStyle = 'rgba(74,85,104,0.5)';
+    synCtx.beginPath();
+    synCtx.moveTo(ex, ey);
+    synCtx.lineTo(ex - 5 * Math.cos(wa.a - 0.5), ey - 5 * Math.sin(wa.a - 0.5));
+    synCtx.lineTo(ex - 5 * Math.cos(wa.a + 0.5), ey - 5 * Math.sin(wa.a + 0.5));
+    synCtx.closePath();
+    synCtx.fill();
+  }
+  synCtx.globalAlpha = 1;
+
+  /* Legend */
+  synCtx.textAlign = 'left';
+  synCtx.font = '10px system-ui';
+  synCtx.fillStyle = '#4a5568';
+  synCtx.fillText('Synoptic Chart (Plan View)', 8, 14);
+
+  /* Symbol key */
+  const keyY = h - 14;
+  synCtx.fillStyle = '#718096';
+  synCtx.font = '9px system-ui';
+  synCtx.fillText('Key:', 8, keyY);
+
+  synCtx.fillStyle = WARM_COL;
+  synCtx.beginPath(); synCtx.arc(42, keyY - 3, 4, Math.PI, 0); synCtx.fill();
+  synCtx.fillStyle = '#718096';
+  synCtx.fillText('Warm', 50, keyY);
+
+  synCtx.fillStyle = COLD_COL;
+  synCtx.beginPath(); synCtx.moveTo(90, keyY - 3); synCtx.lineTo(94, keyY - 8); synCtx.lineTo(98, keyY - 3); synCtx.closePath(); synCtx.fill();
+  synCtx.fillStyle = '#718096';
+  synCtx.fillText('Cold', 104, keyY);
+
+  synCtx.fillStyle = OCCL_COL;
+  synCtx.beginPath(); synCtx.arc(144, keyY - 3, 4, Math.PI, 0); synCtx.fill();
+  synCtx.beginPath(); synCtx.moveTo(152, keyY - 3); synCtx.lineTo(156, keyY - 8); synCtx.lineTo(160, keyY - 3); synCtx.closePath(); synCtx.fill();
+  synCtx.fillStyle = '#718096';
+  synCtx.fillText('Occluded', 166, keyY);
+}
+
+/* ── Animation loop ───────────────────────── */
+function loop(ts){
+  if(!lastTs) lastTs = ts;
+  const dt = Math.min((ts - lastTs) / 1000, 0.05);
+  lastTs = ts;
+
+  if(playing && simTime < 18){
+    simTime += dt * speed;
+    if(simTime >= 18){
+      simTime = 18;
+      playing = false;
+      document.getElementById('btnPlay').innerHTML = '&#9654; Play';
+    }
+  }
+
+  spawnParticles();
+  updateParticles(dt);
+
+  ctx.clearRect(0, 0, W(), H());
+  drawCrossSection();
+
+  synCtx.clearRect(0, 0, SW(), SH());
+  drawSynoptic();
+
+  updateStageLabel();
+  updateReadouts();
+  updateStatus();
+
+  animFrame = requestAnimationFrame(loop);
+}
+
+/* ── Controls ─────────────────────────────── */
+function togglePlay(){
+  if(simTime >= 18){
+    resetSim();
+  }
+  playing = !playing;
+  document.getElementById('btnPlay').innerHTML = playing ? '&#10074;&#10074; Pause' : '&#9654; Play';
+}
+window.togglePlay = togglePlay;
+
+function resetSim(){
+  playing = false;
+  simTime = 0;
+  particles = [];
+  lastTs = 0;
+  document.getElementById('btnPlay').innerHTML = '&#9654; Play';
+  generateClouds();
+}
+window.resetSim = resetSim;
+
+document.getElementById('speedSlider').addEventListener('input', function(){
+  speed = parseFloat(this.value);
+});
+
+/* ── Initialise ───────────────────────────── */
+updateInfoPanel();
+generateClouds();
+animFrame = requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
