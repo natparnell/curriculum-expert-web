@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stage Blocking Planner – KS3 Drama</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #faf6f1;
+  --surface: #ffffff;
+  --surface-warm: #fef9f3;
+  --text: #3e2c1e;
+  --text-light: #7a6252;
+  --text-muted: #a08a78;
+  --border: #e8ddd2;
+  --border-light: #f0e8df;
+  --brown-dark: #5c3d2e;
+  --brown: #8b5e3c;
+  --brown-light: #b8845c;
+  --orange: #d4834e;
+  --orange-light: #e8a46d;
+  --orange-pale: #fce8d5;
+  --cream: #f5ead8;
+  --cream-light: #faf3ea;
+  --accent: #c46a3a;
+  --accent-hover: #a85830;
+  --success: #6a9b5c;
+  --shadow: 0 2px 8px rgba(60,30,10,0.08);
+  --shadow-lg: 0 4px 20px rgba(60,30,10,0.12);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --transition: 0.25s ease;
+  --header-h: 64px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: linear-gradient(135deg, var(--brown-dark), var(--brown));
+  color: #fff;
+  height: var(--header-h);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  box-shadow: 0 2px 12px rgba(60,30,10,0.25);
+}
+.header-left { display: flex; flex-direction: column; gap: 1px; }
+header h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.3px; }
+header p { font-size: 0.78rem; opacity: 0.85; }
+.header-actions { display: flex; gap: 8px; }
+.header-actions button {
+  font-family: 'Inter', sans-serif;
+  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+  color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem;
+  font-weight: 600; cursor: pointer; transition: var(--transition);
+}
+.header-actions button:hover { background: rgba(255,255,255,0.25); }
+
+.app-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 0;
+  min-height: calc(100vh - var(--header-h));
+}
+
+/* STAGE AREA */
+.stage-panel {
+  padding: 24px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+.stage-label {
+  text-align: center; font-size: 0.85rem; font-weight: 700;
+  color: var(--brown); text-transform: uppercase; letter-spacing: 1px;
+}
+.stage-label-audience {
+  text-align: center; font-size: 0.8rem; font-weight: 600;
+  color: var(--text-muted); letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+.stage-wrapper {
+  position: relative;
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--surface);
+  border: 3px solid var(--brown);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  overflow: hidden;
+}
+
+.stage-area {
+  border: 1px solid var(--border-light);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  transition: background 0.2s;
+}
+.stage-area:hover { background: var(--cream-light); }
+.stage-area .area-label {
+  font-size: 0.72rem; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* Actor markers */
+.actor-marker {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem; font-weight: 800; color: #fff;
+  cursor: grab; user-select: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  position: absolute;
+  z-index: 10;
+  transition: box-shadow 0.2s;
+}
+.actor-marker:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.3); }
+.actor-marker.dragging { cursor: grabbing; box-shadow: 0 4px 16px rgba(0,0,0,0.35); z-index: 20; }
+
+/* Actor palette */
+.actor-palette {
+  display: flex; gap: 8px; justify-content: center;
+  flex-wrap: wrap; margin-bottom: 8px;
+}
+.palette-actor {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem; font-weight: 800; color: #fff;
+  cursor: grab; user-select: none;
+  box-shadow: var(--shadow);
+  border: 3px solid transparent;
+  transition: var(--transition);
+  position: relative;
+}
+.palette-actor:hover { transform: scale(1.1); }
+.palette-actor.on-stage { opacity: 0.35; cursor: default; }
+.palette-actor .actor-label {
+  position: absolute; bottom: -18px; font-size: 0.65rem;
+  font-weight: 600; color: var(--text-muted); white-space: nowrap;
+}
+
+/* Connection lines SVG */
+.connections-svg {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none; z-index: 5;
+}
+
+/* SIDEBAR */
+.sidebar {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.sidebar-section {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-section h3 {
+  font-size: 0.85rem; font-weight: 700; color: var(--brown);
+  margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+/* Moment notes */
+.moment-notes textarea {
+  width: 100%; padding: 10px; border: 2px solid var(--border);
+  border-radius: var(--radius); font-family: 'Inter', sans-serif;
+  font-size: 0.85rem; resize: vertical; min-height: 80px;
+  color: var(--text); background: var(--surface-warm);
+  transition: var(--transition);
+}
+.moment-notes textarea:focus { outline: none; border-color: var(--accent); }
+
+/* Actor list in sidebar */
+.sidebar-actors { display: flex; flex-direction: column; gap: 6px; }
+.sidebar-actor {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: var(--radius);
+  font-size: 0.82rem;
+}
+.sidebar-actor-dot {
+  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+}
+.sidebar-actor-name {
+  font-weight: 600; color: var(--text); min-width: 20px;
+}
+.sidebar-actor-pos {
+  color: var(--text-muted); font-size: 0.78rem;
+}
+.sidebar-actor input {
+  flex: 1; border: 1px solid var(--border); border-radius: 4px;
+  padding: 3px 6px; font-family: 'Inter', sans-serif;
+  font-size: 0.78rem; color: var(--text); background: var(--surface-warm);
+  min-width: 0;
+}
+.sidebar-actor input:focus { outline: none; border-color: var(--accent); }
+
+/* TIMELINE */
+.timeline-bar {
+  background: var(--cream);
+  border-top: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex; align-items: center; gap: 12px;
+  position: sticky; bottom: 0; z-index: 50;
+}
+.timeline-moments {
+  display: flex; gap: 6px; flex: 1; overflow-x: auto;
+  padding: 4px 0;
+}
+.moment-btn {
+  font-family: 'Inter', sans-serif;
+  min-width: 44px; height: 36px;
+  border-radius: var(--radius);
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text-light);
+  font-size: 0.8rem; font-weight: 700;
+  cursor: pointer; transition: var(--transition);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; flex-shrink: 0;
+}
+.moment-btn:hover { border-color: var(--orange-light); background: var(--orange-pale); }
+.moment-btn.active {
+  border-color: var(--accent); background: var(--accent);
+  color: #fff;
+}
+.moment-btn .moment-delete {
+  position: absolute; top: -6px; right: -6px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #d45; color: #fff; border: none;
+  font-size: 0.6rem; cursor: pointer;
+  display: none; align-items: center; justify-content: center;
+  line-height: 1;
+}
+.moment-btn:hover .moment-delete { display: flex; }
+
+.timeline-controls {
+  display: flex; gap: 6px; flex-shrink: 0;
+}
+.timeline-controls button {
+  font-family: 'Inter', sans-serif;
+  padding: 6px 14px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-light); font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; transition: var(--transition);
+}
+.timeline-controls button:hover { background: var(--orange-pale); border-color: var(--orange-light); }
+.timeline-controls .btn-add-moment {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.timeline-controls .btn-add-moment:hover { background: var(--accent-hover); }
+
+/* Show connections toggle */
+.toggle-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.82rem; color: var(--text-light); font-weight: 600;
+}
+.toggle-switch {
+  position: relative; width: 36px; height: 20px;
+  background: var(--border); border-radius: 10px;
+  cursor: pointer; transition: var(--transition);
+}
+.toggle-switch.active { background: var(--accent); }
+.toggle-switch .toggle-knob {
+  position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: var(--transition);
+}
+.toggle-switch.active .toggle-knob { left: 18px; }
+
+/* Play animation */
+.btn-play {
+  background: var(--success) !important; color: #fff !important; border-color: var(--success) !important;
+}
+
+@media print {
+  header, .timeline-bar, .sidebar, .actor-palette, .header-actions { display: none !important; }
+  .app-layout { grid-template-columns: 1fr; }
+  .stage { border: 2px solid #333; }
+}
+
+@media (max-width: 768px) {
+  .app-layout { grid-template-columns: 1fr; }
+  .sidebar { border-left: none; border-top: 1px solid var(--border); }
+  .stage { aspect-ratio: 3 / 2; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>Stage Blocking Planner</h1>
+    <p>KS3 Drama — Plan actor positions and movement</p>
+  </div>
+  <div class="header-actions">
+    <button onclick="resetAll()">Reset All</button>
+    <button onclick="window.print()">Print / Save</button>
+  </div>
+</header>
+
+<div class="app-layout">
+  <div class="stage-panel">
+    <div class="stage-label">Upstage (back of stage, furthest from audience)</div>
+
+    <div class="actor-palette" id="actorPalette"></div>
+
+    <div class="stage-wrapper">
+      <svg class="connections-svg" id="connectionsSvg"></svg>
+      <div class="stage" id="stage">
+        <div class="stage-area" data-area="USL"><span class="area-label">USL</span></div>
+        <div class="stage-area" data-area="USC"><span class="area-label">USC</span></div>
+        <div class="stage-area" data-area="USR"><span class="area-label">USR</span></div>
+        <div class="stage-area" data-area="CSL"><span class="area-label">CSL</span></div>
+        <div class="stage-area" data-area="CS"><span class="area-label">CS</span></div>
+        <div class="stage-area" data-area="CSR"><span class="area-label">CSR</span></div>
+        <div class="stage-area" data-area="DSL"><span class="area-label">DSL</span></div>
+        <div class="stage-area" data-area="DSC"><span class="area-label">DSC</span></div>
+        <div class="stage-area" data-area="DSR"><span class="area-label">DSR</span></div>
+      </div>
+    </div>
+
+    <div class="stage-label-audience">&#9660; Downstage (front of stage, nearest to audience) &#9660;</div>
+  </div>
+
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h3>Moment <span id="momentLabel">1</span> of <span id="momentTotal">1</span></h3>
+      <div class="moment-notes">
+        <textarea id="momentNotes" placeholder="Stage directions for this moment..." oninput="updateMomentNotes(this.value)"></textarea>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Actors on Stage</h3>
+      <div class="sidebar-actors" id="sidebarActors"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Display</h3>
+      <div class="toggle-row" style="margin-bottom:8px">
+        <div class="toggle-switch" id="toggleLines" onclick="toggleConnectionLines()">
+          <div class="toggle-knob"></div>
+        </div>
+        <span>Show movement lines</span>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-muted);line-height:1.4">
+        Movement lines connect each actor's position between consecutive moments, showing their blocking path.
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Actor Names</h3>
+      <div id="actorNamesPanel" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="timeline-bar">
+  <div class="timeline-moments" id="timelineMoments"></div>
+  <div class="timeline-controls">
+    <button class="btn-play" id="playBtn" onclick="playAnimation()">&#9654; Play</button>
+    <button class="btn-add-moment" onclick="addMoment()">+ Moment</button>
+  </div>
+</div>
+
+<script>
+/* ==================== DATA ==================== */
+const ACTORS = [
+  { id: 'A', color: '#c0392b', label: 'Actor A' },
+  { id: 'B', color: '#2980b9', label: 'Actor B' },
+  { id: 'C', color: '#27ae60', label: 'Actor C' },
+  { id: 'D', color: '#8e44ad', label: 'Actor D' },
+  { id: 'E', color: '#d4834e', label: 'Actor E' },
+  { id: 'F', color: '#16a085', label: 'Actor F' }
+];
+
+const AREAS = ['USL','USC','USR','CSL','CS','CSR','DSL','DSC','DSR'];
+
+/* ==================== STATE ==================== */
+// moments[i] = { positions: { A: {x, y}, B: {x, y}, ... }, notes: '' }
+let moments = [{ positions: {}, notes: '' }];
+let currentMoment = 0;
+let showLines = false;
+let actorNames = {};
+ACTORS.forEach(a => actorNames[a.id] = a.label);
+
+// Dragging
+let draggingActor = null;
+let dragFromPalette = false;
+let dragOffset = { x: 0, y: 0 };
+
+/* ==================== INIT ==================== */
+function init() {
+  renderPalette();
+  renderTimeline();
+  renderStage();
+  renderSidebar();
+  renderActorNamesPanel();
+}
+
+/* ==================== PALETTE ==================== */
+function renderPalette() {
+  const palette = document.getElementById('actorPalette');
+  palette.innerHTML = '';
+  const positions = moments[currentMoment].positions;
+
+  ACTORS.forEach(a => {
+    const el = document.createElement('div');
+    el.className = 'palette-actor' + (positions[a.id] ? ' on-stage' : '');
+    el.style.background = a.color;
+    el.innerHTML = `${a.id}<span class="actor-label">${actorNames[a.id]}</span>`;
+    el.dataset.actor = a.id;
+
+    if (!positions[a.id]) {
+      el.onmousedown = (e) => startDragFromPalette(e, a.id);
+      el.ontouchstart = (e) => startDragFromPaletteTouch(e, a.id);
+    }
+
+    palette.appendChild(el);
+  });
+}
+
+/* ==================== STAGE RENDERING ==================== */
+function renderStage() {
+  // Remove existing markers
+  document.querySelectorAll('.actor-marker').forEach(m => m.remove());
+
+  const stage = document.getElementById('stage');
+  const positions = moments[currentMoment].positions;
+
+  Object.keys(positions).forEach(actorId => {
+    const actor = ACTORS.find(a => a.id === actorId);
+    if (!actor) return;
+    const pos = positions[actorId];
+
+    const marker = document.createElement('div');
+    marker.className = 'actor-marker';
+    marker.style.background = actor.color;
+    marker.style.left = pos.x + '%';
+    marker.style.top = pos.y + '%';
+    marker.style.transform = 'translate(-50%, -50%)';
+    marker.textContent = actorId;
+    marker.dataset.actor = actorId;
+
+    marker.onmousedown = (e) => startDragOnStage(e, actorId);
+    marker.ontouchstart = (e) => startDragOnStageTouch(e, actorId);
+
+    // Double click to remove from stage
+    marker.ondblclick = () => {
+      delete moments[currentMoment].positions[actorId];
+      renderStage();
+      renderPalette();
+      renderSidebar();
+      renderConnections();
+    };
+
+    stage.appendChild(marker);
+  });
+
+  renderConnections();
+}
+
+/* ==================== CONNECTIONS ==================== */
+function renderConnections() {
+  const svg = document.getElementById('connectionsSvg');
+  if (!showLines || moments.length < 2) {
+    svg.innerHTML = '';
+    return;
+  }
+
+  const stage = document.getElementById('stage');
+  const stageRect = stage.getBoundingClientRect();
+  const wrapperRect = stage.parentElement.getBoundingClientRect();
+
+  // Offset of stage relative to wrapper
+  const ox = stage.offsetLeft;
+  const oy = stage.offsetTop;
+  const sw = stage.offsetWidth;
+  const sh = stage.offsetHeight;
+
+  let lines = '';
+
+  ACTORS.forEach(actor => {
+    // Collect positions across all moments
+    const pts = [];
+    moments.forEach((m, mi) => {
+      if (m.positions[actor.id]) {
+        const p = m.positions[actor.id];
+        pts.push({
+          x: ox + (p.x / 100) * sw,
+          y: oy + (p.y / 100) * sh,
+          moment: mi
+        });
+      }
+    });
+
+    if (pts.length < 2) return;
+
+    for (let i = 0; i < pts.length - 1; i++) {
+      const from = pts[i];
+      const to = pts[i + 1];
+      const opacity = (from.moment === currentMoment || to.moment === currentMoment) ? 0.7 : 0.25;
+      lines += `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"
+        stroke="${actor.color}" stroke-width="2.5" stroke-opacity="${opacity}"
+        stroke-dasharray="6,4" stroke-linecap="round"/>`;
+      // Arrow head
+      const angle = Math.atan2(to.y - from.y, to.x - from.x);
+      const ax = to.x - 8 * Math.cos(angle);
+      const ay = to.y - 8 * Math.sin(angle);
+      lines += `<circle cx="${to.x}" cy="${to.y}" r="3" fill="${actor.color}" fill-opacity="${opacity}"/>`;
+    }
+  });
+
+  svg.innerHTML = lines;
+}
+
+function toggleConnectionLines() {
+  showLines = !showLines;
+  document.getElementById('toggleLines').classList.toggle('active', showLines);
+  renderConnections();
+}
+
+/* ==================== DRAGGING ==================== */
+function startDragFromPalette(e, actorId) {
+  e.preventDefault();
+  draggingActor = actorId;
+  dragFromPalette = true;
+
+  const stage = document.getElementById('stage');
+
+  // Create a temporary marker that follows the mouse
+  const actor = ACTORS.find(a => a.id === actorId);
+  const temp = document.createElement('div');
+  temp.className = 'actor-marker dragging';
+  temp.id = 'tempMarker';
+  temp.style.background = actor.color;
+  temp.style.position = 'fixed';
+  temp.style.left = e.clientX + 'px';
+  temp.style.top = e.clientY + 'px';
+  temp.style.transform = 'translate(-50%, -50%)';
+  temp.style.zIndex = '1000';
+  temp.textContent = actorId;
+  document.body.appendChild(temp);
+
+  const onMove = (ev) => {
+    temp.style.left = ev.clientX + 'px';
+    temp.style.top = ev.clientY + 'px';
+  };
+
+  const onUp = (ev) => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    temp.remove();
+
+    const stageRect = stage.getBoundingClientRect();
+    const x = ev.clientX - stageRect.left;
+    const y = ev.clientY - stageRect.top;
+
+    if (x >= 0 && x <= stageRect.width && y >= 0 && y <= stageRect.height) {
+      const pctX = (x / stageRect.width) * 100;
+      const pctY = (y / stageRect.height) * 100;
+      moments[currentMoment].positions[actorId] = { x: pctX, y: pctY };
+      renderStage();
+      renderPalette();
+      renderSidebar();
+    }
+    draggingActor = null;
+    dragFromPalette = false;
+  };
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function startDragOnStage(e, actorId) {
+  e.preventDefault();
+  e.stopPropagation();
+  draggingActor = actorId;
+  dragFromPalette = false;
+
+  const stage = document.getElementById('stage');
+  const marker = e.target;
+  marker.classList.add('dragging');
+
+  const stageRect = stage.getBoundingClientRect();
+
+  const onMove = (ev) => {
+    const x = ev.clientX - stageRect.left;
+    const y = ev.clientY - stageRect.top;
+    const pctX = Math.max(5, Math.min(95, (x / stageRect.width) * 100));
+    const pctY = Math.max(5, Math.min(95, (y / stageRect.height) * 100));
+    marker.style.left = pctX + '%';
+    marker.style.top = pctY + '%';
+  };
+
+  const onUp = (ev) => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    marker.classList.remove('dragging');
+
+    const x = ev.clientX - stageRect.left;
+    const y = ev.clientY - stageRect.top;
+
+    // If dropped outside stage, remove actor
+    if (x < -20 || x > stageRect.width + 20 || y < -20 || y > stageRect.height + 20) {
+      delete moments[currentMoment].positions[actorId];
+    } else {
+      const pctX = Math.max(5, Math.min(95, (x / stageRect.width) * 100));
+      const pctY = Math.max(5, Math.min(95, (y / stageRect.height) * 100));
+      moments[currentMoment].positions[actorId] = { x: pctX, y: pctY };
+    }
+    renderStage();
+    renderPalette();
+    renderSidebar();
+    draggingActor = null;
+  };
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// Touch support
+function startDragFromPaletteTouch(e, actorId) {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const fakeEvent = { preventDefault: ()=>{}, clientX: touch.clientX, clientY: touch.clientY };
+  startDragFromPalette(fakeEvent, actorId);
+
+  const onTouchMove = (ev) => {
+    const t = ev.touches[0];
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY }));
+  };
+  const onTouchEnd = (ev) => {
+    const t = ev.changedTouches[0];
+    document.dispatchEvent(new MouseEvent('mouseup', { clientX: t.clientX, clientY: t.clientY }));
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onTouchEnd);
+  };
+  document.addEventListener('touchmove', onTouchMove, { passive: false });
+  document.addEventListener('touchend', onTouchEnd);
+}
+
+function startDragOnStageTouch(e, actorId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const touch = e.touches[0];
+  const fakeEvent = { preventDefault: ()=>{}, stopPropagation: ()=>{}, clientX: touch.clientX, clientY: touch.clientY, target: e.target };
+  startDragOnStage(fakeEvent, actorId);
+
+  const onTouchMove = (ev) => {
+    const t = ev.touches[0];
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY }));
+  };
+  const onTouchEnd = (ev) => {
+    const t = ev.changedTouches[0];
+    document.dispatchEvent(new MouseEvent('mouseup', { clientX: t.clientX, clientY: t.clientY }));
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onTouchEnd);
+  };
+  document.addEventListener('touchmove', onTouchMove, { passive: false });
+  document.addEventListener('touchend', onTouchEnd);
+}
+
+/* ==================== SIDEBAR ==================== */
+function renderSidebar() {
+  const container = document.getElementById('sidebarActors');
+  container.innerHTML = '';
+
+  const positions = moments[currentMoment].positions;
+
+  if (Object.keys(positions).length === 0) {
+    container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted);padding:8px 0">Drag actors onto the stage from the palette above</div>';
+    return;
+  }
+
+  Object.keys(positions).forEach(actorId => {
+    const actor = ACTORS.find(a => a.id === actorId);
+    const pos = positions[actorId];
+    const areaName = getAreaName(pos.x, pos.y);
+
+    const row = document.createElement('div');
+    row.className = 'sidebar-actor';
+    row.innerHTML = `
+      <div class="sidebar-actor-dot" style="background:${actor.color}"></div>
+      <span class="sidebar-actor-name">${actorId}</span>
+      <span class="sidebar-actor-pos">${actorNames[actorId]} — ${areaName}</span>
+    `;
+    container.appendChild(row);
+  });
+
+  document.getElementById('momentNotes').value = moments[currentMoment].notes || '';
+}
+
+function getAreaName(x, y) {
+  const col = x < 33.33 ? 0 : x < 66.66 ? 1 : 2;
+  const row = y < 33.33 ? 0 : y < 66.66 ? 1 : 2;
+  const names = [
+    ['USL','USC','USR'],
+    ['CSL','CS','CSR'],
+    ['DSL','DSC','DSR']
+  ];
+  return names[row][col];
+}
+
+function renderActorNamesPanel() {
+  const panel = document.getElementById('actorNamesPanel');
+  panel.innerHTML = '';
+  ACTORS.forEach(a => {
+    const row = document.createElement('div');
+    row.className = 'sidebar-actor';
+    row.innerHTML = `
+      <div class="sidebar-actor-dot" style="background:${a.color}"></div>
+      <span class="sidebar-actor-name">${a.id}</span>
+      <input type="text" value="${actorNames[a.id]}" onchange="actorNames['${a.id}']=this.value; renderPalette(); renderSidebar();">
+    `;
+    panel.appendChild(row);
+  });
+}
+
+/* ==================== MOMENTS / TIMELINE ==================== */
+function renderTimeline() {
+  const container = document.getElementById('timelineMoments');
+  container.innerHTML = '';
+
+  moments.forEach((m, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'moment-btn' + (i === currentMoment ? ' active' : '');
+    btn.textContent = i + 1;
+    btn.onclick = () => switchMoment(i);
+
+    if (moments.length > 1) {
+      const del = document.createElement('button');
+      del.className = 'moment-delete';
+      del.innerHTML = '&times;';
+      del.onclick = (e) => { e.stopPropagation(); deleteMoment(i); };
+      btn.appendChild(del);
+    }
+
+    container.appendChild(btn);
+  });
+
+  document.getElementById('momentLabel').textContent = currentMoment + 1;
+  document.getElementById('momentTotal').textContent = moments.length;
+}
+
+function switchMoment(idx) {
+  if (idx < 0 || idx >= moments.length) return;
+  currentMoment = idx;
+  renderTimeline();
+  renderStage();
+  renderPalette();
+  renderSidebar();
+}
+
+function addMoment() {
+  // Copy positions from current moment as a starting point
+  const prevPositions = JSON.parse(JSON.stringify(moments[currentMoment].positions));
+  moments.push({ positions: prevPositions, notes: '' });
+  currentMoment = moments.length - 1;
+  renderTimeline();
+  renderStage();
+  renderPalette();
+  renderSidebar();
+}
+
+function deleteMoment(idx) {
+  if (moments.length <= 1) return;
+  moments.splice(idx, 1);
+  if (currentMoment >= moments.length) currentMoment = moments.length - 1;
+  renderTimeline();
+  renderStage();
+  renderPalette();
+  renderSidebar();
+}
+
+function updateMomentNotes(val) {
+  moments[currentMoment].notes = val;
+}
+
+/* ==================== PLAYBACK ==================== */
+function playAnimation() {
+  if (moments.length < 2) return;
+  const playBtn = document.getElementById('playBtn');
+  playBtn.disabled = true;
+  playBtn.textContent = '▶ Playing...';
+
+  let i = 0;
+  const play = () => {
+    switchMoment(i);
+    i++;
+    if (i < moments.length) {
+      setTimeout(play, 1200);
+    } else {
+      playBtn.disabled = false;
+      playBtn.innerHTML = '&#9654; Play';
+    }
+  };
+  play();
+}
+
+/* ==================== RESET ==================== */
+function resetAll() {
+  if (!confirm('Reset all moments and positions?')) return;
+  moments = [{ positions: {}, notes: '' }];
+  currentMoment = 0;
+  ACTORS.forEach(a => actorNames[a.id] = a.label);
+  showLines = false;
+  document.getElementById('toggleLines').classList.remove('active');
+  renderTimeline();
+  renderStage();
+  renderPalette();
+  renderSidebar();
+  renderActorNamesPanel();
+}
+
+/* ==================== WINDOW RESIZE ==================== */
+window.addEventListener('resize', () => {
+  renderConnections();
+});
+
+/* ==================== START ==================== */
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Freeze Frame Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 50%, #ffcc80 100%);
+  min-height: 100vh;
+  overflow-x: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+h1 {
+  text-align: center;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  font-weight: 800;
+  color: #e65100;
+  padding: 16px 10px 6px;
+  text-shadow: 1px 1px 0 #fff;
+}
+.subtitle {
+  text-align: center;
+  font-size: clamp(0.85rem, 2vw, 1.05rem);
+  color: #bf360c;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+/* Controls bar */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 12px 10px;
+}
+.controls button, .controls select {
+  font-family: 'Inter', sans-serif;
+  font-size: clamp(0.85rem, 2vw, 1rem);
+  font-weight: 700;
+  border: 3px solid rgba(0,0,0,.12);
+  border-radius: 14px;
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: transform .12s, box-shadow .12s;
+}
+.controls button:hover, .controls select:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 14px rgba(0,0,0,.15);
+}
+.controls button:active { transform: scale(.96); }
+.btn-scenario { background: #ffb74d; color: #4e342e; }
+.btn-add { background: #81c784; color: #1b5e20; }
+.btn-thought { background: #ba68c8; color: #fff; }
+.btn-freeze { background: #ef5350; color: #fff; font-size: clamp(1rem, 2.5vw, 1.2rem) !important; }
+.btn-clear { background: #90a4ae; color: #fff; }
+select.scenario-select {
+  background: #fff8e1;
+  color: #4e342e;
+  font-weight: 700;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234e342e' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+/* Stage */
+.stage-wrapper {
+  position: relative;
+  max-width: 900px;
+  margin: 0 auto 18px;
+  padding: 0 10px;
+}
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/10;
+  border-radius: 18px;
+  border: 5px solid #8d6e63;
+  overflow: hidden;
+  background: #87ceeb;
+  box-shadow: 0 6px 30px rgba(0,0,0,.2), inset 0 0 60px rgba(255,255,255,.3);
+  touch-action: none;
+}
+.stage-floor {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 30%;
+  border-radius: 0 0 12px 12px;
+}
+
+/* Scenario backgrounds */
+.stage[data-scene="park"] { background: linear-gradient(180deg, #87ceeb 60%, #66bb6a 60%); }
+.stage[data-scene="park"] .stage-floor { background: #66bb6a; }
+.stage[data-scene="sea"] { background: linear-gradient(180deg, #4fc3f7 40%, #0277bd 70%, #01579b 100%); }
+.stage[data-scene="sea"] .stage-floor { background: #01579b; }
+.stage[data-scene="space"] { background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+.stage[data-scene="space"] .stage-floor { background: #263238; }
+.stage[data-scene="castle"] { background: linear-gradient(180deg, #b39ddb 50%, #9e9e9e 50%); }
+.stage[data-scene="castle"] .stage-floor { background: #9e9e9e; }
+.stage[data-scene="jungle"] { background: linear-gradient(180deg, #a5d6a7 40%, #2e7d32 70%, #1b5e20 100%); }
+.stage[data-scene="jungle"] .stage-floor { background: #1b5e20; }
+.stage[data-scene="circus"] { background: linear-gradient(180deg, #fff176 0%, #ffb74d 60%, #e65100 100%); }
+.stage[data-scene="circus"] .stage-floor { background: #e65100; }
+
+/* Scenery elements */
+.scenery { position: absolute; pointer-events: none; }
+
+/* Stick figure */
+.figure {
+  position: absolute;
+  width: 70px;
+  cursor: grab;
+  z-index: 10;
+  transition: filter .1s;
+  touch-action: none;
+}
+.figure:hover { filter: brightness(1.1); }
+.figure.dragging { cursor: grabbing; z-index: 100; filter: drop-shadow(0 4px 10px rgba(0,0,0,.3)); }
+.figure svg { width: 100%; height: auto; display: block; }
+
+/* Thought bubble */
+.thought-bubble {
+  position: absolute;
+  background: #fff;
+  border: 2px solid #bdbdbd;
+  border-radius: 18px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #333;
+  max-width: 130px;
+  text-align: center;
+  z-index: 50;
+  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  pointer-events: auto;
+  cursor: pointer;
+  word-wrap: break-word;
+}
+.thought-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 20px;
+  width: 10px; height: 10px;
+  background: #fff;
+  border: 2px solid #bdbdbd;
+  border-radius: 50%;
+}
+.thought-bubble::before {
+  content: '';
+  position: absolute;
+  bottom: -18px;
+  left: 16px;
+  width: 6px; height: 6px;
+  background: #fff;
+  border: 2px solid #bdbdbd;
+  border-radius: 50%;
+}
+
+/* Thought input */
+.thought-input-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.4);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+.thought-input-overlay.active { display: flex; }
+.thought-input-box {
+  background: #fff;
+  border-radius: 20px;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 8px 40px rgba(0,0,0,.25);
+  max-width: 340px;
+  width: 90%;
+}
+.thought-input-box h3 {
+  font-size: 1.1rem;
+  color: #7b1fa2;
+  margin-bottom: 12px;
+}
+.thought-input-box input {
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  padding: 10px 14px;
+  border: 3px solid #ce93d8;
+  border-radius: 12px;
+  width: 100%;
+  outline: none;
+  margin-bottom: 12px;
+}
+.thought-input-box input:focus { border-color: #7b1fa2; }
+.thought-input-box button {
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 10px 22px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  margin: 0 4px;
+}
+.thought-ok { background: #7b1fa2; color: #fff; }
+.thought-cancel { background: #e0e0e0; color: #555; }
+
+/* Flash effect */
+.flash-overlay {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+}
+.flash-overlay.active {
+  opacity: 1;
+  transition: opacity .05s;
+}
+
+/* Freeze frame border */
+.stage.frozen {
+  border-color: #ffd600;
+  border-width: 8px;
+  box-shadow: 0 0 30px rgba(255,214,0,.6), 0 6px 30px rgba(0,0,0,.2);
+}
+.frozen-label {
+  display: none;
+  position: absolute;
+  top: 10px; left: 50%;
+  transform: translateX(-50%);
+  background: #ffd600;
+  color: #4e342e;
+  font-weight: 800;
+  font-size: 1.1rem;
+  padding: 6px 20px;
+  border-radius: 10px;
+  z-index: 60;
+  box-shadow: 0 2px 10px rgba(0,0,0,.15);
+}
+.stage.frozen .frozen-label { display: block; }
+
+/* Stars for space */
+.star {
+  position: absolute;
+  width: 3px; height: 3px;
+  background: #fff;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Instructions */
+.instructions {
+  text-align: center;
+  padding: 6px 16px 16px;
+  font-size: 0.85rem;
+  color: #6d4c41;
+  font-weight: 600;
+  max-width: 700px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+/* Color picker for figures */
+.color-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.color-swatch {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  cursor: pointer;
+  transition: transform .1s;
+}
+.color-swatch:hover { transform: scale(1.2); }
+.color-swatch.active { border-color: #4e342e; }
+</style>
+</head>
+<body>
+
+<h1>Freeze Frame Builder</h1>
+<p class="subtitle">Create your own freeze frames!</p>
+
+<div class="controls">
+  <select class="scenario-select" id="scenarioSelect" title="Pick a scene">
+    <option value="park">At the Park</option>
+    <option value="sea">Under the Sea</option>
+    <option value="space">In Space</option>
+    <option value="castle">At the Castle</option>
+    <option value="jungle">In the Jungle</option>
+    <option value="circus">At the Circus</option>
+  </select>
+  <button class="btn-add" id="btnAdd">+ Add Figure</button>
+  <button class="btn-thought" id="btnThought">💭 Thought Bubble</button>
+  <button class="btn-freeze" id="btnFreeze">📸 Freeze!</button>
+  <button class="btn-clear" id="btnClear">🗑 Clear Stage</button>
+</div>
+
+<div class="color-row" id="colorRow"></div>
+
+<div class="stage-wrapper">
+  <div class="stage" id="stage" data-scene="park">
+    <div class="stage-floor"></div>
+    <div class="frozen-label">⭐ FREEZE FRAME ⭐</div>
+  </div>
+</div>
+
+<div class="flash-overlay" id="flashOverlay"></div>
+
+<div class="thought-input-overlay" id="thoughtOverlay">
+  <div class="thought-input-box">
+    <h3>What is this character thinking?</h3>
+    <input type="text" id="thoughtInput" maxlength="60" placeholder="Type a thought...">
+    <div>
+      <button class="thought-ok" id="thoughtOk">OK</button>
+      <button class="thought-cancel" id="thoughtCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<p class="instructions">
+  Pick a scene, then add stick figures to the stage. <strong>Drag</strong> figures to move them.
+  <strong>Click</strong> a figure to change its pose. Use <strong>Thought Bubble</strong> mode then click a figure to add what they're thinking. Press <strong>Freeze!</strong> to capture your tableau!
+</p>
+
+<script>
+const stage = document.getElementById('stage');
+const scenarioSelect = document.getElementById('scenarioSelect');
+const btnAdd = document.getElementById('btnAdd');
+const btnThought = document.getElementById('btnThought');
+const btnFreeze = document.getElementById('btnFreeze');
+const btnClear = document.getElementById('btnClear');
+const flashOverlay = document.getElementById('flashOverlay');
+const thoughtOverlay = document.getElementById('thoughtOverlay');
+const thoughtInput = document.getElementById('thoughtInput');
+const thoughtOk = document.getElementById('thoughtOk');
+const thoughtCancel = document.getElementById('thoughtCancel');
+const colorRow = document.getElementById('colorRow');
+
+const COLORS = ['#e53935','#1e88e5','#43a047','#fb8c00','#8e24aa','#00acc1','#f06292','#6d4c41'];
+let selectedColor = COLORS[0];
+let thoughtMode = false;
+let thoughtTarget = null;
+let figureIdCounter = 0;
+
+// Color swatches
+COLORS.forEach((c, i) => {
+  const s = document.createElement('div');
+  s.className = 'color-swatch' + (i === 0 ? ' active' : '');
+  s.style.background = c;
+  s.addEventListener('click', () => {
+    document.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('active'));
+    s.classList.add('active');
+    selectedColor = c;
+  });
+  colorRow.appendChild(s);
+});
+
+// Poses: each is an SVG path description for a stick figure
+const POSES = [
+  // 0: standing
+  (color) => `<svg viewBox="0 0 70 110" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="35" cy="14" r="12" fill="${color}" stroke="#333" stroke-width="2"/>
+    <line x1="35" y1="26" x2="35" y2="65" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="38" x2="15" y2="55" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="38" x2="55" y2="55" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="65" x2="20" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="65" x2="50" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="30" cy="11" r="2" fill="#fff"/><circle cx="40" cy="11" r="2" fill="#fff"/>
+    <circle cx="30" cy="11" r="1" fill="#333"/><circle cx="40" cy="11" r="1" fill="#333"/>
+    <path d="M29 19 Q35 23 41 19" stroke="#333" stroke-width="1.5" fill="none"/>
+  </svg>`,
+  // 1: arms up (cheering)
+  (color) => `<svg viewBox="0 0 70 110" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="35" cy="14" r="12" fill="${color}" stroke="#333" stroke-width="2"/>
+    <line x1="35" y1="26" x2="35" y2="65" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="38" x2="12" y2="20" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="38" x2="58" y2="20" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="65" x2="20" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="65" x2="50" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="30" cy="11" r="2" fill="#fff"/><circle cx="40" cy="11" r="2" fill="#fff"/>
+    <circle cx="30" cy="11" r="1" fill="#333"/><circle cx="40" cy="11" r="1" fill="#333"/>
+    <ellipse cx="35" cy="19" rx="5" ry="3" fill="#333" opacity=".15"/>
+    <path d="M28 18 Q35 24 42 18" stroke="#333" stroke-width="1.5" fill="none"/>
+  </svg>`,
+  // 2: crouching
+  (color) => `<svg viewBox="0 0 70 110" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="35" cy="40" r="12" fill="${color}" stroke="#333" stroke-width="2"/>
+    <line x1="35" y1="52" x2="35" y2="75" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="60" x2="18" y2="68" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="60" x2="52" y2="68" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="75" x2="18" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="75" x2="52" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="30" cy="37" r="2" fill="#fff"/><circle cx="40" cy="37" r="2" fill="#fff"/>
+    <circle cx="30" cy="37" r="1" fill="#333"/><circle cx="40" cy="37" r="1" fill="#333"/>
+    <path d="M30 45 Q35 48 40 45" stroke="#333" stroke-width="1.5" fill="none"/>
+  </svg>`,
+  // 3: pointing right
+  (color) => `<svg viewBox="0 0 70 110" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="35" cy="14" r="12" fill="${color}" stroke="#333" stroke-width="2"/>
+    <line x1="35" y1="26" x2="35" y2="65" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="38" x2="15" y2="55" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="38" x2="65" y2="38" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <polygon points="65,34 65,42 69,38" fill="${color}"/>
+    <line x1="35" y1="65" x2="20" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="65" x2="50" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="30" cy="11" r="2" fill="#fff"/><circle cx="40" cy="11" r="2" fill="#fff"/>
+    <circle cx="30" cy="11" r="1" fill="#333"/><circle cx="40" cy="11" r="1" fill="#333"/>
+    <path d="M29 19 Q35 23 41 19" stroke="#333" stroke-width="1.5" fill="none"/>
+  </svg>`,
+  // 4: waving
+  (color) => `<svg viewBox="0 0 70 110" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="35" cy="14" r="12" fill="${color}" stroke="#333" stroke-width="2"/>
+    <line x1="35" y1="26" x2="35" y2="65" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="38" x2="15" y2="55" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="38" x2="58" y2="25" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="58" y1="25" x2="62" y2="12" stroke="${color}" stroke-width="3" stroke-linecap="round"/>
+    <line x1="35" y1="65" x2="20" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="65" x2="50" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="30" cy="11" r="2" fill="#fff"/><circle cx="40" cy="11" r="2" fill="#fff"/>
+    <circle cx="30" cy="11" r="1" fill="#333"/><circle cx="40" cy="11" r="1" fill="#333"/>
+    <path d="M28 18 Q35 24 42 18" stroke="#333" stroke-width="1.5" fill="none"/>
+  </svg>`,
+  // 5: jumping (legs apart, arms out)
+  (color) => `<svg viewBox="0 0 70 110" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="35" cy="10" r="12" fill="${color}" stroke="#333" stroke-width="2"/>
+    <line x1="35" y1="22" x2="35" y2="55" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="32" x2="8" y2="28" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="32" x2="62" y2="28" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="55" x2="12" y2="85" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="55" x2="58" y2="85" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="30" cy="7" r="2" fill="#fff"/><circle cx="40" cy="7" r="2" fill="#fff"/>
+    <circle cx="30" cy="7" r="1" fill="#333"/><circle cx="40" cy="7" r="1" fill="#333"/>
+    <path d="M28 14 Q35 20 42 14" stroke="#333" stroke-width="1.5" fill="none"/>
+  </svg>`,
+  // 6: sitting
+  (color) => `<svg viewBox="0 0 70 110" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="35" cy="25" r="12" fill="${color}" stroke="#333" stroke-width="2"/>
+    <line x1="35" y1="37" x2="35" y2="65" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="47" x2="18" y2="58" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="47" x2="52" y2="58" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="65" x2="55" y2="65" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="55" y1="65" x2="55" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="65" x2="15" y2="65" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="15" y1="65" x2="15" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="30" cy="22" r="2" fill="#fff"/><circle cx="40" cy="22" r="2" fill="#fff"/>
+    <circle cx="30" cy="22" r="1" fill="#333"/><circle cx="40" cy="22" r="1" fill="#333"/>
+    <path d="M29 30 Q35 34 41 30" stroke="#333" stroke-width="1.5" fill="none"/>
+  </svg>`,
+  // 7: superhero (one arm up, one on hip)
+  (color) => `<svg viewBox="0 0 70 110" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="35" cy="14" r="12" fill="${color}" stroke="#333" stroke-width="2"/>
+    <line x1="35" y1="26" x2="35" y2="65" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="38" x2="20" y2="55" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="20" y1="55" x2="25" y2="60" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="38" x2="50" y2="10" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="65" x2="22" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="35" y1="65" x2="48" y2="95" stroke="${color}" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="30" cy="11" r="2" fill="#fff"/><circle cx="40" cy="11" r="2" fill="#fff"/>
+    <circle cx="30" cy="11" r="1" fill="#333"/><circle cx="40" cy="11" r="1" fill="#333"/>
+    <path d="M29 19 Q35 22 41 19" stroke="#333" stroke-width="1.5" fill="none"/>
+  </svg>`
+];
+
+const POSE_NAMES = ['Standing', 'Cheering', 'Crouching', 'Pointing', 'Waving', 'Jumping', 'Sitting', 'Superhero'];
+
+// Scene change
+scenarioSelect.addEventListener('change', () => {
+  stage.dataset.scene = scenarioSelect.value;
+  stage.classList.remove('frozen');
+  buildScenery();
+});
+
+function buildScenery() {
+  stage.querySelectorAll('.scenery').forEach(el => el.remove());
+  stage.querySelectorAll('.star').forEach(el => el.remove());
+  const scene = stage.dataset.scene;
+  if (scene === 'space') {
+    for (let i = 0; i < 40; i++) {
+      const s = document.createElement('div');
+      s.className = 'star';
+      s.style.left = Math.random() * 100 + '%';
+      s.style.top = Math.random() * 70 + '%';
+      s.style.width = (1 + Math.random() * 3) + 'px';
+      s.style.height = s.style.width;
+      s.style.opacity = 0.4 + Math.random() * 0.6;
+      stage.appendChild(s);
+    }
+  }
+}
+buildScenery();
+
+// Add figure
+btnAdd.addEventListener('click', () => {
+  const fig = document.createElement('div');
+  fig.className = 'figure';
+  fig.dataset.pose = '0';
+  fig.dataset.color = selectedColor;
+  fig.dataset.id = figureIdCounter++;
+  fig.innerHTML = POSES[0](selectedColor);
+  fig.title = 'Click to change pose | Drag to move';
+  // Random position on lower portion of stage
+  const stageRect = stage.getBoundingClientRect();
+  const leftPct = 10 + Math.random() * 60;
+  const topPct = 30 + Math.random() * 35;
+  fig.style.left = leftPct + '%';
+  fig.style.top = topPct + '%';
+  stage.appendChild(fig);
+  stage.classList.remove('frozen');
+  setupFigureDrag(fig);
+  setupFigureClick(fig);
+});
+
+function setupFigureClick(fig) {
+  fig.addEventListener('click', (e) => {
+    if (fig._dragged) { fig._dragged = false; return; }
+    if (thoughtMode) {
+      thoughtTarget = fig;
+      thoughtInput.value = '';
+      thoughtOverlay.classList.add('active');
+      thoughtInput.focus();
+      return;
+    }
+    // Cycle pose
+    let pose = parseInt(fig.dataset.pose);
+    pose = (pose + 1) % POSES.length;
+    fig.dataset.pose = pose;
+    fig.innerHTML = POSES[pose](fig.dataset.color);
+    stage.classList.remove('frozen');
+  });
+}
+
+function setupFigureDrag(fig) {
+  let startX, startY, origLeft, origTop, hasMoved;
+
+  function onStart(e) {
+    e.preventDefault();
+    const ev = e.touches ? e.touches[0] : e;
+    const stageRect = stage.getBoundingClientRect();
+    startX = ev.clientX;
+    startY = ev.clientY;
+    origLeft = fig.offsetLeft;
+    origTop = fig.offsetTop;
+    hasMoved = false;
+    fig.classList.add('dragging');
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+  }
+
+  function onMove(e) {
+    e.preventDefault();
+    const ev = e.touches ? e.touches[0] : e;
+    const dx = ev.clientX - startX;
+    const dy = ev.clientY - startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
+    const stageRect = stage.getBoundingClientRect();
+    let newLeft = origLeft + dx;
+    let newTop = origTop + dy;
+    newLeft = Math.max(0, Math.min(stageRect.width - fig.offsetWidth, newLeft));
+    newTop = Math.max(0, Math.min(stageRect.height - fig.offsetHeight, newTop));
+    fig.style.left = newLeft + 'px';
+    fig.style.top = newTop + 'px';
+  }
+
+  function onEnd() {
+    fig.classList.remove('dragging');
+    fig._dragged = hasMoved;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onEnd);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onEnd);
+    stage.classList.remove('frozen');
+  }
+
+  fig.addEventListener('mousedown', onStart);
+  fig.addEventListener('touchstart', onStart, { passive: false });
+}
+
+// Thought bubble mode
+btnThought.addEventListener('click', () => {
+  thoughtMode = !thoughtMode;
+  btnThought.style.outline = thoughtMode ? '3px solid #4a148c' : 'none';
+  btnThought.style.outlineOffset = '2px';
+  stage.style.cursor = thoughtMode ? 'crosshair' : '';
+});
+
+thoughtOk.addEventListener('click', () => {
+  if (thoughtTarget && thoughtInput.value.trim()) {
+    addThoughtBubble(thoughtTarget, thoughtInput.value.trim());
+  }
+  closeThoughtOverlay();
+});
+thoughtCancel.addEventListener('click', closeThoughtOverlay);
+thoughtInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') thoughtOk.click();
+  if (e.key === 'Escape') thoughtCancel.click();
+});
+
+function closeThoughtOverlay() {
+  thoughtOverlay.classList.remove('active');
+  thoughtTarget = null;
+  thoughtMode = false;
+  btnThought.style.outline = 'none';
+  stage.style.cursor = '';
+}
+
+function addThoughtBubble(fig, text) {
+  // Remove existing bubble for this figure
+  const existingId = 'bubble-' + fig.dataset.id;
+  const existing = document.getElementById(existingId);
+  if (existing) existing.remove();
+
+  const bubble = document.createElement('div');
+  bubble.className = 'thought-bubble';
+  bubble.id = existingId;
+  bubble.textContent = text;
+  bubble.style.left = (fig.offsetLeft + 10) + 'px';
+  bubble.style.top = (fig.offsetTop - 50) + 'px';
+  bubble.title = 'Click to remove';
+  bubble.addEventListener('click', () => bubble.remove());
+  stage.appendChild(bubble);
+}
+
+// Freeze
+btnFreeze.addEventListener('click', () => {
+  flashOverlay.classList.add('active');
+  setTimeout(() => flashOverlay.classList.remove('active'), 200);
+  setTimeout(() => stage.classList.add('frozen'), 220);
+  // Camera shutter sound emulation via small vibration
+});
+
+// Clear
+btnClear.addEventListener('click', () => {
+  stage.querySelectorAll('.figure, .thought-bubble').forEach(el => el.remove());
+  stage.classList.remove('frozen');
+});
+
+</script>
+</body>
+</html>
