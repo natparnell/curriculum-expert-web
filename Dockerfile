@@ -21,8 +21,8 @@ COPY edu-apps-catalogue.json .
 COPY curriculum-expert.html .
 COPY admin.html .
 COPY feedback.html .
-COPY dynamic-menu.html .
-COPY dynamic-apps/ ./dynamic-apps/
+COPY apps-portal.html .
+COPY apps/ ./apps/
 
 # Knowledge files for RAG indexing
 COPY knowledge/ /app/knowledge/

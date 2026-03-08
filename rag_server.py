@@ -16,7 +16,7 @@ from datetime import datetime
 
 import threading
 
-from flask import Flask, request, jsonify, send_file, send_from_directory, Response
+from flask import Flask, request, jsonify, send_file, send_from_directory, Response, redirect
 from flask_cors import CORS
 
 # Add rag module to path
@@ -137,8 +137,8 @@ def format_app_catalogue_for_prompt():
         lines.append(f"{key}: {entries}")
 
     apps_text = "\n".join(lines)
-    base_url = "https://west-edu-apps.web.app/apps/"
-    suggest_url = "https://west-edu-apps.web.app/?suggest=1"
+    base_url = "https://www.curriculumexpert.co.uk/apps/"
+    suggest_url = "https://www.curriculumexpert.co.uk/apps?suggest=1"
 
     return (
         "\n\n---\n"
@@ -1403,16 +1403,29 @@ def feedback_page():
     return send_file(APP_DIR / 'feedback.html')
 
 
+@app.route('/apps')
+@app.route('/apps/')
+def apps_portal():
+    """Serve the WeST educational apps portal."""
+    return send_file(APP_DIR / 'apps-portal.html')
+
+
+@app.route('/apps/<path:filename>')
+def serve_app(filename):
+    """Serve individual educational app files."""
+    return send_from_directory(APP_DIR / 'apps', filename)
+
+
 @app.route('/dynamic')
-def dynamic_menu():
-    """Serve the WeST educational apps menu."""
-    return send_file(APP_DIR / 'dynamic-menu.html')
+def dynamic_redirect():
+    """Backwards-compatible redirect to /apps."""
+    return redirect('/apps', code=301)
 
 
 @app.route('/dynamic/apps/<path:filename>')
-def dynamic_app(filename):
-    """Serve individual educational app files."""
-    return send_from_directory(APP_DIR / 'dynamic-apps', filename)
+def dynamic_app_redirect(filename):
+    """Backwards-compatible redirect to /apps/<file>."""
+    return redirect(f'/apps/{filename}', code=301)
 
 
 @app.route('/feedback', methods=['POST'])
