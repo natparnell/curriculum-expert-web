@@ -17,6 +17,7 @@ COPY rag_pipeline.py .
 COPY usage_tracker.py .
 COPY app_tracker.py .
 COPY curriculum-agent-config.json .
+COPY edu-apps-catalogue.json .
 COPY curriculum-expert.html .
 COPY admin.html .
 COPY feedback.html .

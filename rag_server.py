@@ -94,6 +94,66 @@ def load_config():
     return _config_cache
 
 
+# --- Educational Apps Catalogue (for system prompt injection) ---
+
+_APP_CATALOGUE_PATH = APP_DIR / "edu-apps-catalogue.json"
+_app_catalogue_cache = None
+_app_catalogue_mtime = 0
+
+def load_app_catalogue():
+    """Load the educational apps catalogue, cached in memory."""
+    global _app_catalogue_cache, _app_catalogue_mtime
+    try:
+        current_mtime = _APP_CATALOGUE_PATH.stat().st_mtime
+    except OSError:
+        return []
+    if _app_catalogue_cache is None or current_mtime != _app_catalogue_mtime:
+        with open(_APP_CATALOGUE_PATH) as f:
+            _app_catalogue_cache = json.load(f)
+        _app_catalogue_mtime = current_mtime
+    return _app_catalogue_cache
+
+
+def format_app_catalogue_for_prompt():
+    """Render the app catalogue as a compact text block for the system prompt."""
+    catalogue = load_app_catalogue()
+    if not catalogue:
+        return ""
+
+    # Group by subject then keystage
+    from collections import OrderedDict
+    grouped = OrderedDict()
+    for app in catalogue:
+        subj = app['subject']
+        ks = app.get('keystage', '')
+        key = f"{subj} {ks}".strip()
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append(app)
+
+    lines = []
+    for key, apps in grouped.items():
+        entries = " | ".join(f"{a['name']} ({a['file']}) — {a['desc']}" for a in apps)
+        lines.append(f"{key}: {entries}")
+
+    apps_text = "\n".join(lines)
+    base_url = "https://west-edu-apps.web.app/apps/"
+    suggest_url = "https://west-edu-apps.web.app/?suggest=1"
+
+    return (
+        "\n\n---\n"
+        "EDUCATIONAL APPS:\n"
+        f"You have access to a library of interactive educational web apps at {base_url}\n"
+        "When your answer discusses a topic that one of these apps directly supports, include a markdown link to it naturally within your response. "
+        "Do NOT force app links into every response — only include them when an app genuinely enhances the answer. Maximum 1-2 app links per response.\n\n"
+        f"Link format: [App Name]({base_url}{{filename}})\n"
+        f"Suggest format: [suggest this as a new app]({suggest_url}&title={{URL-encoded title}}&subject={{subject}}&desc={{URL-encoded description}})\n\n"
+        "If no existing app covers the topic but an interactive tool would genuinely help teachers or students with the specific concept being discussed, "
+        "you may suggest one using the suggest format. Keep suggestions rare and genuinely useful.\n\n"
+        f"AVAILABLE APPS:\n{apps_text}\n---"
+    )
+
+
 # --- Dave Status (cached reads of jobs.json, BUILD_ROTATION.md, watchdog.txt) ---
 
 _JOBS_PATH = Path("/home/node/.openclaw/cron/jobs.json")
@@ -785,17 +845,20 @@ def extract_text(filepath: Path) -> str:
         return filepath.read_text(encoding='utf-8', errors='replace')
 
 
-def build_system_prompt(config, subject_key):
+def build_system_prompt(config, subject_key, include_apps=False):
     """Build the full system prompt for a subject from config."""
     subject_config = config['subjects'][subject_key]
     thinker_lines = "\n".join(
         f"- {t['name']} ({t['focus']})" for t in subject_config['thinkers']
     )
-    return (
+    prompt = (
         config['base_system_prompt']
         .replace('{SUBJECT}', subject_config['name'])
         .replace('{THINKERS}', thinker_lines)
     )
+    if include_apps:
+        prompt += format_app_catalogue_for_prompt()
+    return prompt
 
 
 def _get_anthropic_key():
@@ -1049,8 +1112,8 @@ def ask():
         )
         rag_context = pipeline.format_for_prompt(chunks)
 
-        # 2. Build system prompt from config
-        system_prompt = build_system_prompt(config, subject)
+        # 2. Build system prompt from config (include apps for medium/extended only)
+        system_prompt = build_system_prompt(config, subject, include_apps=(length != 'short'))
 
         # 3. Build the user message with context
         user_message_parts = []
@@ -1186,7 +1249,7 @@ def ask_stream():
                 max_per_source=rag['max_per_source']
             )
             rag_context = pipeline.format_for_prompt(chunks)
-            system_prompt = build_system_prompt(config, subject)
+            system_prompt = build_system_prompt(config, subject, include_apps=(length != 'short'))
 
             # Build user message (same logic as /ask)
             user_message_parts = []
