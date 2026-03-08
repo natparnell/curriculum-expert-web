@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Measurement Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: #faf7f2;
+  color: #3d2e1f;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  user-select: none;
+}
+.title-bar {
+  width: 100%;
+  background: #2563eb;
+  color: #fff;
+  text-align: center;
+  padding: 16px 20px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(37,99,235,0.15);
+}
+.progress-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 20px;
+  font-size: 1rem;
+  font-weight: 600;
+  background: #f0edea;
+  width: 100%;
+}
+.progress-bar .score { color: #2563eb; }
+.instructions {
+  text-align: center;
+  padding: 18px 24px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #2563eb;
+  max-width: 680px;
+  line-height: 1.4;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(37,99,235,0.12);
+  border: 3px solid #2563eb;
+  margin: 12px auto;
+  width: 100%;
+}
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 20px 30px;
+  width: 100%;
+  max-width: 740px;
+}
+/* Mode selector */
+.mode-selector {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.mode-btn {
+  padding: 6px 14px;
+  border: 1.5px solid #c9c0b5;
+  background: #f5f0e8;
+  color: #6b5744;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 0.78rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.mode-btn.active {
+  background: #6b5744;
+  border-color: #6b5744;
+  color: #fff;
+}
+.mode-btn:hover:not(.active) {
+  border-color: #6b5744;
+  color: #3d2e1f;
+}
+/* Measurement area */
+.measure-area {
+  position: relative;
+  width: 100%;
+  max-width: 660px;
+  min-height: 260px;
+  background: #fff;
+  border-radius: 16px;
+  border: 2px solid #e0dbd4;
+  padding: 20px;
+  margin: 10px 0;
+  overflow: hidden;
+}
+/* Objects */
+.object-row {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  margin-bottom: 20px;
+}
+.obj-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.obj-label {
+  font-weight: 700;
+  font-size: 0.95rem;
+  min-width: 70px;
+  text-align: right;
+}
+.obj-visual {
+  position: relative;
+  height: 30px;
+  border-radius: 6px;
+  transition: width 0.5s ease;
+}
+/* Object styles */
+.pencil {
+  background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%);
+  border: 2px solid #b45309;
+  border-radius: 4px 10px 10px 4px;
+  position: relative;
+}
+.pencil::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 4px;
+  width: 0; height: 0;
+  border-top: 11px solid transparent;
+  border-bottom: 11px solid transparent;
+  border-right: 14px solid #92400e;
+}
+.pencil::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 0;
+  width: 14px; height: 100%;
+  background: #fde68a;
+  border-radius: 0 10px 10px 0;
+  border-left: 2px solid #b45309;
+}
+.worm {
+  background: linear-gradient(180deg, #86efac 0%, #22c55e 100%);
+  border: 2px solid #15803d;
+  border-radius: 14px;
+  position: relative;
+}
+.worm::after {
+  content: '';
+  position: absolute;
+  right: 2px; top: 6px;
+  width: 6px; height: 6px;
+  background: #3d2e1f;
+  border-radius: 50%;
+}
+.ribbon {
+  background: linear-gradient(180deg, #f9a8d4 0%, #ec4899 100%);
+  border: 2px solid #be185d;
+  border-radius: 3px;
+  position: relative;
+}
+.ribbon::after {
+  content: '';
+  position: absolute;
+  right: -8px; top: 2px;
+  width: 0; height: 0;
+  border-top: 13px solid #ec4899;
+  border-bottom: 13px solid #ec4899;
+  border-right: 10px solid transparent;
+}
+.stick {
+  background: linear-gradient(180deg, #d4a574 0%, #a0845c 100%);
+  border: 2px solid #78603c;
+  border-radius: 3px;
+}
+/* Ruler */
+.ruler-container {
+  position: relative;
+  margin-top: 10px;
+  cursor: grab;
+}
+.ruler-container.dragging { cursor: grabbing; }
+.ruler {
+  position: relative;
+  height: 48px;
+  background: linear-gradient(180deg, #fefce8 0%, #fef9c3 100%);
+  border: 2px solid #a16207;
+  border-radius: 4px;
+  display: flex;
+  align-items: flex-end;
+}
+.ruler-tick {
+  position: absolute;
+  bottom: 0;
+  width: 2px;
+  background: #3d2e1f;
+}
+.ruler-tick.major { height: 20px; }
+.ruler-tick.minor { height: 10px; background: #8b7355; }
+.ruler-label {
+  position: absolute;
+  top: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #3d2e1f;
+  transform: translateX(-50%);
+}
+/* Options */
+.options {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 12px 0;
+}
+.opt-btn {
+  padding: 12px 22px;
+  border: 3px solid #d4cfc8;
+  background: #fff;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 1.1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s;
+  min-width: 80px;
+}
+.opt-btn:hover { border-color: #2563eb; background: #eef4ff; }
+.opt-btn.correct {
+  border-color: #16a34a;
+  background: #dcfce7;
+  animation: pop 0.4s;
+}
+.opt-btn.wrong {
+  border-color: #dc2626;
+  background: #fee2e2;
+  animation: shake 0.4s;
+}
+/* Balance scale */
+.balance-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 10px 0;
+}
+.balance-base {
+  width: 20px;
+  height: 60px;
+  background: #78603c;
+  border-radius: 4px;
+  position: relative;
+}
+.balance-beam {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  height: 8px;
+  background: #a0845c;
+  border-radius: 4px;
+  transform-origin: center center;
+  transition: transform 0.6s ease;
+}
+.balance-fulcrum {
+  width: 24px;
+  height: 24px;
+  background: #b45309;
+  border-radius: 50%;
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+.scale-wrapper {
+  position: relative;
+  width: 340px;
+  height: 180px;
+  margin: 0 auto;
+}
+.balance-arm {
+  position: absolute;
+  top: 40px;
+  width: 320px;
+  left: 10px;
+  height: 6px;
+  background: #a0845c;
+  border-radius: 4px;
+  transform-origin: 50% 50%;
+  transition: transform 0.6s ease;
+}
+.pan {
+  position: absolute;
+  width: 100px;
+  min-height: 60px;
+  border: 3px solid #a0845c;
+  border-radius: 0 0 12px 12px;
+  background: #fef9c3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px;
+  transition: top 0.6s ease;
+}
+.pan-left { left: 10px; }
+.pan-right { right: 10px; }
+.pan-rope {
+  position: absolute;
+  width: 2px;
+  background: #78603c;
+  transition: height 0.6s ease;
+}
+.pan-rope-left { left: 58px; }
+.pan-rope-right { right: 58px; }
+.weight-item {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.7rem;
+  color: #fff;
+  cursor: grab;
+  transition: transform 0.2s;
+}
+.weight-item:hover { transform: scale(1.1); }
+.weight-item.apple { background: #dc2626; }
+.weight-item.banana { background: #eab308; color: #3d2e1f; }
+.weight-item.book { background: #2563eb; }
+.weight-item.ball { background: #7c3aed; border-radius: 50%; }
+.weight-item.brick { background: #b45309; border-radius: 4px; }
+.draggable-items {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 10px 0;
+  padding: 10px;
+  background: #f0edea;
+  border-radius: 12px;
+}
+/* Feedback */
+.feedback {
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: center;
+  min-height: 32px;
+  margin: 8px 0;
+}
+.feedback.success { color: #16a34a; }
+.feedback.error { color: #dc2626; }
+.feedback.info { color: #2563eb; }
+.action-btn {
+  padding: 12px 28px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background 0.2s;
+}
+.action-btn:hover { background: #1d4ed8; }
+.action-btn.secondary {
+  background: #fff;
+  color: #2563eb;
+  border: 2px solid #2563eb;
+}
+.action-btn.secondary:hover { background: #eef4ff; }
+.measurement-label {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #2563eb;
+  text-align: center;
+  margin: 6px 0;
+}
+.btn-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+/* Animations */
+@keyframes pop {
+  0% { transform: scale(1); } 50% { transform: scale(1.12); } 100% { transform: scale(1); }
+}
+@keyframes shake {
+  0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.slide-in { animation: slideIn 0.4s ease-out; }
+@media (max-width: 500px) {
+  .title-bar { font-size: 1.2rem; padding: 12px; }
+  .measure-area { padding: 14px; }
+  .balance-arm { width: 240px; }
+  .pan { width: 80px; }
+  .scale-wrapper { width: 260px; }
+}
+</style>
+</head>
+<body>
+<div class="title-bar">Measurement Explorer</div>
+<div class="progress-bar">
+  <span class="score" id="scoreDisplay">Score: 0</span>
+  <span id="levelDisplay" style="color:#3d2e1f;font-weight:600;">Level: 1</span>
+</div>
+<div class="main-area" id="mainArea">
+  <div class="mode-selector" id="modeSelector">
+    <button class="mode-btn" data-mode="compare" onclick="setMode('compare')">Compare Lengths</button>
+    <button class="mode-btn" data-mode="measure" onclick="setMode('measure')">Measure with Ruler</button>
+    <button class="mode-btn" data-mode="weight" onclick="setMode('weight')">Balance Scale</button>
+  </div>
+  <div class="instructions" id="instructions">Choose a mode to start measuring!</div>
+  <div id="gameContent"></div>
+</div>
+
+<script>
+const OBJ_TYPES = [
+  { name: 'Pencil', cls: 'pencil' },
+  { name: 'Worm', cls: 'worm' },
+  { name: 'Ribbon', cls: 'ribbon' },
+  { name: 'Stick', cls: 'stick' },
+];
+
+const WEIGHT_ITEMS = [
+  { name: 'Apple', cls: 'apple', w: 1, emoji: '' },
+  { name: 'Banana', cls: 'banana', w: 2, emoji: '' },
+  { name: 'Book', cls: 'book', w: 3, emoji: '' },
+  { name: 'Ball', cls: 'ball', w: 1, emoji: '' },
+  { name: 'Brick', cls: 'brick', w: 4, emoji: '' },
+];
+
+let state = {
+  mode: null,
+  score: 0,
+  level: 1,
+  questionsAnswered: 0,
+  answered: false,
+  correctAnswer: null,
+  rulerOffsetX: 0,
+  dragging: false,
+  leftPanItems: [],
+  rightPanItems: [],
+};
+
+const PX_PER_CM = 40;
+const RULER_CM = 15;
+
+function pickRandom(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+function randInt(min, max) { return Math.floor(Math.random()*(max-min+1))+min; }
+function shuffle(arr) {
+  const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a;
+}
+
+function setMode(mode) {
+  state.mode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  newQuestion();
+}
+
+function updateUI() {
+  document.getElementById('scoreDisplay').textContent = `Score: ${state.score}`;
+  document.getElementById('levelDisplay').textContent = `Level: ${state.level}`;
+}
+
+function checkLevel() {
+  if (state.questionsAnswered > 0 && state.questionsAnswered % 5 === 0 && state.level < 5) state.level++;
+}
+
+function newQuestion() {
+  state.answered = false;
+  const el = document.getElementById('gameContent');
+  if (state.mode === 'compare') setupCompare(el);
+  else if (state.mode === 'measure') setupMeasure(el);
+  else if (state.mode === 'weight') setupWeight(el);
+  updateUI();
+}
+
+function objHTML(type, lengthCm) {
+  const w = lengthCm * PX_PER_CM;
+  return `<div class="obj-visual ${type.cls}" style="width:${w}px;"></div>`;
+}
+
+function rulerHTML(widthCm) {
+  const totalW = widthCm * PX_PER_CM;
+  let ticks = '';
+  for (let i = 0; i <= widthCm; i++) {
+    const x = i * PX_PER_CM;
+    ticks += `<div class="ruler-tick major" style="left:${x}px;"></div>`;
+    ticks += `<div class="ruler-label" style="left:${x}px;">${i}</div>`;
+    if (i < widthCm) {
+      const half = x + PX_PER_CM / 2;
+      ticks += `<div class="ruler-tick minor" style="left:${half}px;"></div>`;
+    }
+  }
+  return `<div class="ruler" style="width:${totalW + 4}px;">${ticks}</div>`;
+}
+
+/* COMPARE MODE */
+function setupCompare(el) {
+  const t1 = pickRandom(OBJ_TYPES);
+  let t2 = pickRandom(OBJ_TYPES);
+  const len1 = randInt(2, 12);
+  let len2 = randInt(2, 12);
+  while (len2 === len1) len2 = randInt(2, 12);
+  const longer = len1 > len2 ? t1.name : t2.name;
+  const shorter = len1 < len2 ? t1.name : t2.name;
+  const askLonger = Math.random() > 0.5;
+  const question = askLonger ? 'Which is longer?' : 'Which is shorter?';
+  const correct = askLonger ? longer : shorter;
+
+  document.getElementById('instructions').textContent = question;
+  el.innerHTML = `
+    <div class="measure-area slide-in">
+      <div class="object-row">
+        <div class="obj-wrapper">
+          <span class="obj-label">${t1.name}</span>
+          ${objHTML(t1, len1)}
+        </div>
+        <div class="obj-wrapper">
+          <span class="obj-label">${t2.name}</span>
+          ${objHTML(t2, len2)}
+        </div>
+      </div>
+    </div>
+    <div class="options">
+      <button class="opt-btn" data-val="${t1.name}" onclick="checkCompare(this,'${t1.name}','${correct}')">${t1.name}</button>
+      <button class="opt-btn" data-val="${t2.name}" onclick="checkCompare(this,'${t2.name}','${correct}')">${t2.name}</button>
+    </div>
+    <div class="feedback" id="feedback"></div>
+    <button class="action-btn secondary" onclick="newQuestion()">New Question</button>
+  `;
+}
+
+window.checkCompare = function(btn, val, correct) {
+  if (state.answered) return;
+  state.answered = true;
+  const fb = document.getElementById('feedback');
+  if (val === correct) {
+    btn.classList.add('correct');
+    fb.className = 'feedback success';
+    fb.textContent = `Correct! The ${correct} is the right answer!`;
+    state.score++;
+  } else {
+    btn.classList.add('wrong');
+    document.querySelector(`.opt-btn[data-val="${correct}"]`).classList.add('correct');
+    fb.className = 'feedback error';
+    fb.textContent = `Not quite. The ${correct} was the answer.`;
+  }
+  state.questionsAnswered++;
+  checkLevel();
+  updateUI();
+};
+
+/* MEASURE MODE */
+function setupMeasure(el) {
+  const type = pickRandom(OBJ_TYPES);
+  const len = randInt(2, 10);
+  state.correctAnswer = len;
+  state.rulerOffsetX = 0;
+
+  const maxOpt = Math.min(len + 3, 14);
+  const minOpt = Math.max(len - 3, 1);
+  let opts = [len];
+  while (opts.length < 4) {
+    const v = randInt(minOpt, maxOpt);
+    if (!opts.includes(v)) opts.push(v);
+  }
+  opts = shuffle(opts);
+
+  document.getElementById('instructions').textContent = `How long is this ${type.name.toLowerCase()}? Drag the ruler to measure it in cm.`;
+  el.innerHTML = `
+    <div class="measure-area slide-in" id="measureBox">
+      <div class="object-row" style="margin-bottom:30px;">
+        <div class="obj-wrapper">
+          <span class="obj-label">${type.name}</span>
+          ${objHTML(type, len)}
+        </div>
+      </div>
+      <div class="ruler-container" id="rulerContainer" style="position:relative;left:0px;">
+        ${rulerHTML(RULER_CM)}
+        <div style="text-align:center;font-size:0.8rem;color:#8b7355;margin-top:4px;">Drag the ruler left or right</div>
+      </div>
+    </div>
+    <div class="measurement-label" id="measureLabel">Line up the ruler to measure!</div>
+    <div class="options">
+      ${opts.map(o => `<button class="opt-btn" data-val="${o}" onclick="checkMeasure(this,${o})">${o} cm</button>`).join('')}
+    </div>
+    <div class="feedback" id="feedback"></div>
+    <button class="action-btn secondary" onclick="newQuestion()">New Question</button>
+  `;
+
+  // Ruler dragging
+  const rc = document.getElementById('rulerContainer');
+  let startX = 0, startLeft = 0;
+
+  function onDown(e) {
+    state.dragging = true;
+    rc.classList.add('dragging');
+    const evt = e.touches ? e.touches[0] : e;
+    startX = evt.clientX;
+    startLeft = parseInt(rc.style.left) || 0;
+    e.preventDefault();
+  }
+  function onMove(e) {
+    if (!state.dragging) return;
+    const evt = e.touches ? e.touches[0] : e;
+    const dx = evt.clientX - startX;
+    rc.style.left = (startLeft + dx) + 'px';
+    e.preventDefault();
+  }
+  function onUp() {
+    state.dragging = false;
+    rc.classList.remove('dragging');
+  }
+  rc.addEventListener('mousedown', onDown);
+  rc.addEventListener('touchstart', onDown, {passive:false});
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('touchmove', onMove, {passive:false});
+  document.addEventListener('mouseup', onUp);
+  document.addEventListener('touchend', onUp);
+}
+
+window.checkMeasure = function(btn, val) {
+  if (state.answered) return;
+  state.answered = true;
+  const fb = document.getElementById('feedback');
+  if (val === state.correctAnswer) {
+    btn.classList.add('correct');
+    fb.className = 'feedback success';
+    fb.textContent = `Correct! It is ${state.correctAnswer} cm long!`;
+    state.score++;
+  } else {
+    btn.classList.add('wrong');
+    document.querySelector(`.opt-btn[data-val="${state.correctAnswer}"]`).classList.add('correct');
+    fb.className = 'feedback error';
+    fb.textContent = `It was ${state.correctAnswer} cm long.`;
+  }
+  document.getElementById('measureLabel').textContent = `Answer: ${state.correctAnswer} cm`;
+  state.questionsAnswered++;
+  checkLevel();
+  updateUI();
+};
+
+/* WEIGHT / BALANCE MODE */
+function setupWeight(el) {
+  state.leftPanItems = [];
+  state.rightPanItems = [];
+
+  // Pick items for a question
+  const available = shuffle(WEIGHT_ITEMS).slice(0, 4);
+
+  document.getElementById('instructions').textContent = 'Drag items onto each pan to explore weight. Which side is heavier?';
+  el.innerHTML = `
+    <div class="draggable-items" id="itemTray">
+      ${available.map((it, i) => `
+        <div class="weight-item ${it.cls}" draggable="true" data-idx="${i}" data-name="${it.name}" data-weight="${it.w}"
+             ondragstart="onDragStart(event)" ontouchstart="onTouchDragStart(event, ${i})">
+          ${it.name}<br>${it.w}kg
+        </div>
+      `).join('')}
+    </div>
+    <div class="scale-wrapper" id="scaleWrapper">
+      <div style="position:absolute;left:50%;top:30px;transform:translateX(-50%);width:20px;height:70px;background:#78603c;border-radius:4px;"></div>
+      <div style="position:absolute;left:50%;top:22px;transform:translateX(-50%);width:24px;height:24px;background:#b45309;border-radius:50%;z-index:2;"></div>
+      <div class="balance-arm" id="balanceArm"></div>
+      <div class="pan-rope pan-rope-left" id="ropeLeft" style="left:58px;top:43px;height:40px;"></div>
+      <div class="pan-rope pan-rope-right" id="ropeRight" style="right:58px;top:43px;height:40px;"></div>
+      <div class="pan pan-left" id="panLeft" style="top:83px;"
+           ondragover="event.preventDefault()" ondrop="onDropPan(event,'left')"
+           ontouchend="onTouchDropPan(event,'left')">
+      </div>
+      <div class="pan pan-right" id="panRight" style="top:83px;"
+           ondragover="event.preventDefault()" ondrop="onDropPan(event,'right')"
+           ontouchend="onTouchDropPan(event,'right')">
+      </div>
+    </div>
+    <div class="feedback info" id="feedback">Drop items onto the pans!</div>
+    <div class="btn-row">
+      <button class="action-btn secondary" onclick="clearPans()">Clear Pans</button>
+      <button class="action-btn secondary" onclick="newQuestion()">New Items</button>
+    </div>
+  `;
+}
+
+let dragData = null;
+
+window.onDragStart = function(e) {
+  const el = e.target.closest('.weight-item');
+  dragData = {
+    name: el.dataset.name,
+    weight: parseInt(el.dataset.weight),
+    cls: el.className.replace('weight-item ','').split(' ')[0],
+  };
+  e.dataTransfer.setData('text/plain', '');
+};
+
+window.onDropPan = function(e, side) {
+  e.preventDefault();
+  if (!dragData) return;
+  addToPan(side, dragData);
+  dragData = null;
+};
+
+// Touch support
+let touchDragItem = null;
+window.onTouchDragStart = function(e, idx) {
+  const el = e.target.closest('.weight-item');
+  touchDragItem = {
+    name: el.dataset.name,
+    weight: parseInt(el.dataset.weight),
+    cls: el.className.replace('weight-item ','').split(' ')[0],
+  };
+};
+
+document.addEventListener('touchend', function(e) {
+  if (!touchDragItem) return;
+  const touch = e.changedTouches[0];
+  const leftPan = document.getElementById('panLeft');
+  const rightPan = document.getElementById('panRight');
+  if (!leftPan || !rightPan) { touchDragItem = null; return; }
+
+  const lr = leftPan.getBoundingClientRect();
+  const rr = rightPan.getBoundingClientRect();
+  const x = touch.clientX, y = touch.clientY;
+
+  if (x >= lr.left && x <= lr.right && y >= lr.top && y <= lr.bottom) {
+    addToPan('left', touchDragItem);
+  } else if (x >= rr.left && x <= rr.right && y >= rr.top && y <= rr.bottom) {
+    addToPan('right', touchDragItem);
+  }
+  touchDragItem = null;
+});
+
+function addToPan(side, item) {
+  if (side === 'left') state.leftPanItems.push(item);
+  else state.rightPanItems.push(item);
+  renderBalance();
+}
+
+window.clearPans = function() {
+  state.leftPanItems = [];
+  state.rightPanItems = [];
+  renderBalance();
+};
+
+function renderBalance() {
+  const leftW = state.leftPanItems.reduce((s,it) => s + it.weight, 0);
+  const rightW = state.rightPanItems.reduce((s,it) => s + it.weight, 0);
+
+  // Render pan contents
+  const leftPan = document.getElementById('panLeft');
+  const rightPan = document.getElementById('panRight');
+  if (!leftPan || !rightPan) return;
+
+  leftPan.innerHTML = state.leftPanItems.map(it =>
+    `<div class="weight-item ${it.cls}" style="width:30px;height:30px;font-size:0.55rem;cursor:default">${it.name}<br>${it.weight}kg</div>`
+  ).join('');
+  rightPan.innerHTML = state.rightPanItems.map(it =>
+    `<div class="weight-item ${it.cls}" style="width:30px;height:30px;font-size:0.55rem;cursor:default">${it.name}<br>${it.weight}kg</div>`
+  ).join('');
+
+  // Tilt beam
+  const diff = leftW - rightW;
+  const maxTilt = 12;
+  const tilt = Math.max(-maxTilt, Math.min(maxTilt, diff * 3));
+  const arm = document.getElementById('balanceArm');
+  arm.style.transform = `rotate(${tilt}deg)`;
+
+  // Adjust pan positions
+  const leftDrop = Math.max(0, tilt * 1.5);
+  const rightDrop = Math.max(0, -tilt * 1.5);
+  leftPan.style.top = (83 + leftDrop) + 'px';
+  rightPan.style.top = (83 + rightDrop) + 'px';
+
+  const ropeLeft = document.getElementById('ropeLeft');
+  const ropeRight = document.getElementById('ropeRight');
+  ropeLeft.style.height = (40 + leftDrop) + 'px';
+  ropeRight.style.height = (40 + rightDrop) + 'px';
+
+  // Feedback
+  const fb = document.getElementById('feedback');
+  if (leftW === 0 && rightW === 0) {
+    fb.className = 'feedback info';
+    fb.textContent = 'Drop items onto the pans!';
+  } else if (leftW > rightW) {
+    fb.className = 'feedback info';
+    fb.textContent = `Left pan is heavier! (${leftW} kg vs ${rightW} kg)`;
+  } else if (rightW > leftW) {
+    fb.className = 'feedback info';
+    fb.textContent = `Right pan is heavier! (${rightW} kg vs ${leftW} kg)`;
+  } else {
+    fb.className = 'feedback success';
+    fb.textContent = `Balanced! Both sides weigh ${leftW} kg!`;
+    state.score++;
+    updateUI();
+  }
+}
+</script>
+</body>
+</html>
