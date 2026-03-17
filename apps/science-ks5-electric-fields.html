@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electric Fields Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #0a0e17;
+    --panel: #111827;
+    --panel2: #1f2937;
+    --border: #374151;
+    --text: #e5e7eb;
+    --text2: #9ca3af;
+    --accent: #3b82f6;
+    --positive: #ef4444;
+    --positive-glow: rgba(239,68,68,0.3);
+    --negative: #3b82f6;
+    --negative-glow: rgba(59,130,246,0.3);
+    --field-line: rgba(99,102,241,0.5);
+    --equipotential: rgba(34,211,153,0.3);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+}
+
+#app {
+    display: grid;
+    grid-template-columns: 240px 1fr 240px;
+    grid-template-rows: 48px 1fr 32px;
+    height: 100vh;
+}
+
+header {
+    grid-column: 1/-1;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+}
+header h1 {
+    font-size: 1rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--positive), var(--negative));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    white-space: nowrap;
+}
+header .subtitle { font-size: 0.68rem; color: var(--text2); }
+.header-actions { margin-left: auto; display: flex; gap: 8px; }
+.btn {
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    background: var(--panel2);
+    color: var(--text);
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    transition: all 0.15s;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+/* Left panel - tools */
+#toolbox {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 12px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+#toolbox h2 {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text2);
+    margin-bottom: 2px;
+}
+
+.charge-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel2);
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.charge-btn:hover { border-color: var(--accent); transform: translateX(2px); }
+.charge-icon {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    flex-shrink: 0;
+}
+.charge-icon.pos { background: var(--positive-glow); color: var(--positive); border: 2px solid var(--positive); }
+.charge-icon.neg { background: var(--negative-glow); color: var(--negative); border: 2px solid var(--negative); }
+
+.slider-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.slider-group label {
+    font-size: 0.68rem;
+    color: var(--text2);
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+}
+.slider-group input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    height: 4px;
+}
+
+.toggle-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    color: var(--text2);
+}
+.toggle-row input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+}
+
+/* Canvas */
+#canvas-wrap {
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+    cursor: crosshair;
+}
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* Right panel */
+#readings {
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    padding: 12px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+#readings h2 {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text2);
+}
+.reading-card {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+}
+.reading-card .label { font-size: 0.65rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+.reading-card .value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    margin: 2px 0;
+}
+.reading-card .unit { font-size: 0.72rem; color: var(--text2); font-weight: 400; }
+
+.charge-list { display: flex; flex-direction: column; gap: 4px; }
+.charge-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: var(--bg);
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-family: 'JetBrains Mono', monospace;
+}
+.charge-item .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.charge-item .remove {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.charge-item .remove:hover { color: var(--positive); }
+
+#statusbar {
+    grid-column: 1/-1;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 0.65rem;
+    color: var(--text2);
+    gap: 16px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+@media (max-width: 800px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 48px 1fr auto; }
+    #toolbox, #readings { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+    <header>
+        <h1>Electric Fields Simulator</h1>
+        <span class="subtitle">A-Level Physics</span>
+        <div class="header-actions">
+            <button class="btn" id="clearAllBtn">Clear All</button>
+            <button class="btn" id="presetDipole">Dipole</button>
+            <button class="btn" id="presetQuad">Quadrupole</button>
+        </div>
+    </header>
+
+    <div id="toolbox">
+        <h2>Add Charges</h2>
+        <button class="charge-btn" id="addPos">
+            <span class="charge-icon pos">+</span>
+            <span>Positive Charge</span>
+        </button>
+        <button class="charge-btn" id="addNeg">
+            <span class="charge-icon neg">&minus;</span>
+            <span>Negative Charge</span>
+        </button>
+
+        <h2>Charge Magnitude</h2>
+        <div class="slider-group">
+            <label>Value: <span id="chargeVal">1.0</span> &#xB5;C</label>
+            <input type="range" id="chargeSlider" min="0.5" max="5" step="0.5" value="1">
+        </div>
+
+        <h2>Display Options</h2>
+        <div class="toggle-group">
+            <div class="toggle-row"><span>Field Lines</span><input type="checkbox" id="showLines" checked></div>
+            <div class="toggle-row"><span>Field Vectors</span><input type="checkbox" id="showVectors"></div>
+            <div class="toggle-row"><span>Equipotentials</span><input type="checkbox" id="showEquipotentials"></div>
+            <div class="toggle-row"><span>Force on Test Charge</span><input type="checkbox" id="showForce" checked></div>
+        </div>
+
+        <h2>Field Line Density</h2>
+        <div class="slider-group">
+            <label>Lines: <span id="densityVal">16</span></label>
+            <input type="range" id="densitySlider" min="8" max="32" step="4" value="16">
+        </div>
+    </div>
+
+    <div id="canvas-wrap">
+        <canvas id="fieldCanvas"></canvas>
+    </div>
+
+    <div id="readings">
+        <h2>At Cursor</h2>
+        <div class="reading-card">
+            <div class="label">Electric Field (E)</div>
+            <div class="value" id="eValue">0.00</div>
+            <div class="unit">N/C</div>
+        </div>
+        <div class="reading-card">
+            <div class="label">Potential (V)</div>
+            <div class="value" id="vValue">0.00</div>
+            <div class="unit">V</div>
+        </div>
+        <div class="reading-card">
+            <div class="label">Force on +1&#xB5;C</div>
+            <div class="value" id="fValue">0.00</div>
+            <div class="unit">N</div>
+        </div>
+
+        <h2>Charges</h2>
+        <div class="charge-list" id="chargeList"></div>
+    </div>
+
+    <div id="statusbar">
+        <span id="coordsLabel">x: 0, y: 0</span>
+        <span>k = 8.99 &#xD7; 10&#x2079; Nm&#xB2;/C&#xB2;</span>
+        <span id="chargeCount">Charges: 0</span>
+    </div>
+</div>
+
+<script>
+const K = 8.99e9; // Coulomb's constant
+const SCALE = 100; // pixels per metre
+const canvas = document.getElementById('fieldCanvas');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvas-wrap');
+
+let charges = [];
+let dragging = null;
+let dragOffset = { x: 0, y: 0 };
+let mouseX = 0, mouseY = 0;
+let addMode = null; // 'pos' or 'neg'
+let chargeMagnitude = 1e-6;
+
+function resize() {
+    canvas.width = wrap.clientWidth;
+    canvas.height = wrap.clientHeight;
+    draw();
+}
+window.addEventListener('resize', resize);
+setTimeout(resize, 50);
+
+// Sliders
+document.getElementById('chargeSlider').addEventListener('input', e => {
+    chargeMagnitude = parseFloat(e.target.value) * 1e-6;
+    document.getElementById('chargeVal').textContent = e.target.value;
+});
+document.getElementById('densitySlider').addEventListener('input', e => {
+    document.getElementById('densityVal').textContent = e.target.value;
+    draw();
+});
+
+// Toggle redraws
+['showLines','showVectors','showEquipotentials','showForce'].forEach(id => {
+    document.getElementById(id).addEventListener('change', draw);
+});
+
+// Add charge buttons
+document.getElementById('addPos').addEventListener('click', () => { addMode = 'pos'; wrap.style.cursor = 'copy'; });
+document.getElementById('addNeg').addEventListener('click', () => { addMode = 'neg'; wrap.style.cursor = 'copy'; });
+
+// Canvas interactions
+wrap.addEventListener('mousedown', e => {
+    const rect = wrap.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    if (addMode) {
+        const q = addMode === 'pos' ? chargeMagnitude : -chargeMagnitude;
+        charges.push({ x: mx, y: my, q });
+        addMode = null;
+        wrap.style.cursor = 'crosshair';
+        updateChargeList();
+        draw();
+        return;
+    }
+
+    // Check if clicking on a charge
+    for (let i = charges.length - 1; i >= 0; i--) {
+        const dx = mx - charges[i].x;
+        const dy = my - charges[i].y;
+        if (dx*dx + dy*dy < 400) {
+            dragging = i;
+            dragOffset.x = dx;
+            dragOffset.y = dy;
+            return;
+        }
+    }
+});
+
+wrap.addEventListener('mousemove', e => {
+    const rect = wrap.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+
+    if (dragging !== null) {
+        charges[dragging].x = mouseX - dragOffset.x;
+        charges[dragging].y = mouseY - dragOffset.y;
+    }
+
+    updateReadings();
+    draw();
+});
+
+wrap.addEventListener('mouseup', () => { dragging = null; });
+wrap.addEventListener('mouseleave', () => { dragging = null; });
+
+// Presets
+document.getElementById('clearAllBtn').addEventListener('click', () => {
+    charges = [];
+    updateChargeList();
+    draw();
+});
+
+document.getElementById('presetDipole').addEventListener('click', () => {
+    charges = [
+        { x: canvas.width/2 - 80, y: canvas.height/2, q: 1e-6 },
+        { x: canvas.width/2 + 80, y: canvas.height/2, q: -1e-6 }
+    ];
+    updateChargeList();
+    draw();
+});
+
+document.getElementById('presetQuad').addEventListener('click', () => {
+    const cx = canvas.width/2, cy = canvas.height/2;
+    charges = [
+        { x: cx-70, y: cy-70, q: 1e-6 },
+        { x: cx+70, y: cy-70, q: -1e-6 },
+        { x: cx-70, y: cy+70, q: -1e-6 },
+        { x: cx+70, y: cy+70, q: 1e-6 }
+    ];
+    updateChargeList();
+    draw();
+});
+
+function calcField(px, py) {
+    let Ex = 0, Ey = 0;
+    for (const c of charges) {
+        const dx = px - c.x;
+        const dy = py - c.y;
+        const r2 = dx*dx + dy*dy;
+        if (r2 < 100) continue; // avoid singularity
+        const r = Math.sqrt(r2);
+        const rM = r / SCALE;
+        const E = K * Math.abs(c.q) / (rM * rM);
+        const sign = c.q > 0 ? 1 : -1;
+        Ex += sign * E * (dx / r);
+        Ey += sign * E * (dy / r);
+    }
+    return { Ex, Ey };
+}
+
+function calcPotential(px, py) {
+    let V = 0;
+    for (const c of charges) {
+        const dx = px - c.x;
+        const dy = py - c.y;
+        const r = Math.sqrt(dx*dx + dy*dy);
+        if (r < 5) continue;
+        const rM = r / SCALE;
+        V += K * c.q / rM;
+    }
+    return V;
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw grid
+    ctx.strokeStyle = 'rgba(55,65,81,0.3)';
+    ctx.lineWidth = 0.5;
+    for (let x = 0; x < canvas.width; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    }
+
+    if (charges.length === 0) {
+        ctx.fillStyle = 'rgba(156,163,175,0.5)';
+        ctx.font = '600 14px "DM Sans"';
+        ctx.textAlign = 'center';
+        ctx.fillText('Click + or \u2212 then click here to place charges', canvas.width/2, canvas.height/2);
+        ctx.fillText('Or try a preset from the header', canvas.width/2, canvas.height/2 + 24);
+        return;
+    }
+
+    const showLines = document.getElementById('showLines').checked;
+    const showVectors = document.getElementById('showVectors').checked;
+    const showEquip = document.getElementById('showEquipotentials').checked;
+    const showForce = document.getElementById('showForce').checked;
+    const density = parseInt(document.getElementById('densitySlider').value);
+
+    // Equipotentials
+    if (showEquip) {
+        const step = 20;
+        for (let x = 0; x < canvas.width; x += step) {
+            for (let y = 0; y < canvas.height; y += step) {
+                const V = calcPotential(x, y);
+                const clamped = Math.max(-1e6, Math.min(1e6, V));
+                const norm = clamped / 1e6;
+                if (Math.abs(norm) > 0.001) {
+                    const alpha = Math.min(0.4, Math.abs(norm) * 2);
+                    ctx.fillStyle = norm > 0
+                        ? `rgba(239,68,68,${alpha})`
+                        : `rgba(59,130,246,${alpha})`;
+                    ctx.fillRect(x - step/2, y - step/2, step, step);
+                }
+            }
+        }
+    }
+
+    // Field lines (trace from positive charges)
+    if (showLines) {
+        ctx.lineWidth = 1.5;
+        for (const c of charges) {
+            if (c.q <= 0) continue;
+            for (let i = 0; i < density; i++) {
+                const angle = (2 * Math.PI * i) / density;
+                traceLine(c.x + 15 * Math.cos(angle), c.y + 15 * Math.sin(angle), 1);
+            }
+        }
+        // If only negative charges, trace inward
+        if (charges.every(c => c.q < 0)) {
+            for (const c of charges) {
+                for (let i = 0; i < density; i++) {
+                    const angle = (2 * Math.PI * i) / density;
+                    traceLine(c.x + 15 * Math.cos(angle), c.y + 15 * Math.sin(angle), -1);
+                }
+            }
+        }
+    }
+
+    // Field vectors
+    if (showVectors) {
+        ctx.strokeStyle = 'rgba(99,102,241,0.4)';
+        ctx.lineWidth = 1;
+        const spacing = 50;
+        for (let x = spacing; x < canvas.width; x += spacing) {
+            for (let y = spacing; y < canvas.height; y += spacing) {
+                const { Ex, Ey } = calcField(x, y);
+                const mag = Math.sqrt(Ex*Ex + Ey*Ey);
+                if (mag < 100) continue;
+                const len = Math.min(20, Math.log10(mag) * 4);
+                const nx = Ex/mag, ny = Ey/mag;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + nx*len, y + ny*len);
+                ctx.stroke();
+                // Arrowhead
+                const ax = x + nx*len, ay = y + ny*len;
+                ctx.beginPath();
+                ctx.moveTo(ax, ay);
+                ctx.lineTo(ax - nx*4 + ny*3, ay - ny*4 - nx*3);
+                ctx.lineTo(ax - nx*4 - ny*3, ay - ny*4 + nx*3);
+                ctx.fillStyle = 'rgba(99,102,241,0.5)';
+                ctx.fill();
+            }
+        }
+    }
+
+    // Force arrow at cursor
+    if (showForce && charges.length > 0) {
+        const { Ex, Ey } = calcField(mouseX, mouseY);
+        const mag = Math.sqrt(Ex*Ex + Ey*Ey);
+        if (mag > 10) {
+            const len = Math.min(60, Math.log10(mag) * 10);
+            const nx = Ex/mag, ny = Ey/mag;
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(mouseX, mouseY);
+            ctx.lineTo(mouseX + nx*len, mouseY + ny*len);
+            ctx.stroke();
+            // Arrowhead
+            const ax = mouseX + nx*len, ay = mouseY + ny*len;
+            ctx.beginPath();
+            ctx.moveTo(ax, ay);
+            ctx.lineTo(ax - nx*8 + ny*5, ay - ny*8 - nx*5);
+            ctx.lineTo(ax - nx*8 - ny*5, ay - ny*8 + nx*5);
+            ctx.fillStyle = '#fbbf24';
+            ctx.fill();
+        }
+    }
+
+    // Draw charges
+    for (const c of charges) {
+        const isPos = c.q > 0;
+        const colour = isPos ? '#ef4444' : '#3b82f6';
+        const glow = isPos ? 'rgba(239,68,68,0.25)' : 'rgba(59,130,246,0.25)';
+        const size = 12 + Math.abs(c.q) / 1e-6 * 3;
+
+        // Glow
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, size + 8, 0, Math.PI*2);
+        ctx.fillStyle = glow;
+        ctx.fill();
+
+        // Circle
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, size, 0, Math.PI*2);
+        ctx.fillStyle = colour;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Symbol
+        ctx.fillStyle = 'white';
+        ctx.font = `bold ${size}px "JetBrains Mono"`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isPos ? '+' : '\u2212', c.x, c.y);
+    }
+}
+
+function traceLine(startX, startY, direction) {
+    const steps = 300;
+    const stepSize = 4;
+
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+
+    let x = startX, y = startY;
+    const gradient = ctx.createLinearGradient(startX, startY, startX + 100, startY);
+    gradient.addColorStop(0, 'rgba(139,92,246,0.6)');
+    gradient.addColorStop(1, 'rgba(99,102,241,0.2)');
+    ctx.strokeStyle = gradient;
+
+    for (let i = 0; i < steps; i++) {
+        const { Ex, Ey } = calcField(x, y);
+        const mag = Math.sqrt(Ex*Ex + Ey*Ey);
+        if (mag < 10) break;
+
+        const nx = direction * Ex / mag;
+        const ny = direction * Ey / mag;
+        x += nx * stepSize;
+        y += ny * stepSize;
+
+        if (x < -20 || x > canvas.width+20 || y < -20 || y > canvas.height+20) break;
+
+        // Stop near negative charges
+        let nearCharge = false;
+        for (const c of charges) {
+            const dx = x - c.x;
+            const dy = y - c.y;
+            if (dx*dx + dy*dy < 200) { nearCharge = true; break; }
+        }
+        if (nearCharge) { ctx.lineTo(x, y); break; }
+
+        ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+}
+
+function updateReadings() {
+    if (charges.length === 0) return;
+    const { Ex, Ey } = calcField(mouseX, mouseY);
+    const E = Math.sqrt(Ex*Ex + Ey*Ey);
+    const V = calcPotential(mouseX, mouseY);
+    const F = E * 1e-6; // force on 1uC test charge
+
+    document.getElementById('eValue').textContent = E > 1e6 ? (E/1e6).toFixed(1) + 'M' : E > 1e3 ? (E/1e3).toFixed(1) + 'k' : E.toFixed(1);
+    document.getElementById('vValue').textContent = Math.abs(V) > 1e6 ? (V/1e6).toFixed(2) + 'M' : Math.abs(V) > 1e3 ? (V/1e3).toFixed(1) + 'k' : V.toFixed(1);
+    document.getElementById('fValue').textContent = F > 1 ? F.toFixed(2) : F > 0.001 ? (F*1e3).toFixed(1) + 'm' : (F*1e6).toFixed(1) + '\u00B5';
+
+    const xM = ((mouseX - canvas.width/2) / SCALE).toFixed(2);
+    const yM = (-(mouseY - canvas.height/2) / SCALE).toFixed(2);
+    document.getElementById('coordsLabel').textContent = `x: ${xM}m, y: ${yM}m`;
+    document.getElementById('chargeCount').textContent = `Charges: ${charges.length}`;
+}
+
+function updateChargeList() {
+    const list = document.getElementById('chargeList');
+    list.innerHTML = '';
+    charges.forEach((c, i) => {
+        const item = document.createElement('div');
+        item.className = 'charge-item';
+        const dotColor = c.q > 0 ? '#ef4444' : '#3b82f6';
+        const sign = c.q > 0 ? '+' : '\u2212';
+        const val = (Math.abs(c.q) * 1e6).toFixed(1);
+        item.innerHTML = `<span class="dot" style="background:${dotColor}"></span><span>${sign}${val}\u00B5C</span><button class="remove" title="Remove">\u00D7</button>`;
+        item.querySelector('.remove').addEventListener('click', () => {
+            charges.splice(i, 1);
+            updateChargeList();
+            draw();
+        });
+        list.appendChild(item);
+    });
+    document.getElementById('chargeCount').textContent = `Charges: ${charges.length}`;
+}
+
+resize();
+</script>
+</body>
+</html>

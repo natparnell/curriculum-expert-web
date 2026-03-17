@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carbon Cycle Modeller</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --accent: #22d3ee;
+    --atmos: #f59e0b;
+    --ocean: #3b82f6;
+    --land: #22c55e;
+    --fossil: #ef4444;
+    --flux: rgba(255,255,255,0.15);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+.topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.topbar h1{font-size:1rem;font-weight:700;color:var(--accent)}
+.topbar .tag{font-size:0.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);background:#0f172a;padding:3px 10px;border-radius:3px}
+.topbar .actions{margin-left:auto;display:flex;gap:6px}
+.btn{padding:5px 12px;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:5px;cursor:pointer;font-size:0.7rem;font-family:'DM Sans',sans-serif;font-weight:600;transition:all 0.15s}
+.btn:hover{border-color:var(--accent)}
+.btn.active{background:var(--accent);color:#0f172a;border-color:var(--accent)}
+
+.main{max-width:900px;margin:0 auto;padding:20px}
+
+/* Stores diagram */
+.diagram{position:relative;width:100%;aspect-ratio:16/9;background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px}
+
+.store{position:absolute;border-radius:10px;padding:12px;cursor:pointer;transition:all 0.3s;border:2px solid transparent;z-index:2}
+.store:hover{transform:scale(1.05);z-index:5}
+.store.active{border-color:white;box-shadow:0 0 20px rgba(255,255,255,0.15)}
+.store .s-icon{font-size:1.5rem;margin-bottom:2px}
+.store .s-name{font-size:0.72rem;font-weight:700}
+.store .s-value{font-family:'JetBrains Mono',monospace;font-size:0.95rem;font-weight:700;margin-top:2px}
+.store .s-unit{font-size:0.58rem;color:rgba(255,255,255,0.7)}
+
+.store.atmosphere{background:rgba(245,158,11,0.2);border-color:rgba(245,158,11,0.4);color:#fbbf24;top:5%;left:30%;width:40%}
+.store.ocean{background:rgba(59,130,246,0.2);border-color:rgba(59,130,246,0.4);color:#93c5fd;bottom:5%;left:5%;width:28%}
+.store.land{background:rgba(34,197,94,0.2);border-color:rgba(34,197,94,0.4);color:#86efac;bottom:5%;right:5%;width:28%}
+.store.fossil{background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.4);color:#fca5a5;bottom:5%;left:36%;width:28%}
+
+/* Flux arrows (CSS only) */
+.flux-arrow{position:absolute;z-index:1;font-size:0.55rem;font-weight:700;color:var(--text2);text-align:center;padding:4px 8px;background:rgba(15,23,42,0.8);border-radius:4px;border:1px solid var(--border);cursor:pointer;transition:all 0.2s}
+.flux-arrow:hover{background:rgba(34,211,238,0.1);border-color:var(--accent);color:var(--accent)}
+
+/* Sliders */
+.controls{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:20px}
+.controls h3{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:12px}
+.slider-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.slider-item{display:flex;flex-direction:column;gap:4px}
+.slider-item label{font-size:0.72rem;font-weight:600;color:var(--text2);display:flex;justify-content:space-between}
+.slider-item label span{color:var(--accent);font-family:'JetBrains Mono',monospace}
+.slider-item input[type="range"]{width:100%;accent-color:var(--accent);height:4px}
+
+/* Readings */
+.readings{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.reading{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center}
+.reading .r-label{font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text2)}
+.reading .r-value{font-family:'JetBrains Mono',monospace;font-size:1.2rem;font-weight:700;margin:2px 0}
+.reading .r-unit{font-size:0.65rem;color:var(--text2)}
+.reading.up .r-value{color:#ef4444}
+.reading.down .r-value{color:#22c55e}
+.reading.neutral .r-value{color:var(--accent)}
+
+/* Info */
+.info-panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+.info-panel h3{font-size:0.85rem;font-weight:700;margin-bottom:8px;color:var(--accent)}
+.info-panel p{font-size:0.82rem;color:var(--text2);line-height:1.6}
+.info-panel .highlight{color:var(--accent);font-weight:600}
+
+@media(max-width:600px){
+    .slider-grid{grid-template-columns:1fr}
+    .readings{grid-template-columns:1fr 1fr}
+    .store{padding:8px}
+    .store .s-icon{font-size:1.2rem}
+    .store .s-name{font-size:0.62rem}
+    .store .s-value{font-size:0.8rem}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <h1>Carbon Cycle Modeller</h1>
+    <span class="tag">A-Level Geography</span>
+    <div class="actions">
+        <button class="btn" id="resetBtn">Reset</button>
+        <button class="btn" id="scenarioBtn">Scenario: Business as Usual</button>
+    </div>
+</div>
+
+<div class="main">
+    <div class="diagram" id="diagram">
+        <div class="store atmosphere" data-store="atmosphere">
+            <div class="s-icon">&#x1F32B;&#xFE0F;</div>
+            <div class="s-name">Atmosphere</div>
+            <div class="s-value" id="atmosValue">830</div>
+            <div class="s-unit">GtC (CO&#x2082;)</div>
+        </div>
+        <div class="store ocean" data-store="ocean">
+            <div class="s-icon">&#x1F30A;</div>
+            <div class="s-name">Ocean</div>
+            <div class="s-value" id="oceanValue">38,000</div>
+            <div class="s-unit">GtC</div>
+        </div>
+        <div class="store fossil" data-store="fossil">
+            <div class="s-icon">&#x1F6E2;&#xFE0F;</div>
+            <div class="s-name">Fossil Fuels</div>
+            <div class="s-value" id="fossilValue">10,000</div>
+            <div class="s-unit">GtC</div>
+        </div>
+        <div class="store land" data-store="land">
+            <div class="s-icon">&#x1F333;</div>
+            <div class="s-name">Land (soil + biosphere)</div>
+            <div class="s-value" id="landValue">2,000</div>
+            <div class="s-unit">GtC</div>
+        </div>
+
+        <!-- Flux labels -->
+        <div class="flux-arrow" style="top:35%;left:20%;" title="Ocean absorbs CO2">&#x2193; Ocean uptake<br><span id="fluxOceanUp">2.5</span> GtC/yr</div>
+        <div class="flux-arrow" style="top:35%;right:20%;" title="Photosynthesis removes CO2">&#x2193; Photosynthesis<br><span id="fluxPhoto">3.0</span> GtC/yr</div>
+        <div class="flux-arrow" style="top:22%;left:10%;" title="Ocean releases CO2">&#x2191; Ocean release<br><span id="fluxOceanRel">2.3</span> GtC/yr</div>
+        <div class="flux-arrow" style="top:22%;right:8%;" title="Respiration and decomposition">&#x2191; Respiration<br><span id="fluxResp">2.5</span> GtC/yr</div>
+        <div class="flux-arrow" style="top:20%;left:42%;" title="Burning fossil fuels">&#x2191; Fossil fuel burning<br><span id="fluxFossil">9.5</span> GtC/yr</div>
+        <div class="flux-arrow" style="top:55%;left:48%;" title="Deforestation releases carbon">&#x2191; Deforestation<br><span id="fluxDefor">1.5</span> GtC/yr</div>
+    </div>
+
+    <div class="controls">
+        <h3>Adjust Fluxes (GtC per year)</h3>
+        <div class="slider-grid">
+            <div class="slider-item">
+                <label>Fossil fuel burning <span id="valFossil">9.5</span></label>
+                <input type="range" id="sliderFossil" min="0" max="20" step="0.5" value="9.5">
+            </div>
+            <div class="slider-item">
+                <label>Deforestation <span id="valDefor">1.5</span></label>
+                <input type="range" id="sliderDefor" min="0" max="5" step="0.5" value="1.5">
+            </div>
+            <div class="slider-item">
+                <label>Photosynthesis <span id="valPhoto">3.0</span></label>
+                <input type="range" id="sliderPhoto" min="0" max="8" step="0.5" value="3.0">
+            </div>
+            <div class="slider-item">
+                <label>Ocean uptake <span id="valOcean">2.5</span></label>
+                <input type="range" id="sliderOcean" min="0" max="6" step="0.5" value="2.5">
+            </div>
+        </div>
+    </div>
+
+    <div class="readings">
+        <div class="reading" id="readNetFlux"><div class="r-label">Net atmospheric change</div><div class="r-value">+5.0</div><div class="r-unit">GtC/yr</div></div>
+        <div class="reading" id="readAtmos"><div class="r-label">Atmospheric CO&#x2082;</div><div class="r-value">830</div><div class="r-unit">GtC</div></div>
+        <div class="reading" id="readPPM"><div class="r-label">CO&#x2082; concentration</div><div class="r-value">420</div><div class="r-unit">ppm</div></div>
+        <div class="reading" id="readTemp"><div class="r-label">Temp. anomaly</div><div class="r-value">+1.2</div><div class="r-unit">&#xB0;C above pre-industrial</div></div>
+    </div>
+
+    <div class="info-panel">
+        <h3>Understanding the Carbon Cycle</h3>
+        <p>The carbon cycle describes how carbon moves between four major stores: the <span class="highlight">atmosphere</span>, <span class="highlight">oceans</span>, <span class="highlight">land biosphere</span> (plants and soil), and <span class="highlight">fossil fuels</span> (coal, oil, gas). Fluxes are the flows of carbon between these stores.</p>
+        <p style="margin-top:8px;">Before industrialisation, the cycle was roughly in balance. Human activities (burning fossil fuels, deforestation) have added extra carbon to the atmosphere, increasing CO&#x2082; from ~280 ppm to over 420 ppm. Use the sliders to model different scenarios and see the impact on atmospheric CO&#x2082; and temperature.</p>
+    </div>
+</div>
+
+<script>
+let atmos = 830, ocean = 38000, fossil = 10000, land = 2000;
+const BASE_PPM = 420, BASE_TEMP = 1.2;
+let year = 0;
+
+const sliders = {
+    fossil: document.getElementById('sliderFossil'),
+    defor: document.getElementById('sliderDefor'),
+    photo: document.getElementById('sliderPhoto'),
+    ocean: document.getElementById('sliderOcean')
+};
+
+// Fixed fluxes
+const oceanRelease = 2.3;
+const respiration = 2.5;
+
+let scenarios = [
+    { name: 'Business as Usual', fossil: 9.5, defor: 1.5, photo: 3.0, ocean: 2.5 },
+    { name: 'Net Zero by 2050', fossil: 3.0, defor: 0.5, photo: 4.0, ocean: 3.0 },
+    { name: 'Reforestation Push', fossil: 7.0, defor: 0.0, photo: 5.5, ocean: 2.5 },
+    { name: 'Worst Case', fossil: 15.0, defor: 3.0, photo: 2.0, ocean: 2.0 }
+];
+let currentScenario = 0;
+
+document.getElementById('scenarioBtn').addEventListener('click', () => {
+    currentScenario = (currentScenario + 1) % scenarios.length;
+    const s = scenarios[currentScenario];
+    sliders.fossil.value = s.fossil;
+    sliders.defor.value = s.defor;
+    sliders.photo.value = s.photo;
+    sliders.ocean.value = s.ocean;
+    document.getElementById('scenarioBtn').textContent = 'Scenario: ' + s.name;
+    update();
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+    atmos = 830; ocean = 38000; fossil = 10000; land = 2000; year = 0;
+    sliders.fossil.value = 9.5;
+    sliders.defor.value = 1.5;
+    sliders.photo.value = 3.0;
+    sliders.ocean.value = 2.5;
+    currentScenario = 0;
+    document.getElementById('scenarioBtn').textContent = 'Scenario: Business as Usual';
+    update();
+});
+
+Object.values(sliders).forEach(s => s.addEventListener('input', update));
+
+function update() {
+    const ff = parseFloat(sliders.fossil.value);
+    const df = parseFloat(sliders.defor.value);
+    const ph = parseFloat(sliders.photo.value);
+    const ou = parseFloat(sliders.ocean.value);
+
+    // Update display values
+    document.getElementById('valFossil').textContent = ff.toFixed(1);
+    document.getElementById('valDefor').textContent = df.toFixed(1);
+    document.getElementById('valPhoto').textContent = ph.toFixed(1);
+    document.getElementById('valOcean').textContent = ou.toFixed(1);
+
+    // Update flux labels
+    document.getElementById('fluxFossil').textContent = ff.toFixed(1);
+    document.getElementById('fluxDefor').textContent = df.toFixed(1);
+    document.getElementById('fluxPhoto').textContent = ph.toFixed(1);
+    document.getElementById('fluxOceanUp').textContent = ou.toFixed(1);
+    document.getElementById('fluxOceanRel').textContent = oceanRelease.toFixed(1);
+    document.getElementById('fluxResp').textContent = respiration.toFixed(1);
+
+    // Net flux to atmosphere
+    const netFlux = ff + df + oceanRelease + respiration - ph - ou;
+
+    // Simulate 10 years
+    const newAtmos = atmos + netFlux * 10;
+    const ppm = BASE_PPM + (newAtmos - 830) * (BASE_PPM / 830);
+    const tempAnomaly = BASE_TEMP + (ppm - 420) * 0.005;
+
+    // Update readings
+    const netReading = document.getElementById('readNetFlux');
+    netReading.querySelector('.r-value').textContent = (netFlux >= 0 ? '+' : '') + netFlux.toFixed(1);
+    netReading.className = 'reading ' + (netFlux > 0.5 ? 'up' : netFlux < -0.5 ? 'down' : 'neutral');
+
+    const atmosReading = document.getElementById('readAtmos');
+    atmosReading.querySelector('.r-value').textContent = Math.round(newAtmos).toLocaleString();
+
+    const ppmReading = document.getElementById('readPPM');
+    ppmReading.querySelector('.r-value').textContent = Math.round(ppm);
+    ppmReading.className = 'reading ' + (ppm > 450 ? 'up' : ppm < 400 ? 'down' : 'neutral');
+
+    const tempReading = document.getElementById('readTemp');
+    tempReading.querySelector('.r-value').textContent = (tempAnomaly >= 0 ? '+' : '') + tempAnomaly.toFixed(1);
+    tempReading.className = 'reading ' + (tempAnomaly > 1.5 ? 'up' : tempAnomaly < 1.0 ? 'down' : 'neutral');
+
+    // Update store values (projected after 10 years)
+    document.getElementById('atmosValue').textContent = Math.round(newAtmos).toLocaleString();
+    document.getElementById('fossilValue').textContent = Math.round(fossil - ff * 10).toLocaleString();
+    document.getElementById('oceanValue').textContent = Math.round(ocean + (ou - oceanRelease) * 10).toLocaleString();
+    document.getElementById('landValue').textContent = Math.round(land + (ph - respiration - df) * 10).toLocaleString();
+}
+
+update();
+</script>
+</body>
+</html>

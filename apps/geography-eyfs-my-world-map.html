@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My World Map</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #ecfdf5;
+    --card-bg: #ffffff;
+    --text: #064e3b;
+    --text-light: #047857;
+    --accent: #10b981;
+    --accent-light: #d1fae5;
+    --road: #d1d5db;
+    --grass: #86efac;
+    --border: #a7f3d0;
+    --shadow: 0 4px 16px rgba(6,78,59,0.10);
+    --shadow-lg: 0 8px 32px rgba(6,78,59,0.16);
+    --radius: 20px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.header {
+    background: linear-gradient(135deg, #059669, #10b981, #34d399);
+    color: white;
+    padding: 16px 20px;
+    text-align: center;
+    box-shadow: var(--shadow);
+}
+.header h1 { font-size: 1.6rem; font-weight: 900; text-shadow: 2px 2px 0 rgba(0,0,0,0.1); }
+.header p { font-size: 0.85rem; opacity: 0.9; font-weight: 600; margin-top: 2px; }
+
+.main { max-width: 600px; margin: 0 auto; padding: 16px; }
+
+.instruction {
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 10px;
+    background: var(--accent-light);
+    border-radius: 14px;
+    margin-bottom: 14px;
+    border: 2px solid var(--border);
+}
+
+.map-canvas {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    background: #86efac;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    margin-bottom: 14px;
+    border: 3px solid var(--border);
+}
+
+/* Roads */
+.road-h {
+    position: absolute;
+    height: 20px;
+    background: var(--road);
+    border-top: 2px dashed #f9fafb;
+    border-bottom: 2px dashed #f9fafb;
+}
+.road-v {
+    position: absolute;
+    width: 20px;
+    background: var(--road);
+    border-left: 2px dashed #f9fafb;
+    border-right: 2px dashed #f9fafb;
+}
+
+/* Placed buildings */
+.placed-building {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    cursor: grab;
+    transition: transform 0.15s;
+    z-index: 5;
+}
+.placed-building:active { cursor: grabbing; transform: scale(1.1); z-index: 10; }
+.placed-building .b-icon { font-size: 2.2rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
+.placed-building .b-label {
+    font-size: 0.58rem;
+    font-weight: 800;
+    background: white;
+    padding: 1px 6px;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    white-space: nowrap;
+}
+
+/* Drop zones */
+.drop-zone {
+    position: absolute;
+    border: 3px dashed rgba(255,255,255,0.5);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    background: rgba(255,255,255,0.15);
+}
+.drop-zone.highlight { border-color: var(--accent); background: rgba(16,185,129,0.2); }
+.drop-zone.filled { border-style: solid; border-color: rgba(255,255,255,0.3); background: transparent; }
+.drop-zone .zone-hint {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: rgba(255,255,255,0.6);
+    text-align: center;
+    pointer-events: none;
+}
+
+/* Building bank */
+.building-bank {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px;
+    margin-bottom: 14px;
+}
+.building-bank h3 {
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-light);
+    margin-bottom: 8px;
+}
+.buildings-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.bank-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px;
+    background: var(--accent-light);
+    border: 3px solid var(--border);
+    border-radius: 14px;
+    cursor: grab;
+    transition: all 0.25s;
+    touch-action: manipulation;
+    min-width: 70px;
+}
+.bank-item:hover { transform: scale(1.08); }
+.bank-item:active { cursor: grabbing; }
+.bank-item.used { opacity: 0.3; pointer-events: none; }
+.bank-item .b-icon { font-size: 1.8rem; }
+.bank-item .b-name { font-size: 0.62rem; font-weight: 700; text-align: center; }
+
+.score-bar {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.celebration { position: fixed; inset: 0; pointer-events: none; z-index: 1000; }
+.confetti { position: absolute; border-radius: 2px; animation: confettiFall linear forwards; }
+@keyframes confettiFall { 0% { opacity:1; transform: translateY(0) rotate(0); } 100% { opacity:0; transform: translateY(100vh) rotate(720deg) scale(0.3); } }
+
+@media (max-width: 400px) {
+    .bank-item { padding: 8px; min-width: 60px; }
+    .bank-item .b-icon { font-size: 1.4rem; }
+    .placed-building .b-icon { font-size: 1.8rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>My World Map</h1>
+    <p>Build your own neighbourhood map!</p>
+</div>
+
+<div class="main">
+    <div class="instruction" id="instruction">Drag buildings onto the map to create your neighbourhood!</div>
+
+    <div class="map-canvas" id="mapCanvas">
+        <!-- Roads will be added by JS -->
+    </div>
+
+    <div class="building-bank" id="buildingBank">
+        <h3>Buildings (tap then tap the map)</h3>
+        <div class="buildings-row" id="buildingsRow"></div>
+    </div>
+
+    <div class="score-bar">
+        <span id="placedLabel" style="color:var(--accent);">Placed: 0</span>
+        <span id="totalLabel" style="color:var(--text-light);">Buildings: 8</span>
+    </div>
+</div>
+
+<div class="celebration" id="celebration"></div>
+
+<script>
+const BUILDINGS = [
+    { id: 'home', icon: '\u{1F3E0}', name: 'My Home' },
+    { id: 'school', icon: '\u{1F3EB}', name: 'School' },
+    { id: 'shop', icon: '\u{1F3EA}', name: 'Shop' },
+    { id: 'park', icon: '\u{1F333}', name: 'Park' },
+    { id: 'hospital', icon: '\u{1F3E5}', name: 'Hospital' },
+    { id: 'church', icon: '\u26EA', name: 'Church' },
+    { id: 'library', icon: '\u{1F4DA}', name: 'Library' },
+    { id: 'playground', icon: '\u{1F3A0}', name: 'Playground' }
+];
+
+let placed = {};
+let selectedBuilding = null;
+let placedCount = 0;
+
+const mapCanvas = document.getElementById('mapCanvas');
+const buildingsRow = document.getElementById('buildingsRow');
+
+// Draw roads on the map
+function drawRoads() {
+    // Horizontal road
+    const h1 = document.createElement('div');
+    h1.className = 'road-h';
+    h1.style.cssText = 'top:45%;left:0;right:0;';
+    mapCanvas.appendChild(h1);
+    // Vertical road
+    const v1 = document.createElement('div');
+    v1.className = 'road-v';
+    v1.style.cssText = 'left:50%;top:0;bottom:0;transform:translateX(-50%);';
+    mapCanvas.appendChild(v1);
+}
+drawRoads();
+
+// Build bank
+BUILDINGS.forEach(b => {
+    const item = document.createElement('div');
+    item.className = 'bank-item';
+    item.dataset.id = b.id;
+    item.innerHTML = `<span class="b-icon">${b.icon}</span><span class="b-name">${b.name}</span>`;
+    item.addEventListener('click', () => selectBuilding(b.id));
+    buildingsRow.appendChild(item);
+});
+
+// Map click to place
+mapCanvas.addEventListener('click', e => {
+    if (!selectedBuilding) return;
+    const rect = mapCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const pctX = (x / rect.width * 100);
+    const pctY = (y / rect.height * 100);
+
+    placeBuilding(selectedBuilding, pctX, pctY);
+});
+
+function selectBuilding(id) {
+    if (placed[id]) return;
+    selectedBuilding = id;
+    document.querySelectorAll('.bank-item').forEach(b => {
+        b.style.outline = b.dataset.id === id ? '3px solid var(--accent)' : 'none';
+    });
+    const b = BUILDINGS.find(b => b.id === id);
+    document.getElementById('instruction').textContent = `Now tap the map to place ${b.name}!`;
+}
+
+function placeBuilding(id, pctX, pctY) {
+    const b = BUILDINGS.find(b => b.id === id);
+    if (!b || placed[id]) return;
+
+    // Remove old if exists
+    const existing = document.getElementById('placed-' + id);
+    if (existing) existing.remove();
+
+    const el = document.createElement('div');
+    el.className = 'placed-building';
+    el.id = 'placed-' + id;
+    el.style.left = `calc(${pctX}% - 20px)`;
+    el.style.top = `calc(${pctY}% - 20px)`;
+    el.innerHTML = `<span class="b-icon">${b.icon}</span><span class="b-label">${b.name}</span>`;
+    el.style.animation = 'popIn 0.3s ease';
+
+    // Allow repositioning by dragging
+    let dragging = false;
+    el.addEventListener('mousedown', e => { dragging = true; e.preventDefault(); });
+    el.addEventListener('touchstart', e => { dragging = true; e.preventDefault(); });
+
+    const moveHandler = e => {
+        if (!dragging) return;
+        const rect = mapCanvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const px = ((clientX - rect.left) / rect.width * 100);
+        const py = ((clientY - rect.top) / rect.height * 100);
+        el.style.left = `calc(${Math.max(2,Math.min(90,px))}% - 20px)`;
+        el.style.top = `calc(${Math.max(2,Math.min(90,py))}% - 20px)`;
+    };
+    const upHandler = () => { dragging = false; };
+    document.addEventListener('mousemove', moveHandler);
+    document.addEventListener('mouseup', upHandler);
+    document.addEventListener('touchmove', moveHandler);
+    document.addEventListener('touchend', upHandler);
+
+    mapCanvas.appendChild(el);
+    placed[id] = true;
+    placedCount++;
+
+    // Mark bank item as used
+    document.querySelector(`.bank-item[data-id="${id}"]`).classList.add('used');
+    selectedBuilding = null;
+    document.querySelectorAll('.bank-item').forEach(b => b.style.outline = 'none');
+
+    document.getElementById('placedLabel').textContent = `Placed: ${placedCount}`;
+    document.getElementById('instruction').textContent = placedCount < BUILDINGS.length
+        ? 'Great! Choose another building to place.'
+        : '\u{1F389} You built your whole neighbourhood! Amazing!';
+
+    spawnMini();
+
+    if (placedCount === BUILDINGS.length) {
+        setTimeout(celebrate, 300);
+    }
+}
+
+function spawnMini() {
+    const container = document.getElementById('celebration');
+    const colours = ['#059669','#10b981','#34d399','#86efac','#fbbf24'];
+    for (let i = 0; i < 8; i++) {
+        const el = document.createElement('div');
+        el.className = 'confetti';
+        el.style.cssText = `left:${Math.random()*100}vw;top:-10px;background:${colours[Math.floor(Math.random()*colours.length)]};width:${5+Math.random()*6}px;height:${5+Math.random()*6}px;border-radius:${Math.random()>0.5?'50%':'2px'};animation-duration:${1+Math.random()*1.5}s;animation-delay:${Math.random()*0.3}s;`;
+        container.appendChild(el);
+        setTimeout(() => el.remove(), 3000);
+    }
+}
+
+function celebrate() {
+    const container = document.getElementById('celebration');
+    const colours = ['#059669','#10b981','#34d399','#86efac','#fbbf24','#ec4899','#3b82f6'];
+    for (let i = 0; i < 35; i++) {
+        const el = document.createElement('div');
+        el.className = 'confetti';
+        el.style.cssText = `left:${Math.random()*100}vw;top:-12px;background:${colours[Math.floor(Math.random()*colours.length)]};width:${6+Math.random()*8}px;height:${6+Math.random()*8}px;border-radius:${Math.random()>0.5?'50%':'2px'};animation-duration:${1.5+Math.random()*2}s;animation-delay:${Math.random()*0.5}s;`;
+        container.appendChild(el);
+        setTimeout(() => el.remove(), 4500);
+    }
+}
+</script>
+<style>
+@keyframes popIn { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+</style>
+</body>
+</html>

@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentence Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #fefce8;
+    --card-bg: #ffffff;
+    --text: #422006;
+    --text-light: #92400e;
+    --accent: #d97706;
+    --accent-light: #fef3c7;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --error: #dc2626;
+    --border: #fde68a;
+    --shadow: 0 4px 16px rgba(120,80,20,0.10);
+    --shadow-lg: 0 8px 32px rgba(120,80,20,0.18);
+    --radius: 16px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+    overflow-x: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.header {
+    background: linear-gradient(135deg, #d97706, #f59e0b, #fbbf24);
+    color: white;
+    padding: 16px 20px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    position: relative; z-index: 10;
+}
+.header h1 { font-size: 1.5rem; font-weight: 900; text-shadow: 2px 2px 0 rgba(0,0,0,0.1); }
+.header p { font-size: 0.82rem; opacity: 0.9; font-weight: 600; margin-top: 2px; }
+
+.main { max-width: 600px; margin: 0 auto; padding: 16px; }
+
+.info-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+.info-bar .level { color: var(--accent); }
+.info-bar .score { color: var(--success); }
+
+.prompt-area {
+    text-align: center;
+    padding: 14px;
+    background: var(--accent-light);
+    border-radius: var(--radius);
+    border: 2px solid var(--border);
+    margin-bottom: 14px;
+}
+.prompt-area .icon { font-size: 2.4rem; margin-bottom: 4px; }
+.prompt-area .prompt-text { font-size: 1rem; font-weight: 700; color: var(--text); }
+.prompt-area .hint { font-size: 0.78rem; color: var(--text-light); margin-top: 4px; font-weight: 600; }
+
+/* Sentence slots */
+.sentence-zone {
+    min-height: 64px;
+    padding: 12px;
+    background: var(--card-bg);
+    border: 3px dashed var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    transition: all 0.2s;
+}
+.sentence-zone.active { border-color: var(--accent); background: var(--accent-light); }
+.sentence-zone.correct { border-color: var(--success); border-style: solid; background: var(--success-light); }
+.sentence-zone .placeholder {
+    color: #ccc;
+    font-size: 0.9rem;
+    font-weight: 600;
+    font-style: italic;
+    pointer-events: none;
+}
+
+/* Word tiles */
+.word-bank {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 16px;
+    min-height: 50px;
+    padding: 10px;
+    background: rgba(255,255,255,0.5);
+    border-radius: var(--radius);
+}
+
+.word-tile {
+    padding: 10px 18px;
+    border-radius: 50px;
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    border: 3px solid;
+    position: relative;
+}
+.word-tile:hover { transform: scale(1.08); }
+.word-tile:active { transform: scale(0.96); }
+.word-tile.in-sentence { opacity: 0.35; pointer-events: none; }
+
+.word-tile.capital { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
+.word-tile.noun { background: #fce7f3; border-color: #f9a8d4; color: #9d174d; }
+.word-tile.verb { background: #dcfce7; border-color: #86efac; color: #166534; }
+.word-tile.adj { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+.word-tile.det { background: #e0e7ff; border-color: #a5b4fc; color: #3730a3; }
+.word-tile.punct { background: #f3f4f6; border-color: #d1d5db; color: #374151; font-size: 1.3rem; padding: 8px 14px; }
+.word-tile.other { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+
+.btn-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.action-btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 50px;
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: all 0.2s;
+    touch-action: manipulation;
+}
+.action-btn:hover { transform: scale(1.03); }
+.action-btn.check { background: linear-gradient(135deg, var(--success), #22c55e); color: white; }
+.action-btn.clear { background: var(--card-bg); color: var(--text-light); border: 2px solid var(--border); }
+
+.feedback {
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 800;
+    padding: 14px;
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    display: none;
+    animation: popIn 0.35s cubic-bezier(0.34,1.56,0.64,1);
+}
+.feedback.show { display: block; }
+.feedback.win { background: var(--success-light); color: #166534; border: 2px solid var(--success); }
+.feedback.try { background: #fef2f2; color: #991b1b; border: 2px solid #fca5a5; }
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+.legend-item {
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 2px solid;
+}
+
+@keyframes popIn { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
+
+.celebration { position: fixed; inset: 0; pointer-events: none; z-index: 1000; }
+.confetti { position: absolute; border-radius: 2px; animation: confettiFall linear forwards; }
+@keyframes confettiFall { 0% { opacity:1; transform: translateY(0) rotate(0deg); } 100% { opacity:0; transform: translateY(100vh) rotate(720deg) scale(0.3); } }
+.star-burst { position: absolute; font-size: 2rem; animation: starPop 0.8s ease forwards; }
+@keyframes starPop { 0% { opacity:1; transform: scale(0); } 50% { transform: scale(1.3) rotate(180deg); } 100% { opacity:0; transform: scale(0.5) translateY(-60px); } }
+
+@media (max-width: 420px) {
+    .word-tile { padding: 8px 14px; font-size: 0.88rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Sentence Builder</h1>
+    <p>Build sentences with the word tiles!</p>
+</div>
+
+<div class="main">
+    <div class="info-bar">
+        <span class="level" id="levelLabel">Sentence 1 of 8</span>
+        <span class="score" id="scoreLabel">Score: 0</span>
+    </div>
+
+    <div class="prompt-area" id="promptArea">
+        <div class="icon" id="promptIcon"></div>
+        <div class="prompt-text" id="promptText"></div>
+        <div class="hint" id="promptHint"></div>
+    </div>
+
+    <div class="sentence-zone" id="sentenceZone">
+        <span class="placeholder">Tap words to build your sentence here</span>
+    </div>
+
+    <div class="word-bank" id="wordBank"></div>
+
+    <div class="btn-row">
+        <button class="action-btn clear" id="clearBtn">Clear</button>
+        <button class="action-btn check" id="checkBtn">Check!</button>
+    </div>
+
+    <div class="feedback" id="feedback"></div>
+
+    <div class="legend">
+        <span class="legend-item" style="background:#dbeafe;border-color:#93c5fd;color:#1e40af;">Capital</span>
+        <span class="legend-item" style="background:#fce7f3;border-color:#f9a8d4;color:#9d174d;">Noun</span>
+        <span class="legend-item" style="background:#dcfce7;border-color:#86efac;color:#166534;">Verb</span>
+        <span class="legend-item" style="background:#fef3c7;border-color:#fcd34d;color:#92400e;">Describing</span>
+        <span class="legend-item" style="background:#e0e7ff;border-color:#a5b4fc;color:#3730a3;">The/A</span>
+    </div>
+</div>
+
+<div class="celebration" id="celebration"></div>
+
+<script>
+const SENTENCES = [
+    {
+        icon: '\u{1F431}',
+        prompt: 'The cat sits.',
+        hint: 'A simple sentence about a cat',
+        words: [
+            { word: 'The', type: 'det' },
+            { word: 'cat', type: 'noun' },
+            { word: 'sits', type: 'verb' },
+            { word: '.', type: 'punct' }
+        ],
+        extras: [
+            { word: 'runs', type: 'verb' },
+            { word: 'big', type: 'adj' }
+        ]
+    },
+    {
+        icon: '\u{1F436}',
+        prompt: 'A happy dog runs.',
+        hint: 'Add a describing word!',
+        words: [
+            { word: 'A', type: 'det' },
+            { word: 'happy', type: 'adj' },
+            { word: 'dog', type: 'noun' },
+            { word: 'runs', type: 'verb' },
+            { word: '.', type: 'punct' }
+        ],
+        extras: [
+            { word: 'The', type: 'det' },
+            { word: 'cat', type: 'noun' }
+        ]
+    },
+    {
+        icon: '\u{1F382}',
+        prompt: 'I like the cake.',
+        hint: 'Tell us what you like',
+        words: [
+            { word: 'I', type: 'capital' },
+            { word: 'like', type: 'verb' },
+            { word: 'the', type: 'det' },
+            { word: 'cake', type: 'noun' },
+            { word: '.', type: 'punct' }
+        ],
+        extras: [
+            { word: 'big', type: 'adj' },
+            { word: 'is', type: 'verb' }
+        ]
+    },
+    {
+        icon: '\u2600\uFE0F',
+        prompt: 'The sun is hot.',
+        hint: 'What is the sun like?',
+        words: [
+            { word: 'The', type: 'det' },
+            { word: 'sun', type: 'noun' },
+            { word: 'is', type: 'verb' },
+            { word: 'hot', type: 'adj' },
+            { word: '.', type: 'punct' }
+        ],
+        extras: [
+            { word: 'and', type: 'other' },
+            { word: 'cold', type: 'adj' }
+        ]
+    },
+    {
+        icon: '\u{1F98B}',
+        prompt: 'A pretty butterfly can fly.',
+        hint: 'A longer sentence now!',
+        words: [
+            { word: 'A', type: 'det' },
+            { word: 'pretty', type: 'adj' },
+            { word: 'butterfly', type: 'noun' },
+            { word: 'can', type: 'verb' },
+            { word: 'fly', type: 'verb' },
+            { word: '.', type: 'punct' }
+        ],
+        extras: [
+            { word: 'the', type: 'det' },
+            { word: 'sad', type: 'adj' }
+        ]
+    },
+    {
+        icon: '\u{1F30A}',
+        prompt: 'We went to the beach.',
+        hint: 'Where did we go?',
+        words: [
+            { word: 'We', type: 'capital' },
+            { word: 'went', type: 'verb' },
+            { word: 'to', type: 'other' },
+            { word: 'the', type: 'det' },
+            { word: 'beach', type: 'noun' },
+            { word: '.', type: 'punct' }
+        ],
+        extras: [
+            { word: 'is', type: 'verb' },
+            { word: 'big', type: 'adj' }
+        ]
+    },
+    {
+        icon: '\u{1F34E}',
+        prompt: 'She ate a red apple.',
+        hint: 'What colour was the apple?',
+        words: [
+            { word: 'She', type: 'capital' },
+            { word: 'ate', type: 'verb' },
+            { word: 'a', type: 'det' },
+            { word: 'red', type: 'adj' },
+            { word: 'apple', type: 'noun' },
+            { word: '.', type: 'punct' }
+        ],
+        extras: [
+            { word: 'The', type: 'det' },
+            { word: 'ran', type: 'verb' }
+        ]
+    },
+    {
+        icon: '\u{1F308}',
+        prompt: 'I can see a big rainbow.',
+        hint: 'What can you see?',
+        words: [
+            { word: 'I', type: 'capital' },
+            { word: 'can', type: 'verb' },
+            { word: 'see', type: 'verb' },
+            { word: 'a', type: 'det' },
+            { word: 'big', type: 'adj' },
+            { word: 'rainbow', type: 'noun' },
+            { word: '.', type: 'punct' }
+        ],
+        extras: [
+            { word: 'the', type: 'det' },
+            { word: 'small', type: 'adj' }
+        ]
+    }
+];
+
+let current = 0;
+let score = 0;
+let sentenceWords = [];
+let allTiles = [];
+
+const sentenceZone = document.getElementById('sentenceZone');
+const wordBank = document.getElementById('wordBank');
+const checkBtn = document.getElementById('checkBtn');
+const clearBtn = document.getElementById('clearBtn');
+const feedback = document.getElementById('feedback');
+
+checkBtn.addEventListener('click', checkSentence);
+clearBtn.addEventListener('click', clearSentence);
+
+function loadSentence() {
+    const s = SENTENCES[current];
+    document.getElementById('levelLabel').textContent = `Sentence ${current + 1} of ${SENTENCES.length}`;
+    document.getElementById('promptIcon').textContent = s.icon;
+    document.getElementById('promptText').textContent = s.prompt;
+    document.getElementById('promptHint').textContent = s.hint;
+    feedback.className = 'feedback';
+
+    sentenceWords = [];
+    allTiles = [...s.words, ...s.extras];
+    shuffle(allTiles);
+
+    renderWordBank();
+    renderSentence();
+}
+
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+}
+
+function renderWordBank() {
+    wordBank.innerHTML = '';
+    allTiles.forEach((tile, i) => {
+        const el = document.createElement('button');
+        el.className = `word-tile ${tile.type}`;
+        if (sentenceWords.some(sw => sw.bankIdx === i)) el.classList.add('in-sentence');
+        el.textContent = tile.word;
+        el.dataset.bankIdx = i;
+        el.addEventListener('click', () => addWord(i));
+        wordBank.appendChild(el);
+    });
+}
+
+function renderSentence() {
+    sentenceZone.innerHTML = '';
+    if (sentenceWords.length === 0) {
+        sentenceZone.innerHTML = '<span class="placeholder">Tap words to build your sentence here</span>';
+        return;
+    }
+    sentenceWords.forEach((sw, i) => {
+        const el = document.createElement('button');
+        el.className = `word-tile ${sw.type}`;
+        el.textContent = sw.word;
+        el.addEventListener('click', () => removeWord(i));
+        sentenceZone.appendChild(el);
+    });
+}
+
+function addWord(bankIdx) {
+    if (sentenceWords.some(sw => sw.bankIdx === bankIdx)) return;
+    const tile = allTiles[bankIdx];
+    sentenceWords.push({ ...tile, bankIdx });
+    renderWordBank();
+    renderSentence();
+}
+
+function removeWord(sentIdx) {
+    sentenceWords.splice(sentIdx, 1);
+    renderWordBank();
+    renderSentence();
+}
+
+function clearSentence() {
+    sentenceWords = [];
+    feedback.className = 'feedback';
+    renderWordBank();
+    renderSentence();
+}
+
+function checkSentence() {
+    const s = SENTENCES[current];
+    const built = sentenceWords.map(sw => sw.word).join(' ').replace(/ \./g, '.').replace(/ ,/g, ',');
+    const target = s.prompt;
+
+    if (built === target) {
+        feedback.className = 'feedback show win';
+        feedback.textContent = '\u2B50 Perfect sentence! Well done! \u2B50';
+        sentenceZone.classList.add('correct');
+        score++;
+        document.getElementById('scoreLabel').textContent = `Score: ${score}`;
+        celebrate();
+
+        setTimeout(() => {
+            sentenceZone.classList.remove('correct');
+            current++;
+            if (current < SENTENCES.length) {
+                loadSentence();
+            } else {
+                feedback.className = 'feedback show win';
+                feedback.textContent = '\u{1F389} Amazing! You built all the sentences! \u{1F389}';
+                wordBank.innerHTML = '';
+                sentenceZone.innerHTML = '<span class="placeholder">All done!</span>';
+                celebrate();
+                setTimeout(celebrate, 500);
+            }
+        }, 1800);
+    } else {
+        feedback.className = 'feedback show try';
+        feedback.textContent = '\u{1F914} Not quite. Check the word order and try again!';
+    }
+}
+
+function celebrate() {
+    const container = document.getElementById('celebration');
+    const colours = ['#d97706', '#f59e0b', '#fbbf24', '#16a34a', '#ec4899', '#6366f1'];
+    for (let i = 0; i < 25; i++) {
+        const el = document.createElement('div');
+        el.className = 'confetti';
+        el.style.left = Math.random() * 100 + 'vw';
+        el.style.top = '-12px';
+        el.style.background = colours[Math.floor(Math.random() * colours.length)];
+        el.style.width = (6 + Math.random() * 8) + 'px';
+        el.style.height = (6 + Math.random() * 8) + 'px';
+        el.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+        el.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+        el.style.animationDelay = (Math.random() * 0.5) + 's';
+        container.appendChild(el);
+        setTimeout(() => el.remove(), 4000);
+    }
+    const symbols = ['\u2B50', '\u2728', '\u{1F31F}'];
+    for (let i = 0; i < 4; i++) {
+        const el = document.createElement('div');
+        el.className = 'star-burst';
+        el.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+        el.style.left = (15 + Math.random() * 70) + 'vw';
+        el.style.top = (15 + Math.random() * 50) + 'vh';
+        container.appendChild(el);
+        setTimeout(() => el.remove(), 1200);
+    }
+}
+
+loadSentence();
+</script>
+</body>
+</html>
