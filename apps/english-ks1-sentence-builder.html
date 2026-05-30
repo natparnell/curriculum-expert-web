@@ -156,6 +156,40 @@ body {
 .action-btn:hover { transform: scale(1.03); }
 .action-btn.check { background: linear-gradient(135deg, var(--success), #22c55e); color: white; }
 .action-btn.clear { background: var(--card-bg); color: var(--text-light); border: 2px solid var(--border); }
+.action-btn.fullstop { background: #374151; color: white; }
+.action-btn.fullstop[aria-pressed="true"] { background: #111827; box-shadow: inset 0 0 0 3px #fbbf24; }
+.action-btn.read { background: #2563eb; color: white; }
+.action-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+
+.build-tip {
+    text-align: center;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--text-light);
+    margin: -6px 0 14px;
+}
+
+/* Capital-letter highlight on placed tiles */
+.sentence-zone .word-tile.is-capital { box-shadow: inset 0 0 0 3px var(--accent); }
+
+/* Small remove cross on placed tiles */
+.sentence-zone .word-tile { padding-right: 30px; }
+.sentence-zone .word-tile.punct { padding-right: 14px; }
+.tile-remove {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    line-height: 16px;
+    text-align: center;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.12);
+    font-size: 0.85rem;
+    font-weight: 900;
+}
+.tile-remove:hover { background: rgba(0,0,0,0.25); }
 
 .feedback {
     text-align: center;
@@ -200,6 +234,47 @@ body {
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -367,7 +442,7 @@ body {
 
 <div class="header">
     <h1>Sentence Builder</h1>
-    <p>Build sentences with the word tiles!</p>
+    <p>Add a capital letter, the right words and a full stop!</p>
 </div>
 
 <div class="main">
@@ -382,41 +457,62 @@ body {
         <div class="hint" id="promptHint"></div>
     </div>
 
-    <div class="sentence-zone" id="sentenceZone">
+    <div class="sentence-zone" id="sentenceZone" role="list" aria-label="Your sentence. Tap a word to give it a capital letter, or tap the cross to remove it.">
         <span class="placeholder">Tap words to build your sentence here</span>
     </div>
 
-    <div class="word-bank" id="wordBank"></div>
+    <div class="build-tip">Tap a placed word to switch its capital letter on or off.</div>
+
+    <div class="word-bank" id="wordBank" role="list" aria-label="Word tiles. Tap a word to add it to your sentence."></div>
 
     <div class="btn-row">
-        <button class="action-btn clear" id="clearBtn">Clear</button>
-        <button class="action-btn check" id="checkBtn">Check!</button>
+        <button class="action-btn fullstop" id="fullStopBtn" type="button" aria-pressed="false">Full stop .</button>
+        <button class="action-btn read" id="readBtn" type="button" aria-label="Read my sentence aloud">Read it &#128264;</button>
     </div>
 
-    <div class="feedback" id="feedback"></div>
+    <div class="btn-row">
+        <button class="action-btn clear" id="clearBtn" type="button">Clear</button>
+        <button class="action-btn check" id="checkBtn" type="button">Check!</button>
+    </div>
 
-    <div class="legend">
-        <span class="legend-item" style="background:#dbeafe;border-color:#93c5fd;color:#1e40af;">Capital</span>
+    <div class="feedback" id="feedback" aria-live="polite"></div>
+
+    <div class="legend" aria-hidden="true">
         <span class="legend-item" style="background:#fce7f3;border-color:#f9a8d4;color:#9d174d;">Noun</span>
-        <span class="legend-item" style="background:#dcfce7;border-color:#86efac;color:#166534;">Verb</span>
-        <span class="legend-item" style="background:#fef3c7;border-color:#fcd34d;color:#92400e;">Describing</span>
-        <span class="legend-item" style="background:#e0e7ff;border-color:#a5b4fc;color:#3730a3;">The/A</span>
+        <span class="legend-item" style="background:#dcfce7;border-color:#86efac;color:#166534;">Verb (doing word)</span>
+        <span class="legend-item" style="background:#fef3c7;border-color:#fcd34d;color:#92400e;">Describing word</span>
+        <span class="legend-item" style="background:#e0e7ff;border-color:#a5b4fc;color:#3730a3;">The / a</span>
     </div>
 </div>
 
 <div class="celebration" id="celebration"></div>
 
 <script>
+/*
+ * Each sentence stores its words in lower case. The child must:
+ *  1. arrange the words into a grammatically valid order,
+ *  2. give the FIRST word a capital letter (tap a placed tile to toggle),
+ *  3. add a full stop at the end.
+ * "always" lists words that must always start with a capital (proper nouns / "I").
+ * "valid" lists every grammatically acceptable word order (lower case, no
+ * punctuation) so alternatives are accepted, not just one exact target.
+ */
 const SENTENCES = [
     {
         icon: '\u{1F431}',
-        prompt: 'The cat sits.',
-        hint: 'A simple sentence about a cat',
+        prompt: 'Build a sentence about a cat.',
+        hint: 'Remember a capital letter and a full stop.',
+        always: [],
+        valid: [
+            ['the', 'cat', 'sits'],
+            ['the', 'big', 'cat', 'sits'],
+            ['the', 'cat', 'runs'],
+            ['the', 'big', 'cat', 'runs']
+        ],
         words: [
-            { word: 'The', type: 'det' },
+            { word: 'the', type: 'det' },
             { word: 'cat', type: 'noun' },
-            { word: 'sits', type: 'verb' },
-            { word: '.', type: 'punct' }
+            { word: 'sits', type: 'verb' }
         ],
         extras: [
             { word: 'runs', type: 'verb' },
@@ -425,118 +521,146 @@ const SENTENCES = [
     },
     {
         icon: '\u{1F436}',
-        prompt: 'A happy dog runs.',
+        prompt: 'Describe a dog that runs.',
         hint: 'Add a describing word!',
+        always: [],
+        valid: [
+            ['a', 'happy', 'dog', 'runs'],
+            ['the', 'happy', 'dog', 'runs'],
+            ['a', 'dog', 'runs'],
+            ['the', 'dog', 'runs']
+        ],
         words: [
-            { word: 'A', type: 'det' },
+            { word: 'a', type: 'det' },
             { word: 'happy', type: 'adj' },
             { word: 'dog', type: 'noun' },
-            { word: 'runs', type: 'verb' },
-            { word: '.', type: 'punct' }
+            { word: 'runs', type: 'verb' }
         ],
         extras: [
-            { word: 'The', type: 'det' },
-            { word: 'cat', type: 'noun' }
+            { word: 'the', type: 'det' }
         ]
     },
     {
         icon: '\u{1F382}',
-        prompt: 'I like the cake.',
-        hint: 'Tell us what you like',
+        prompt: 'Tell us about a cake you like.',
+        hint: 'The word "I" always needs a capital letter.',
+        always: ['i'],
+        valid: [
+            ['i', 'like', 'the', 'cake'],
+            ['i', 'like', 'the', 'big', 'cake']
+        ],
         words: [
-            { word: 'I', type: 'capital' },
+            { word: 'i', type: 'capital' },
             { word: 'like', type: 'verb' },
             { word: 'the', type: 'det' },
-            { word: 'cake', type: 'noun' },
-            { word: '.', type: 'punct' }
+            { word: 'cake', type: 'noun' }
         ],
         extras: [
-            { word: 'big', type: 'adj' },
-            { word: 'is', type: 'verb' }
+            { word: 'big', type: 'adj' }
         ]
     },
     {
         icon: '\u2600\uFE0F',
-        prompt: 'The sun is hot.',
+        prompt: 'Say what the sun is like.',
         hint: 'What is the sun like?',
+        always: [],
+        valid: [
+            ['the', 'sun', 'is', 'hot'],
+            ['the', 'sun', 'is', 'cold']
+        ],
         words: [
-            { word: 'The', type: 'det' },
+            { word: 'the', type: 'det' },
             { word: 'sun', type: 'noun' },
             { word: 'is', type: 'verb' },
-            { word: 'hot', type: 'adj' },
-            { word: '.', type: 'punct' }
+            { word: 'hot', type: 'adj' }
         ],
         extras: [
-            { word: 'and', type: 'other' },
             { word: 'cold', type: 'adj' }
         ]
     },
     {
         icon: '\u{1F98B}',
-        prompt: 'A pretty butterfly can fly.',
+        prompt: 'Make a sentence about a butterfly.',
         hint: 'A longer sentence now!',
+        always: [],
+        valid: [
+            ['a', 'pretty', 'butterfly', 'can', 'fly'],
+            ['the', 'pretty', 'butterfly', 'can', 'fly'],
+            ['a', 'butterfly', 'can', 'fly'],
+            ['the', 'butterfly', 'can', 'fly']
+        ],
         words: [
-            { word: 'A', type: 'det' },
+            { word: 'a', type: 'det' },
             { word: 'pretty', type: 'adj' },
             { word: 'butterfly', type: 'noun' },
             { word: 'can', type: 'verb' },
-            { word: 'fly', type: 'verb' },
-            { word: '.', type: 'punct' }
+            { word: 'fly', type: 'verb' }
         ],
         extras: [
-            { word: 'the', type: 'det' },
-            { word: 'sad', type: 'adj' }
+            { word: 'the', type: 'det' }
         ]
     },
     {
         icon: '\u{1F30A}',
-        prompt: 'We went to the beach.',
+        prompt: 'Say where we went.',
         hint: 'Where did we go?',
+        always: [],
+        valid: [
+            ['we', 'went', 'to', 'the', 'beach']
+        ],
         words: [
-            { word: 'We', type: 'capital' },
+            { word: 'we', type: 'capital' },
             { word: 'went', type: 'verb' },
             { word: 'to', type: 'other' },
             { word: 'the', type: 'det' },
-            { word: 'beach', type: 'noun' },
-            { word: '.', type: 'punct' }
+            { word: 'beach', type: 'noun' }
         ],
         extras: [
-            { word: 'is', type: 'verb' },
-            { word: 'big', type: 'adj' }
+            { word: 'is', type: 'verb' }
         ]
     },
     {
         icon: '\u{1F34E}',
-        prompt: 'She ate a red apple.',
+        prompt: 'Say what she ate.',
         hint: 'What colour was the apple?',
+        always: [],
+        valid: [
+            ['she', 'ate', 'a', 'red', 'apple'],
+            ['she', 'ate', 'the', 'red', 'apple'],
+            ['she', 'ate', 'a', 'green', 'apple'],
+            ['she', 'ate', 'the', 'green', 'apple']
+        ],
         words: [
-            { word: 'She', type: 'capital' },
+            { word: 'she', type: 'capital' },
             { word: 'ate', type: 'verb' },
             { word: 'a', type: 'det' },
             { word: 'red', type: 'adj' },
-            { word: 'apple', type: 'noun' },
-            { word: '.', type: 'punct' }
+            { word: 'apple', type: 'noun' }
         ],
         extras: [
-            { word: 'The', type: 'det' },
-            { word: 'ran', type: 'verb' }
+            { word: 'the', type: 'det' },
+            { word: 'green', type: 'adj' }
         ]
     },
     {
         icon: '\u{1F308}',
-        prompt: 'I can see a big rainbow.',
-        hint: 'What can you see?',
+        prompt: 'Say what you can see.',
+        hint: 'The word "I" always needs a capital letter.',
+        always: ['i'],
+        valid: [
+            ['i', 'can', 'see', 'a', 'big', 'rainbow'],
+            ['i', 'can', 'see', 'a', 'small', 'rainbow'],
+            ['i', 'can', 'see', 'a', 'rainbow']
+        ],
         words: [
-            { word: 'I', type: 'capital' },
+            { word: 'i', type: 'capital' },
             { word: 'can', type: 'verb' },
             { word: 'see', type: 'verb' },
             { word: 'a', type: 'det' },
             { word: 'big', type: 'adj' },
-            { word: 'rainbow', type: 'noun' },
-            { word: '.', type: 'punct' }
+            { word: 'rainbow', type: 'noun' }
         ],
         extras: [
-            { word: 'the', type: 'det' },
             { word: 'small', type: 'adj' }
         ]
     }
@@ -544,17 +668,23 @@ const SENTENCES = [
 
 let current = 0;
 let score = 0;
-let sentenceWords = [];
+let sentenceWords = [];   // [{word(lower), type, bankIdx, capital:bool}]
+let hasFullStop = false;
 let allTiles = [];
+let solved = false;
 
 const sentenceZone = document.getElementById('sentenceZone');
 const wordBank = document.getElementById('wordBank');
 const checkBtn = document.getElementById('checkBtn');
 const clearBtn = document.getElementById('clearBtn');
+const fullStopBtn = document.getElementById('fullStopBtn');
+const readBtn = document.getElementById('readBtn');
 const feedback = document.getElementById('feedback');
 
 checkBtn.addEventListener('click', checkSentence);
 clearBtn.addEventListener('click', clearSentence);
+fullStopBtn.addEventListener('click', toggleFullStop);
+readBtn.addEventListener('click', () => speak(displayString()));
 
 function loadSentence() {
     const s = SENTENCES[current];
@@ -563,8 +693,11 @@ function loadSentence() {
     document.getElementById('promptText').textContent = s.prompt;
     document.getElementById('promptHint').textContent = s.hint;
     feedback.className = 'feedback';
+    feedback.removeAttribute('role');
 
     sentenceWords = [];
+    hasFullStop = false;
+    solved = false;
     allTiles = [...s.words, ...s.extras];
     shuffle(allTiles);
 
@@ -579,14 +712,29 @@ function shuffle(arr) {
     }
 }
 
+// Word as it should appear in the sentence zone, honouring the capital toggle.
+function showWord(sw) {
+    return sw.capital ? sw.word.charAt(0).toUpperCase() + sw.word.slice(1) : sw.word;
+}
+
+// The whole built sentence as the child would read it.
+function displayString() {
+    let str = sentenceWords.map(showWord).join(' ');
+    if (hasFullStop) str += '.';
+    return str;
+}
+
 function renderWordBank() {
     wordBank.innerHTML = '';
     allTiles.forEach((tile, i) => {
         const el = document.createElement('button');
         el.className = `word-tile ${tile.type}`;
-        if (sentenceWords.some(sw => sw.bankIdx === i)) el.classList.add('in-sentence');
+        const used = sentenceWords.some(sw => sw.bankIdx === i);
+        if (used) el.classList.add('in-sentence');
         el.textContent = tile.word;
         el.dataset.bankIdx = i;
+        el.setAttribute('aria-label', `Add the word ${tile.word} to your sentence`);
+        if (used) el.setAttribute('aria-disabled', 'true');
         el.addEventListener('click', () => addWord(i));
         wordBank.appendChild(el);
     });
@@ -594,24 +742,52 @@ function renderWordBank() {
 
 function renderSentence() {
     sentenceZone.innerHTML = '';
-    if (sentenceWords.length === 0) {
+    if (sentenceWords.length === 0 && !hasFullStop) {
         sentenceZone.innerHTML = '<span class="placeholder">Tap words to build your sentence here</span>';
+        fullStopBtn.setAttribute('aria-pressed', 'false');
         return;
     }
     sentenceWords.forEach((sw, i) => {
         const el = document.createElement('button');
-        el.className = `word-tile ${sw.type}`;
-        el.textContent = sw.word;
-        el.addEventListener('click', () => removeWord(i));
+        el.className = `word-tile ${sw.type}` + (sw.capital ? ' is-capital' : '');
+        el.textContent = showWord(sw);
+        el.setAttribute('aria-label',
+            `${showWord(sw)}. Tap once to ${sw.capital ? 'remove the capital letter' : 'give it a capital letter'}, or tap again to take it out of the sentence.`);
+        // Single tap toggles capital; the small x removes the word.
+        el.addEventListener('click', () => toggleCapital(i));
+        const x = document.createElement('span');
+        x.className = 'tile-remove';
+        x.textContent = '\u00D7';
+        x.setAttribute('role', 'button');
+        x.setAttribute('aria-label', `Remove ${showWord(sw)} from the sentence`);
+        x.addEventListener('click', (e) => { e.stopPropagation(); removeWord(i); });
+        el.appendChild(x);
         sentenceZone.appendChild(el);
     });
+    if (hasFullStop) {
+        const dot = document.createElement('button');
+        dot.className = 'word-tile punct';
+        dot.textContent = '.';
+        dot.setAttribute('aria-label', 'Full stop. Tap to remove it.');
+        dot.addEventListener('click', toggleFullStop);
+        sentenceZone.appendChild(dot);
+    }
+    fullStopBtn.setAttribute('aria-pressed', hasFullStop ? 'true' : 'false');
 }
 
 function addWord(bankIdx) {
     if (sentenceWords.some(sw => sw.bankIdx === bankIdx)) return;
     const tile = allTiles[bankIdx];
-    sentenceWords.push({ ...tile, bankIdx });
+    // First word added gets a capital by default to model the rule, but the
+    // child can toggle it off (and must manage capitals if they reorder).
+    const isFirst = sentenceWords.length === 0;
+    sentenceWords.push({ ...tile, bankIdx, capital: isFirst });
     renderWordBank();
+    renderSentence();
+}
+
+function toggleCapital(sentIdx) {
+    sentenceWords[sentIdx].capital = !sentenceWords[sentIdx].capital;
     renderSentence();
 }
 
@@ -621,24 +797,89 @@ function removeWord(sentIdx) {
     renderSentence();
 }
 
+function toggleFullStop() {
+    hasFullStop = !hasFullStop;
+    renderSentence();
+}
+
 function clearSentence() {
     sentenceWords = [];
+    hasFullStop = false;
     feedback.className = 'feedback';
     renderWordBank();
     renderSentence();
 }
 
-function checkSentence() {
-    const s = SENTENCES[current];
-    const built = sentenceWords.map(sw => sw.word).join(' ').replace(/ \./g, '.').replace(/ ,/g, ',');
-    const target = s.prompt;
+function speak(text) {
+    if (!('speechSynthesis' in window) || !text) return;
+    try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-GB';
+        if (window.westTTS) u.voice = window.westTTS.pick(u.lang || 'en-GB');
+        u.rate = 0.85;
+        window.speechSynthesis.speak(u);
+    } catch (e) {}
+}
 
-    if (built === target) {
+// Concept-based assessment. Returns { ok, message } with targeted feedback
+// rather than a blanket "word order" message.
+function assess() {
+    const s = SENTENCES[current];
+    const placed = sentenceWords.map(sw => sw.word.toLowerCase());
+
+    if (placed.length < 2) {
+        return { ok: false, message: '\u{1F914} Add some more words to make a sentence.' };
+    }
+
+    // 1. Is the order grammatically valid (in any accepted arrangement)?
+    const builtKey = placed.join(' ');
+    const orderOk = s.valid.some(v => v.join(' ') === builtKey);
+
+    // 2. Capital letter on the first word?
+    const firstCapitalOk = sentenceWords[0].capital === true;
+
+    // 3. Any word that must always be capitalised (like "I") capitalised?
+    const alwaysOk = sentenceWords.every(sw =>
+        s.always.indexOf(sw.word.toLowerCase()) === -1 ? true : sw.capital === true);
+
+    // 4. Full stop at the end?
+    const fullStopOk = hasFullStop;
+
+    if (!orderOk) {
+        // Distinguish "valid words, wrong order" from "wrong/extra words".
+        const sortedBuilt = [...placed].sort().join(' ');
+        const matchesAsSet = s.valid.some(v => [...v].sort().join(' ') === sortedBuilt);
+        if (matchesAsSet) {
+            return { ok: false, message: '\u{1F914} The right words are there. Try changing the order so it makes sense.' };
+        }
+        return { ok: false, message: '\u{1F914} Those words do not make a sentence yet. Check which words you need.' };
+    }
+    if (!firstCapitalOk) {
+        return { ok: false, message: '\u{1F520} Sentences start with a capital letter. Tap the first word to add one.' };
+    }
+    if (!alwaysOk) {
+        return { ok: false, message: '\u{1F520} The word "I" always has a capital letter. Tap it to fix it.' };
+    }
+    if (!fullStopOk) {
+        return { ok: false, message: '\u{1F535} You need a full stop at the end. Tap "Full stop".' };
+    }
+    return { ok: true, message: '\u2B50 Perfect sentence! Capital letter, the right order, and a full stop. \u2B50' };
+}
+
+function checkSentence() {
+    if (solved) return;
+    const result = assess();
+
+    if (result.ok) {
+        solved = true;
         feedback.className = 'feedback show win';
-        feedback.textContent = '\u2B50 Perfect sentence! Well done! \u2B50';
+        feedback.setAttribute('role', 'status');
+        feedback.textContent = result.message;
         sentenceZone.classList.add('correct');
         score++;
         document.getElementById('scoreLabel').textContent = `Score: ${score}`;
+        speak(displayString());
         celebrate();
 
         setTimeout(() => {
@@ -654,10 +895,11 @@ function checkSentence() {
                 celebrate();
                 setTimeout(celebrate, 500);
             }
-        }, 1800);
+        }, 2000);
     } else {
         feedback.className = 'feedback show try';
-        feedback.textContent = '\u{1F914} Not quite. Check the word order and try again!';
+        feedback.setAttribute('role', 'alert');
+        feedback.textContent = result.message;
     }
 }
 

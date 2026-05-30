@@ -272,7 +272,8 @@
   .axis-label { fill: var(--text-muted); font-size: 11px; font-family: var(--font); }
   .axis-title { fill: var(--text-secondary); font-size: 12px; font-family: var(--font); font-weight: 600; }
   .regression-line { stroke: var(--teal); stroke-width: 2; stroke-dasharray: none; }
-  .whatif-line { stroke: var(--warning); stroke-width: 2; stroke-dasharray: 6 3; }
+  .whatif-line { stroke: var(--warning); stroke-width: 2; stroke-dasharray: 6 3; touch-action: none; }
+  .whatif-hit { touch-action: none; }
   .residual-bar { stroke-width: 1.5; opacity: 0.55; }
   .residual-bar.pos { stroke: var(--positive); }
   .residual-bar.neg { stroke: var(--negative); }
@@ -1284,13 +1285,15 @@ function drawChart() {
     // Invisible wider hit area for the what-if line
     const wOffset = state.whatIfOffset;
     const hitLine = el('line', {
+      class: 'whatif-hit',
       x1: scX(xDomain[0]), y1: scY(predict(reg, xDomain[0])) + wOffset,
       x2: scX(xDomain[1]), y2: scY(predict(reg, xDomain[1])) + wOffset,
       stroke: 'transparent',
       'stroke-width': '16',
-      style: 'cursor: ns-resize;',
+      style: 'cursor: ns-resize; touch-action: none;',
     }, g);
     hitLine.addEventListener('mousedown', startWhatIfDrag);
+    hitLine.addEventListener('pointerdown', startWhatIfDragPointer);
   }
 
   // Update filter counts
@@ -1358,6 +1361,21 @@ function startWhatIfDrag(e) {
   e.preventDefault();
 }
 
+// Pointer Events variant: works for touch, pen and mouse on tablets and
+// interactive whiteboards. Uses pointer capture so dragging continues even
+// if the redrawn (and therefore replaced) line element moves out from under
+// the pointer.
+function startWhatIfDragPointer(e) {
+  // Avoid double-handling: mouse pointer events also fire mousedown, so let
+  // the existing mouse path own mouse input and use this only for non-mouse.
+  if (e.pointerType === 'mouse') return;
+  state.draggingWhatIf = true;
+  state.dragStartY = e.clientY;
+  state.dragStartOffset = state.whatIfOffset;
+  try { e.target.setPointerCapture(e.pointerId); } catch (err) {}
+  e.preventDefault();
+}
+
 document.addEventListener('mousemove', (e) => {
   if (!state.draggingWhatIf) return;
   const delta = e.clientY - state.dragStartY;
@@ -1370,6 +1388,23 @@ document.addEventListener('mouseup', () => {
     state.draggingWhatIf = false;
   }
 });
+
+// Pointer equivalents (touch / pen). Mouse continues to use the handlers above.
+document.addEventListener('pointermove', (e) => {
+  if (!state.draggingWhatIf || e.pointerType === 'mouse') return;
+  const delta = e.clientY - state.dragStartY;
+  state.whatIfOffset = state.dragStartOffset + delta;
+  drawChart();
+});
+
+function endWhatIfDragPointer(e) {
+  if (e && e.pointerType === 'mouse') return;
+  if (state.draggingWhatIf) {
+    state.draggingWhatIf = false;
+  }
+}
+document.addEventListener('pointerup', endWhatIfDragPointer);
+document.addEventListener('pointercancel', endWhatIfDragPointer);
 
 // ================================================================
 //  STATS PANEL

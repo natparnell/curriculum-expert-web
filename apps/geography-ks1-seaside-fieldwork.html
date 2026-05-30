@@ -77,7 +77,9 @@ body {
     z-index: 2;
 }
 .scene-item:hover { transform: scale(1.2); z-index: 5; }
+.scene-item:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 3px; border-radius: 8px; }
 .scene-item.found { animation: bounce 0.4s; }
+.scene-item.found { cursor: default; opacity: 0.55; }
 .scene-item.found::after {
     content: '\2705';
     position: absolute;
@@ -87,6 +89,76 @@ body {
 }
 
 @keyframes bounce { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } }
+
+/* Classify panel */
+.classify-panel {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-bottom: 14px;
+    text-align: center;
+    display: none;
+}
+.classify-panel.active { display: block; animation: popIn 0.3s ease; }
+.classify-icon { font-size: 2.6rem; line-height: 1; }
+.classify-name { font-size: 1.1rem; font-weight: 900; margin: 6px 0 4px; }
+.classify-q { font-size: 0.85rem; font-weight: 700; color: var(--text-light); margin-bottom: 12px; }
+.classify-btns { display: flex; gap: 12px; justify-content: center; }
+.sort-btn {
+    flex: 1;
+    max-width: 180px;
+    padding: 14px 10px;
+    border: 3px solid transparent;
+    border-radius: 14px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.15s;
+}
+.sort-btn:active { transform: scale(0.96); }
+.sort-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+.sort-btn.human { background: var(--human); }
+.sort-btn.physical { background: var(--physical); }
+.classify-feedback {
+    margin-top: 12px;
+    font-size: 0.88rem;
+    font-weight: 800;
+    min-height: 1.2em;
+    padding: 0 4px;
+}
+.classify-feedback.correct { color: #166534; }
+.classify-feedback.wrong { color: #b91c1c; }
+.shake { animation: shake 0.4s; }
+@keyframes shake { 0%,100%{transform:translateX(0);} 20%,60%{transform:translateX(-6px);} 40%,80%{transform:translateX(6px);} }
+
+/* Genuine tally marks grouped in fives */
+.tally-group { display: inline-flex; gap: 9px; align-items: flex-end; flex-wrap: wrap; }
+.tally-five {
+    position: relative;
+    display: inline-flex;
+    gap: 3px;
+    padding: 0 2px;
+}
+.tally-five .stroke {
+    width: 3px;
+    height: 20px;
+    background: var(--text);
+    border-radius: 1px;
+}
+.tally-five.complete::after {
+    content: '';
+    position: absolute;
+    left: -3px;
+    right: -3px;
+    top: 50%;
+    height: 3px;
+    background: var(--sea);
+    transform: rotate(-18deg);
+    border-radius: 2px;
+}
 
 /* Tally chart */
 .tally-section {
@@ -182,6 +254,47 @@ body {
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -353,25 +466,37 @@ body {
 </div>
 
 <div class="main">
-    <div class="instruction" id="instruction">Tap things you can see at the seaside! Is each one human or physical?</div>
+    <div class="instruction" id="instruction">Tap a feature on the scene. Then decide: is it <strong>human</strong> (made by people) or <strong>physical</strong> (natural)?</div>
 
     <div class="legend">
         <div class="legend-item"><div class="legend-dot" style="background:var(--human);"></div> Human (made by people)</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--physical);"></div> Physical (natural)</div>
     </div>
 
-    <div class="scene" id="scene"></div>
+    <div class="scene" id="scene" role="group" aria-label="Seaside scene. Tap a feature to sort it."></div>
+
+    <div class="classify-panel" id="classifyPanel" aria-live="polite">
+        <div class="classify-icon" id="classifyIcon" aria-hidden="true"></div>
+        <div class="classify-name" id="classifyName"></div>
+        <div class="classify-q">Is this human or physical?</div>
+        <div class="classify-btns">
+            <button type="button" class="sort-btn human" id="sortHuman">&#x1F3D7;&#xFE0F; Human</button>
+            <button type="button" class="sort-btn physical" id="sortPhysical">&#x1F33F; Physical</button>
+        </div>
+        <div class="classify-feedback" id="classifyFeedback" role="status"></div>
+    </div>
 
     <div class="score-bar">
-        <span id="foundLabel" style="color:var(--sea);">Found: 0/14</span>
+        <span id="foundLabel" style="color:var(--sea);">Sorted: 0 of 8 features</span>
         <span id="typeLabel" style="color:var(--text-light);">Tap items on the scene!</span>
     </div>
 
     <div class="tally-section">
         <h3>My Seaside Tally Chart</h3>
+        <p style="font-size:0.72rem;font-weight:600;color:var(--text-light);margin-bottom:8px;">One stroke for each one you spot. Every 5th stroke crosses the gate, so you can count in fives.</p>
         <table class="tally-table">
             <thead>
-                <tr><th>Feature</th><th>Type</th><th>Tally</th></tr>
+                <tr><th>Feature</th><th>Type</th><th>Tally</th><th>Count</th></tr>
             </thead>
             <tbody id="tallyBody"></tbody>
         </table>
@@ -383,85 +508,195 @@ body {
 <div class="celebration" id="celebration"></div>
 
 <script>
-const ITEMS = [
+// Each feature has a real frequency (count) so the tally is a genuine count,
+// not one stroke per row. The scene shows that many tappable icons.
+const FEATURES = [
     // Physical features (natural)
-    { icon: '\u{1F30A}', name: 'Waves', type: 'physical', x: 75, y: 75, desc: 'Waves crash onto the shore' },
-    { icon: '\u{1FAA8}', name: 'Rocks', type: 'physical', x: 88, y: 50, desc: 'Rocks are found on the beach' },
-    { icon: '\u{1F41A}', name: 'Shells', type: 'physical', x: 35, y: 52, desc: 'Shells wash up from the sea' },
-    { icon: '\u{1F980}', name: 'Crab', type: 'physical', x: 70, y: 48, desc: 'Crabs live in rock pools' },
-    { icon: '\u2600\uFE0F', name: 'Sun', type: 'physical', x: 15, y: 8, desc: 'The sun shines in the sky' },
-    { icon: '\u2601\uFE0F', name: 'Clouds', type: 'physical', x: 55, y: 5, desc: 'Clouds float across the sky' },
-    { icon: '\u{1F426}', name: 'Seagull', type: 'physical', x: 40, y: 15, desc: 'Seagulls fly over the beach' },
-    { icon: '\u{1F3D6}\uFE0F', name: 'Sand', type: 'physical', x: 50, y: 48, desc: 'Sandy beach stretches along the coast' },
+    { icon: '\u{1F41A}', name: 'Shells', type: 'physical', count: 7, desc: 'Shells wash up from the sea' },
+    { icon: '\u{1F426}', name: 'Seagulls', type: 'physical', count: 5, desc: 'Seagulls fly over the beach' },
+    { icon: '\u{1FAA8}', name: 'Rocks', type: 'physical', count: 4, desc: 'Rocks are found on the beach' },
+    { icon: '\u{1F980}', name: 'Crabs', type: 'physical', count: 3, desc: 'Crabs live in rock pools' },
     // Human features (made by people)
-    { icon: '\u{1F3D7}\uFE0F', name: 'Pier', type: 'human', x: 8, y: 55, desc: 'The pier goes out over the sea' },
-    { icon: '\u26F5', name: 'Boat', type: 'human', x: 25, y: 70, desc: 'Boats sail on the water' },
-    { icon: '\u{1F3E0}', name: 'Beach Hut', type: 'human', x: 90, y: 30, desc: 'Colourful beach huts line the shore' },
-    { icon: '\u{1F9F1}', name: 'Sea Wall', type: 'human', x: 15, y: 42, desc: 'The sea wall protects the land' },
-    { icon: '\u{1F6A9}', name: 'Flag', type: 'human', x: 58, y: 35, desc: 'Flags mark safe swimming areas' },
-    { icon: '\u{1F6A3}', name: 'Steps', type: 'human', x: 45, y: 38, desc: 'Steps lead down to the beach' }
+    { icon: '\u26F5', name: 'Boats', type: 'human', count: 6, desc: 'Boats sail on the water' },
+    { icon: '\u{1F3E0}', name: 'Beach Huts', type: 'human', count: 4, desc: 'Colourful beach huts line the shore' },
+    { icon: '\u{1F6A9}', name: 'Flags', type: 'human', count: 2, desc: 'Flags mark safe swimming areas' },
+    { icon: '\u{1F3D7}\uFE0F', name: 'Piers', type: 'human', count: 1, desc: 'The pier goes out over the sea' }
 ];
 
-let found = new Set();
 const scene = document.getElementById('scene');
 const tallyBody = document.getElementById('tallyBody');
+const panel = document.getElementById('classifyPanel');
+const fbEl = document.getElementById('classifyFeedback');
 
-// Place items on scene
-ITEMS.forEach((item, i) => {
-    const el = document.createElement('div');
-    el.className = 'scene-item';
-    el.style.left = item.x + '%';
-    el.style.top = item.y + '%';
-    el.textContent = item.icon;
-    el.title = item.name;
-    el.addEventListener('click', () => findItem(i, el));
-    scene.appendChild(el);
+let sorted = {};        // featureIndex -> true once correctly classified
+let attempts = {};      // featureIndex -> number of wrong tries
+let activeIdx = null;   // feature currently being classified
+
+// Grid-based placement so the (many) icons spread out and rarely overlap.
+const totalIcons = FEATURES.reduce((a, f) => a + f.count, 0);
+const cols = 7;
+const rows = Math.ceil(totalIcons / cols);
+function cellPos(slot) {
+    const c = slot % cols;
+    const r = Math.floor(slot / cols);
+    const cellW = 88 / cols;
+    const cellH = 80 / rows;
+    // jitter within the cell, deterministic per slot
+    const jx = ((slot * 17) % 5) - 2;
+    const jy = ((slot * 11) % 5) - 2;
+    const x = 6 + c * cellW + cellW / 2 - 4 + jx;
+    const y = 7 + r * cellH + cellH / 2 - 4 + jy;
+    return { x, y };
+}
+
+// Interleave features so the same icon is not clumped in one corner
+const placements = [];
+FEATURES.forEach((feat, fi) => {
+    for (let s = 0; s < feat.count; s++) placements.push(fi);
+});
+// shuffle deterministically
+for (let i = placements.length - 1; i > 0; i--) {
+    const j = (i * 7 + 3) % (i + 1);
+    const t = placements[i]; placements[i] = placements[j]; placements[j] = t;
+}
+
+// Build the scene: one tappable icon per sighting of each feature
+placements.forEach((fi, slot) => {
+    const feat = FEATURES[fi];
+    {
+        const pos = cellPos(slot);
+        const el = document.createElement('div');
+        el.className = 'scene-item';
+        el.style.left = pos.x + '%';
+        el.style.top = pos.y + '%';
+        el.textContent = feat.icon;
+        el.title = feat.name;
+        el.setAttribute('role', 'button');
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('aria-label', feat.name + '. Tap to sort.');
+        el.addEventListener('click', () => openClassify(fi));
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openClassify(fi); }
+        });
+        scene.appendChild(el);
+    }
 });
 
-function findItem(idx, el) {
-    if (found.has(idx)) return;
-    found.add(idx);
-    el.classList.add('found');
+function speak(text) {
+    try {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-GB';
+        if (window.westTTS) u.voice = window.westTTS.pick(u.lang || 'en-GB');
+        u.rate = 0.95;
+        window.speechSynthesis.speak(u);
+    } catch (e) {}
+}
 
-    const item = ITEMS[idx];
-    document.getElementById('foundLabel').textContent = `Found: ${found.size}/${ITEMS.length}`;
-    document.getElementById('typeLabel').textContent = `${item.name}: ${item.type === 'human' ? 'Human feature' : 'Physical feature'}`;
+function openClassify(fi) {
+    if (sorted[fi]) return; // already done
+    activeIdx = fi;
+    const feat = FEATURES[fi];
+    document.getElementById('classifyIcon').textContent = feat.icon;
+    document.getElementById('classifyName').textContent = feat.name;
+    fbEl.textContent = '';
+    fbEl.className = 'classify-feedback';
+    panel.classList.add('active');
+    document.getElementById('typeLabel').textContent = 'Sorting: ' + feat.name;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    speak('Is ' + feat.name + ' human or physical?');
+    document.getElementById('sortPhysical').focus();
+}
 
-    renderTally();
-    spawnMini();
+function classify(choice) {
+    if (activeIdx === null) return;
+    const fi = activeIdx;
+    const feat = FEATURES[fi];
 
-    if (found.size === ITEMS.length) {
-        setTimeout(() => {
-            document.getElementById('completeMsg').style.display = 'block';
-            const physCount = ITEMS.filter((it, i) => found.has(i) && it.type === 'physical').length;
-            const humCount = ITEMS.filter((it, i) => found.has(i) && it.type === 'human').length;
-            document.getElementById('completeMsg').textContent = `\u{1F389} You found everything! ${physCount} physical features and ${humCount} human features!`;
-            celebrate();
-        }, 400);
+    if (choice === feat.type) {
+        sorted[fi] = true;
+        // Mark every scene icon of this feature as found
+        document.querySelectorAll('.scene-item').forEach(el => {
+            if (el.title === feat.name) el.classList.add('found');
+        });
+        fbEl.className = 'classify-feedback correct';
+        fbEl.textContent = '\u2705 Yes! ' + feat.name + ' are ' + feat.type + '. ' + feat.desc + '.';
+        speak('Correct. ' + feat.name + ' are ' + feat.type + '.');
+        renderTally();
+        spawnMini();
+        const done = Object.keys(sorted).length;
+        document.getElementById('foundLabel').textContent = 'Sorted: ' + done + ' of ' + FEATURES.length + ' features';
+        setTimeout(() => { panel.classList.remove('active'); activeIdx = null; }, 1600);
+        checkComplete();
+    } else {
+        attempts[fi] = (attempts[fi] || 0) + 1;
+        const hint = feat.type === 'human'
+            ? 'people built it, so it is a human feature'
+            : 'nature made it, so it is a physical feature';
+        fbEl.className = 'classify-feedback wrong';
+        fbEl.textContent = '\u274C Not quite. Think again: ' + feat.name + ' are ' + (feat.type === 'human' ? 'made by people' : 'natural') + '. Try the other button.';
+        panel.classList.add('shake');
+        setTimeout(() => panel.classList.remove('shake'), 400);
+        speak('Not quite. ' + feat.name + ': ' + hint + '.');
     }
+}
+
+document.getElementById('sortHuman').addEventListener('click', () => classify('human'));
+document.getElementById('sortPhysical').addEventListener('click', () => classify('physical'));
+
+// Render genuine tally marks grouped in fives (four strokes + a gate)
+function tallyMarks(n) {
+    let html = '<span class="tally-group" aria-hidden="true">';
+    const fullGroups = Math.floor(n / 5);
+    const remainder = n % 5;
+    for (let g = 0; g < fullGroups; g++) {
+        html += '<span class="tally-five complete"><span class="stroke"></span><span class="stroke"></span><span class="stroke"></span><span class="stroke"></span></span>';
+    }
+    if (remainder > 0) {
+        html += '<span class="tally-five">';
+        for (let s = 0; s < remainder; s++) html += '<span class="stroke"></span>';
+        html += '</span>';
+    }
+    html += '</span>';
+    return html;
 }
 
 function renderTally() {
     tallyBody.innerHTML = '';
-    const foundItems = ITEMS.filter((_, i) => found.has(i));
-    foundItems.forEach(item => {
+    const tallyRows = FEATURES.filter((_, i) => sorted[i]);
+    tallyRows.forEach(feat => {
         const tr = document.createElement('tr');
-        tr.className = item.type;
-        tr.innerHTML = `
-            <td>${item.icon} ${item.name}</td>
-            <td><span class="type-badge">${item.type === 'human' ? 'Human' : 'Physical'}</span></td>
-            <td class="tally-marks">|</td>
-        `;
+        tr.className = feat.type;
+        tr.innerHTML =
+            '<td>' + feat.icon + ' ' + feat.name + '</td>' +
+            '<td><span class="type-badge">' + (feat.type === 'human' ? 'Human' : 'Physical') + '</span></td>' +
+            '<td class="tally-marks" aria-label="' + feat.count + ' tally marks">' + tallyMarks(feat.count) + '</td>' +
+            '<td class="count-num">' + feat.count + '</td>';
         tallyBody.appendChild(tr);
     });
 
-    // Summary row
-    if (foundItems.length > 0) {
-        const physCount = foundItems.filter(i => i.type === 'physical').length;
-        const humCount = foundItems.filter(i => i.type === 'human').length;
+    if (tallyRows.length > 0) {
+        const physCount = tallyRows.filter(i => i.type === 'physical').reduce((a, i) => a + i.count, 0);
+        const humCount = tallyRows.filter(i => i.type === 'human').reduce((a, i) => a + i.count, 0);
+        const total = physCount + humCount;
         const sumRow = document.createElement('tr');
-        sumRow.innerHTML = `<td colspan="2" style="font-weight:800;">Total: Physical ${physCount}, Human ${humCount}</td><td class="count-num">${foundItems.length}</td>`;
+        sumRow.innerHTML = '<td colspan="2" style="font-weight:800;">Total spotted: Physical ' + physCount + ', Human ' + humCount + '</td><td></td><td class="count-num">' + total + '</td>';
         tallyBody.appendChild(sumRow);
+    }
+}
+
+function checkComplete() {
+    if (Object.keys(sorted).length === FEATURES.length) {
+        setTimeout(() => {
+            const physCount = FEATURES.filter(f => f.type === 'physical').reduce((a, f) => a + f.count, 0);
+            const humCount = FEATURES.filter(f => f.type === 'human').reduce((a, f) => a + f.count, 0);
+            const msg = document.getElementById('completeMsg');
+            msg.style.display = 'block';
+            msg.textContent = '\u{1F389} All sorted! You counted ' + physCount + ' physical things and ' + humCount + ' human things at the seaside.';
+            speak('Well done! All features sorted.');
+            celebrate();
+        }, 600);
     }
 }
 

@@ -130,6 +130,8 @@ header p { font-size: 0.78rem; opacity: 0.85; }
   display: flex; align-items: center; justify-content: center;
   font-size: 0.9rem; font-weight: 800; color: #fff;
   cursor: grab; user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   position: absolute;
   z-index: 10;
@@ -148,6 +150,8 @@ header p { font-size: 0.78rem; opacity: 0.85; }
   display: flex; align-items: center; justify-content: center;
   font-size: 0.9rem; font-weight: 800; color: #fff;
   cursor: grab; user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
   box-shadow: var(--shadow);
   border: 3px solid transparent;
   transition: var(--transition);
@@ -600,8 +604,7 @@ function renderPalette() {
     el.dataset.actor = a.id;
 
     if (!positions[a.id]) {
-      el.onmousedown = (e) => startDragFromPalette(e, a.id);
-      el.ontouchstart = (e) => startDragFromPaletteTouch(e, a.id);
+      el.onpointerdown = (e) => startDragFromPalette(e, a.id);
     }
 
     palette.appendChild(el);
@@ -630,8 +633,7 @@ function renderStage() {
     marker.textContent = actorId;
     marker.dataset.actor = actorId;
 
-    marker.onmousedown = (e) => startDragOnStage(e, actorId);
-    marker.ontouchstart = (e) => startDragOnStageTouch(e, actorId);
+    marker.onpointerdown = (e) => startDragOnStage(e, actorId);
 
     // Double click to remove from stage
     marker.ondblclick = () => {
@@ -708,15 +710,24 @@ function toggleConnectionLines() {
   renderConnections();
 }
 
-/* ==================== DRAGGING ==================== */
+/* ==================== DRAGGING ====================
+   Uses Pointer Events so the same drag works by mouse, touch
+   (tablets) and pen (interactive whiteboards). setPointerCapture
+   keeps the gesture bound to the originating element even if the
+   pointer leaves it mid-drag. */
 function startDragFromPalette(e, actorId) {
   e.preventDefault();
+  // Only react to the primary pointer; ignore secondary touches.
+  if (e.isPrimary === false) return;
   draggingActor = actorId;
   dragFromPalette = true;
 
   const stage = document.getElementById('stage');
+  const captureEl = e.currentTarget || e.target;
+  const pointerId = e.pointerId;
+  try { if (captureEl && pointerId != null) captureEl.setPointerCapture(pointerId); } catch (err) {}
 
-  // Create a temporary marker that follows the mouse
+  // Create a temporary marker that follows the pointer
   const actor = ACTORS.find(a => a.id === actorId);
   const temp = document.createElement('div');
   temp.className = 'actor-marker dragging';
@@ -727,6 +738,7 @@ function startDragFromPalette(e, actorId) {
   temp.style.top = e.clientY + 'px';
   temp.style.transform = 'translate(-50%, -50%)';
   temp.style.zIndex = '1000';
+  temp.style.pointerEvents = 'none';
   temp.textContent = actorId;
   document.body.appendChild(temp);
 
@@ -736,8 +748,10 @@ function startDragFromPalette(e, actorId) {
   };
 
   const onUp = (ev) => {
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onUp);
+    try { if (captureEl && pointerId != null) captureEl.releasePointerCapture(pointerId); } catch (err) {}
     temp.remove();
 
     const stageRect = stage.getBoundingClientRect();
@@ -756,19 +770,24 @@ function startDragFromPalette(e, actorId) {
     dragFromPalette = false;
   };
 
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onUp);
 }
 
 function startDragOnStage(e, actorId) {
   e.preventDefault();
   e.stopPropagation();
+  if (e.isPrimary === false) return;
   draggingActor = actorId;
   dragFromPalette = false;
 
   const stage = document.getElementById('stage');
-  const marker = e.target;
+  const marker = e.currentTarget || e.target;
   marker.classList.add('dragging');
+
+  const pointerId = e.pointerId;
+  try { if (pointerId != null) marker.setPointerCapture(pointerId); } catch (err) {}
 
   const stageRect = stage.getBoundingClientRect();
 
@@ -782,8 +801,10 @@ function startDragOnStage(e, actorId) {
   };
 
   const onUp = (ev) => {
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onUp);
+    try { if (pointerId != null) marker.releasePointerCapture(pointerId); } catch (err) {}
     marker.classList.remove('dragging');
 
     const x = ev.clientX - stageRect.left;
@@ -803,50 +824,9 @@ function startDragOnStage(e, actorId) {
     draggingActor = null;
   };
 
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
-}
-
-// Touch support
-function startDragFromPaletteTouch(e, actorId) {
-  e.preventDefault();
-  const touch = e.touches[0];
-  const fakeEvent = { preventDefault: ()=>{}, clientX: touch.clientX, clientY: touch.clientY };
-  startDragFromPalette(fakeEvent, actorId);
-
-  const onTouchMove = (ev) => {
-    const t = ev.touches[0];
-    document.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY }));
-  };
-  const onTouchEnd = (ev) => {
-    const t = ev.changedTouches[0];
-    document.dispatchEvent(new MouseEvent('mouseup', { clientX: t.clientX, clientY: t.clientY }));
-    document.removeEventListener('touchmove', onTouchMove);
-    document.removeEventListener('touchend', onTouchEnd);
-  };
-  document.addEventListener('touchmove', onTouchMove, { passive: false });
-  document.addEventListener('touchend', onTouchEnd);
-}
-
-function startDragOnStageTouch(e, actorId) {
-  e.preventDefault();
-  e.stopPropagation();
-  const touch = e.touches[0];
-  const fakeEvent = { preventDefault: ()=>{}, stopPropagation: ()=>{}, clientX: touch.clientX, clientY: touch.clientY, target: e.target };
-  startDragOnStage(fakeEvent, actorId);
-
-  const onTouchMove = (ev) => {
-    const t = ev.touches[0];
-    document.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY }));
-  };
-  const onTouchEnd = (ev) => {
-    const t = ev.changedTouches[0];
-    document.dispatchEvent(new MouseEvent('mouseup', { clientX: t.clientX, clientY: t.clientY }));
-    document.removeEventListener('touchmove', onTouchMove);
-    document.removeEventListener('touchend', onTouchEnd);
-  };
-  document.addEventListener('touchmove', onTouchMove, { passive: false });
-  document.addEventListener('touchend', onTouchEnd);
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onUp);
 }
 
 /* ==================== SIDEBAR ==================== */

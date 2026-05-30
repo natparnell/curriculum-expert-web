@@ -60,7 +60,9 @@ aside::-webkit-scrollbar-thumb{background:var(--panel-border);border-radius:3px}
 main{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);position:relative}
 
 .canvas-area{flex:1;position:relative;min-height:0}
-.canvas-area canvas{display:block;width:100%;height:100%}
+.canvas-area canvas{display:block;width:100%;height:100%;touch-action:none}
+.canvas-area canvas:focus{outline:2px solid var(--teal-light);outline-offset:-2px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
 /* Stats bar */
 .stats-bar{display:flex;gap:0;border-top:1px solid var(--panel-border);background:var(--panel);flex-shrink:0}
@@ -324,7 +326,8 @@ main{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);pos
 
 <main>
   <div class="canvas-area">
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas" role="application" tabindex="0" aria-label="Interactive storm hydrograph chart. Shows rainfall bars above a discharge curve over 24 hours. Use the left and right arrow keys to move along the time axis and hear the discharge at each point. Adjust the catchment sliders to change the chart."></canvas>
+    <div id="canvasLive" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     <button class="info-toggle" onclick="toggleInfo()">&#9432; Info</button>
     <div class="info-panel" id="infoPanel">
       <button class="close-info" onclick="toggleInfo()">&times;</button>
@@ -855,6 +858,20 @@ function drawAll() {
   const riskEl = document.getElementById('statRisk');
   riskEl.textContent = risk.text;
   riskEl.style.color = risk.colour;
+
+  /* Keep the spoken summary in sync with the latest chart state */
+  canvas._summary = 'Hydrograph updated. Peak discharge ' + data.peakDischarge.toFixed(1)
+    + ' cubic metres per second, lag time ' + data.lagTime.toFixed(1)
+    + ' hours, time to peak ' + data.timeToPeak.toFixed(1)
+    + ' hours, base flow ' + data.baseFlow.toFixed(1)
+    + ' cubic metres per second, runoff coefficient ' + (data.runoffCoeff * 100).toFixed(0)
+    + ' per cent, flood risk ' + risk.text + '.';
+}
+
+/* ── Accessible live announcements ─────────────────────── */
+function announceChartSummary() {
+  const live = document.getElementById('canvasLive');
+  if (live && canvas._summary) live.textContent = canvas._summary;
 }
 
 /* ── Annotation helper ─────────────────────────────────── */
@@ -909,6 +926,7 @@ function applyPreset(name) {
   updateLabels(getValues());
   highlightPreset(name);
   drawAll();
+  announceChartSummary();
 }
 
 function highlightPreset(name) {
@@ -950,6 +968,7 @@ function toggleCompare() {
     legend.style.display = 'none';
   }
   drawAll();
+  announceChartSummary();
 }
 
 /* ── Reset ─────────────────────────────────────────────── */
@@ -970,6 +989,7 @@ function resetAll() {
   clearPresetHighlight();
   updateLabels(getValues());
   drawAll();
+  announceChartSummary();
 }
 
 /* ── Info panel ────────────────────────────────────────── */
@@ -984,19 +1004,67 @@ Object.values(sliders).forEach(s => {
     updateLabels(getValues());
     drawAll();
   });
+  s.addEventListener('change', announceChartSummary);
 });
 
 window.addEventListener('resize', drawAll);
 
 /* ── Canvas hover tooltip ──────────────────────────────── */
 let tooltipRAF = null;
-canvas.addEventListener('mousemove', function(e) {
+
+/* Draw the crosshair tooltip at a given index along the curve */
+function drawTooltipAtIndex(idx) {
+  const L = canvas._layout;
+  if (!L) return;
+  if (idx < 0 || idx >= L.data.points.length) return;
+  const pt = L.data.points[idx];
+  const px = L.xScale(pt.t);
+  const py = L.yScale(pt.discharge);
+  drawAll();
+  ctx.strokeStyle = 'rgba(82,199,184,0.3)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(px, L.plotTop);
+  ctx.lineTo(px, L.plotTop + L.plotH);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#52c7b8';
+  ctx.beginPath();
+  ctx.arc(px, py, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  const tooltipW = 130;
+  const tooltipH = 42;
+  let tx = px + 12;
+  let ty = py - tooltipH - 8;
+  if (tx + tooltipW > L.margin.left + L.plotW) tx = px - tooltipW - 12;
+  if (ty < L.plotTop) ty = py + 12;
+  ctx.fillStyle = 'rgba(18,30,30,0.92)';
+  ctx.strokeStyle = 'rgba(42,157,143,0.5)';
+  ctx.lineWidth = 1;
+  roundRect(ctx, tx, ty, tooltipW, tooltipH, 6);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#e0e8e6';
+  ctx.font = '10px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Time: ' + pt.t.toFixed(1) + ' hrs', tx + 8, ty + 16);
+  ctx.fillStyle = '#52c7b8';
+  ctx.font = 'bold 11px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText(pt.discharge.toFixed(2) + ' m³/s', tx + 8, ty + 32);
+}
+
+/* Shared handler for mouse and touch hover/scrub (uses client coords) */
+function handleCanvasPoint(clientX, clientY) {
   if (tooltipRAF) cancelAnimationFrame(tooltipRAF);
   tooltipRAF = requestAnimationFrame(function() {
     if (!canvas._layout) return;
     const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    const mx = clientX - rect.left;
+    const my = clientY - rect.top;
     const L = canvas._layout;
 
     /* Check if mouse is within the hydrograph plot area */
@@ -1008,68 +1076,86 @@ canvas.addEventListener('mousemove', function(e) {
     }
     canvas.style.cursor = 'crosshair';
 
-    /* Find the time value at mouse position */
+    /* Find the time value at the point position */
     const t = ((mx - L.margin.left) / L.plotW) * L.xMax;
     const idx = Math.round(t / 0.1);
-    if (idx < 0 || idx >= L.data.points.length) return;
-
-    const pt = L.data.points[idx];
-    const px = L.xScale(pt.t);
-    const py = L.yScale(pt.discharge);
-
-    /* Redraw then overlay tooltip elements */
-    drawAll();
-
-    /* Vertical crosshair line */
-    ctx.strokeStyle = 'rgba(82,199,184,0.3)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath();
-    ctx.moveTo(px, L.plotTop);
-    ctx.lineTo(px, L.plotTop + L.plotH);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    /* Highlight dot */
-    ctx.fillStyle = '#52c7b8';
-    ctx.beginPath();
-    ctx.arc(px, py, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    /* Tooltip box */
-    const tooltipW = 130;
-    const tooltipH = 42;
-    let tx = px + 12;
-    let ty = py - tooltipH - 8;
-    /* Keep within bounds */
-    if (tx + tooltipW > L.margin.left + L.plotW) tx = px - tooltipW - 12;
-    if (ty < L.plotTop) ty = py + 12;
-
-    ctx.fillStyle = 'rgba(18,30,30,0.92)';
-    ctx.strokeStyle = 'rgba(42,157,143,0.5)';
-    ctx.lineWidth = 1;
-    roundRect(ctx, tx, ty, tooltipW, tooltipH, 6);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#e0e8e6';
-    ctx.font = '10px "Segoe UI", system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('Time: ' + pt.t.toFixed(1) + ' hrs', tx + 8, ty + 16);
-    ctx.fillStyle = '#52c7b8';
-    ctx.font = 'bold 11px "Segoe UI", system-ui, sans-serif';
-    ctx.fillText(pt.discharge.toFixed(2) + ' m\u00B3/s', tx + 8, ty + 32);
+    drawTooltipAtIndex(idx);
   });
-});
+}
 
-canvas.addEventListener('mouseleave', function() {
+function clearCanvasOverlay() {
   canvas.style.cursor = 'default';
   if (tooltipRAF) cancelAnimationFrame(tooltipRAF);
   drawAll();
+}
+
+/* Pointer Events: one code path for mouse, touch and pen */
+if (window.PointerEvent) {
+  let pointerActive = false;
+  canvas.addEventListener('pointermove', function(e) {
+    /* For touch, only scrub while a finger is down to avoid jitter */
+    if (e.pointerType !== 'touch' || pointerActive) {
+      handleCanvasPoint(e.clientX, e.clientY);
+    }
+  });
+  canvas.addEventListener('pointerdown', function(e) {
+    pointerActive = true;
+    if (typeof canvas.setPointerCapture === 'function') {
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+    handleCanvasPoint(e.clientX, e.clientY);
+    /* Stop touch-drag from scrolling the page while scrubbing */
+    if (e.pointerType === 'touch') e.preventDefault();
+  });
+  var endPointer = function() { pointerActive = false; clearCanvasOverlay(); };
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('pointerleave', function() {
+    if (!pointerActive) clearCanvasOverlay();
+  });
+} else {
+  /* Fallback for browsers without Pointer Events */
+  canvas.addEventListener('mousemove', function(e) {
+    handleCanvasPoint(e.clientX, e.clientY);
+  });
+  canvas.addEventListener('mouseleave', clearCanvasOverlay);
+}
+
+/* Keyboard scrubbing: arrow keys move the inspection point along the curve */
+let kbIndex = -1;
+canvas.addEventListener('focus', function() {
+  if (canvas._summary) document.getElementById('canvasLive').textContent = canvas._summary;
 });
+canvas.addEventListener('keydown', function(e) {
+  const L = canvas._layout;
+  if (!L) return;
+  const last = L.data.points.length - 1;
+  let handled = true;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+    if (kbIndex < 0) kbIndex = Math.round(L.data.timeToPeak / 0.1);
+    else kbIndex = Math.min(last, kbIndex + 5);
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+    if (kbIndex < 0) kbIndex = Math.round(L.data.timeToPeak / 0.1);
+    else kbIndex = Math.max(0, kbIndex - 5);
+  } else if (e.key === 'Home') {
+    kbIndex = 0;
+  } else if (e.key === 'End') {
+    kbIndex = last;
+  } else {
+    handled = false;
+  }
+  if (!handled) return;
+  e.preventDefault();
+  kbIndex = Math.max(0, Math.min(last, kbIndex));
+  drawTooltipAtIndex(kbIndex);
+  const pt = L.data.points[kbIndex];
+  const live = document.getElementById('canvasLive');
+  if (live) {
+    live.textContent = 'At ' + pt.t.toFixed(1) + ' hours, discharge is '
+      + pt.discharge.toFixed(2) + ' cubic metres per second.';
+  }
+});
+canvas.addEventListener('blur', clearCanvasOverlay);
 
 /* ── Rounded rectangle helper ──────────────────────────── */
 function roundRect(c, x, y, w, h, r) {

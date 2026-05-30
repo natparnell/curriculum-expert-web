@@ -43,6 +43,34 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 
 .complete-msg{text-align:center;padding:16px;background:#dcfce7;border:3px solid var(--success);border-radius:var(--radius);font-size:1.1rem;font-weight:900;color:#166534;display:none;animation:popIn .4s ease}
 
+.listen-btn{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:8px 14px;border:2px solid var(--accent);background:var(--card);color:var(--accent);font-weight:800;font-size:.8rem;border-radius:999px;cursor:pointer;font-family:inherit;touch-action:manipulation}
+.listen-btn:hover,.listen-btn:focus-visible{background:var(--accent-bg)}
+
+.game-start{display:block;width:100%;margin-bottom:14px;padding:14px;border:3px dashed var(--accent);background:var(--card);color:var(--accent);font-weight:900;font-size:1rem;border-radius:var(--radius);cursor:pointer;font-family:inherit;box-shadow:var(--shadow);touch-action:manipulation}
+.game-start[disabled]{opacity:.5;cursor:not-allowed;border-style:solid;color:var(--text2)}
+.game-start:not([disabled]):hover,.game-start:not([disabled]):focus-visible{background:var(--accent-bg);transform:scale(1.02)}
+
+.match-panel{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:16px;margin-bottom:14px;display:none}
+.match-panel.show{display:block;animation:popIn .3s ease}
+.match-q{text-align:center;font-size:1rem;font-weight:800;margin-bottom:4px}
+.match-clue{display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px;background:var(--accent-bg);border:3px solid var(--border);border-radius:var(--radius);margin-bottom:12px}
+.match-clue .mc-icon{font-size:3rem}
+.match-clue .mc-text{font-size:.95rem;font-weight:700;text-align:center}
+.match-options{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:10px}
+.match-opt{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:3px solid var(--border);border-radius:var(--radius);background:var(--card);box-shadow:var(--shadow);cursor:pointer;transition:all .2s;font-family:inherit;color:var(--text);touch-action:manipulation}
+.match-opt:not([disabled]):hover,.match-opt:not([disabled]):focus-visible{transform:scale(1.04);border-color:var(--accent)}
+.match-opt .mo-icon{font-size:2rem}
+.match-opt .mo-name{font-size:.78rem;font-weight:800;text-align:center}
+.match-opt.correct{border-color:var(--success);background:#dcfce7;animation:popIn .3s ease}
+.match-opt.wrong{border-color:#ef4444;background:#fee2e2}
+.match-opt[disabled]{cursor:default}
+.match-feedback{text-align:center;font-size:.92rem;font-weight:800;min-height:24px;padding:4px}
+.match-feedback.good{color:#166534}
+.match-feedback.try{color:#b91c1c}
+.match-progress{text-align:center;font-size:.78rem;font-weight:700;color:var(--text2);margin-bottom:8px}
+
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
 @keyframes popIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
 .celebration{position:fixed;inset:0;pointer-events:none;z-index:1000}
 .confetti{position:absolute;border-radius:2px;animation:confettiFall linear forwards}
@@ -50,6 +78,47 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -216,10 +285,18 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 
 <div class="header"><h1>Special Places</h1><p>Visit places of worship around the world!</p></div>
 <div class="main">
-<div class="instruction">Tap a place to visit it and learn what makes it special!</div>
-<div class="score-bar" id="scoreBar"></div>
-<div class="places-grid" id="placesGrid"></div>
-<div class="detail-panel" id="detailPanel"></div>
+<div class="instruction" id="instruction">Tap a place to visit it and learn what makes it special!</div>
+<div class="score-bar" id="scoreBar" role="img" aria-label="Places visited so far"></div>
+<div class="places-grid" id="placesGrid" role="list" aria-label="Places of worship"></div>
+<div class="detail-panel" id="detailPanel" aria-live="polite"></div>
+<button class="game-start" id="gameStart" type="button" disabled>&#x1F9E9; Visit all five places to unlock the matching game</button>
+<div class="match-panel" id="matchPanel" aria-live="polite">
+  <div class="match-q">Which special place is this?</div>
+  <div class="match-progress" id="matchProgress"></div>
+  <div class="match-clue" id="matchClue"></div>
+  <div class="match-options" id="matchOptions" role="group" aria-label="Choose the correct place"></div>
+  <div class="match-feedback" id="matchFeedback" role="status" aria-live="assertive"></div>
+</div>
 <div class="complete-msg" id="completeMsg"></div>
 </div>
 <div class="celebration" id="celebration"></div>
@@ -255,24 +332,125 @@ const detail=document.getElementById('detailPanel');
 PLACES.forEach(()=>{const d=document.createElement('div');d.className='score-dot';scoreBar.appendChild(d);});
 
 PLACES.forEach((p,i)=>{
-const card=document.createElement('div');card.className='place-card';
-card.innerHTML=`<span class="p-icon">${p.icon}</span><span class="p-name">${p.name}</span><span class="p-religion">${p.religion}</span>`;
+const card=document.createElement('button');card.className='place-card';card.type='button';
+card.setAttribute('role','listitem');
+card.setAttribute('aria-label',`${p.name}, a place of worship for ${p.religion}. Tap to visit.`);
+card.innerHTML=`<span class="p-icon" aria-hidden="true">${p.icon}</span><span class="p-name">${p.name}</span><span class="p-religion">${p.religion}</span>`;
 card.addEventListener('click',()=>showPlace(i));
 grid.appendChild(card);
 });
 
+// Strip HTML entities and emoji to plain words for speech.
+function speakText(t){
+if(!('speechSynthesis' in window))return;
+const tmp=document.createElement('div');tmp.innerHTML=t;
+let txt=(tmp.textContent||'').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2721}\u{271D}\u{FE0F}]/gu,' ').replace(/\s+/g,' ').trim();
+if(!txt)return;
+try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='en-GB';if(window.westTTS){const v=window.westTTS.pick(u.lang||'en-GB');if(v)u.voice=v;}u.rate=.9;window.speechSynthesis.speak(u);}catch(e){}
+}
+
 function showPlace(idx){
 explored.add(idx);
 scoreBar.querySelectorAll('.score-dot').forEach((d,i)=>d.classList.toggle('done',explored.has(i)));
+scoreBar.setAttribute('aria-label',`${explored.size} of ${PLACES.length} places visited`);
 grid.querySelectorAll('.place-card').forEach((c,i)=>c.classList.toggle('active',i===idx));
 const p=PLACES[idx];
 detail.classList.remove('show');void detail.offsetWidth;detail.classList.add('show');
-detail.innerHTML=`<div class="detail-banner" style="background:linear-gradient(135deg,${p.colour},${p.colour}cc)"><div class="d-icon">${p.icon}</div><h2>${p.name}</h2></div>
+detail.innerHTML=`<div class="detail-banner" style="background:linear-gradient(135deg,${p.colour},${p.colour}cc)"><div class="d-icon" aria-hidden="true">${p.icon}</div><h2>${p.name}</h2></div>
 <div class="detail-body"><p>${p.desc}</p>
-<ul class="features-list">${p.features.map(f=>`<li><span class="f-icon">${f.icon}</span>${f.text}</li>`).join('')}</ul>
-<div class="fun-fact"><strong>Fun fact:</strong> ${p.fact}</div></div>`;
+<ul class="features-list">${p.features.map(f=>`<li><span class="f-icon" aria-hidden="true">${f.icon}</span>${f.text}</li>`).join('')}</ul>
+<div class="fun-fact"><strong>Fun fact:</strong> ${p.fact}</div>
+<button class="listen-btn" type="button" id="listenBtn" aria-label="Listen to facts about the ${p.name}">&#x1F50A; Listen</button></div>`;
+const lb=document.getElementById('listenBtn');
+if(lb)lb.addEventListener('click',()=>speakText(`The ${p.name}. ${p.desc} Fun fact. ${p.fact}`));
 spawnMini();
-if(explored.size===PLACES.length){document.getElementById('completeMsg').style.display='block';document.getElementById('completeMsg').innerHTML='&#x1F389; You visited all the special places! Each one is unique and special!';celebrate();}
+if(explored.size===PLACES.length){
+const gs=document.getElementById('gameStart');
+gs.disabled=false;gs.innerHTML='&#x1F9E9; Play the matching game!';
+const cm=document.getElementById('completeMsg');
+cm.style.display='block';
+cm.innerHTML='&#x1F389; You visited all the special places! Now try the matching game below.';
+celebrate();
+}
+}
+
+/* ---------- Matching game ---------- */
+const matchPanel=document.getElementById('matchPanel');
+const matchClue=document.getElementById('matchClue');
+const matchOptions=document.getElementById('matchOptions');
+const matchFeedback=document.getElementById('matchFeedback');
+const matchProgress=document.getElementById('matchProgress');
+const gameStart=document.getElementById('gameStart');
+
+let order=[],step=0,attempts=0,gotFirstTry=0;
+const PRAISE=['Brilliant!','Well done!','Super!','You got it!','Great matching!'];
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+gameStart.addEventListener('click',()=>{
+if(gameStart.disabled)return;
+order=shuffle(PLACES.map((_,i)=>i));
+step=0;gotFirstTry=0;
+matchPanel.classList.add('show');
+matchPanel.scrollIntoView({behavior:'smooth',block:'center'});
+nextRound();
+});
+
+function nextRound(){
+if(step>=order.length){finishGame();return;}
+attempts=0;
+const idx=order[step];const p=PLACES[idx];
+// Pick a distinctive feature as the clue.
+const feat=p.features[step%p.features.length];
+matchProgress.textContent=`Question ${step+1} of ${order.length}`;
+matchClue.innerHTML=`<span class="mc-icon" aria-hidden="true">${feat.icon}</span><span class="mc-text">${feat.text}</span>`;
+matchFeedback.textContent='';matchFeedback.className='match-feedback';
+matchOptions.innerHTML='';
+PLACES.forEach((opt,oi)=>{
+const b=document.createElement('button');b.className='match-opt';b.type='button';
+b.setAttribute('aria-label',`${opt.name}`);
+b.innerHTML=`<span class="mo-icon" aria-hidden="true">${opt.icon}</span><span class="mo-name">${opt.name}</span>`;
+b.addEventListener('click',()=>choose(oi,idx,b));
+matchOptions.appendChild(b);
+});
+}
+
+function choose(chosen,correct,btn){
+if(btn.disabled)return;
+if(chosen===correct){
+btn.classList.add('correct');
+if(attempts===0)gotFirstTry++;
+const msg=PRAISE[Math.floor(Math.random()*PRAISE.length)]+' That feature belongs to the '+PLACES[correct].name+'.';
+matchFeedback.innerHTML='✅ '+msg;
+matchFeedback.className='match-feedback good';
+speakText(msg);
+matchOptions.querySelectorAll('.match-opt').forEach(b=>b.disabled=true);
+spawnMini();
+step++;
+setTimeout(nextRound,1600);
+}else{
+attempts++;
+btn.classList.add('wrong');btn.disabled=true;
+const m='Not quite. That is the '+PLACES[chosen].name+'. Have another try!';
+matchFeedback.innerHTML='❌ '+m;
+matchFeedback.className='match-feedback try';
+speakText(m);
+}
+}
+
+function finishGame(){
+matchClue.innerHTML='<span class="mc-icon" aria-hidden="true">&#x1F31F;</span><span class="mc-text">All done!</span>';
+matchOptions.innerHTML='';
+matchProgress.textContent='';
+const m=`You matched all ${order.length} places. You got ${gotFirstTry} right first time!`;
+matchFeedback.innerHTML='&#x1F389; '+m;
+matchFeedback.className='match-feedback good';
+speakText('Well done! '+m);
+celebrate();
+const again=document.createElement('button');again.className='game-start';again.type='button';
+again.innerHTML='&#x1F501; Play again';again.style.marginTop='12px';
+again.addEventListener('click',()=>{order=shuffle(PLACES.map((_,i)=>i));step=0;gotFirstTry=0;nextRound();});
+matchOptions.appendChild(again);
 }
 
 function spawnMini(){const c=document.getElementById('celebration');const cols=['#be185d','#ec4899','#22c55e','#f59e0b','#3b82f6'];for(let i=0;i<8;i++){const e=document.createElement('div');e.className='confetti';e.style.cssText=`left:${Math.random()*100}vw;top:-10px;background:${cols[Math.floor(Math.random()*cols.length)]};width:${5+Math.random()*6}px;height:${5+Math.random()*6}px;border-radius:${Math.random()>.5?'50%':'2px'};animation-duration:${1+Math.random()*1.5}s;animation-delay:${Math.random()*.3}s;`;c.appendChild(e);setTimeout(()=>e.remove(),3000);}}

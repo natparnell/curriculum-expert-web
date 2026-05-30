@@ -149,6 +149,122 @@ body {
 .greeting-row .g-foreign { font-size: 1rem; font-weight: 800; }
 .greeting-row .g-english { font-size: 0.78rem; color: var(--text-light); }
 .greeting-row .g-pron { font-size: 0.68rem; color: #a78bfa; font-style: italic; }
+.greeting-row .g-speaker {
+    margin-left: auto;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+}
+.greeting-row.playing .g-speaker { transform: scale(1.25); }
+.greeting-row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.flag-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Tappable character/speech bubble */
+.speech-bubble { cursor: pointer; }
+.speech-bubble:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.tap-hint {
+    display: block;
+    font-size: 0.66rem;
+    color: var(--text-light);
+    font-weight: 700;
+    margin-top: 6px;
+}
+.no-audio-note {
+    text-align: center;
+    font-size: 0.74rem;
+    color: #92400e;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 10px;
+    padding: 6px 10px;
+    margin-bottom: 14px;
+    display: none;
+}
+
+/* Listening game */
+.game-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 14px;
+    margin-bottom: 14px;
+    display: none;
+    text-align: center;
+}
+.game-card h3 {
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-light);
+    margin-bottom: 10px;
+}
+.game-prompt { font-size: 0.95rem; font-weight: 700; margin-bottom: 12px; }
+.game-listen-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 22px;
+    border: none;
+    border-radius: 16px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    margin-bottom: 14px;
+    touch-action: manipulation;
+}
+.game-listen-btn:hover { transform: scale(1.04); }
+.game-listen-btn:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
+.game-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.game-option {
+    padding: 14px 8px;
+    border: 3px solid var(--border);
+    border-radius: 16px;
+    background: var(--accent-light);
+    cursor: pointer;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text);
+    transition: all 0.2s;
+    touch-action: manipulation;
+}
+.game-option .go-emoji { display: block; font-size: 1.5rem; margin-bottom: 4px; }
+.game-option:hover { transform: scale(1.04); }
+.game-option:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.game-option.correct { border-color: #22c55e; background: #dcfce7; }
+.game-option.wrong { border-color: #ef4444; background: #fee2e2; }
+.game-option:disabled { cursor: default; }
+.game-feedback {
+    min-height: 26px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+}
+.game-feedback.good { color: #166534; }
+.game-feedback.try { color: #b45309; }
+.game-score { font-size: 0.78rem; font-weight: 700; color: var(--text-light); }
+.game-next-btn {
+    margin-top: 10px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 14px;
+    background: #22c55e;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: none;
+    touch-action: manipulation;
+}
+.game-next-btn:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
 
 .explored-bar {
     display: flex;
@@ -190,6 +306,47 @@ body {
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -363,13 +520,15 @@ body {
 <div class="main">
     <div class="instruction">Tap a flag to hear greetings in that language!</div>
 
+    <div class="no-audio-note" id="noAudioNote">Sound is not available on this device, so you can read the greetings instead.</div>
+
     <div class="explored-bar" id="exploredBar"></div>
 
     <div class="flags-grid" id="flagsGrid"></div>
 
     <div class="character-area" id="characterArea">
         <span class="character">&#x1F9D2;</span>
-        <div class="speech-bubble">
+        <div class="speech-bubble" tabindex="0" role="button" aria-label="Tap to hear the greeting">
             <span class="greeting-text">Hello!</span>
             <span class="greeting-english">Tap a flag to start</span>
         </div>
@@ -377,7 +536,19 @@ body {
 
     <div class="greetings-card" id="greetingsCard" style="display:none;">
         <h3 id="greetingsTitle">Greetings</h3>
-        <div id="greetingsList"></div>
+        <div id="greetingsList" role="list"></div>
+    </div>
+
+    <div class="game-card" id="gameCard">
+        <h3 id="gameTitle">Listening game</h3>
+        <p class="game-prompt">Tap the speaker, listen, then choose what you heard.</p>
+        <button class="game-listen-btn" id="gameListenBtn" type="button">
+            <span aria-hidden="true">&#x1F50A;</span> Listen again
+        </button>
+        <div class="game-options" id="gameOptions" role="group" aria-label="Answer choices"></div>
+        <div class="game-feedback" id="gameFeedback" role="status" aria-live="polite"></div>
+        <div class="game-score" id="gameScore"></div>
+        <button class="game-next-btn" id="gameNextBtn" type="button">Next &#x2192;</button>
     </div>
 
     <div class="complete-msg" id="completeMsg"></div>
@@ -392,6 +563,7 @@ const LANGUAGES = [
         flag: '&#x1F1EB;&#x1F1F7;',
         character: '&#x1F9D2;',
         colour: '#2563eb',
+        langCode: 'fr-FR',
         greetings: [
             { foreign: 'Bonjour!', english: 'Hello / Good day', pron: 'bon-ZHOOR', emoji: '&#x1F44B;' },
             { foreign: 'Salut!', english: 'Hi (informal)', pron: 'sa-LOO', emoji: '&#x270B;' },
@@ -405,6 +577,7 @@ const LANGUAGES = [
         flag: '&#x1F1EA;&#x1F1F8;',
         character: '&#x1F9D2;',
         colour: '#dc2626',
+        langCode: 'es-ES',
         greetings: [
             { foreign: '&#xA1;Hola!', english: 'Hello', pron: 'OH-la', emoji: '&#x1F44B;' },
             { foreign: 'Buenos d&#xED;as!', english: 'Good morning', pron: 'BWAY-nos DEE-as', emoji: '&#x2600;&#xFE0F;' },
@@ -418,6 +591,7 @@ const LANGUAGES = [
         flag: '&#x1F1E9;&#x1F1EA;',
         character: '&#x1F9D2;',
         colour: '#f59e0b',
+        langCode: 'de-DE',
         greetings: [
             { foreign: 'Hallo!', english: 'Hello', pron: 'HA-lo', emoji: '&#x1F44B;' },
             { foreign: 'Guten Morgen!', english: 'Good morning', pron: 'GOO-ten MOR-gen', emoji: '&#x2600;&#xFE0F;' },
@@ -431,6 +605,7 @@ const LANGUAGES = [
         flag: '&#x1F1EE;&#x1F1F9;',
         character: '&#x1F9D2;',
         colour: '#16a34a',
+        langCode: 'it-IT',
         greetings: [
             { foreign: 'Ciao!', english: 'Hello / Bye', pron: 'CHOW', emoji: '&#x1F44B;' },
             { foreign: 'Buongiorno!', english: 'Good morning', pron: 'bwon-JOR-no', emoji: '&#x2600;&#xFE0F;' },
@@ -444,6 +619,7 @@ const LANGUAGES = [
         flag: '&#x1F1EF;&#x1F1F5;',
         character: '&#x1F9D2;',
         colour: '#ef4444',
+        langCode: 'ja-JP',
         greetings: [
             { foreign: 'Konnichiwa!', english: 'Hello', pron: 'kon-NEE-chee-wa', emoji: '&#x1F44B;' },
             { foreign: 'Ohay&#x14D; gozaimasu!', english: 'Good morning', pron: 'oh-HA-yoh go-ZAI-mass', emoji: '&#x2600;&#xFE0F;' },
@@ -453,6 +629,51 @@ const LANGUAGES = [
         ]
     }
 ];
+
+// ---- Speech (Web Speech API) ----
+const speechSupported = ('speechSynthesis' in window) && ('SpeechSynthesisUtterance' in window);
+if (!speechSupported) {
+    document.getElementById('noAudioNote').style.display = 'block';
+}
+
+// Decode HTML entities and strip trailing punctuation so the synthesiser
+// reads a clean phrase (e.g. "&#xA1;Hola!" becomes "Hola").
+const _decoder = document.createElement('textarea');
+function plainSpeech(htmlText) {
+    _decoder.innerHTML = htmlText;
+    let t = _decoder.value;
+    // Remove leading/trailing exclamation and question marks (incl. inverted Spanish ones)
+    t = t.replace(/[!?¡¿]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return t;
+}
+
+// Some browsers need voices to load asynchronously.
+function pickVoice(langCode) {
+    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    if (!voices.length) return null;
+    const base = langCode.split('-')[0].toLowerCase();
+    return voices.find(v => v.lang && v.lang.toLowerCase() === langCode.toLowerCase())
+        || voices.find(v => v.lang && v.lang.toLowerCase().indexOf(base) === 0)
+        || null;
+}
+if (speechSupported && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
+    window.speechSynthesis.onvoiceschanged = function(){ /* voices now available */ };
+}
+
+function speak(htmlText, langCode, onEnd) {
+    if (!speechSupported) { if (onEnd) onEnd(); return; }
+    try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(plainSpeech(htmlText));
+        u.lang = langCode || 'en-GB';
+        const v = (window.westTTS ? window.westTTS.pick(u.lang || 'en-GB') : null) || pickVoice(langCode || 'en-GB');
+        if (v) u.voice = v;
+        u.rate = 0.85;   // slower, clearer for young learners
+        u.pitch = 1.05;
+        if (onEnd) { u.onend = onEnd; u.onerror = onEnd; }
+        window.speechSynthesis.speak(u);
+    } catch (e) { if (onEnd) onEnd(); }
+}
 
 let currentLang = null;
 let explored = new Set();
@@ -470,7 +691,9 @@ LANGUAGES.forEach(() => {
 LANGUAGES.forEach((lang, i) => {
     const btn = document.createElement('button');
     btn.className = 'flag-btn';
-    btn.innerHTML = `<span class="flag">${lang.flag}</span><span class="lang">${lang.name}</span>`;
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Hear hello in ' + lang.name);
+    btn.innerHTML = `<span class="flag" aria-hidden="true">${lang.flag}</span><span class="lang">${lang.name}</span>`;
     btn.addEventListener('click', () => selectLanguage(i));
     flagsGrid.appendChild(btn);
 });
@@ -485,14 +708,28 @@ function selectLanguage(idx) {
     exploredBar.querySelectorAll('.explored-dot').forEach((d, i) => d.classList.toggle('done', explored.has(i)));
 
     // Update character
+    const firstG = lang.greetings[0];
     const area = document.getElementById('characterArea');
     area.innerHTML = `
-        <span class="character">${lang.character}</span>
-        <div class="speech-bubble" style="border-color:${lang.colour};">
-            <span class="greeting-text" style="color:${lang.colour};">${lang.greetings[0].foreign}</span>
-            <span class="greeting-english">${lang.greetings[0].english}</span>
+        <span class="character" aria-hidden="true">${lang.character}</span>
+        <div class="speech-bubble" style="border-color:${lang.colour};" tabindex="0" role="button" aria-label="Tap to hear this greeting again">
+            <span class="greeting-text" style="color:${lang.colour};">${firstG.foreign}</span>
+            <span class="greeting-english">${firstG.english}</span>
+            <span class="tap-hint">${speechSupported ? '&#x1F50A; Tap to hear it again' : 'Read it aloud'}</span>
         </div>
     `;
+    const bubble = area.querySelector('.speech-bubble');
+    function speakBubble() {
+        const txt = bubble.querySelector('.greeting-text').innerHTML;
+        speak(txt, lang.langCode);
+    }
+    bubble.addEventListener('click', speakBubble);
+    bubble.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); speakBubble(); }
+    });
+
+    // Speak the opening greeting straight away (the "hear" half of hear-and-repeat)
+    speak(firstG.foreign, lang.langCode);
 
     // Update greetings list
     const card = document.getElementById('greetingsCard');
@@ -504,18 +741,27 @@ function selectLanguage(idx) {
     lang.greetings.forEach((g, gi) => {
         const row = document.createElement('div');
         row.className = 'greeting-row';
-        row.innerHTML = `<span class="g-emoji">${g.emoji}</span><div><div class="g-foreign" style="color:${lang.colour};">${g.foreign}</div><div class="g-english">${g.english}</div><div class="g-pron">${g.pron}</div></div>`;
-        row.addEventListener('click', () => {
+        row.setAttribute('role', 'listitem');
+        row.tabIndex = 0;
+        row.setAttribute('aria-label', plainSpeech(g.foreign) + ', ' + g.english + (speechSupported ? ', tap to listen' : ''));
+        row.innerHTML = `<span class="g-emoji" aria-hidden="true">${g.emoji}</span><div><div class="g-foreign" style="color:${lang.colour};">${g.foreign}</div><div class="g-english">${g.english}</div><div class="g-pron">${g.pron}</div></div><span class="g-speaker" aria-hidden="true">${speechSupported ? '&#x1F50A;' : ''}</span>`;
+        function playRow() {
             list.querySelectorAll('.greeting-row').forEach(r => r.classList.remove('playing'));
             row.classList.add('playing');
             area.querySelector('.greeting-text').innerHTML = g.foreign;
             area.querySelector('.greeting-english').textContent = g.english;
-            setTimeout(() => row.classList.remove('playing'), 1000);
+            speak(g.foreign, lang.langCode, () => row.classList.remove('playing'));
+            setTimeout(() => row.classList.remove('playing'), 2500);
+        }
+        row.addEventListener('click', playRow);
+        row.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playRow(); }
         });
         list.appendChild(row);
     });
 
     spawnMini();
+    setupGame();
 
     if (explored.size === LANGUAGES.length) {
         const msg = document.getElementById('completeMsg');
@@ -524,6 +770,92 @@ function selectLanguage(idx) {
         celebrate();
     }
 }
+
+// ---- Listening game: hear a greeting, choose the matching English meaning ----
+let gameTarget = null;
+let gameAnswered = false;
+let gameScore = 0;
+let gameRound = 0;
+
+function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+function setupGame() {
+    if (currentLang === null) return;
+    const lang = LANGUAGES[currentLang];
+    const gameCard = document.getElementById('gameCard');
+    gameCard.style.display = 'block';
+    document.getElementById('gameTitle').textContent = lang.name + ' listening game';
+
+    gameAnswered = false;
+    gameRound++;
+    document.getElementById('gameFeedback').textContent = '';
+    document.getElementById('gameFeedback').className = 'game-feedback';
+    document.getElementById('gameNextBtn').style.display = 'none';
+    document.getElementById('gameScore').textContent = gameScore > 0
+        ? ('Stars: ' + '⭐'.repeat(Math.min(gameScore, 10))) : '';
+
+    // Pick a target greeting and three distractors from the same language
+    const all = shuffle(lang.greetings);
+    gameTarget = all[0];
+    const distractors = all.slice(1, 4);
+    const choices = shuffle([gameTarget].concat(distractors));
+
+    const optionsEl = document.getElementById('gameOptions');
+    optionsEl.innerHTML = '';
+    choices.forEach((g) => {
+        const opt = document.createElement('button');
+        opt.className = 'game-option';
+        opt.type = 'button';
+        opt.setAttribute('aria-label', g.english);
+        opt.innerHTML = `<span class="go-emoji" aria-hidden="true">${g.emoji}</span>${g.english}`;
+        opt.addEventListener('click', () => answerGame(g, opt));
+        optionsEl.appendChild(opt);
+    });
+
+    // Auto-play the target once so the child knows what to listen for
+    speak(gameTarget.foreign, lang.langCode);
+}
+
+function answerGame(choice, btn) {
+    if (gameAnswered) return;
+    gameAnswered = true;
+    const lang = LANGUAGES[currentLang];
+    const feedback = document.getElementById('gameFeedback');
+    const options = document.querySelectorAll('.game-option');
+    options.forEach(o => { o.disabled = true; });
+
+    if (choice === gameTarget) {
+        btn.classList.add('correct');
+        gameScore++;
+        feedback.textContent = '✅ Yes! ' + plainSpeech(gameTarget.foreign) + ' means "' + gameTarget.english + '".';
+        feedback.className = 'game-feedback good';
+        spawnMini();
+    } else {
+        btn.classList.add('wrong');
+        // Reveal the correct option
+        options.forEach(o => {
+            if (o.getAttribute('aria-label') === gameTarget.english) o.classList.add('correct');
+        });
+        feedback.textContent = 'Not quite. ' + plainSpeech(gameTarget.foreign) + ' means "' + gameTarget.english + '". Listen again!';
+        feedback.className = 'game-feedback try';
+        // Repeat the target so the child hears the right sound for the right meaning
+        speak(gameTarget.foreign, lang.langCode);
+    }
+    document.getElementById('gameScore').textContent = 'Stars: ' + '⭐'.repeat(Math.min(gameScore, 10));
+    document.getElementById('gameNextBtn').style.display = 'inline-block';
+}
+
+document.getElementById('gameListenBtn').addEventListener('click', () => {
+    if (gameTarget && currentLang !== null) speak(gameTarget.foreign, LANGUAGES[currentLang].langCode);
+});
+document.getElementById('gameNextBtn').addEventListener('click', setupGame);
 
 function spawnMini() {
     const container = document.getElementById('celebration');

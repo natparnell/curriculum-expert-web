@@ -33,6 +33,18 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 body {
     font-family: var(--font-body);
     background: var(--parchment);
@@ -685,8 +697,9 @@ header p {
             <div class="panel-title">Proportions</div>
             <div class="panel-body">
                 <div class="chart-container">
-                    <canvas id="chart-canvas"></canvas>
+                    <canvas id="chart-canvas" role="img" aria-label="Bar chart showing the proportion of the passage you have tagged as direct speech, indirect speech, free indirect discourse, narrative voice or untagged."></canvas>
                 </div>
+                <div id="chart-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
                 <div class="chart-legend">
                     <div class="legend-item"><span class="legend-swatch" style="background:var(--direct-speech)"></span>Direct</div>
                     <div class="legend-item"><span class="legend-swatch" style="background:var(--indirect-speech)"></span>Indirect</div>
@@ -845,6 +858,7 @@ header p {
     const passageMeta = document.getElementById('passage-meta');
     const passageText = document.getElementById('passage-text');
     const chartCanvas = document.getElementById('chart-canvas');
+    const chartSummary = document.getElementById('chart-summary');
     const ctx = chartCanvas.getContext('2d');
     const checkBtn = document.getElementById('check-btn');
     const clearBtn = document.getElementById('clear-btn');
@@ -1001,6 +1015,35 @@ header p {
         });
 
         drawChart(counts, totalChars);
+        updateChartSummary(counts, totalChars);
+    }
+
+    // ===== ACCESSIBLE CHART SUMMARY (screen readers) =====
+    function updateChartSummary(counts, total) {
+        if (!chartSummary) return;
+        if (!total) { chartSummary.textContent = 'No text tagged yet.'; return; }
+        var names = { direct: 'Direct speech', indirect: 'Indirect speech', fid: 'Free indirect discourse', narrative: 'Narrative voice', untagged: 'Untagged' };
+        var order = ['direct', 'indirect', 'fid', 'narrative', 'untagged'];
+        var parts = [];
+        order.forEach(function(key) {
+            var pct = Math.round((counts[key] / total) * 100);
+            if (pct > 0) parts.push(names[key] + ' ' + pct + ' per cent');
+        });
+        var text = 'Tagged text proportions: ' + parts.join(', ') + '.';
+
+        if (checkedMode) {
+            var p = passages[currentPassageIndex];
+            var modelCounts = { direct: 0, indirect: 0, fid: 0, narrative: 0, untagged: 0 };
+            p.segments.forEach(function(seg) { modelCounts[seg[1]] += seg[0].length; });
+            var modelParts = [];
+            order.forEach(function(key) {
+                var mpct = Math.round((modelCounts[key] / total) * 100);
+                if (mpct > 0) modelParts.push(names[key] + ' ' + mpct + ' per cent');
+            });
+            text += ' Model answer proportions: ' + modelParts.join(', ') + '.';
+        }
+
+        chartSummary.textContent = text;
     }
 
     function drawChart(counts, total) {

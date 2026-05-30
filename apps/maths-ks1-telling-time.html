@@ -30,6 +30,7 @@ svg.clock{width:100%;height:100%;filter:drop-shadow(0 4px 12px rgba(0,0,0,.1))}
 .hand-minute:hover{filter:drop-shadow(0 0 6px rgba(37,99,235,.5))}
 .hand-cap{fill:#3d2e1f}
 .highlight-arc{fill:rgba(37,99,235,.08);stroke:none}
+#dragZone,.hand-hour,.hand-minute{touch-action:none}
 .digital-display{background:#1e293b;color:#5eead4;border-radius:16px;padding:20px 30px;font-size:3rem;font-weight:800;font-family:'Inter',monospace;letter-spacing:4px;box-shadow:0 4px 16px rgba(0,0,0,.15);text-align:center;min-width:180px}
 .digital-label{font-size:.75rem;color:#94a3b8;font-weight:600;letter-spacing:2px;margin-bottom:6px}
 .btn-row{text-align:center;margin-bottom:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
@@ -356,8 +357,19 @@ function pickHand(e){
     dragging=hourDist<minDist?'hour':'minute';
   }
 }
-document.getElementById('dragZone').addEventListener('mousedown',pickHand);
-document.getElementById('dragZone').addEventListener('touchstart',pickHand,{passive:false});
+// Pointer Events: same drag works by touch / pen / interactive whiteboard
+function onPointerDown(e){
+  pickHand(e);
+  if(dragging){
+    try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(err){}
+  }
+}
+if(window.PointerEvent){
+  document.getElementById('dragZone').addEventListener('pointerdown',onPointerDown);
+} else {
+  document.getElementById('dragZone').addEventListener('mousedown',pickHand);
+  document.getElementById('dragZone').addEventListener('touchstart',pickHand,{passive:false});
+}
 
 function onMove(e){
   if(!dragging)return;
@@ -380,10 +392,22 @@ function onMove(e){
   updateHighlight();
 }
 function onUp(){dragging=null;}
-document.addEventListener('mousemove',onMove);
-document.addEventListener('mouseup',onUp);
-document.addEventListener('touchmove',onMove,{passive:false});
-document.addEventListener('touchend',onUp);
+// Pointer Events move/up/cancel (captured on dragZone after pointerdown)
+var dragZoneEl=document.getElementById('dragZone');
+function onPointerUp(e){
+  if(e.pointerId!=null){ try{ dragZoneEl.releasePointerCapture(e.pointerId); }catch(err){} }
+  onUp();
+}
+if(window.PointerEvent){
+  dragZoneEl.addEventListener('pointermove',onMove);
+  dragZoneEl.addEventListener('pointerup',onPointerUp);
+  dragZoneEl.addEventListener('pointercancel',onPointerUp);
+} else {
+  document.addEventListener('mousemove',onMove);
+  document.addEventListener('mouseup',onUp);
+  document.addEventListener('touchmove',onMove,{passive:false});
+  document.addEventListener('touchend',onUp);
+}
 
 function updateHighlight(){
   // highlight the arc from 12 to minute hand position

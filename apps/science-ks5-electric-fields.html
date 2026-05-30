@@ -161,11 +161,25 @@ header .subtitle { font-size: 0.68rem; color: var(--text2); }
     overflow: hidden;
     background: var(--bg);
     cursor: crosshair;
+    touch-action: none;
 }
 canvas {
     position: absolute;
     top: 0;
     left: 0;
+    touch-action: none;
+}
+/* Visually hidden helper for screen-reader live announcements */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 /* Right panel */
@@ -449,7 +463,9 @@ canvas {
     </div>
 
     <div id="canvas-wrap">
-        <canvas id="fieldCanvas"></canvas>
+        <canvas id="fieldCanvas" tabindex="0" role="img"
+            aria-label="Interactive electric field simulation. Place positive and negative charges and explore the field, potential and force at any point. Use arrow keys to move a keyboard cursor and read out the field values."></canvas>
+        <div id="srStatus" class="sr-only" role="status" aria-live="polite"></div>
     </div>
 
     <div id="readings">
@@ -522,8 +538,8 @@ document.getElementById('densitySlider').addEventListener('input', e => {
 document.getElementById('addPos').addEventListener('click', () => { addMode = 'pos'; wrap.style.cursor = 'copy'; });
 document.getElementById('addNeg').addEventListener('click', () => { addMode = 'neg'; wrap.style.cursor = 'copy'; });
 
-// Canvas interactions
-wrap.addEventListener('mousedown', e => {
+// Canvas interactions (Pointer Events: covers mouse, touch and pen identically)
+wrap.addEventListener('pointerdown', e => {
     const rect = wrap.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -538,7 +554,7 @@ wrap.addEventListener('mousedown', e => {
         return;
     }
 
-    // Check if clicking on a charge
+    // Check if pressing on a charge
     for (let i = charges.length - 1; i >= 0; i--) {
         const dx = mx - charges[i].x;
         const dy = my - charges[i].y;
@@ -546,12 +562,13 @@ wrap.addEventListener('mousedown', e => {
             dragging = i;
             dragOffset.x = dx;
             dragOffset.y = dy;
+            try { wrap.setPointerCapture(e.pointerId); } catch (err) {}
             return;
         }
     }
 });
 
-wrap.addEventListener('mousemove', e => {
+wrap.addEventListener('pointermove', e => {
     const rect = wrap.getBoundingClientRect();
     mouseX = e.clientX - rect.left;
     mouseY = e.clientY - rect.top;
@@ -565,8 +582,96 @@ wrap.addEventListener('mousemove', e => {
     draw();
 });
 
-wrap.addEventListener('mouseup', () => { dragging = null; });
-wrap.addEventListener('mouseleave', () => { dragging = null; });
+function endPointer(e) {
+    if (dragging !== null && e && e.pointerId !== undefined) {
+        try { wrap.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+    dragging = null;
+}
+wrap.addEventListener('pointerup', endPointer);
+wrap.addEventListener('pointercancel', endPointer);
+wrap.addEventListener('pointerleave', e => { if (dragging === null) return; });
+wrap.addEventListener('mouseleave', () => { if (dragging === null) dragging = null; });
+
+// Keyboard-accessible path: move a cursor over the canvas with arrow keys,
+// place a charge with + / - or Enter, remove the last charge with Delete,
+// and have the field readings announced via the aria-live region.
+const fieldCanvas = document.getElementById('fieldCanvas');
+const srStatus = document.getElementById('srStatus');
+
+function announce(msg) {
+    if (srStatus) srStatus.textContent = msg;
+}
+
+function readingsText() {
+    if (charges.length === 0) {
+        return 'No charges placed. Press plus or minus to place a charge at the keyboard cursor.';
+    }
+    const { Ex, Ey } = calcField(mouseX, mouseY);
+    const E = Math.sqrt(Ex*Ex + Ey*Ey);
+    const V = calcPotential(mouseX, mouseY);
+    const F = E * 1e-6;
+    const xM = ((mouseX - canvas.width/2) / SCALE).toFixed(2);
+    const yM = (-(mouseY - canvas.height/2) / SCALE).toFixed(2);
+    return 'Cursor at x ' + xM + ' metres, y ' + yM + ' metres. ' +
+        'Field ' + E.toFixed(1) + ' newtons per coulomb. ' +
+        'Potential ' + V.toFixed(1) + ' volts. ' +
+        'Force on a 1 microcoulomb test charge ' + (F * 1e6).toFixed(1) + ' micronewtons. ' +
+        charges.length + ' charge' + (charges.length === 1 ? '' : 's') + ' placed.';
+}
+
+fieldCanvas.addEventListener('focus', () => {
+    if (mouseX === 0 && mouseY === 0) {
+        mouseX = canvas.width / 2;
+        mouseY = canvas.height / 2;
+    }
+    updateReadings();
+    draw();
+    announce('Field canvas focused. Use arrow keys to move the cursor, plus or minus to place a charge. ' + readingsText());
+});
+
+fieldCanvas.addEventListener('keydown', e => {
+    const step = e.shiftKey ? 40 : 10;
+    let handled = true;
+    switch (e.key) {
+        case 'ArrowLeft':  mouseX = Math.max(0, mouseX - step); break;
+        case 'ArrowRight': mouseX = Math.min(canvas.width, mouseX + step); break;
+        case 'ArrowUp':    mouseY = Math.max(0, mouseY - step); break;
+        case 'ArrowDown':  mouseY = Math.min(canvas.height, mouseY + step); break;
+        case '+': case '=':
+            charges.push({ x: mouseX, y: mouseY, q: chargeMagnitude });
+            updateChargeList();
+            announce('Positive charge placed. ' + readingsText());
+            break;
+        case '-': case '_':
+            charges.push({ x: mouseX, y: mouseY, q: -chargeMagnitude });
+            updateChargeList();
+            announce('Negative charge placed. ' + readingsText());
+            break;
+        case 'Enter':
+            charges.push({ x: mouseX, y: mouseY, q: addMode === 'neg' ? -chargeMagnitude : chargeMagnitude });
+            updateChargeList();
+            announce('Charge placed. ' + readingsText());
+            break;
+        case 'Delete': case 'Backspace':
+            if (charges.length > 0) {
+                charges.pop();
+                updateChargeList();
+                announce('Charge removed. ' + readingsText());
+            } else {
+                announce('No charges to remove.');
+            }
+            break;
+        default:
+            handled = false;
+    }
+    if (handled) {
+        e.preventDefault();
+        updateReadings();
+        draw();
+        if (e.key.indexOf('Arrow') === 0) announce(readingsText());
+    }
+});
 
 // Presets
 document.getElementById('clearAllBtn').addEventListener('click', () => {

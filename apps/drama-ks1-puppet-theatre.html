@@ -742,11 +742,14 @@ Object.entries(PUPPETS).forEach(([key, puppet]) => {
   choice.innerHTML = puppet.svg + `<span>${puppet.name}</span>`;
   choice.dataset.type = key;
   choice.addEventListener('click', () => addPuppetToStage(key));
-  // Touch drag from tray
-  choice.addEventListener('touchstart', (e) => {
+  // Touch/pen tap from tray: handle directly so the tile responds
+  // immediately on tablets and interactive whiteboards. Mouse is left to
+  // the click handler above to avoid adding the puppet twice.
+  choice.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;
     e.preventDefault();
     addPuppetToStage(key);
-  }, { passive: false });
+  });
   puppetTray.appendChild(choice);
 });
 
@@ -773,25 +776,28 @@ function addPuppetToStage(type) {
 }
 
 function setupPuppetDrag(el) {
-  let startX, origLeft, hasMoved;
+  let startX, origLeft, hasMoved, activePointerId = null;
 
   function onStart(e) {
+    if (activePointerId !== null) return;
     e.preventDefault();
-    const ev = e.touches ? e.touches[0] : e;
-    startX = ev.clientX;
+    activePointerId = e.pointerId;
+    startX = e.clientX;
     origLeft = el.offsetLeft;
     hasMoved = false;
     el.classList.add('dragging');
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onEnd);
-    document.addEventListener('touchmove', onMove, { passive: false });
-    document.addEventListener('touchend', onEnd);
+    // Capture the pointer so move/up fire on this element even if the
+    // pointer leaves it (touch, pen and mouse all supported).
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onEnd);
+    el.addEventListener('pointercancel', onEnd);
   }
 
   function onMove(e) {
+    if (e.pointerId !== activePointerId) return;
     e.preventDefault();
-    const ev = e.touches ? e.touches[0] : e;
-    const dx = ev.clientX - startX;
+    const dx = e.clientX - startX;
     if (Math.abs(dx) > 3) hasMoved = true;
     const theatreRect = theatre.getBoundingClientRect();
     let newLeft = origLeft + dx;
@@ -799,23 +805,24 @@ function setupPuppetDrag(el) {
     el.style.left = newLeft + 'px';
 
     // Bob effect while dragging (vertical)
-    const dy = ev.clientY - theatre.getBoundingClientRect().top;
+    const dy = e.clientY - theatre.getBoundingClientRect().top;
     const stageH = theatreRect.height;
     const bottomOffset = Math.max(10, Math.min(45, (1 - dy / stageH) * 60));
     el.style.bottom = bottomOffset + '%';
   }
 
-  function onEnd() {
+  function onEnd(e) {
+    if (e && e.pointerId !== activePointerId) return;
     el.classList.remove('dragging');
     el._dragged = hasMoved;
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onEnd);
-    document.removeEventListener('touchmove', onMove);
-    document.removeEventListener('touchend', onEnd);
+    try { if (e) el.releasePointerCapture(e.pointerId); } catch (err) {}
+    el.removeEventListener('pointermove', onMove);
+    el.removeEventListener('pointerup', onEnd);
+    el.removeEventListener('pointercancel', onEnd);
+    activePointerId = null;
   }
 
-  el.addEventListener('mousedown', onStart);
-  el.addEventListener('touchstart', onStart, { passive: false });
+  el.addEventListener('pointerdown', onStart);
 }
 
 function setupPuppetClick(el) {

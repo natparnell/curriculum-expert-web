@@ -130,6 +130,7 @@
     box-shadow: var(--shadow);
     display: block;
     max-width: 100%;
+    touch-action: none;
   }
   .canvas-controls {
     display: flex;
@@ -899,7 +900,7 @@
 
   <!-- CENTRE: Canvas -->
   <div class="canvas-area">
-    <canvas id="mainCanvas" width="560" height="560"></canvas>
+    <canvas id="mainCanvas" width="560" height="560" tabindex="0" role="img" aria-label="Coordinate grid showing the original shape in blue and its transformed image in green. Use the controls in the side panels to change the transformation; the transformation description updates in the Transformation Description box."></canvas>
     <div class="canvas-controls">
       <button class="btn btn-success" onclick="animateTransform()">Animate</button>
       <div class="animate-bar">
@@ -978,7 +979,7 @@
     <!-- Description output -->
     <div class="panel-section">
       <div class="panel-title">Transformation Description</div>
-      <div id="descriptionBox" style="font-size:0.8rem;line-height:1.6;color:var(--grey-dark);background:var(--grey-faint);border-radius:var(--radius);padding:0.6rem 0.75rem;border:1px solid var(--grey-light);">
+      <div id="descriptionBox" role="status" aria-live="polite" aria-atomic="true" style="font-size:0.8rem;line-height:1.6;color:var(--grey-dark);background:var(--grey-faint);border-radius:var(--radius);padding:0.6rem 0.75rem;border:1px solid var(--grey-light);">
         Select a transformation and adjust the controls.
       </div>
     </div>
@@ -1543,20 +1544,56 @@ canvas.addEventListener('mousemove', e => {
 canvas.addEventListener('mouseup', ()=>{ dragging=null; });
 canvas.addEventListener('mouseleave', ()=>{ dragging=null; });
 
+// Legacy touch handlers: only used when Pointer Events are unavailable, so a
+// pointer-capable device does not run both paths for the same gesture.
 canvas.addEventListener('touchstart', e => {
+  if (window.PointerEvent) return;
   e.preventDefault();
   const g = getTouchGrid(e);
   const idx = findNearestVertex(g.x, g.y, 1.5);
   if(idx >= 0) dragging = idx;
 }, {passive:false});
 canvas.addEventListener('touchmove', e => {
+  if (window.PointerEvent) return;
   e.preventDefault();
   if(dragging === null) return;
   const g = getTouchGrid(e);
   shapeVerts[dragging] = snapGrid(g);
   redrawAll();
 }, {passive:false});
-canvas.addEventListener('touchend', ()=>{ dragging=null; });
+canvas.addEventListener('touchend', e => { if (window.PointerEvent) return; dragging=null; });
+
+// ==================== POINTER EVENTS (tablets / interactive whiteboards) ====================
+// Unified pointer path so pen and touch drag work the same as mouse, and the page
+// does not scroll while dragging a vertex. Mouse/touch handlers above remain as a
+// fallback; setPointerCapture keeps the drag alive even if the pointer leaves the
+// canvas. Mouse pointers are left to the existing mouse handlers to avoid double work.
+if (window.PointerEvent) {
+  canvas.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') return; // mouse handled by mouse listeners
+    const g = getMouseGrid(e);
+    const idx = findNearestVertex(g.x, g.y, 1.5);
+    if (idx >= 0) {
+      dragging = idx;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (e.pointerType === 'mouse') return;
+    if (dragging === null) return;
+    e.preventDefault();
+    const g = getMouseGrid(e);
+    shapeVerts[dragging] = snapGrid(g);
+    redrawAll();
+  });
+  const endPointer = e => {
+    if (e.pointerType === 'mouse') return;
+    dragging = null;
+    try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+  };
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+}
 
 // ==================== SLIDER/INPUT SYNC ====================
 function syncInput(id) {

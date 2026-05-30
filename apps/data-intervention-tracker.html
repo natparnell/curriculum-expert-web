@@ -258,6 +258,17 @@
   .chart-container { position: relative; width: 100%; overflow: hidden; }
   canvas { display: block; max-width: 100%; border-radius: var(--radius); }
 
+  /* SCREEN-READER-ONLY TEXT (visually hidden, available to assistive tech) */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   /* SCORE TABLE */
   .score-table { width: 100%; border-collapse: collapse; }
   .score-table th {
@@ -594,8 +605,9 @@
         <div class="card">
           <div class="card-title"><span class="icon">&#128200;</span> Before vs After Scores</div>
           <div class="chart-container">
-            <canvas id="barChart" height="260"></canvas>
+            <canvas id="barChart" height="260" role="img" aria-label="Bar chart comparing before and after scores for each student in the selected intervention."></canvas>
           </div>
+          <p id="barChartDesc" class="sr-only" aria-live="polite"></p>
         </div>
 
         <div class="effect-panel">
@@ -652,8 +664,9 @@
           Each bar represents the duration of an intervention.
         </p>
         <div class="timeline-wrap">
-          <canvas id="timelineCanvas" height="200"></canvas>
+          <canvas id="timelineCanvas" height="200" role="img" aria-label="Timeline chart showing the duration of each logged intervention across the academic year."></canvas>
         </div>
+        <p id="timelineDesc" class="sr-only" aria-live="polite"></p>
       </div>
     </div>
 
@@ -666,8 +679,9 @@
         </p>
         <div class="type-legend" id="typeLegend"></div>
         <div class="chart-container">
-          <canvas id="compareChart" height="280"></canvas>
+          <canvas id="compareChart" height="280" role="img" aria-label="Bar chart comparing Cohen's d effect size across all logged interventions."></canvas>
         </div>
+        <p id="compareDesc" class="sr-only" aria-live="polite"></p>
       </div>
       <div class="card">
         <div class="card-title"><span class="icon">&#128179;</span> Cost-Effectiveness Framing</div>
@@ -986,8 +1000,10 @@ function drawBarChart(iv) {
   if (!students.length) {
     ctx.fillStyle = '#64748b'; ctx.font = '13px Segoe UI'; ctx.textAlign = 'center';
     ctx.fillText('No scores entered yet. Use the Before / After Scores tab.', W / 2, H / 2);
+    describeBarChart(iv, students);
     return;
   }
+  describeBarChart(iv, students);
 
   const padL = 40, padR = 20, padT = 20, padB = 55;
   const chartW = W - padL - padR;
@@ -1042,6 +1058,21 @@ function drawBarChart(iv) {
   ctx.fillStyle = '#4ade80'; ctx.fillRect(lx + 70, ly, 12, 8);
   ctx.fillStyle = '#94a3b8';
   ctx.fillText('After', lx + 85, ly + 7);
+}
+
+// ---- Accessible text description of the before/after bar chart ----
+function describeBarChart(iv, students) {
+  const label = document.getElementById('barChart');
+  const desc  = document.getElementById('barChartDesc');
+  let txt;
+  if (!students || !students.length) {
+    txt = `Before and after scores chart for ${iv.name}. No scores have been entered yet.`;
+  } else {
+    const parts = students.map(s => `${s.name} went from ${s.before} before to ${s.after} after`);
+    txt = `Before and after scores chart for ${iv.name}, covering ${students.length} students. ` + parts.join('; ') + '.';
+  }
+  if (label) label.setAttribute('aria-label', txt);
+  if (desc)  desc.textContent = txt;
 }
 
 // ============================================================
@@ -1128,8 +1159,10 @@ function renderTimeline() {
     ctx.scale(dpr, dpr);
     ctx.fillStyle = '#64748b'; ctx.font = '13px Segoe UI'; ctx.textAlign = 'center';
     ctx.fillText('No interventions to display.', W / 2, 40);
+    describeTimeline();
     return;
   }
+  describeTimeline();
 
   const rowH = 44;
   const padL = 130, padR = 20, padT = 30, padB = 30;
@@ -1189,6 +1222,21 @@ function renderTimeline() {
   });
 }
 
+// ---- Accessible text description of the timeline chart ----
+function describeTimeline() {
+  const label = document.getElementById('timelineCanvas');
+  const desc  = document.getElementById('timelineDesc');
+  let txt;
+  if (!interventions.length) {
+    txt = 'Intervention timeline. No interventions to display.';
+  } else {
+    const parts = interventions.map(iv => `${iv.name} runs from ${fmtDate(iv.start)} to ${fmtDate(iv.end)}, ${weeksBetween(iv.start, iv.end)} weeks`);
+    txt = `Intervention timeline showing ${interventions.length} interventions. ` + parts.join('; ') + '.';
+  }
+  if (label) label.setAttribute('aria-label', txt);
+  if (desc)  desc.textContent = txt;
+}
+
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -1225,8 +1273,10 @@ function renderCompare() {
     ctx.fillStyle = '#64748b'; ctx.font = '13px Segoe UI'; ctx.textAlign = 'center';
     ctx.fillText('Score at least one intervention to see comparison.', W / 2, H / 2);
     renderROITable([]);
+    describeCompare([]);
     return;
   }
+  describeCompare(data);
 
   const padL = 40, padR = 20, padT = 20, padB = 65;
   const chartW = W - padL - padR;
@@ -1287,6 +1337,21 @@ function renderCompare() {
     </div>`).join('');
 
   renderROITable(data);
+}
+
+// ---- Accessible text description of the comparison chart ----
+function describeCompare(data) {
+  const label = document.getElementById('compareChart');
+  const desc  = document.getElementById('compareDesc');
+  let txt;
+  if (!data || !data.length) {
+    txt = "Effect size comparison chart. Score at least one intervention to see a comparison.";
+  } else {
+    const parts = data.map(x => `${x.name}, ${typeLabel(x.type)}, Cohen's d ${x.d.toFixed(2)}, ${interpretEffect(x.d).label}`);
+    txt = `Effect size comparison across ${data.length} interventions. ` + parts.join('; ') + '.';
+  }
+  if (label) label.setAttribute('aria-label', txt);
+  if (desc)  desc.textContent = txt;
 }
 
 function renderROITable(data) {

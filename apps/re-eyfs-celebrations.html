@@ -42,6 +42,36 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 
 .complete-msg{text-align:center;padding:16px;background:#dcfce7;border:3px solid #22c55e;border-radius:var(--radius);font-size:1.1rem;font-weight:900;color:#166534;display:none;animation:popIn .4s ease}
 
+.listen-btn{display:inline-flex;align-items:center;gap:6px;margin:0 auto 12px;padding:8px 16px;border:none;border-radius:999px;background:var(--accent);color:#fff;font-family:inherit;font-size:.82rem;font-weight:800;cursor:pointer;box-shadow:var(--shadow);transition:transform .15s}
+.listen-btn:hover{transform:scale(1.05)}
+.listen-btn:active{transform:scale(.96)}
+.listen-btn:focus-visible{outline:3px solid #831843;outline-offset:2px}
+
+.quiz-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:18px 16px;margin-bottom:14px;display:none;animation:popIn .4s ease}
+.quiz-card.show{display:block}
+.quiz-card h2{font-size:1.05rem;font-weight:900;text-align:center;margin-bottom:4px}
+.quiz-progress{text-align:center;font-size:.72rem;font-weight:700;color:var(--text2);margin-bottom:10px}
+.quiz-question{font-size:.95rem;font-weight:800;text-align:center;margin-bottom:14px;line-height:1.5}
+.quiz-question .q-icon{font-size:2rem;display:block;margin-bottom:6px}
+.quiz-options{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.quiz-opt{display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 8px;border:3px solid var(--border);border-radius:var(--radius);background:var(--card);font-family:inherit;color:var(--text);cursor:pointer;transition:all .2s;touch-action:manipulation}
+.quiz-opt:hover:not(:disabled){transform:scale(1.04);border-color:var(--accent)}
+.quiz-opt:focus-visible{outline:3px solid #831843;outline-offset:2px}
+.quiz-opt:disabled{cursor:default}
+.quiz-opt .o-icon{font-size:2rem}
+.quiz-opt .o-label{font-size:.78rem;font-weight:800;text-align:center}
+.quiz-opt.correct{border-color:#22c55e;background:#dcfce7;color:#166534}
+.quiz-opt.wrong{border-color:#ef4444;background:#fee2e2;color:#991b1b}
+.quiz-feedback{text-align:center;font-size:.9rem;font-weight:800;margin-top:14px;min-height:1.4em;padding:0 4px;line-height:1.45}
+.quiz-feedback.right{color:#166534}
+.quiz-feedback.again{color:#be185d}
+.quiz-next{display:block;margin:14px auto 0;padding:10px 24px;border:none;border-radius:999px;background:var(--accent);color:#fff;font-family:inherit;font-size:.9rem;font-weight:800;cursor:pointer;box-shadow:var(--shadow);visibility:hidden}
+.quiz-next.show{visibility:visible}
+.quiz-next:focus-visible{outline:3px solid #831843;outline-offset:2px}
+.start-quiz-btn{display:none;margin:0 auto 14px;padding:12px 22px;border:none;border-radius:999px;background:linear-gradient(135deg,#ec4899,#f472b6);color:#fff;font-family:inherit;font-size:.95rem;font-weight:900;cursor:pointer;box-shadow:var(--shadow-lg);animation:popIn .4s ease}
+.start-quiz-btn.show{display:block}
+.start-quiz-btn:focus-visible{outline:3px solid #831843;outline-offset:2px}
+
 @keyframes popIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
 .celebration{position:fixed;inset:0;pointer-events:none;z-index:1000}
 .confetti{position:absolute;border-radius:2px;animation:confettiFall linear forwards}
@@ -49,6 +79,47 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -215,9 +286,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 
 <div class="header"><h1>Celebrations Around the World</h1><p>Explore how families celebrate special days!</p></div>
 <div class="main">
-<div class="explored-bar" id="exploredBar"></div>
-<div class="celebrations-grid" id="celebGrid"></div>
+<div class="explored-bar" id="exploredBar" role="img" aria-label="Celebrations explored so far"></div>
+<div class="celebrations-grid" id="celebGrid" role="list" aria-label="Choose a celebration to explore"></div>
 <div class="detail-card" id="detailCard"></div>
+<button class="start-quiz-btn" id="startQuizBtn" type="button">&#x1F3AF; Play the matching game!</button>
+<div class="quiz-card" id="quizCard" aria-live="polite"></div>
 <div class="complete-msg" id="completeMsg"></div>
 </div>
 <div class="celebration" id="celebrationEl"></div>
@@ -259,10 +332,28 @@ CELEBRATIONS.forEach(()=>{const d=document.createElement('div');d.className='exp
 CELEBRATIONS.forEach((c,i)=>{
 const card=document.createElement('div');
 card.className='celeb-card';
-card.innerHTML=`<span class="c-icon">${c.icon}</span><span class="c-name">${c.name}</span><span class="c-religion">${c.religion}</span>`;
+card.setAttribute('role','listitem');
+card.setAttribute('tabindex','0');
+card.setAttribute('aria-label',`${c.name}, a celebration in ${c.religion}. Tap to find out more.`);
+card.innerHTML=`<span class="c-icon" aria-hidden="true">${c.icon}</span><span class="c-name">${c.name}</span><span class="c-religion">${c.religion}</span>`;
 card.addEventListener('click',()=>showCeleb(i));
+card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showCeleb(i);}});
 celebGrid.appendChild(card);
 });
+
+// Read text aloud using the browser's speech synthesis (no audio files).
+function speak(text){
+try{
+if(!('speechSynthesis'in window))return;
+window.speechSynthesis.cancel();
+const u=new SpeechSynthesisUtterance(text);
+u.lang='en-GB';
+if(window.westTTS){var _v=window.westTTS.pick(u.lang||'en-GB');if(_v)u.voice=_v;}
+u.rate=.92;
+u.pitch=1.05;
+window.speechSynthesis.speak(u);
+}catch(e){}
+}
 
 function showCeleb(idx){
 explored.add(idx);
@@ -275,24 +366,120 @@ void detailCard.offsetWidth;
 detailCard.classList.add('show');
 detailCard.innerHTML=`
 <div class="detail-banner" style="background:linear-gradient(135deg,${c.colour},${c.colour}cc)">
-<div class="d-icon">${c.icon}</div><h2>${c.name}</h2><div class="d-religion">${c.religion}</div>
+<div class="d-icon" aria-hidden="true">${c.icon}</div><h2>${c.name}</h2><div class="d-religion">${c.religion}</div>
 </div>
 <div class="detail-body">
+<button class="listen-btn" id="listenBtn" type="button"><span aria-hidden="true">&#x1F50A;</span> Listen</button>
 <div class="d-desc">${c.desc}</div>
-<ul class="d-activities">${c.activities.map(a=>`<li><span class="a-icon">${a.icon}</span>${a.text}</li>`).join('')}</ul>
+<ul class="d-activities">${c.activities.map(a=>`<li><span class="a-icon" aria-hidden="true">${a.icon}</span>${a.text}</li>`).join('')}</ul>
 <div class="fun-fact"><strong>Fun fact:</strong> ${c.fact}</div>
 </div>`;
 
+const spoken=`${c.name}, a celebration in ${c.religion}. ${c.desc} Fun fact: ${c.fact}`;
+const listenBtn=document.getElementById('listenBtn');
+listenBtn.setAttribute('aria-label',`Listen to a description of ${c.name}`);
+listenBtn.addEventListener('click',()=>speak(spoken));
+
 spawnMini();
 if(explored.size===CELEBRATIONS.length){
-document.getElementById('completeMsg').style.display='block';
-document.getElementById('completeMsg').innerHTML='&#x1F389; You explored all the celebrations! People celebrate in wonderful ways around the world!';
-celebrate();
+startQuizBtn.classList.add('show');
 }
 }
 
 function spawnMini(){const c=document.getElementById('celebrationEl');const cols=['#ec4899','#f472b6','#22c55e','#f59e0b','#3b82f6'];for(let i=0;i<8;i++){const e=document.createElement('div');e.className='confetti';e.style.cssText=`left:${Math.random()*100}vw;top:-10px;background:${cols[Math.floor(Math.random()*cols.length)]};width:${5+Math.random()*6}px;height:${5+Math.random()*6}px;border-radius:${Math.random()>.5?'50%':'2px'};animation-duration:${1+Math.random()*1.5}s;animation-delay:${Math.random()*.3}s;`;c.appendChild(e);setTimeout(()=>e.remove(),3000);}}
 function celebrate(){const c=document.getElementById('celebrationEl');const cols=['#ec4899','#22c55e','#f59e0b','#3b82f6','#a855f7','#ef4444'];for(let i=0;i<35;i++){const e=document.createElement('div');e.className='confetti';e.style.cssText=`left:${Math.random()*100}vw;top:-12px;background:${cols[Math.floor(Math.random()*cols.length)]};width:${6+Math.random()*8}px;height:${6+Math.random()*8}px;border-radius:${Math.random()>.5?'50%':'2px'};animation-duration:${1.5+Math.random()*2}s;animation-delay:${Math.random()*.5}s;`;c.appendChild(e);setTimeout(()=>e.remove(),4500);}}
+
+/* ---- Matching game: recall and reason, not just reveal-and-collect ---- */
+const startQuizBtn=document.getElementById('startQuizBtn');
+const quizCard=document.getElementById('quizCard');
+// Each question makes a child remember something from a card and choose between real celebrations.
+const QUESTIONS=[
+{prompt:'Which celebration uses little clay lamps called diyas?',icon:'&#x1FA94;',answer:'Diwali'},
+{prompt:'At which celebration do families light a candle on a menorah each night?',icon:'&#x1F54E;',answer:'Hanukkah'},
+{prompt:'Which celebration has dragon dances and red envelopes?',icon:'&#x1F409;',answer:'Chinese New Year'},
+{prompt:'At which celebration do Muslims say "Eid Mubarak"?',icon:'&#x1F319;',answer:'Eid al-Fitr'},
+{prompt:'Which celebration remembers the birth of Jesus and has a decorated tree?',icon:'&#x1F384;',answer:'Christmas'},
+{prompt:'At which celebration do children enjoy an Easter egg hunt?',icon:'&#x1F423;',answer:'Easter'}
+];
+const NAMES=CELEBRATIONS.map(c=>c.name);
+const ICON_BY_NAME={};CELEBRATIONS.forEach(c=>ICON_BY_NAME[c.name]=c.icon);
+let qOrder=[],qPos=0,qScore=0;
+
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+startQuizBtn.addEventListener('click',startQuiz);
+function startQuiz(){
+qOrder=shuffle(QUESTIONS.map((_,i)=>i));
+qPos=0;qScore=0;
+startQuizBtn.classList.remove('show');
+quizCard.classList.add('show');
+renderQuestion();
+quizCard.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function renderQuestion(){
+const q=QUESTIONS[qOrder[qPos]];
+// Three plausible options: the correct festival plus two distractors.
+const distractors=shuffle(NAMES.filter(n=>n!==q.answer)).slice(0,2);
+const opts=shuffle([q.answer,...distractors]);
+quizCard.innerHTML=`
+<h2>Matching game</h2>
+<div class="quiz-progress">Question ${qPos+1} of ${QUESTIONS.length}</div>
+<div class="quiz-question"><span class="q-icon" aria-hidden="true">${q.icon}</span>${q.prompt}</div>
+<div class="quiz-options" role="group" aria-label="${q.prompt.replace(/"/g,'')}">
+${opts.map(n=>`<button class="quiz-opt" type="button" data-name="${n}"><span class="o-icon" aria-hidden="true">${ICON_BY_NAME[n]}</span><span class="o-label">${n}</span></button>`).join('')}
+</div>
+<div class="quiz-feedback" id="quizFeedback" aria-live="assertive"></div>
+<button class="quiz-next" id="quizNext" type="button">${qPos+1<QUESTIONS.length?'Next question →':'See my score →'}</button>`;
+const fb=document.getElementById('quizFeedback');
+const next=document.getElementById('quizNext');
+let answered=false;
+quizCard.querySelectorAll('.quiz-opt').forEach(btn=>{
+btn.addEventListener('click',()=>{
+const chosen=btn.dataset.name;
+const correct=chosen===q.answer;
+if(correct){
+btn.classList.add('correct');
+if(!answered)qScore++;
+quizCard.querySelectorAll('.quiz-opt').forEach(b=>b.disabled=true);
+fb.textContent='Well done! That is right.';
+fb.className='quiz-feedback right';
+speak('Well done! That is right.');
+next.classList.add('show');
+next.focus();
+spawnMini();
+}else{
+// Formative, specific feedback: tell them which festival they picked and let them try again.
+btn.classList.add('wrong');
+btn.disabled=true;
+fb.textContent=`Not quite. ${chosen} is a different celebration. Have another go!`;
+fb.className='quiz-feedback again';
+speak(`Not quite. ${chosen} is a different celebration. Have another go.`);
+}
+answered=true;
+});
+});
+next.addEventListener('click',()=>{
+qPos++;
+if(qPos<QUESTIONS.length){renderQuestion();}else{finishQuiz();}
+});
+const first=quizCard.querySelector('.quiz-opt');if(first)first.focus();
+}
+
+function finishQuiz(){
+quizCard.innerHTML=`
+<h2>&#x1F3C6; Great matching!</h2>
+<div class="quiz-progress" style="font-size:1rem;margin-top:6px">You matched ${qScore} out of ${QUESTIONS.length} celebrations.</div>
+<div class="quiz-question" style="margin-top:10px;font-size:.92rem;font-weight:700">${qScore===QUESTIONS.length?'You remembered every one. Wonderful!':'You are learning lots about how families celebrate around the world.'}</div>
+<button class="quiz-next show" id="quizReplay" type="button" style="margin-top:6px">Play again →</button>`;
+const msg=document.getElementById('completeMsg');
+msg.style.display='block';
+msg.innerHTML='&#x1F389; You explored all the celebrations and played the matching game! People celebrate in wonderful ways around the world!';
+celebrate();
+speak(`Great matching! You matched ${qScore} out of ${QUESTIONS.length} celebrations.`);
+document.getElementById('quizReplay').addEventListener('click',startQuiz);
+document.getElementById('quizReplay').focus();
+}
 </script>
 </body>
 </html>

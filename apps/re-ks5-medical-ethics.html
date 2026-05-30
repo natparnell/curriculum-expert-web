@@ -53,10 +53,107 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 .evaluation strong{color:var(--accent)}
 
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:600px){.perspective-grid{grid-template-columns:1fr}}
+
+/* read-aloud button */
+.speak-btn{margin-top:10px;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1.5px solid var(--accent);border-radius:6px;background:var(--card);color:var(--accent);font-family:'DM Sans',sans-serif;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .2s}
+.speak-btn:hover{background:var(--accent);color:#fff}
+.speak-btn.speaking{background:var(--accent);color:#fff}
+
+/* framework filter (wired) */
+.fw-tab.active{background:var(--text);color:#fff}
+.fw-tab:hover{background:var(--bg)}
+.fw-tab.active:hover{background:var(--text)}
+.fw-tab.active.religious{background:var(--religious);color:#fff}
+.fw-tab.active.secular{background:var(--secular);color:#fff}
+
+/* build-your-case task */
+.task-block{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.task-block .task-title{font-family:'Playfair Display',serif;font-size:1rem;font-weight:700;margin-bottom:4px}
+.task-block .task-lead{font-size:.82rem;color:var(--text2);margin-bottom:14px}
+.case-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.case-col h5{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;text-align:center}
+.case-col.for h5{color:#166534}
+.case-col.against h5{color:#991b1b}
+.case-zone{min-height:70px;border:2px dashed var(--border);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px;transition:all .15s}
+.case-zone.for.dragover{border-color:#22c55e;background:#dcfce722}
+.case-zone.against.dragover{border-color:#ef4444;background:#fef2f222}
+.arg-bank{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.arg-chip{padding:8px 12px;background:var(--bg);border:1.5px solid var(--border);border-radius:7px;font-size:.78rem;line-height:1.4;cursor:grab;transition:all .15s;display:flex;align-items:center;gap:8px}
+.arg-chip:hover{border-color:var(--accent)}
+.arg-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.arg-chip.dragging{opacity:.5}
+.arg-chip.placed{cursor:default}
+.arg-chip .grip{color:var(--text2);font-size:.9rem;flex-shrink:0}
+.arg-chip.correct{border-color:#22c55e;background:#dcfce7;color:#166534}
+.arg-chip.wrong{border-color:#ef4444;background:#fef2f2;color:#991b1b}
+.arg-chip .verdict-mark{margin-left:auto;font-weight:700;flex-shrink:0}
+.kbd-hint{font-size:.66rem;color:var(--text2);margin-bottom:10px}
+.task-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.task-btn{padding:8px 16px;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.74rem;font-weight:700;cursor:pointer;transition:all .15s}
+.task-btn.primary{background:var(--accent);color:#fff}
+.task-btn.primary:hover{filter:brightness(1.08)}
+.task-btn.ghost{background:var(--card);color:var(--text2);border:1.5px solid var(--border)}
+.task-btn.ghost:hover{border-color:var(--accent);color:var(--accent)}
+.task-feedback{margin-top:12px;padding:12px 14px;border-radius:8px;font-size:.82rem;line-height:1.55;display:none}
+.task-feedback.show{display:block;animation:fadeIn .25s ease}
+.task-feedback.pass{background:#dcfce7;border-left:4px solid #22c55e;color:#166534}
+.task-feedback.partial{background:#fef3c7;border-left:4px solid #f59e0b;color:#78350f}
+
+/* match-the-framework quiz */
+.match-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.match-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px}
+.match-row .m-fw{font-size:.82rem;font-weight:600}
+.match-row select{font-family:'DM Sans',sans-serif;font-size:.76rem;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);cursor:pointer;min-width:150px}
+.match-row.correct{border-color:#22c55e;background:#dcfce7}
+.match-row.wrong{border-color:#ef4444;background:#fef2f2}
+.match-row .m-result{font-size:.72rem;font-weight:700;margin-top:4px;grid-column:1/-1}
+.score-pill{display:inline-block;font-size:.74rem;font-weight:700;padding:4px 12px;border-radius:20px;background:var(--accent-bg);color:var(--accent);margin-left:8px}
+
+@media(max-width:600px){.perspective-grid{grid-template-columns:1fr}.case-cols{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -255,43 +352,272 @@ views:[
 forPoints:['Could eliminate devastating genetic diseases','Parents have a right to give their children the best start','Medical science should be used to reduce suffering','Could benefit society through healthier populations'],
 againstPoints:['Crosses the line from healing to "playing God"','Could create a genetic divide between rich and poor','Embryos that do not meet criteria may be destroyed','Unforeseen consequences of editing DNA could emerge in future generations'],
 evaluation:'Genetic engineering forces us to ask what it means to be human. Most ethical frameworks can accept therapeutic gene editing (fixing diseases), but the line between therapy and enhancement is blurred. The potential to create inequality between those who can and cannot afford enhancement raises serious justice concerns that both religious and secular thinkers find troubling.'
+},
+{id:'abortion',name:'Abortion',desc:'When, if ever, is it morally acceptable to end a pregnancy?',
+scenario:'A 19-year-old student discovers she is ten weeks pregnant. The pregnancy was unplanned and she feels unable to continue with her education and support a child. Doctors have also detected that the foetus has a serious chromosomal abnormality. She is considering a termination, but comes from a devout family who believe life begins at conception.',
+views:[
+{name:'Christianity (Catholic)',badge:'religious',position:'Against abortion. Life begins at conception and the embryo has full human dignity from that moment (sanctity of life).',reason:'"Before I formed you in the womb I knew you" (Jeremiah 1:5). The Catechism teaches that human life must be respected and protected absolutely from conception.'},
+{name:'Christianity (Liberal Protestant)',badge:'religious',position:'Some accept abortion in limited cases (rape, risk to the mother, severe foetal abnormality) as a compassionate choice.',reason:'The principle of agape love and the wellbeing of the mother may, in tragic circumstances, justify a termination as the lesser harm.'},
+{name:'Islam',badge:'religious',position:'Generally prohibited, but permitted before 120 days (ensoulment) if the mother\'s life is at risk. The mother\'s life takes priority.',reason:'Many scholars cite the hadith on ensoulment at 120 days. Sanctity of life is central, but Islamic law accepts the lesser of two harms where the mother is endangered.'},
+{name:'Utilitarianism',badge:'secular',position:'Weighs the consequences for the mother, the potential child and society. If termination produces less overall suffering, it may be justified.',reason:'A foetus with limited sentience early in pregnancy carries less weight in the hedonic calculus than the conscious, suffering mother whose life is affected.'},
+{name:'Natural Law (Aquinas)',badge:'secular',position:'Against. Abortion violates the primary precepts of preserving life and reproduction. The act is intrinsically wrong.',reason:'Aquinas held preservation of life as a primary precept. Even the doctrine of double effect only permits the foetus\'s death as an unintended side effect of saving the mother, never as the direct aim.'},
+{name:'Situation Ethics (Fletcher)',badge:'secular',position:'No fixed rule. The most loving outcome depends on the circumstances of each individual case.',reason:'Fletcher argued that agape love is the only absolute. In some situations love for the mother and realism about a child\'s quality of life may make termination the most loving choice.'}
+],
+forPoints:['Respects the bodily autonomy of the woman','Quality of life matters where severe abnormality is present','A woman should not be forced to continue an unwanted pregnancy','Safe legal abortion protects women from harm'],
+againstPoints:['Violates the sanctity of life from conception (religious view)','The foetus is a potential human being with rights','Disability is not a reason to end a life (disability rights view)','Adoption offers an alternative to termination'],
+evaluation:'Abortion sets the rights and autonomy of the woman against the status and potential of the foetus. The key dividing question is when personhood begins: at conception, at ensoulment, at viability, or at birth. A Level answers should handle the sanctity of life and quality of life arguments with nuance, recognise the hard cases (rape, risk to life, severe abnormality), and avoid treating either side as obviously correct.'
 }
 ];
 
+// Each view's broad verdict on the dilemma, used by the match-the-framework quiz.
+// Verdicts are deliberately coarse so the matching task has clean right/wrong answers.
+const VERDICTS={
+euthanasia:{
+'Christianity (Catholic)':'Against','Christianity (Liberal Protestant)':'Sometimes for','Islam':'Against',
+'Utilitarianism':'For','Kantian Ethics':'Conflicted','Situation Ethics (Fletcher)':'Depends on situation'
+},
+genetic:{
+'Christianity':'Therapy yes, enhancement no','Islam':'Therapy yes, enhancement no','Buddhism':'Therapy yes, enhancement no',
+'Utilitarianism':'For if outcomes good','Natural Law (Aquinas)':'Therapy yes, enhancement no','Kantian Ethics':'Therapy yes, enhancement no'
+},
+abortion:{
+'Christianity (Catholic)':'Against','Christianity (Liberal Protestant)':'Sometimes for','Islam':'Limited cases only',
+'Utilitarianism':'Depends on consequences','Natural Law (Aquinas)':'Against','Situation Ethics (Fletcher)':'Depends on situation'
+}
+};
+
 let currentDil=0;
+let fwFilter='all';           // 'all' | 'religious' | 'secular'
+let revealedViews=false;      // model perspectives revealed only after the build-your-case task
 const dilTabs=document.getElementById('dilTabs');
 
 DILEMMAS.forEach((d,i)=>{
 const tab=document.createElement('button');tab.className='dil-tab'+(i===0?' active':'');tab.textContent=d.name;
-tab.addEventListener('click',()=>{currentDil=i;render();});
+tab.addEventListener('click',()=>{if(currentDil===i)return;currentDil=i;fwFilter='all';revealedViews=false;stopSpeech();render();});
 dilTabs.appendChild(tab);
 });
 
+function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* ---------------- Read-aloud (SpeechSynthesis) ---------------- */
+let speaking=false;
+function stopSpeech(){if(window.speechSynthesis){window.speechSynthesis.cancel();}speaking=false;}
+function toggleSpeech(text,btn){
+if(!window.speechSynthesis){btn.textContent='Audio not supported';return;}
+if(speaking){stopSpeech();updateSpeakBtn(btn,false);return;}
+window.speechSynthesis.cancel();
+const u=new SpeechSynthesisUtterance(text);
+u.lang='en-GB';u.rate=.95;
+if(window.westTTS){const v=window.westTTS.pick(u.lang||'en-GB');if(v)u.voice=v;}
+u.onend=()=>{speaking=false;updateSpeakBtn(btn,false);};
+u.onerror=()=>{speaking=false;updateSpeakBtn(btn,false);};
+speaking=true;updateSpeakBtn(btn,true);
+window.speechSynthesis.speak(u);
+}
+function updateSpeakBtn(btn,on){btn.classList.toggle('speaking',on);btn.innerHTML=on?'&#9632; Stop':'&#9658; Read scenario aloud';}
+
+/* ---------------- Render ---------------- */
 function render(){
 dilTabs.querySelectorAll('.dil-tab').forEach((t,i)=>t.classList.toggle('active',i===currentDil));
 const d=DILEMMAS[currentDil];
-
-let viewsHtml=d.views.map(v=>`<div class="view-card"><div class="v-name">${v.name} <span class="v-badge ${v.badge}">${v.badge}</span></div><div class="v-position">${v.position}</div><div class="v-reason">${v.reason}</div></div>`).join('');
 
 document.getElementById('display').innerHTML=`
 <div class="dilemma-card" style="animation:fadeIn .3s ease">
 <div class="dil-banner"><h2>${d.name}</h2><div class="d-desc">${d.desc}</div></div>
 <div class="dil-body">
 <div class="scenario">${d.scenario}</div>
+<button class="speak-btn" id="speakBtn">&#9658; Read scenario aloud</button>
 
-<div class="section-h">Arguments For and Against</div>
-<div class="perspective-grid">
-<div class="perspective-card for"><h4>Arguments For</h4>${d.forPoints.map(p=>`<div>&#x2022; ${p}</div>`).join('')}</div>
-<div class="perspective-card against"><h4>Arguments Against</h4>${d.againstPoints.map(p=>`<div>&#x2022; ${p}</div>`).join('')}</div>
+<div class="section-h">Task 1 &middot; Build your own case</div>
+<div class="task-block">
+<div class="task-title">Sort the arguments</div>
+<div class="task-lead">Before you see the model answer, decide where each argument belongs. Drag each statement into the <strong>For</strong> or <strong>Against</strong> column, then check your reasoning.</div>
+<p class="kbd-hint">Keyboard: focus a card with Tab, then press <strong>F</strong> for For, <strong>A</strong> for Against, <strong>Backspace</strong> to return it.</p>
+<div class="arg-bank" id="argBank"></div>
+<div class="case-cols">
+<div class="case-col for"><h5>Arguments For</h5><div class="case-zone for" data-zone="for" id="zoneFor"></div></div>
+<div class="case-col against"><h5>Arguments Against</h5><div class="case-zone against" data-zone="against" id="zoneAgainst"></div></div>
+</div>
+<div class="task-actions">
+<button class="task-btn primary" id="checkCase">Check my case</button>
+<button class="task-btn ghost" id="resetCase">Reset</button>
+</div>
+<div class="task-feedback" id="caseFeedback"></div>
+</div>
+
+<div class="section-h">Task 2 &middot; Match the framework to its verdict</div>
+<div class="task-block">
+<div class="task-title">Which way does each tradition lean?<span class="score-pill" id="matchScore" style="display:none"></span></div>
+<div class="task-lead">For each ethical framework, choose the verdict it would most likely reach on <strong>${d.name.toLowerCase()}</strong>. You get instant feedback on each row.</div>
+<div class="match-grid" id="matchGrid"></div>
+<div class="task-actions"><button class="task-btn primary" id="checkMatch">Check matches</button></div>
 </div>
 
 <div class="section-h">Religious and Secular Perspectives</div>
-${viewsHtml}
+<div class="framework-tabs" id="fwTabs">
+<button class="fw-tab" data-f="all">All</button>
+<button class="fw-tab religious" data-f="religious">Religious</button>
+<button class="fw-tab secular" data-f="secular">Secular</button>
+</div>
+<div id="viewsArea"></div>
 
-<div class="evaluation"><strong>Evaluative conclusion:</strong> ${d.evaluation}</div>
+<div class="evaluation" id="evalBox" style="display:none"><strong>Evaluative conclusion:</strong> ${d.evaluation}</div>
 </div>
 </div>`;
+
+// Read-aloud wiring
+const speakBtn=document.getElementById('speakBtn');
+speakBtn.addEventListener('click',()=>toggleSpeech(d.scenario,speakBtn));
+
+renderBuildTask(d);
+renderMatchTask(d);
+wireFwTabs();
+renderViews(d);
 }
+
+/* ---------------- Task 1: build-your-case (drag + keyboard) ---------------- */
+function renderBuildTask(d){
+const bank=document.getElementById('argBank');
+const zoneFor=document.getElementById('zoneFor');
+const zoneAgainst=document.getElementById('zoneAgainst');
+// Build a shuffled, labelled pool of arguments with their correct side.
+const pool=[];
+d.forPoints.forEach((p,i)=>pool.push({id:'f'+i,text:p,side:'for'}));
+d.againstPoints.forEach((p,i)=>pool.push({id:'a'+i,text:p,side:'against'}));
+shuffle(pool);
+
+pool.forEach(item=>bank.appendChild(makeChip(item)));
+
+function makeChip(item){
+const chip=document.createElement('div');
+chip.className='arg-chip';chip.draggable=true;chip.tabIndex=0;
+chip.dataset.id=item.id;chip.dataset.side=item.side;
+chip.innerHTML='<span class="grip" aria-hidden="true">&#8942;&#8942;</span><span>'+escapeHtml(item.text)+'</span>';
+chip.setAttribute('aria-label',item.text+'. Press F for For, A for Against.');
+chip.addEventListener('dragstart',e=>{chip.classList.add('dragging');e.dataTransfer.setData('text/plain',item.id);});
+chip.addEventListener('dragend',()=>chip.classList.remove('dragging'));
+chip.addEventListener('keydown',e=>{
+if(e.key==='f'||e.key==='F'){e.preventDefault();zoneFor.appendChild(chip);chip.focus();}
+else if(e.key==='a'||e.key==='A'){e.preventDefault();zoneAgainst.appendChild(chip);chip.focus();}
+else if(e.key==='Backspace'){e.preventDefault();bank.appendChild(chip);chip.focus();}
+});
+return chip;
+}
+
+[zoneFor,zoneAgainst].forEach(zone=>{
+zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragover');});
+zone.addEventListener('dragleave',()=>zone.classList.remove('dragover'));
+zone.addEventListener('drop',e=>{
+e.preventDefault();zone.classList.remove('dragover');
+const id=e.dataTransfer.getData('text/plain');
+const chip=document.querySelector('.arg-chip[data-id="'+id+'"]');
+if(chip)zone.appendChild(chip);
+});
+});
+
+document.getElementById('checkCase').addEventListener('click',()=>checkCase(d));
+document.getElementById('resetCase').addEventListener('click',()=>{
+[...zoneFor.children,...zoneAgainst.children].forEach(c=>bank.appendChild(c));
+document.querySelectorAll('#argBank .arg-chip,.case-zone .arg-chip').forEach(c=>{c.classList.remove('correct','wrong');const m=c.querySelector('.verdict-mark');if(m)m.remove();});
+const fb=document.getElementById('caseFeedback');fb.className='task-feedback';fb.innerHTML='';
+});
+}
+
+function checkCase(d){
+const zoneFor=document.getElementById('zoneFor');
+const zoneAgainst=document.getElementById('zoneAgainst');
+const placed=[...zoneFor.children,...zoneAgainst.children];
+const total=d.forPoints.length+d.againstPoints.length;
+if(placed.length<total){
+const fb=document.getElementById('caseFeedback');
+fb.className='task-feedback partial show';
+fb.innerHTML='Place all '+total+' arguments first. '+(total-placed.length)+' still in the bank.';
+return;
+}
+let correct=0;
+const mark=(chip,placedSide)=>{
+const ok=chip.dataset.side===placedSide;
+chip.classList.remove('correct','wrong');chip.classList.add(ok?'correct':'wrong');
+let m=chip.querySelector('.verdict-mark');if(!m){m=document.createElement('span');m.className='verdict-mark';chip.appendChild(m);}
+m.innerHTML=ok?'&#10003;':'&#10007;';
+if(ok)correct++;
+};
+[...zoneFor.children].forEach(c=>mark(c,'for'));
+[...zoneAgainst.children].forEach(c=>mark(c,'against'));
+const fb=document.getElementById('caseFeedback');
+if(correct===total){
+fb.className='task-feedback pass show';
+fb.innerHTML='<strong>All '+total+' correct.</strong> You have a balanced case. The model religious and secular perspectives are now unlocked below, along with the evaluative conclusion.';
+revealedViews=true;
+}else{
+fb.className='task-feedback partial show';
+fb.innerHTML='<strong>'+correct+' of '+total+' correct.</strong> Look again at the red cards: a strong A Level answer puts each argument on the side it genuinely supports. Adjust and check again. (The model perspectives unlock once every card is on the right side.)';
+}
+renderViews(d);
+}
+
+/* ---------------- Task 2: match framework to verdict ---------------- */
+function renderMatchTask(d){
+const grid=document.getElementById('matchGrid');
+const vmap=VERDICTS[d.id];
+const options=[...new Set(Object.values(vmap))];
+// stable but varied option order
+const optOrder=[...options].sort();
+grid.innerHTML='';
+Object.keys(vmap).forEach((fw,i)=>{
+const row=document.createElement('div');row.className='match-row';row.dataset.fw=fw;
+const sel=document.createElement('select');
+sel.innerHTML='<option value="">Choose a verdict...</option>'+optOrder.map(o=>'<option>'+escapeHtml(o)+'</option>').join('');
+const label=document.createElement('div');label.className='m-fw';label.textContent=fw;
+row.appendChild(label);row.appendChild(sel);
+grid.appendChild(row);
+});
+document.getElementById('checkMatch').addEventListener('click',()=>{
+const vmap=VERDICTS[d.id];let correct=0;const rows=grid.querySelectorAll('.match-row');
+rows.forEach(row=>{
+const fw=row.dataset.fw;const sel=row.querySelector('select');
+const chosen=sel.value;const right=vmap[fw];
+row.classList.remove('correct','wrong');
+let res=row.querySelector('.m-result');if(!res){res=document.createElement('div');res.className='m-result';row.appendChild(res);}
+if(chosen===right){row.classList.add('correct');res.innerHTML='&#10003; Correct';correct++;}
+else if(chosen===''){row.classList.add('wrong');res.innerHTML='&#10007; No answer chosen. Model: '+escapeHtml(right);}
+else{row.classList.add('wrong');res.innerHTML='&#10007; Not quite. Model verdict: '+escapeHtml(right);}
+});
+const pill=document.getElementById('matchScore');
+pill.style.display='inline-block';pill.textContent=correct+' / '+rows.length;
+});
+}
+
+/* ---------------- Framework filter + perspectives ---------------- */
+function wireFwTabs(){
+const tabs=document.querySelectorAll('#fwTabs .fw-tab');
+tabs.forEach(t=>{
+t.classList.toggle('active',t.dataset.f===fwFilter);
+t.addEventListener('click',()=>{
+fwFilter=t.dataset.f;
+tabs.forEach(x=>x.classList.toggle('active',x.dataset.f===fwFilter));
+renderViews(DILEMMAS[currentDil]);
+});
+});
+}
+
+function renderViews(d){
+const area=document.getElementById('viewsArea');
+const evalBox=document.getElementById('evalBox');
+if(!area)return;
+if(!revealedViews){
+area.innerHTML='<div class="view-card" style="text-align:center;color:var(--text2);font-style:italic">Complete Task 1 (sort every argument correctly) to unlock the model religious and secular perspectives.</div>';
+if(evalBox)evalBox.style.display='none';
+return;
+}
+if(evalBox)evalBox.style.display='block';
+const filtered=d.views.filter(v=>fwFilter==='all'||v.badge===fwFilter);
+if(!filtered.length){area.innerHTML='<div class="view-card" style="color:var(--text2)">No '+fwFilter+' views for this dilemma.</div>';return;}
+area.innerHTML=filtered.map(v=>`<div class="view-card"><div class="v-name">${v.name} <span class="v-badge ${v.badge}">${v.badge}</span></div><div class="v-position">${v.position}</div><div class="v-reason">${v.reason}</div></div>`).join('');
+}
+
+/* ---------------- util ---------------- */
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
 render();
 </script>

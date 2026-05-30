@@ -20,7 +20,17 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .item-display{text-align:center;padding:20px;background:var(--card);border-radius:var(--radius);box-shadow:0 8px 32px rgba(131,24,67,.12);margin-bottom:14px}
 .item-icon{font-size:4rem;display:block;margin-bottom:6px}
 .item-name{font-size:1.2rem;font-weight:800}
-.item-desc{font-size:.82rem;color:var(--text2);margin-top:4px}
+.item-kind{display:inline-block;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);background:var(--accent-bg);border:1px solid var(--border);border-radius:999px;padding:2px 10px;margin-top:6px}
+.item-desc{font-size:.82rem;color:var(--text2);margin-top:6px}
+.item-tools{display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.tool-btn{font-family:'Inter',sans-serif;font-size:.78rem;font-weight:700;padding:7px 14px;border:2px solid var(--border);border-radius:999px;background:#fff;color:var(--text2);cursor:pointer;transition:all .2s;touch-action:manipulation}
+.tool-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.tool-btn:disabled{opacity:.5;cursor:default}
+.teach-box{display:none;font-size:.9rem;line-height:1.55;padding:14px;background:#eff6ff;border:2px solid #93c5fd;border-radius:var(--radius);color:#1e3a8a;margin-bottom:12px;animation:popIn .3s ease}
+.teach-box.show{display:block}
+.teach-box strong{color:#1d4ed8}
+.next-btn{font-family:'Inter',sans-serif;font-size:.95rem;font-weight:800;padding:11px 26px;border:none;border-radius:999px;background:var(--accent);color:#fff;cursor:pointer;box-shadow:var(--shadow);transition:transform .15s;touch-action:manipulation}
+.next-btn:hover{transform:scale(1.04)}
 
 .religion-options{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
 .rel-btn{display:flex;align-items:center;gap:8px;padding:12px;border:3px solid var(--border);border-radius:14px;background:var(--card);font-family:'Inter',sans-serif;font-size:.85rem;font-weight:700;cursor:pointer;transition:all .25s;touch-action:manipulation;text-align:left;box-shadow:var(--shadow)}
@@ -44,6 +54,47 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -208,46 +259,72 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 })();
 </script>
 
-<div class="header"><h1>Signs of Belonging</h1><p>Match symbols to their religion!</p></div>
+<div class="header"><h1>Signs of Belonging</h1><p>Match each sign, item or place to the community it belongs to</p></div>
 <div class="main">
 <div class="score-bar"><span id="scoreLabel" style="color:var(--success)">Score: 0</span><span id="roundLabel" style="color:var(--text2)">Round 1/10</span></div>
-<div class="instruction">Which religion does this symbol belong to?</div>
-<div class="item-display" id="itemDisplay"><span class="item-icon" id="itemIcon"></span><div class="item-name" id="itemName"></div><div class="item-desc" id="itemDesc"></div></div>
-<div class="religion-options" id="relOptions"></div>
-<div class="feedback" id="feedback"></div>
+<div class="instruction">Whose community does this sign belong to? Each sign helps people show they belong.</div>
+<div class="item-display" id="itemDisplay"><span class="item-icon" id="itemIcon" role="img"></span><div class="item-name" id="itemName"></div><div class="item-kind" id="itemKind"></div><div class="item-desc" id="itemDesc"></div>
+<div class="item-tools"><button class="tool-btn" id="listenBtn" type="button" aria-label="Listen to this sign read aloud">&#x1F50A; Listen</button><button class="tool-btn" id="hintBtn" type="button" aria-label="Get a hint">&#x1F4A1; Hint</button></div></div>
+<div class="religion-options" id="relOptions" role="group" aria-label="Choose the religion"></div>
+<div class="feedback" id="feedback" role="status" aria-live="polite"></div>
+<div class="teach-box" id="teachBox"></div>
+<div style="text-align:center"><button class="next-btn" id="nextBtn" type="button" style="display:none">Next &#x2192;</button></div>
 <div class="complete-msg" id="completeMsg"></div>
 </div>
 <div class="celebration" id="celebration"></div>
 <script>
 const ITEMS=[
-{icon:'&#x271D;&#xFE0F;',name:'Cross',religion:'Christianity',desc:'The most important symbol of Christianity'},
-{icon:'&#x1F319;',name:'Crescent Moon and Star',religion:'Islam',desc:'A symbol found on many mosques and flags'},
-{icon:'&#x2721;&#xFE0F;',name:'Star of David',religion:'Judaism',desc:'A six-pointed star, symbol of the Jewish people'},
-{icon:'&#x1F549;&#xFE0F;',name:'Om Symbol',religion:'Hinduism',desc:'A sacred sound and symbol in Hindu prayer'},
-{icon:'&#x2638;&#xFE0F;',name:'Dharma Wheel',religion:'Buddhism',desc:'Represents the teachings of the Buddha'},
-{icon:'&#x1F54C;',name:'Mosque',religion:'Islam',desc:'The place where Muslims go to pray'},
-{icon:'&#x26EA;',name:'Church',religion:'Christianity',desc:'The place where Christians worship'},
-{icon:'&#x1F54D;',name:'Synagogue',religion:'Judaism',desc:'The place where Jewish people worship and study'},
-{icon:'&#x1F4DC;',name:'Torah Scroll',religion:'Judaism',desc:'The most holy book in Judaism'},
-{icon:'&#x1F4D6;',name:'Bible',religion:'Christianity',desc:'The holy book of Christianity'}
+{icon:'&#x271D;&#xFE0F;',name:'Cross',religion:'Christianity',kind:'symbol',desc:'The most important symbol of Christianity',teach:'Many Christians wear a cross necklace. Wearing it shows other people that they belong to the Christian family and follow Jesus.'},
+{icon:'&#x1F319;',name:'Crescent Moon and Star',religion:'Islam',kind:'symbol',desc:'A symbol found on many mosques and flags',teach:'When Muslims see the crescent moon and star on a mosque or flag, it tells them this is a place or a group that belongs to Islam.'},
+{icon:'&#x2721;&#xFE0F;',name:'Star of David',religion:'Judaism',kind:'symbol',desc:'A six-pointed star, the symbol of the Jewish people',teach:'The Star of David is worn and displayed by Jewish people to show they belong to the Jewish community.'},
+{icon:'&#x1F549;&#xFE0F;',name:'Om Symbol',religion:'Hinduism',kind:'symbol',desc:'A sacred sound and symbol used in Hindu prayer',teach:'Hindus say and draw the Om symbol when they pray together. Sharing it helps them feel they belong to one another.'},
+{icon:'&#x1FAAF;',name:'Khanda',religion:'Sikhism',kind:'symbol',desc:'The main symbol of Sikhism, seen on Sikh flags',teach:'The Khanda is seen on the flag outside a gurdwara. It shows everyone that this is a Sikh place where Sikhs belong together.'},
+{icon:'&#x1F9E2;',name:'Kippah',religion:'Judaism',kind:'clothing',desc:'A small cap worn on the head',teach:'Many Jewish men and boys wear a kippah on their head. Wearing it shows respect to God and that they belong to the Jewish community.'},
+{icon:'&#x1F9D5;',name:'Hijab',religion:'Islam',kind:'clothing',desc:'A head covering worn by some women',teach:'Some Muslim women choose to wear a hijab. It is a way of showing they belong to Islam and want to dress modestly.'},
+{icon:'&#x1F473;',name:'Turban',religion:'Sikhism',kind:'clothing',desc:'A cloth wound neatly around the head',teach:'Many Sikh men and some women wear a turban over their uncut hair. It is a proud sign that they belong to the Sikh community.'},
+{icon:'&#x1F4FF;',name:'Prayer Beads',religion:'Buddhism',kind:'artefact',desc:'A string of beads used to count prayers',teach:'Buddhists hold prayer beads and move them along while they meditate. Using them together helps them feel part of one community.'},
+{icon:'&#x1F54C;',name:'Mosque',religion:'Islam',kind:'building',desc:'The place where Muslims go to pray together',teach:'A mosque is where Muslims gather to pray side by side. Coming together in the same place helps them feel they belong.'},
+{icon:'&#x26EA;',name:'Church',religion:'Christianity',kind:'building',desc:'The place where Christians worship together',teach:'Christians meet in a church to sing, pray and learn. Meeting every week helps them feel part of the Christian family.'},
+{icon:'&#x1F54D;',name:'Synagogue',religion:'Judaism',kind:'building',desc:'The place where Jewish people worship and study',teach:'Jewish people gather in a synagogue to pray and read the Torah. Being there together shows they belong to one community.'},
+{icon:'&#x1F4DC;',name:'Torah Scroll',religion:'Judaism',kind:'book',desc:'The most holy book in Judaism',teach:'The Torah is read aloud in the synagogue. Listening to the same holy words helps Jewish people feel they belong together.'},
+{icon:'&#x1F4D6;',name:'Bible',religion:'Christianity',kind:'book',desc:'The holy book of Christianity',teach:'Christians read and share stories from the Bible. Knowing the same stories helps Christians feel part of one big family.'}
 ];
 
-const RELIGIONS=['Christianity','Islam','Judaism','Hinduism','Buddhism'];
+const RELIGIONS=['Christianity','Islam','Judaism','Hinduism','Buddhism','Sikhism'];
+const REL_ICONS={Christianity:'&#x271D;&#xFE0F;',Islam:'&#x1F319;',Judaism:'&#x2721;&#xFE0F;',Hinduism:'&#x1F549;&#xFE0F;',Buddhism:'&#x2638;&#xFE0F;',Sikhism:'&#x1FAAF;'};
 
-let shuffled=[],round=0,score=0;
+const KIND_LABEL={symbol:'symbol',clothing:'clothing',artefact:'artefact',building:'place of worship',book:'holy book'};
+let shuffled=[],round=0,score=0,attempts=0,answered=false;
 function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
 
-function start(){shuffled=shuffle(ITEMS);round=0;score=0;document.getElementById('completeMsg').style.display='none';loadRound();}
+function say(text){
+try{
+if(!('speechSynthesis'in window))return;
+window.speechSynthesis.cancel();
+const u=new SpeechSynthesisUtterance(text);
+u.lang='en-GB';u.rate=.92;u.pitch=1.05;
+if(window.westTTS){var _v=window.westTTS.pick(u.lang||'en-GB');if(_v)u.voice=_v;}
+window.speechSynthesis.speak(u);
+}catch(e){}
+}
+
+function start(){shuffled=shuffle(ITEMS);round=0;score=0;document.getElementById('itemDisplay').style.display='';document.getElementById('completeMsg').style.display='none';loadRound();}
 
 function loadRound(){
 if(round>=shuffled.length){endGame();return;}
 const item=shuffled[round];
+attempts=0;answered=false;
 document.getElementById('itemIcon').innerHTML=item.icon;
 document.getElementById('itemName').textContent=item.name;
 document.getElementById('itemDesc').textContent=item.desc;
+document.getElementById('itemKind').textContent='This is a '+(KIND_LABEL[item.kind]||'sign')+'.';
 document.getElementById('roundLabel').textContent=`Round ${round+1}/${shuffled.length}`;
 document.getElementById('scoreLabel').textContent=`Score: ${score}`;
-document.getElementById('feedback').className='feedback';
+const fb=document.getElementById('feedback');fb.className='feedback';fb.textContent='';
+const teach=document.getElementById('teachBox');teach.className='teach-box';teach.textContent='';
+document.getElementById('hintBtn').style.display='';document.getElementById('hintBtn').disabled=false;
+document.getElementById('nextBtn').style.display='none';
+document.getElementById('listenBtn').onclick=()=>say(item.name+'. '+item.desc);
 
 const opts=document.getElementById('relOptions');opts.innerHTML='';
 const correct=item.religion;
@@ -256,32 +333,79 @@ const options=shuffle([correct,...shuffle(wrong).slice(0,3)]);
 
 options.forEach(r=>{
 const btn=document.createElement('button');btn.className='rel-btn';
-const icons={Christianity:'&#x271D;&#xFE0F;',Islam:'&#x1F319;',Judaism:'&#x2721;&#xFE0F;',Hinduism:'&#x1F549;&#xFE0F;',Buddhism:'&#x2638;&#xFE0F;'};
-btn.innerHTML=`<span class="r-icon">${icons[r]||''}</span>${r}`;
-btn.addEventListener('click',()=>{
-opts.querySelectorAll('.rel-btn').forEach(b=>b.style.pointerEvents='none');
-const fb=document.getElementById('feedback');
-if(r===correct){btn.classList.add('correct');fb.className='feedback show win';fb.textContent='\u2705 Correct! The '+item.name+' belongs to '+correct+'.';score++;spawnMini();}
-else{btn.classList.add('wrong');opts.querySelectorAll('.rel-btn').forEach(b=>{if(b.textContent.includes(correct))b.classList.add('correct');});fb.className='feedback show try';fb.textContent='\u274C It belongs to '+correct+'.';}
-document.getElementById('scoreLabel').textContent=`Score: ${score}`;
-setTimeout(()=>{round++;loadRound();},1500);
-});
+btn.setAttribute('type','button');
+btn.setAttribute('aria-label','Choose '+r);
+btn.innerHTML=`<span class="r-icon" aria-hidden="true">${REL_ICONS[r]||''}</span>${r}`;
+btn.addEventListener('click',()=>handleChoice(r,btn,item,opts));
 opts.appendChild(btn);
 });
+}
+
+function handleChoice(r,btn,item,opts){
+if(answered)return;
+const correct=item.religion;
+const fb=document.getElementById('feedback');
+if(r===correct){
+answered=true;
+opts.querySelectorAll('.rel-btn').forEach(b=>b.style.pointerEvents='none');
+btn.classList.add('correct');
+if(attempts===0){score++;fb.className='feedback show win';fb.textContent='\u2705 Correct! The '+item.name+' belongs to '+correct+'.';}
+else{fb.className='feedback show win';fb.textContent='\u2705 Yes, well done! The '+item.name+' belongs to '+correct+'.';}
+document.getElementById('scoreLabel').textContent=`Score: ${score}`;
+revealTeaching(item);
+spawnMini();
+}else{
+attempts++;
+btn.classList.add('wrong');btn.style.pointerEvents='none';
+if(attempts===1){
+fb.className='feedback show try';fb.textContent='\u274C Not this one. Look again and have another try.';
+say('Not quite. Have another try.');
+}else{
+answered=true;
+opts.querySelectorAll('.rel-btn').forEach(b=>{b.style.pointerEvents='none';if(b.textContent.includes(correct))b.classList.add('correct');});
+fb.className='feedback show try';fb.textContent='\u274C It belongs to '+correct+'. Let us learn why.';
+revealTeaching(item);
+}
+}
+}
+
+function revealTeaching(item){
+document.getElementById('hintBtn').style.display='none';
+const teach=document.getElementById('teachBox');
+teach.className='teach-box show';
+teach.innerHTML='<strong>Belonging:</strong> '+item.teach;
+say(item.teach);
+const nb=document.getElementById('nextBtn');nb.style.display='';nb.focus();
+}
+
+function nextRound(){round++;loadRound();}
+
+function showHint(){
+const item=shuffled[round];
+const fb=document.getElementById('feedback');
+const correct=item.religion;
+const hint='Hint: think about who uses the '+item.name.toLowerCase()+'. It begins with the letter '+correct.charAt(0)+'.';
+fb.className='feedback show try';fb.textContent='\uD83D\uDCA1 '+hint;
+say(hint);
+document.getElementById('hintBtn').disabled=true;
 }
 
 function endGame(){
 document.getElementById('itemDisplay').style.display='none';
 document.getElementById('relOptions').innerHTML='';
 document.getElementById('feedback').style.display='none';
+document.getElementById('teachBox').className='teach-box';
+document.getElementById('nextBtn').style.display='none';
 const msg=document.getElementById('completeMsg');msg.style.display='block';
-msg.innerHTML=`&#x1F389; You scored ${score}/${shuffled.length}! Great knowledge of religious symbols!`;
+msg.innerHTML=`&#x1F389; You scored ${score}/${shuffled.length} first time! You know the signs that show people belong to their religion.<br><button class="next-btn" type="button" onclick="start()" style="margin-top:12px">Play again &#x21BB;</button>`;
 celebrate();
 }
 
 function spawnMini(){const c=document.getElementById('celebration');const cols=['#be185d','#ec4899','#22c55e','#f59e0b','#3b82f6'];for(let i=0;i<8;i++){const e=document.createElement('div');e.className='confetti';e.style.cssText=`left:${Math.random()*100}vw;top:-10px;background:${cols[Math.floor(Math.random()*cols.length)]};width:${5+Math.random()*6}px;height:${5+Math.random()*6}px;border-radius:${Math.random()>.5?'50%':'2px'};animation-duration:${1+Math.random()*1.5}s;animation-delay:${Math.random()*.3}s;`;c.appendChild(e);setTimeout(()=>e.remove(),3000);}}
 function celebrate(){const c=document.getElementById('celebration');const cols=['#be185d','#ec4899','#22c55e','#f59e0b','#3b82f6','#a855f7'];for(let i=0;i<35;i++){const e=document.createElement('div');e.className='confetti';e.style.cssText=`left:${Math.random()*100}vw;top:-12px;background:${cols[Math.floor(Math.random()*cols.length)]};width:${6+Math.random()*8}px;height:${6+Math.random()*8}px;border-radius:${Math.random()>.5?'50%':'2px'};animation-duration:${1.5+Math.random()*2}s;animation-delay:${Math.random()*.5}s;`;c.appendChild(e);setTimeout(()=>e.remove(),4500);}}
 
+document.getElementById('nextBtn').addEventListener('click',nextRound);
+document.getElementById('hintBtn').addEventListener('click',showHint);
 start();
 </script>
 </body>

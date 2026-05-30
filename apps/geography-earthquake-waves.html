@@ -272,6 +272,22 @@
     width: 100%;
     cursor: grab;
     background: #0a0e14;
+    touch-action: none;
+  }
+
+  .map-wrap canvas:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .visually-hidden {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .sidebar-tri { display: flex; flex-direction: column; gap: 12px; }
@@ -549,11 +565,11 @@
     <div class="wave-grid">
       <div class="wave-box">
         <h3 class="p-title">P-Wave (Primary / Compression)</h3>
-        <canvas id="canvas-pwave" height="220"></canvas>
+        <canvas id="canvas-pwave" height="220" role="img" aria-label="Animation of a P-wave: particles oscillating parallel to the wave direction, showing compression and rarefaction."></canvas>
       </div>
       <div class="wave-box">
         <h3 class="s-title">S-Wave (Secondary / Transverse)</h3>
-        <canvas id="canvas-swave" height="220"></canvas>
+        <canvas id="canvas-swave" height="220" role="img" aria-label="Animation of an S-wave: particles oscillating perpendicular to the wave direction, showing side-to-side shear motion."></canvas>
       </div>
     </div>
 
@@ -620,12 +636,13 @@
 
     <div class="tri-layout">
       <div class="map-wrap">
-        <canvas id="canvas-map" height="520"></canvas>
+        <canvas id="canvas-map" height="520" tabindex="0" role="application" aria-label="Triangulation map. Three seismograph stations are shown as markers. Press Space to cycle which station is selected, then move it with the arrow keys to change its calculated distance from the epicentre."></canvas>
+        <div id="map-live" class="visually-hidden" aria-live="polite"></div>
       </div>
       <div class="sidebar-tri">
         <div class="seismo-card" id="station-card-0">
           <h4><span class="station-dot" style="background:#4da6ff"></span> Station A</h4>
-          <canvas class="seismo-trace" id="trace-0" height="60"></canvas>
+          <canvas class="seismo-trace" id="trace-0" height="60" role="img" aria-label="Seismogram trace for Station A, showing the P-wave arrival followed by the larger S-wave. The numeric arrival times and distance are listed below."></canvas>
           <div class="seismo-data">
             <div>P-wave arrival: <span class="val" id="p-arr-0">--</span>s</div>
             <div>S-wave arrival: <span class="val" id="s-arr-0">--</span>s</div>
@@ -635,7 +652,7 @@
         </div>
         <div class="seismo-card" id="station-card-1">
           <h4><span class="station-dot" style="background:#3fb950"></span> Station B</h4>
-          <canvas class="seismo-trace" id="trace-1" height="60"></canvas>
+          <canvas class="seismo-trace" id="trace-1" height="60" role="img" aria-label="Seismogram trace for Station B, showing the P-wave arrival followed by the larger S-wave. The numeric arrival times and distance are listed below."></canvas>
           <div class="seismo-data">
             <div>P-wave arrival: <span class="val" id="p-arr-1">--</span>s</div>
             <div>S-wave arrival: <span class="val" id="s-arr-1">--</span>s</div>
@@ -645,7 +662,7 @@
         </div>
         <div class="seismo-card" id="station-card-2">
           <h4><span class="station-dot" style="background:#d2a8ff"></span> Station C</h4>
-          <canvas class="seismo-trace" id="trace-2" height="60"></canvas>
+          <canvas class="seismo-trace" id="trace-2" height="60" role="img" aria-label="Seismogram trace for Station C, showing the P-wave arrival followed by the larger S-wave. The numeric arrival times and distance are listed below."></canvas>
           <div class="seismo-data">
             <div>P-wave arrival: <span class="val" id="p-arr-2">--</span>s</div>
             <div>S-wave arrival: <span class="val" id="s-arr-2">--</span>s</div>
@@ -1276,6 +1293,61 @@
   }, { passive: false });
 
   mapCanvas.addEventListener('touchend', () => { dragging = -1; });
+
+  /* Pointer safety net: covers pen/stylus on interactive whiteboards and any
+     pointer cancellation (e.g. browser gesture) so a drag never gets stuck. */
+  mapCanvas.addEventListener('pointercancel', () => { dragging = -1; mapCanvas.style.cursor = 'grab'; });
+  mapCanvas.addEventListener('lostpointercapture', () => { dragging = -1; });
+
+  /* Keyboard-accessible path: focus the map, Tab/Shift+Tab through stations,
+     arrow keys to move the selected station. State is announced via aria-live. */
+  let kbStation = -1;
+  const mapLive = document.getElementById('map-live');
+
+  function announceStation(i) {
+    if (!mapLive) return;
+    const distKm = Math.round(getStationDistance(i));
+    const { tP, tS } = getArrivalTimes(distKm);
+    const dt = Math.round((tS - tP) * 10) / 10;
+    mapLive.textContent = 'Station ' + STATION_LABELS[i] + ' selected. Distance to epicentre ' +
+      distKm + ' kilometres. P-wave arrival ' + tP.toFixed(1) + ' seconds, S-wave arrival ' +
+      tS.toFixed(1) + ' seconds, time difference ' + dt.toFixed(1) + ' seconds. Use the arrow keys to move it.';
+  }
+
+  function moveStationBy(i, dx, dy) {
+    stations[i].x = Math.max(15, Math.min(mapCanvas.width - 15, stations[i].x + dx));
+    stations[i].y = Math.max(15, Math.min(mapCanvas.height - 15, stations[i].y + dy));
+    updateStationData();
+    drawMap();
+    drawAllTraces();
+  }
+
+  mapCanvas.addEventListener('keydown', (e) => {
+    /* Leave Tab alone so focus can move out of the map normally (no focus trap). */
+    if (e.key === 'Tab') return;
+    if (kbStation < 0) kbStation = 0;
+    const STEP = e.shiftKey ? 20 : 5;
+    let handled = true;
+    switch (e.key) {
+      case ' ':
+      case 'Spacebar':
+        /* Cycle which station the arrow keys control. */
+        kbStation = (kbStation + 1) % 3;
+        announceStation(kbStation);
+        break;
+      case 'ArrowLeft':  moveStationBy(kbStation, -STEP, 0); announceStation(kbStation); break;
+      case 'ArrowRight': moveStationBy(kbStation,  STEP, 0); announceStation(kbStation); break;
+      case 'ArrowUp':    moveStationBy(kbStation, 0, -STEP); announceStation(kbStation); break;
+      case 'ArrowDown':  moveStationBy(kbStation, 0,  STEP); announceStation(kbStation); break;
+      default: handled = false;
+    }
+    if (handled) e.preventDefault();
+  });
+
+  mapCanvas.addEventListener('focus', () => {
+    if (kbStation < 0) kbStation = 0;
+    announceStation(kbStation);
+  });
 
   /* Triangulation controls */
   document.getElementById('scenario-select').addEventListener('change', (e) => {

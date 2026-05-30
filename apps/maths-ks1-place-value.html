@@ -21,7 +21,7 @@ body{font-family:'Inter',sans-serif;background:#faf7f2;color:#3d2e1f;min-height:
 .block-tray{background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.07);flex:1;min-width:200px;max-width:260px}
 .block-tray h3{text-align:center;margin-bottom:12px;color:#2563eb;font-size:1rem}
 .tray-blocks{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;min-height:100px}
-.block{cursor:grab;user-select:none;transition:transform .15s,box-shadow .15s;position:relative}
+.block{cursor:grab;user-select:none;transition:transform .15s,box-shadow .15s;position:relative;touch-action:none}
 .block:hover{transform:scale(1.08);box-shadow:0 4px 12px rgba(37,99,235,.25)}
 .block:active{cursor:grabbing}
 .ten-block{width:28px;height:120px;background:linear-gradient(135deg,#2563eb,#1d4ed8);border-radius:6px;display:flex;flex-direction:column;justify-content:space-between;padding:3px}
@@ -343,9 +343,10 @@ function populateTray(){
   for(let i=0;i<20;i++){const b=createOneBlock();setupDrag(b,'one');ot.appendChild(b);}
 }
 
+let dragPointerId=null;
+
 function setupDrag(el,type){
-  el.addEventListener('mousedown',e=>startDrag(e,el,type));
-  el.addEventListener('touchstart',e=>startDrag(e,el,type),{passive:false});
+  el.addEventListener('pointerdown',e=>startDrag(e,el,type));
 }
 
 function startDrag(e,el,type){
@@ -353,24 +354,25 @@ function startDrag(e,el,type){
   const r=el.getBoundingClientRect();
   const isFromChart=el.parentElement===tensCol||el.parentElement===onesCol;
   dragData={type,source:isFromChart?'chart':'tray',el:isFromChart?el:null,offX:0,offY:0};
+  dragPointerId=e.pointerId;
+  try{el.setPointerCapture(e.pointerId);}catch(err){}
   ghostEl=el.cloneNode(true);
   ghostEl.className+=' ghost';
   ghostEl.style.width=r.width+'px';
   ghostEl.style.height=r.height+'px';
-  const cx=e.clientX||e.touches[0].clientX, cy=e.clientY||e.touches[0].clientY;
+  const cx=e.clientX, cy=e.clientY;
   ghostEl.style.left=(cx-r.width/2)+'px';
   ghostEl.style.top=(cy-r.height/2)+'px';
   document.body.appendChild(ghostEl);
-  document.addEventListener('mousemove',onDragMove);
-  document.addEventListener('mouseup',onDragEnd);
-  document.addEventListener('touchmove',onDragMove,{passive:false});
-  document.addEventListener('touchend',onDragEnd);
+  el.addEventListener('pointermove',onDragMove);
+  el.addEventListener('pointerup',onDragEnd);
+  el.addEventListener('pointercancel',onDragEnd);
 }
 
 function onDragMove(e){
   if(!ghostEl)return;
   e.preventDefault();
-  const cx=e.clientX||e.touches[0].clientX, cy=e.clientY||e.touches[0].clientY;
+  const cx=e.clientX, cy=e.clientY;
   ghostEl.style.left=(cx-parseInt(ghostEl.style.width)/2)+'px';
   ghostEl.style.top=(cy-parseInt(ghostEl.style.height)/2)+'px';
   [tensCol,onesCol].forEach(c=>{
@@ -380,11 +382,12 @@ function onDragMove(e){
 }
 
 function onDragEnd(e){
-  document.removeEventListener('mousemove',onDragMove);
-  document.removeEventListener('mouseup',onDragEnd);
-  document.removeEventListener('touchmove',onDragMove);
-  document.removeEventListener('touchend',onDragEnd);
-  const cx=e.clientX||e.changedTouches[0].clientX, cy=e.clientY||e.changedTouches[0].clientY;
+  const capEl=e.currentTarget;
+  capEl.removeEventListener('pointermove',onDragMove);
+  capEl.removeEventListener('pointerup',onDragEnd);
+  capEl.removeEventListener('pointercancel',onDragEnd);
+  if(dragPointerId!=null){try{capEl.releasePointerCapture(dragPointerId);}catch(err){}dragPointerId=null;}
+  const cx=e.clientX, cy=e.clientY;
   [tensCol,onesCol].forEach(c=>c.classList.remove('drag-over'));
   let dropped=false;
   [tensCol,onesCol].forEach(col=>{

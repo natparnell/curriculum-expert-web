@@ -141,6 +141,7 @@
     width: 100px;
     height: 100px;
     cursor: grab;
+    touch-action: none;
     transition: transform 0.2s, box-shadow 0.2s, opacity 0.3s;
     display: flex;
     align-items: center;
@@ -527,6 +528,8 @@ let sortedInRound = 0;
 let draggedShape = null;
 let dragOffsetX = 0, dragOffsetY = 0;
 let dragClone = null;
+let dragPointerId = null;
+let dragCaptureEl = null;
 
 function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function shuffle(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = randomInt(0, i); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
@@ -576,9 +579,14 @@ function startRound() {
       el.style.transform = 'scale(1)';
     }, i * 100);
 
-    // Touch and mouse drag
-    el.addEventListener('mousedown', (e) => startDrag(e, el, shape));
-    el.addEventListener('touchstart', (e) => startDrag(e, el, shape), { passive: false });
+    // Pointer drag (covers mouse, touch and pen). Mouse fallback kept for
+    // any environment without Pointer Events support.
+    if (window.PointerEvent) {
+      el.addEventListener('pointerdown', (e) => startDrag(e, el, shape));
+    } else {
+      el.addEventListener('mousedown', (e) => startDrag(e, el, shape));
+      el.addEventListener('touchstart', (e) => startDrag(e, el, shape), { passive: false });
+    }
     shapesTray.appendChild(el);
   });
 }
@@ -612,10 +620,21 @@ function startDrag(e, el, shape) {
 
   el.style.opacity = '0.4';
 
-  document.addEventListener('mousemove', onDrag);
-  document.addEventListener('mouseup', endDrag);
-  document.addEventListener('touchmove', onDrag, { passive: false });
-  document.addEventListener('touchend', endDrag);
+  if (e.pointerId !== undefined) {
+    // Pointer Events path (mouse, touch and pen unified)
+    dragPointerId = e.pointerId;
+    dragCaptureEl = el;
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    el.addEventListener('pointermove', onDrag);
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+  } else {
+    // Legacy mouse/touch fallback
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchmove', onDrag, { passive: false });
+    document.addEventListener('touchend', endDrag);
+  }
 }
 
 function moveDragClone(x, y) {
@@ -647,6 +666,17 @@ function endDrag(e) {
   document.removeEventListener('mouseup', endDrag);
   document.removeEventListener('touchmove', onDrag);
   document.removeEventListener('touchend', endDrag);
+
+  if (dragCaptureEl) {
+    dragCaptureEl.removeEventListener('pointermove', onDrag);
+    dragCaptureEl.removeEventListener('pointerup', endDrag);
+    dragCaptureEl.removeEventListener('pointercancel', endDrag);
+    if (dragPointerId !== null) {
+      try { dragCaptureEl.releasePointerCapture(dragPointerId); } catch (err) {}
+    }
+    dragCaptureEl = null;
+    dragPointerId = null;
+  }
 
   if (!draggedShape || !dragClone) return;
 

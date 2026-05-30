@@ -710,29 +710,33 @@ function setupFigureClick(fig) {
 }
 
 function setupFigureDrag(fig) {
-  let startX, startY, origLeft, origTop, hasMoved;
+  let startX, startY, origLeft, origTop, hasMoved, activePointerId = null;
 
   function onStart(e) {
+    // Only react to the primary button for mouse; allow touch/pen freely.
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (activePointerId !== null) return;
     e.preventDefault();
-    const ev = e.touches ? e.touches[0] : e;
-    const stageRect = stage.getBoundingClientRect();
-    startX = ev.clientX;
-    startY = ev.clientY;
+    activePointerId = e.pointerId;
+    startX = e.clientX;
+    startY = e.clientY;
     origLeft = fig.offsetLeft;
     origTop = fig.offsetTop;
     hasMoved = false;
     fig.classList.add('dragging');
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onEnd);
-    document.addEventListener('touchmove', onMove, { passive: false });
-    document.addEventListener('touchend', onEnd);
+    // Capture the pointer so move/up keep firing even if the finger
+    // or cursor leaves the figure during the drag.
+    try { fig.setPointerCapture(e.pointerId); } catch (err) {}
+    fig.addEventListener('pointermove', onMove);
+    fig.addEventListener('pointerup', onEnd);
+    fig.addEventListener('pointercancel', onEnd);
   }
 
   function onMove(e) {
+    if (e.pointerId !== activePointerId) return;
     e.preventDefault();
-    const ev = e.touches ? e.touches[0] : e;
-    const dx = ev.clientX - startX;
-    const dy = ev.clientY - startY;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
     const stageRect = stage.getBoundingClientRect();
     let newLeft = origLeft + dx;
@@ -743,18 +747,19 @@ function setupFigureDrag(fig) {
     fig.style.top = newTop + 'px';
   }
 
-  function onEnd() {
+  function onEnd(e) {
+    if (e.pointerId !== activePointerId) return;
+    activePointerId = null;
     fig.classList.remove('dragging');
     fig._dragged = hasMoved;
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onEnd);
-    document.removeEventListener('touchmove', onMove);
-    document.removeEventListener('touchend', onEnd);
+    try { fig.releasePointerCapture(e.pointerId); } catch (err) {}
+    fig.removeEventListener('pointermove', onMove);
+    fig.removeEventListener('pointerup', onEnd);
+    fig.removeEventListener('pointercancel', onEnd);
     stage.classList.remove('frozen');
   }
 
-  fig.addEventListener('mousedown', onStart);
-  fig.addEventListener('touchstart', onStart, { passive: false });
+  fig.addEventListener('pointerdown', onStart);
 }
 
 // Thought bubble mode

@@ -79,14 +79,90 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 .info-box .tag-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
 .info-box .mini-tag{font-size:0.65rem;font-weight:600;padding:2px 8px;border-radius:3px;background:var(--panel2);color:var(--text2)}
 
+/* Predict-before-reveal panel */
+.predict-panel{background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.35);border-radius:8px;padding:14px 16px;margin-bottom:16px}
+.predict-panel .predict-q{font-size:0.86rem;font-weight:600;color:var(--text);margin-bottom:10px;display:flex;gap:8px;align-items:flex-start}
+.predict-panel .predict-q .q-icon{color:var(--accent);font-weight:700;flex-shrink:0}
+.predict-opts{display:flex;flex-direction:column;gap:8px}
+.predict-opt{text-align:left;padding:9px 12px;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.8rem;font-weight:500;transition:all 0.15s;line-height:1.4}
+.predict-opt:hover:not(:disabled){border-color:var(--accent);background:var(--panel2)}
+.predict-opt:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+.predict-opt:disabled{cursor:default}
+.predict-opt.correct{border-color:#22c55e;background:rgba(34,197,94,0.18);color:#bbf7d0}
+.predict-opt.wrong{border-color:#f87171;background:rgba(248,113,113,0.18);color:#fecaca}
+.predict-opt .opt-mark{float:right;font-weight:700;margin-left:8px}
+.predict-feedback{margin-top:12px;font-size:0.82rem;line-height:1.5;padding:10px 12px;border-radius:6px;display:none}
+.predict-feedback.show{display:block}
+.predict-feedback.ok{background:rgba(34,197,94,0.12);border-left:3px solid #22c55e;color:#86efac}
+.predict-feedback.no{background:rgba(248,113,113,0.12);border-left:3px solid #f87171;color:#fca5a5}
+.predict-feedback strong{color:var(--text)}
+
+/* Reveal gate + audio */
+.reveal-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.reveal-btn{padding:8px 16px;border:1px solid var(--accent);background:var(--accent);color:white;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.78rem;font-weight:600;transition:all 0.15s}
+.reveal-btn:hover{filter:brightness(1.1)}
+.reveal-btn:disabled{opacity:0.4;cursor:default;background:var(--panel2);border-color:var(--border);color:var(--text2)}
+.audio-btn{padding:8px 12px;border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.78rem;font-weight:600;transition:all 0.15s;display:inline-flex;align-items:center;gap:6px}
+.audio-btn:hover{border-color:var(--accent)}
+.audio-btn.speaking{border-color:var(--arrow);color:var(--arrow)}
+.step-desc.locked{filter:blur(5px);opacity:0.55;user-select:none;pointer-events:none}
+
+/* Progress / score readout */
+.score-readout{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--text2);margin-left:auto}
+.score-readout strong{color:var(--arrow)}
+
 @media(max-width:600px){
     .info-grid{grid-template-columns:1fr}
     .mech-canvas{height:220px}
     .tab-btn{font-size:0.65rem;padding:8px 4px}
 }
+
+/* Visually hidden, available to screen readers (announces canvas/diagram state) */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -279,7 +355,18 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
                     <button class="nav-btn" id="nextBtn">Next &raquo;</button>
                 </div>
             </div>
-            <div class="mech-canvas"><canvas id="mechCanvas"></canvas></div>
+            <div class="mech-canvas"><canvas id="mechCanvas" role="img" aria-label="Mechanism diagram"></canvas></div>
+            <div id="canvasLive" class="sr-only" role="status" aria-live="polite"></div>
+            <div class="predict-panel" id="predictPanel" hidden>
+                <div class="predict-q"><span class="q-icon" aria-hidden="true">&#x1F9EA;</span><span id="predictQ"></span></div>
+                <div class="predict-opts" id="predictOpts" role="group" aria-label="Prediction options"></div>
+                <div class="predict-feedback" id="predictFeedback" role="status" aria-live="polite"></div>
+            </div>
+            <div class="reveal-row">
+                <button class="reveal-btn" id="revealBtn" type="button">Reveal explanation</button>
+                <button class="audio-btn" id="audioBtn" type="button" aria-label="Read this step aloud"><span aria-hidden="true">&#x1F50A;</span> Listen</button>
+                <span class="score-readout" id="scoreReadout" aria-live="polite"></span>
+            </div>
             <div class="step-desc" id="stepDesc"></div>
             <div class="info-grid" id="infoGrid"></div>
         </div>
@@ -293,6 +380,12 @@ const REACTIONS = {
         type: 'Substitution',
         steps: [
             {
+                predict: {
+                    q: 'From which direction does the nucleophile (OH\u207b) attack the haloalkane?',
+                    opts: ['The same side as the Br (front-side attack)', 'The opposite side to the Br (back-side attack)', 'Straight onto the bromine atom'],
+                    answer: 1,
+                    feedback: 'In S\u2099\u20822 the nucleophile attacks from the back side, directly opposite the leaving group. This 180\u00b0 approach is what later causes inversion of configuration.'
+                },
                 desc: '<strong>Starting materials:</strong> A <span class="nuc">nucleophile</span> (OH\u207b) approaches a haloalkane (CH\u2083Br) from the <strong>back side</strong>, opposite to the <span class="leaving">leaving group</span> (Br).',
                 draw: (ctx, w, h) => {
                     drawMolecule(ctx, w*0.55, h*0.5, 'CH3', 'Br', w);
@@ -302,6 +395,12 @@ const REACTIONS = {
                 }
             },
             {
+                predict: {
+                    q: 'What does the curly arrow from the OH\u207b lone pair represent?',
+                    opts: ['Movement of a single electron', 'Movement of an electron pair from OH\u207b to the carbon', 'Movement of the whole OH\u207b atom only'],
+                    answer: 1,
+                    feedback: 'A full (double-headed) curly arrow always shows the movement of a pair of electrons. Here the lone pair on oxygen forms the new C\u2013O bond.'
+                },
                 desc: 'The <span class="nuc">nucleophile</span> donates a <span class="curly">lone pair</span> to the carbon. A <span class="curly">curly arrow</span> shows electron movement from OH\u207b to the carbon atom. This happens in a <strong>single concerted step</strong>.',
                 draw: (ctx, w, h) => {
                     drawMolecule(ctx, w*0.55, h*0.5, 'CH3', 'Br', w);
@@ -330,6 +429,12 @@ const REACTIONS = {
                 }
             },
             {
+                predict: {
+                    q: 'What stereochemical outcome does the back-side attack produce?',
+                    opts: ['Retention of configuration', 'Inversion of configuration (Walden inversion)', 'A racemic mixture'],
+                    answer: 1,
+                    feedback: 'Back-side attack flips the three other groups through, like an umbrella in the wind. A single optically active product forms with inverted configuration. (A racemate is the S\u2099\u20821 outcome.)'
+                },
                 desc: '<strong>Products:</strong> Methanol (CH\u2083OH) and bromide ion (Br\u207b). The reaction is <strong>one step</strong> (concerted), <strong>second order</strong> (rate depends on both reactants), and proceeds with <strong>inversion of configuration</strong> (Walden inversion).',
                 draw: (ctx, w, h) => {
                     drawProduct(ctx, w*0.35, h*0.5, 'CH\u2083OH', '#60a5fa', w);
@@ -352,6 +457,12 @@ const REACTIONS = {
         type: 'Substitution',
         steps: [
             {
+                predict: {
+                    q: 'Which step controls the overall rate of an S\u2099\u20821 reaction?',
+                    opts: ['Step 1: the slow heterolytic loss of the leaving group', 'Step 2: the fast attack of the nucleophile', 'Both steps equally'],
+                    answer: 0,
+                    feedback: 'The rate-determining step is the slowest step: here it is the ionisation that forms the carbocation. Because only the haloalkane is involved in this step, the rate equation is first order, Rate = k[haloalkane].'
+                },
                 desc: '<strong>Step 1:</strong> The <span class="leaving">leaving group</span> (Br) departs on its own, taking the bonding pair with it. The C\u2013Br bond breaks <strong>heterolytically</strong>. This is the <strong>rate-determining step</strong>.',
                 draw: (ctx, w, h) => {
                     drawMolecule(ctx, w*0.4, h*0.5, '(CH3)3C', 'Br', w);
@@ -361,6 +472,12 @@ const REACTIONS = {
                 }
             },
             {
+                predict: {
+                    q: 'Why is a tertiary carbocation more stable than a primary one?',
+                    opts: ['It has fewer electrons overall', 'Three alkyl groups donate electron density, spreading the positive charge', 'It is held rigidly tetrahedral'],
+                    answer: 1,
+                    feedback: 'Alkyl groups are electron-releasing (positive inductive effect). Three of them around the cation spread out and stabilise the positive charge, so tertiary haloalkanes favour the Sₙ₁ route.'
+                },
                 desc: 'A <strong>carbocation</strong> (positively charged carbon) forms. Tertiary carbocations are most stable because three alkyl groups donate electron density through induction, stabilising the positive charge.',
                 draw: (ctx, w, h) => {
                     drawProduct(ctx, w*0.35, h*0.5, '(CH\u2083)\u2083C\u207a', '#f87171', w);
@@ -381,6 +498,12 @@ const REACTIONS = {
                 }
             },
             {
+                predict: {
+                    q: 'Why does S\u2099\u20821 give a racemic mixture while S\u2099\u20822 gives inversion?',
+                    opts: ['The S\u2099\u20821 carbocation is planar, so attack is equally likely from either face', 'S\u2099\u20821 never breaks any bonds', 'The nucleophile is too weak to bond'],
+                    answer: 0,
+                    feedback: 'The trigonal planar carbocation has no preferred face. The nucleophile attacks each side with equal probability, giving a 50:50 (racemic) mix of enantiomers.'
+                },
                 desc: '<strong>Products:</strong> (CH\u2083)\u2083COH and Br\u207b. Because the carbocation is planar, nucleophilic attack from both sides gives a <strong>racemic mixture</strong> (50:50 mix of enantiomers).',
                 draw: (ctx, w, h) => {
                     drawProduct(ctx, w*0.35, h*0.5, '(CH\u2083)\u2083COH', '#60a5fa', w);
@@ -411,6 +534,12 @@ const REACTIONS = {
                 }
             },
             {
+                predict: {
+                    q: 'How many curly arrows are needed to show the E2 step, and what do they do?',
+                    opts: ['One: the base removes the leaving group', 'Two: base to H, and C\u2013Br to Br', 'Three: base to H, C\u2013H bond to form C=C, and C\u2013Br bond to Br'],
+                    answer: 2,
+                    feedback: 'E2 is concerted, so all three electron movements happen at once: the base grabs the beta hydrogen, those C\u2013H electrons become the new pi bond, and the C\u2013Br bonding pair leaves with the bromide.'
+                },
                 desc: 'The base abstracts a <strong>beta hydrogen</strong>. Simultaneously, the C\u2013H electrons form a <strong>C=C double bond</strong> and the <span class="leaving">leaving group</span> departs. Three <span class="curly">curly arrows</span> show: base to H, C\u2013H bond to C=C, C\u2013Br bond to Br.',
                 draw: (ctx, w, h) => {
                     drawMolecule(ctx, w*0.55, h*0.5, 'CH\u2083CH\u2082', 'Br', w);
@@ -422,6 +551,12 @@ const REACTIONS = {
                 }
             },
             {
+                predict: {
+                    q: 'What geometry must the H and the leaving group adopt for E2 to occur?',
+                    opts: ['Eclipsed (0\u00b0 dihedral, same side)', 'Anti-periplanar (180\u00b0 dihedral, opposite sides)', 'At 90\u00b0 to each other'],
+                    answer: 1,
+                    feedback: 'The C\u2013H and C\u2013Br bonds must be anti-periplanar (180\u00b0) so their orbitals line up to form the new pi bond as the bromide leaves. This stereoelectronic requirement controls which alkene forms.'
+                },
                 desc: '<strong>Products:</strong> An <strong>alkene</strong> (CH\u2082=CH\u2082, ethene), water (H\u2082O) and bromide (Br\u207b). This is a <strong>concerted</strong> one-step mechanism like S\u2099\u2082. The H and Br must be <strong>anti-periplanar</strong> (opposite sides).',
                 draw: (ctx, w, h) => {
                     drawProduct(ctx, w*0.25, h*0.5, 'CH\u2082=CH\u2082', '#a78bfa', w);
@@ -454,6 +589,12 @@ const REACTIONS = {
                 }
             },
             {
+                predict: {
+                    q: 'In electrophilic addition of HBr, which species acts as the nucleophile first?',
+                    opts: ['The bromide ion Br\u207B', 'The \u03C0 (pi) electrons of the C=C double bond', 'The hydrogen atom'],
+                    answer: 1,
+                    feedback: 'The electron-rich pi bond is the nucleophile: it attacks the H\u03B4\u207a end of the polar H\u2013Br molecule. The bromide does not attack until step 2, onto the carbocation.'
+                },
                 desc: '<strong>Step 1:</strong> The <strong>\u03C0 bond electrons</strong> in the C=C attack the H\u03B4\u207a of HBr (a <span class="curly">curly arrow</span> from C=C to H). Simultaneously, the H\u2013Br bond breaks heterolytically (arrow from bond to Br). A <strong>carbocation</strong> intermediate forms.',
                 draw: (ctx, w, h) => {
                     drawProduct(ctx, w*0.35, h*0.5, 'CH\u2082=CH\u2082', '#a78bfa', w);
@@ -473,6 +614,12 @@ const REACTIONS = {
                 }
             },
             {
+                predict: {
+                    q: 'For an unsymmetrical alkene, where does the H add according to Markovnikov\u2019s rule?',
+                    opts: ['To the carbon with fewer hydrogens', 'To the carbon already bearing more hydrogens', 'Equally to both carbons'],
+                    answer: 1,
+                    feedback: 'H adds to the carbon with more hydrogens because this generates the more stable (more substituted) carbocation, which forms faster. The bromide then adds to that more stable cation.'
+                },
                 desc: '<strong>Product:</strong> Bromoethane (CH\u2083CH\u2082Br). The double bond has been replaced by two new single bonds (one to H, one to Br). This is why it is called an <strong>addition</strong> reaction: atoms are added across the double bond.',
                 draw: (ctx, w, h) => {
                     drawProduct(ctx, w*0.5, h*0.5, 'CH\u2083CH\u2082Br', '#22c55e', w);
@@ -492,9 +639,26 @@ const REACTIONS = {
 
 let currentRxn = 'sn2';
 let currentStep = 0;
+// Tracks whether each step's explanation has been revealed, and quiz outcomes.
+// Keyed as `${rxn}:${stepIndex}`.
+const revealed = {};
+const answered = {};   // value: true if answered correctly, false if answered (any), undefined if not attempted
+let scoreCorrect = 0;
+let scoreAttempted = 0;
 
 const canvas = document.getElementById('mechCanvas');
 const ctx = canvas.getContext('2d');
+
+const predictPanel = document.getElementById('predictPanel');
+const predictQ = document.getElementById('predictQ');
+const predictOpts = document.getElementById('predictOpts');
+const predictFeedback = document.getElementById('predictFeedback');
+const revealBtn = document.getElementById('revealBtn');
+const audioBtn = document.getElementById('audioBtn');
+const stepDescEl = document.getElementById('stepDesc');
+const scoreReadout = document.getElementById('scoreReadout');
+
+function stepKey() { return currentRxn + ':' + currentStep; }
 
 // Tab switching
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -503,15 +667,113 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.add('active');
         currentRxn = btn.dataset.rxn;
         currentStep = 0;
+        stopSpeech();
         render();
     });
 });
 
-document.getElementById('prevBtn').addEventListener('click', () => { if (currentStep > 0) { currentStep--; render(); } });
+document.getElementById('prevBtn').addEventListener('click', () => { if (currentStep > 0) { currentStep--; stopSpeech(); render(); } });
 document.getElementById('nextBtn').addEventListener('click', () => {
     const rxn = REACTIONS[currentRxn];
-    if (currentStep < rxn.steps.length - 1) { currentStep++; render(); }
+    if (currentStep < rxn.steps.length - 1) { currentStep++; stopSpeech(); render(); }
 });
+
+// Reveal the explanation for the current step
+revealBtn.addEventListener('click', () => {
+    revealed[stepKey()] = true;
+    render();
+});
+
+// Keyboard navigation: left/right arrows move between steps
+document.addEventListener('keydown', (e) => {
+    if (document.getElementById('demoAckModal') && !document.getElementById('demoAckModal').classList.contains('demo-hidden')) return;
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'button') return;
+    const rxn = REACTIONS[currentRxn];
+    if (e.key === 'ArrowRight' && currentStep < rxn.steps.length - 1) { currentStep++; stopSpeech(); render(); }
+    else if (e.key === 'ArrowLeft' && currentStep > 0) { currentStep--; stopSpeech(); render(); }
+});
+
+// Audio narration via SpeechSynthesis (en-GB)
+function stripTags(html) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim();
+}
+function stopSpeech() {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    audioBtn.classList.remove('speaking');
+}
+audioBtn.addEventListener('click', () => {
+    if (!('speechSynthesis' in window)) { audioBtn.textContent = 'Audio not supported'; return; }
+    if (window.speechSynthesis.speaking) { stopSpeech(); return; }
+    const step = REACTIONS[currentRxn].steps[currentStep];
+    const parts = [];
+    if (step.predict && !revealed[stepKey()]) parts.push('Question. ' + step.predict.q);
+    if (revealed[stepKey()]) parts.push(stripTags(step.desc));
+    if (!parts.length) parts.push(stripTags(step.desc));
+    const u = new SpeechSynthesisUtterance(parts.join(' '));
+    u.lang = 'en-GB';
+    if (window.westTTS) { var _v = window.westTTS.pick(u.lang || 'en-GB'); if (_v) u.voice = _v; }
+    u.rate = 0.95;
+    u.onend = () => audioBtn.classList.remove('speaking');
+    u.onerror = () => audioBtn.classList.remove('speaking');
+    audioBtn.classList.add('speaking');
+    window.speechSynthesis.speak(u);
+});
+
+function renderPredict() {
+    const step = REACTIONS[currentRxn].steps[currentStep];
+    const key = stepKey();
+    predictFeedback.className = 'predict-feedback';
+    predictFeedback.innerHTML = '';
+    predictOpts.innerHTML = '';
+
+    if (!step.predict) {
+        // No question for this step: nothing to gate, show explanation straight away.
+        predictPanel.hidden = true;
+        revealed[key] = true;
+        return;
+    }
+
+    predictPanel.hidden = false;
+    const p = step.predict;
+    predictQ.textContent = p.q;
+    const isAnswered = (key in answered);
+
+    p.opts.forEach((optText, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'predict-opt';
+        b.innerHTML = optText;
+        b.setAttribute('aria-label', 'Option ' + (i + 1) + ': ' + stripTags(optText));
+        if (isAnswered) {
+            b.disabled = true;
+            if (i === p.answer) { b.classList.add('correct'); b.innerHTML = optText + '<span class="opt-mark" aria-hidden="true">&#10003;</span>'; }
+            else if (answered[key] === i && i !== p.answer) { b.classList.add('wrong'); b.innerHTML = optText + '<span class="opt-mark" aria-hidden="true">&#10007;</span>'; }
+        } else {
+            b.addEventListener('click', () => handleAnswer(i));
+        }
+        predictOpts.appendChild(b);
+    });
+
+    if (isAnswered) {
+        const correct = answered[key] === p.answer;
+        predictFeedback.className = 'predict-feedback show ' + (correct ? 'ok' : 'no');
+        predictFeedback.innerHTML = (correct ? '<strong>Correct.</strong> ' : '<strong>Not quite.</strong> ') + p.feedback;
+    }
+}
+
+function handleAnswer(choice) {
+    const step = REACTIONS[currentRxn].steps[currentStep];
+    const key = stepKey();
+    if (key in answered) return;
+    answered[key] = choice;
+    scoreAttempted++;
+    if (choice === step.predict.answer) scoreCorrect++;
+    revealed[key] = true;   // answering unlocks the explanation
+    render();
+}
 
 function render() {
     const rxn = REACTIONS[currentRxn];
@@ -520,7 +782,29 @@ function render() {
     document.getElementById('mechTitle').innerHTML = rxn.title;
     document.getElementById('mechType').textContent = rxn.type;
     document.getElementById('stepLabel').textContent = `Step ${currentStep + 1}/${rxn.steps.length}`;
-    document.getElementById('stepDesc').innerHTML = step.desc;
+    stepDescEl.innerHTML = step.desc;
+
+    // Prediction panel + reveal gate
+    renderPredict();
+    const isRevealed = !!revealed[stepKey()];
+    stepDescEl.classList.toggle('locked', !isRevealed);
+    stepDescEl.setAttribute('aria-hidden', isRevealed ? 'false' : 'true');
+    revealBtn.style.display = (step.predict && !isRevealed) ? '' : 'none';
+    revealBtn.disabled = isRevealed;
+
+    // Score readout
+    if (scoreAttempted > 0) {
+        scoreReadout.innerHTML = 'Score: <strong>' + scoreCorrect + '/' + scoreAttempted + '</strong>';
+    } else {
+        scoreReadout.textContent = '';
+    }
+
+    // Update canvas aria-label with a text description of this step
+    const canvasDescription = rxn.title + ', step ' + (currentStep + 1) + ' of ' + rxn.steps.length + ': ' + stripTags(step.desc);
+    canvas.setAttribute('aria-label', canvasDescription);
+    // Announce the diagram state in words for keyboard / screen-reader users
+    const canvasLive = document.getElementById('canvasLive');
+    if (canvasLive) canvasLive.textContent = 'Diagram: ' + canvasDescription;
 
     // Step dots
     const dots = document.getElementById('stepDots');

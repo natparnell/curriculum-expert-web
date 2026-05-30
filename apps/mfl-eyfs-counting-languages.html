@@ -44,6 +44,35 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,s
 .complete-msg{text-align:center;padding:16px;background:#dcfce7;border:3px solid var(--success);border-radius:var(--radius);font-size:1.1rem;font-weight:900;color:#166534;display:none;animation:popIn .4s ease}
 @keyframes popIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
 
+.say-btn{display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:12px 22px;border:none;border-radius:30px;background:var(--accent);color:#fff;font-family:'Inter',sans-serif;font-size:1.05rem;font-weight:800;cursor:pointer;box-shadow:var(--shadow);transition:transform .15s;touch-action:manipulation}
+.say-btn:hover{transform:scale(1.05)}
+.say-btn:active{transform:scale(.97)}
+.say-btn.speaking{animation:pulseSpeak .6s ease infinite}
+.say-btn .say-ico{font-size:1.3rem}
+@keyframes pulseSpeak{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+
+.mode-bar{display:flex;gap:8px;justify-content:center;margin-bottom:14px}
+.mode-btn{flex:1;max-width:200px;padding:10px 12px;border:3px solid var(--border);border-radius:14px;background:var(--card-bg);font-family:'Inter',sans-serif;font-size:.92rem;font-weight:800;color:var(--text);cursor:pointer;transition:all .2s;box-shadow:var(--shadow);touch-action:manipulation}
+.mode-btn.active{border-color:var(--accent);background:#ede9fe;color:var(--accent)}
+
+.quiz-panel{display:none;text-align:center;padding:20px;background:var(--card-bg);border-radius:var(--radius);box-shadow:var(--shadow-lg);margin-bottom:14px}
+.quiz-panel.show{display:block}
+.quiz-prompt{font-size:1.05rem;font-weight:800;margin-bottom:6px}
+.quiz-replay{display:inline-flex;align-items:center;gap:8px;margin:10px 0 16px;padding:14px 26px;border:none;border-radius:30px;background:var(--accent);color:#fff;font-size:1.1rem;font-weight:800;cursor:pointer;box-shadow:var(--shadow);touch-action:manipulation;transition:transform .15s}
+.quiz-replay:hover{transform:scale(1.05)}
+.quiz-replay:active{transform:scale(.97)}
+.quiz-replay.speaking{animation:pulseSpeak .6s ease infinite}
+.quiz-options{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px}
+.quiz-opt{padding:18px 8px;border:3px solid var(--border);border-radius:14px;background:var(--card-bg);font-family:'Inter',sans-serif;font-size:1.8rem;font-weight:900;cursor:pointer;transition:all .2s;box-shadow:var(--shadow);touch-action:manipulation;color:var(--accent)}
+.quiz-opt:hover{transform:scale(1.06)}
+.quiz-opt:disabled{cursor:default}
+.quiz-opt.correct{border-color:var(--success);background:#dcfce7;color:#166534;animation:popIn .35s ease}
+.quiz-opt.wrong{border-color:var(--spanish);background:#fef2f2;color:var(--spanish)}
+.quiz-feedback{min-height:28px;font-size:1.05rem;font-weight:800;margin-top:10px}
+.quiz-feedback.ok{color:var(--success)}
+.quiz-feedback.no{color:var(--spanish)}
+.quiz-score{font-size:.85rem;font-weight:700;color:var(--text-light);margin-top:6px}
+
 .celebration{position:fixed;inset:0;pointer-events:none;z-index:1000}
 .confetti{position:absolute;border-radius:2px;animation:confettiFall linear forwards}
 @keyframes confettiFall{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(100vh) rotate(720deg) scale(.3)}}
@@ -52,6 +81,47 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,s
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -223,39 +293,85 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,s
 <button class="lang-btn" data-lang="spanish"><span class="l-flag">&#x1F1EA;&#x1F1F8;</span><span class="l-name">Spanish</span></button>
 <button class="lang-btn" data-lang="german"><span class="l-flag">&#x1F1E9;&#x1F1EA;</span><span class="l-name">German</span></button>
 </div>
+<div class="mode-bar" id="modeBar" role="tablist" aria-label="Choose an activity">
+<button class="mode-btn active" id="modeExplore" role="tab" aria-selected="true">&#x1F50D; Explore</button>
+<button class="mode-btn" id="modeQuiz" role="tab" aria-selected="false">&#x1F3A7; Listen &amp; Find</button>
+</div>
 <div class="score-bar"><span id="langLabel" style="color:var(--accent);">French</span><span id="progressLabel" style="color:var(--text-light);">Tap a number!</span></div>
 <div class="number-display" id="numberDisplay">
 <span class="num-big" id="numBig">1</span>
-<div class="objects-row" id="objectsRow"></div>
+<div class="objects-row" id="objectsRow" aria-hidden="true"></div>
 <div class="num-word" id="numWord">un</div>
 <div class="num-english" id="numEnglish">one</div>
 <div class="num-pron" id="numPron">uh(n)</div>
+<button class="say-btn" id="sayBtn" type="button" aria-label="Hear this number spoken aloud"><span class="say-ico" aria-hidden="true">&#x1F50A;</span>Hear it</button>
 </div>
-<div class="number-grid" id="numberGrid"></div>
+<div class="number-grid" id="numberGrid" aria-label="Tap a number to see and hear it"></div>
+
+<div class="quiz-panel" id="quizPanel" aria-live="polite">
+<div class="quiz-prompt">Listen, then tap the number you hear</div>
+<button class="quiz-replay" id="quizReplay" type="button" aria-label="Play the number again"><span class="say-ico" aria-hidden="true">&#x1F50A;</span>Play again</button>
+<div class="quiz-options" id="quizOptions" role="group" aria-label="Number choices"></div>
+<div class="quiz-feedback" id="quizFeedback" role="status" aria-live="assertive"></div>
+<div class="quiz-score" id="quizScore">Score: 0 right</div>
+</div>
+
 <div class="complete-msg" id="completeMsg"></div>
 </div>
 <div class="celebration" id="celebration"></div>
 <script>
 const NUMBERS={
-french:{name:'French',colour:'#2563eb',nums:['un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix'],pron:['uh(n)','duh','twah','KAT-ruh','sank','sees','set','weet','nuhf','dees']},
-spanish:{name:'Spanish',colour:'#dc2626',nums:['uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez'],pron:['OO-no','dos','tres','KWAT-ro','SINK-oh','says','see-ET-eh','OH-cho','NWEH-veh','dee-ETH']},
-german:{name:'German',colour:'#f59e0b',nums:['eins','zwei','drei','vier','f\u00fcnf','sechs','sieben','acht','neun','zehn'],pron:['eyns','tsvy','dry','feer','foonf','zeks','ZEE-ben','akht','noyn','tsayn']}
+french:{name:'French',colour:'#2563eb',code:'fr-FR',nums:['un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix'],pron:['uh(n)','duh','twah','KAT-ruh','sank','sees','set','weet','nuhf','dees']},
+spanish:{name:'Spanish',colour:'#dc2626',code:'es-ES',nums:['uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez'],pron:['OO-no','dos','tres','KWAT-ro','SINK-oh','says','see-ET-eh','OH-cho','NWEH-veh','dee-ETH']},
+german:{name:'German',colour:'#f59e0b',code:'de-DE',nums:['eins','zwei','drei','vier','f\u00fcnf','sechs','sieben','acht','neun','zehn'],pron:['eyns','tsvy','dry','feer','foonf','zeks','ZEE-ben','akht','noyn','tsayn']}
 };
 const ENGLISH=['one','two','three','four','five','six','seven','eight','nine','ten'];
 const OBJECTS=['&#x2B50;','&#x1F33B;','&#x1F34E;','&#x1F426;','&#x1F98B;','&#x2764;&#xFE0F;','&#x1F308;','&#x1F31F;','&#x1F33A;','&#x1F496;'];
 let lang='french',currentNum=0,explored={french:new Set(),spanish:new Set(),german:new Set()};
+let speakAloud=false; // becomes true after first user gesture so taps auto-speak
 
 const numberGrid=document.getElementById('numberGrid');
 const objectsRow=document.getElementById('objectsRow');
 
+// --- Speech (pre-literate EYFS need spoken pronunciation, not phonetic text) ---
+const synth=window.speechSynthesis||null;
+let voicesReady=false;
+function loadVoices(){voicesReady=synth&&synth.getVoices().length>0;}
+if(synth){loadVoices();synth.onvoiceschanged=loadVoices;}
+function pickVoice(code){
+if(!synth)return null;
+const vs=synth.getVoices();
+return vs.find(v=>v.lang===code)||vs.find(v=>v.lang&&v.lang.slice(0,2)===code.slice(0,2))||null;
+}
+function speak(text,code,onStart,onEnd){
+if(!synth){if(onEnd)onEnd();return;}
+synth.cancel();
+const u=new SpeechSynthesisUtterance(text);
+u.lang=code;
+const v=(window.westTTS?window.westTTS.pick(u.lang||'en-GB'):null)||pickVoice(code);
+if(v)u.voice=v;
+u.rate=0.8;u.pitch=1.05;
+if(onStart)u.onstart=onStart;
+u.onend=function(){if(onEnd)onEnd();};
+u.onerror=function(){if(onEnd)onEnd();};
+synth.speak(u);
+}
+function speakNumber(idx,btn){
+const n=NUMBERS[lang];
+const setSpeak=on=>{if(btn)btn.classList.toggle('speaking',on);};
+speak(n.nums[idx],n.code,function(){setSpeak(true);},function(){setSpeak(false);});
+}
+
 document.querySelectorAll('.lang-btn').forEach(btn=>{
 btn.addEventListener('click',()=>{
+speakAloud=true;
 lang=btn.dataset.lang;
 document.querySelectorAll('.lang-btn').forEach(b=>b.classList.remove('active'));
 btn.classList.add('active');
 document.getElementById('langLabel').textContent=NUMBERS[lang].name;
 buildGrid();
 showNumber(0);
+if(quizMode)newQuizRound();
 });
 });
 
@@ -268,7 +384,8 @@ if(explored[lang].has(i))btn.classList.add('done');
 btn.textContent=i+1;
 btn.style.color=NUMBERS[lang].colour;
 if(i===currentNum)btn.classList.add('active');
-btn.addEventListener('click',()=>showNumber(i));
+btn.setAttribute('aria-label',(i+1)+', say in '+NUMBERS[lang].name);
+btn.addEventListener('click',()=>{speakAloud=true;showNumber(i);});
 numberGrid.appendChild(btn);
 }
 }
@@ -298,6 +415,8 @@ document.getElementById('progressLabel').textContent=`${explored[lang].size}/10 
 buildGrid();
 spawnMini();
 
+if(speakAloud)speakNumber(idx,document.getElementById('sayBtn'));
+
 if(explored[lang].size===10){
 const allDone=Object.values(explored).every(s=>s.size===10);
 if(allDone){
@@ -307,6 +426,11 @@ celebrate();
 }
 }
 }
+
+// Speaker button on the big display
+document.getElementById('sayBtn').addEventListener('click',()=>{
+speakNumber(currentNum,document.getElementById('sayBtn'));
+});
 
 function spawnMini(){
 const c=document.getElementById('celebration');
@@ -318,6 +442,83 @@ const c=document.getElementById('celebration');
 const cols=['#7c3aed','#a78bfa','#2563eb','#dc2626','#f59e0b','#22c55e','#ec4899'];
 for(let i=0;i<35;i++){const e=document.createElement('div');e.className='confetti';e.style.cssText=`left:${Math.random()*100}vw;top:-12px;background:${cols[Math.floor(Math.random()*cols.length)]};width:${6+Math.random()*8}px;height:${6+Math.random()*8}px;border-radius:${Math.random()>.5?'50%':'2px'};animation-duration:${1.5+Math.random()*2}s;animation-delay:${Math.random()*.5}s;`;c.appendChild(e);setTimeout(()=>e.remove(),4500);}
 }
+
+// --- Listen & Find quiz (active retrieval with spoken cue + formative feedback) ---
+let quizMode=false,quizAnswer=0,quizLocked=false,quizScore=0,quizAsked=0;
+const PRAISE=['Brilliant!','Well done!','Yes, that is right!','Super listening!','Fantastic!'];
+const numberDisplay=document.getElementById('numberDisplay');
+const scoreBar=document.querySelector('.score-bar');
+const quizPanel=document.getElementById('quizPanel');
+const quizOptions=document.getElementById('quizOptions');
+const quizFeedback=document.getElementById('quizFeedback');
+const modeExplore=document.getElementById('modeExplore');
+const modeQuiz=document.getElementById('modeQuiz');
+
+function setMode(toQuiz){
+quizMode=toQuiz;
+modeExplore.classList.toggle('active',!toQuiz);
+modeQuiz.classList.toggle('active',toQuiz);
+modeExplore.setAttribute('aria-selected',String(!toQuiz));
+modeQuiz.setAttribute('aria-selected',String(toQuiz));
+numberDisplay.style.display=toQuiz?'none':'';
+numberGrid.style.display=toQuiz?'none':'';
+scoreBar.style.display=toQuiz?'none':'';
+quizPanel.classList.toggle('show',toQuiz);
+document.getElementById('completeMsg').style.display='none';
+if(toQuiz){speakAloud=true;newQuizRound();}
+}
+modeExplore.addEventListener('click',()=>setMode(false));
+modeQuiz.addEventListener('click',()=>setMode(true));
+
+function newQuizRound(){
+quizLocked=false;
+quizAnswer=Math.floor(Math.random()*10);
+// build a set of 3 unique options including the answer
+const opts=new Set([quizAnswer]);
+while(opts.size<3){opts.add(Math.floor(Math.random()*10));}
+const order=Array.from(opts).sort(()=>Math.random()-0.5);
+quizOptions.innerHTML='';
+order.forEach(idx=>{
+const b=document.createElement('button');
+b.className='quiz-opt';
+b.type='button';
+b.textContent=idx+1;
+b.style.color=NUMBERS[lang].colour;
+b.setAttribute('aria-label','Choose '+(idx+1));
+b.addEventListener('click',()=>answerQuiz(idx,b));
+quizOptions.appendChild(b);
+});
+quizFeedback.textContent='';
+quizFeedback.className='quiz-feedback';
+setTimeout(()=>speakNumber(quizAnswer,document.getElementById('quizReplay')),250);
+}
+
+function answerQuiz(idx,btn){
+if(quizLocked)return;
+quizLocked=true;
+quizAsked++;
+const n=NUMBERS[lang];
+const buttons=quizOptions.querySelectorAll('.quiz-opt');
+buttons.forEach(b=>{b.disabled=true;if(parseInt(b.textContent,10)===quizAnswer+1)b.classList.add('correct');});
+if(idx===quizAnswer){
+quizScore++;
+btn.classList.add('correct');
+quizFeedback.textContent=PRAISE[Math.floor(Math.random()*PRAISE.length)]+' '+n.nums[quizAnswer]+' = '+(quizAnswer+1);
+quizFeedback.className='quiz-feedback ok';
+spawnMini();
+}else{
+btn.classList.add('wrong');
+quizFeedback.textContent='That was '+n.nums[idx]+' ('+(idx+1)+'). We wanted '+n.nums[quizAnswer]+' ('+(quizAnswer+1)+').';
+quizFeedback.className='quiz-feedback no';
+}
+document.getElementById('quizScore').textContent='Score: '+quizScore+' right out of '+quizAsked;
+setTimeout(newQuizRound,2200);
+}
+
+document.getElementById('quizReplay').addEventListener('click',()=>{
+speakAloud=true;
+speakNumber(quizAnswer,document.getElementById('quizReplay'));
+});
 
 buildGrid();
 showNumber(0);

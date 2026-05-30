@@ -196,7 +196,17 @@ input[type="color"] {
   z-index: 10;
   white-space: nowrap;
 }
-canvas { border-radius: 8px; display: block; max-width: 100%; }
+canvas { border-radius: 8px; display: block; max-width: 100%; touch-action: none; }
+canvas:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .color-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.85rem; }
 .color-row span { flex: 1; }
 @media (max-width: 768px) {
@@ -433,8 +443,9 @@ canvas { border-radius: 8px; display: block; max-width: 100%; }
     </div>
 
     <div class="card" style="position:relative; flex:1; min-height:350px;">
-      <canvas id="chartCanvas" width="700" height="400"></canvas>
+      <canvas id="chartCanvas" width="700" height="400" role="img" tabindex="0" aria-label="Chart of the current data. Use the data summary below for a text description."></canvas>
       <div class="tooltip" id="tooltip"></div>
+      <div id="chartSummary" aria-live="polite" class="sr-only"></div>
     </div>
 
     <div class="card">
@@ -581,6 +592,30 @@ function resizeCanvas() {
   drawChart();
 }
 
+const chartTypeNames = { bar: 'Bar chart', pictogram: 'Pictogram', pie: 'Pie chart', line: 'Line graph' };
+
+function updateChartA11y() {
+  const summary = document.getElementById('chartSummary');
+  const typeName = chartTypeNames[chartType] || 'Chart';
+  if (data.length === 0) {
+    const empty = typeName + '. No data yet. Add data or choose a dataset to see a chart.';
+    canvas.setAttribute('aria-label', empty);
+    if (summary) summary.textContent = empty;
+    return;
+  }
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const items = data.map(d => {
+    if (chartType === 'pie') {
+      const pct = total ? Math.round((d.value / total) * 100) : 0;
+      return d.category + ' ' + d.value + ' (' + pct + ' percent)';
+    }
+    return d.category + ' ' + d.value;
+  }).join(', ');
+  const text = typeName + ' showing ' + data.length + ' categories. ' + items + '. Total ' + total + '.';
+  canvas.setAttribute('aria-label', text);
+  if (summary) summary.textContent = text;
+}
+
 function drawChart() {
   const w = canvas.width / (window.devicePixelRatio || 1);
   const h = canvas.height / (window.devicePixelRatio || 1);
@@ -591,6 +626,7 @@ function drawChart() {
     ctx.font = '16px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('Add data or choose a dataset to see a chart.', w / 2, h / 2);
+    updateChartA11y();
     return;
   }
 
@@ -598,6 +634,7 @@ function drawChart() {
   else if (chartType === 'pictogram') drawPictogram(w, h);
   else if (chartType === 'pie') drawPieChart(w, h);
   else if (chartType === 'line') drawLineGraph(w, h);
+  updateChartA11y();
 }
 
 function drawBarChart(w, h) {
@@ -866,8 +903,8 @@ function drawLineGraph(w, h) {
   });
 }
 
-// Tooltip
-canvas.addEventListener('mousemove', function(e) {
+// Tooltip - shared hit test so mouse and touch (pointer) behave identically
+function updateTooltipFromEvent(e) {
   if (data.length === 0) { tooltip.style.opacity = '0'; return; }
   const rect = canvas.getBoundingClientRect();
   const mx = (e.clientX - rect.left) * (canvas.width / rect.width) / (window.devicePixelRatio || 1);
@@ -897,9 +934,37 @@ canvas.addEventListener('mousemove', function(e) {
     tooltip.style.opacity = '0';
     canvas.style.cursor = 'default';
   }
-});
+}
 
-canvas.addEventListener('mouseleave', function() { tooltip.style.opacity = '0'; });
+function hideTooltip() { tooltip.style.opacity = '0'; canvas.style.cursor = 'default'; }
+
+if (window.PointerEvent) {
+  // Pointer Events cover mouse, touch and pen with one path (tablets and interactive whiteboards)
+  canvas.addEventListener('pointermove', function(e) {
+    updateTooltipFromEvent(e);
+  });
+  canvas.addEventListener('pointerdown', function(e) {
+    // touch and pen: capture so dragging a finger across the chart keeps reporting bars
+    if (e.pointerType !== 'mouse') {
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+    updateTooltipFromEvent(e);
+  });
+  canvas.addEventListener('pointerup', function(e) {
+    if (e.pointerType !== 'mouse') {
+      try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+      hideTooltip();
+    }
+  });
+  canvas.addEventListener('pointercancel', hideTooltip);
+  canvas.addEventListener('pointerleave', function(e) {
+    if (e.pointerType === 'mouse') hideTooltip();
+  });
+} else {
+  // Fallback for browsers without Pointer Events
+  canvas.addEventListener('mousemove', updateTooltipFromEvent);
+  canvas.addEventListener('mouseleave', hideTooltip);
+}
 
 // Quiz
 function generateQuiz() {

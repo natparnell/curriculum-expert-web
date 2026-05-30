@@ -216,6 +216,7 @@
       border-radius: 8px;
       cursor: pointer;
       display: block;
+      touch-action: none;
     }
 
     /* Draggable pointer */
@@ -236,6 +237,7 @@
       transform: translateX(-50%);
       cursor: grab;
       pointer-events: all;
+      touch-action: none;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -244,6 +246,7 @@
     }
 
     #pointer:active { cursor: grabbing; }
+    #pointer:focus-visible { outline: 3px solid var(--green-dark); outline-offset: 3px; border-radius: 4px; }
 
     .pointer-arrow {
       width: 0; height: 0;
@@ -750,9 +753,9 @@
     <!-- Spectrum bar -->
     <div class="spectrum-wrapper">
       <div class="spectrum-bar-container" id="barContainer">
-        <canvas id="spectrumCanvas" height="60"></canvas>
+        <canvas id="spectrumCanvas" height="60" role="img" aria-label="Electromagnetic spectrum colour bar running from low-frequency radio waves on the left to high-frequency gamma rays on the right. Click anywhere on the bar, or use the pointer and sliders below, to select a position."></canvas>
         <div class="pointer-track">
-          <div id="pointer">
+          <div id="pointer" role="slider" tabindex="0" aria-label="Spectrum position pointer. Use left and right arrow keys to move across the spectrum." aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-valuetext="">
             <div class="pointer-arrow"></div>
             <div class="pointer-line"></div>
           </div>
@@ -773,6 +776,8 @@
         <input type="range" id="freqSlider" min="0" max="1000" value="500" />
       </div>
     </div>
+
+    <div id="srStatus" aria-live="polite" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;"></div>
   </div>
 
   <!-- BOTTOM GRID -->
@@ -821,7 +826,7 @@
     <!-- Wave Animation Panel -->
     <div class="wave-panel">
       <div class="section-title">Wave Visualisation</div>
-      <canvas id="waveCanvas" height="220"></canvas>
+      <canvas id="waveCanvas" height="220" role="img" aria-label="Animated diagram of the selected electromagnetic wave, showing the oscillating electric field and perpendicular magnetic field travelling in the direction of propagation."></canvas>
       <div class="wave-info">
         <strong id="waveLabel">—</strong> &mdash;
         <span id="waveDesc">Select a region to see its wave characteristics.</span>
@@ -984,6 +989,7 @@
   const visSwatchRow   = document.getElementById('visSwatchRow');
   const waveLabel      = document.getElementById('waveLabel');
   const waveDesc       = document.getElementById('waveDesc');
+  const srStatus       = document.getElementById('srStatus');
 
   // ─── HELPERS ─────────────────────────────────────────────────────────────────
   function lerp(a, b, t) { return a + (b - a) * t; }
@@ -1143,6 +1149,28 @@
 
     const idx = regionFromLogFreq(logF);
     updateProperties(idx, logF);
+
+    // Keyboard / screen-reader state
+    if (pointer) {
+      pointer.setAttribute('aria-valuenow', String(Math.round(pct)));
+      pointer.setAttribute('aria-valuetext',
+        REGIONS[idx].name + ', wavelength ' + fmtWavelength(logF) + ', frequency ' + fmtFreq(logF));
+    }
+    announceState(idx, logF);
+  }
+
+  // ─── SCREEN-READER ANNOUNCEMENT ────────────────────────────────────────────────
+  let announceTimer = null;
+  function announceState(idx, logF) {
+    if (!srStatus) return;
+    const r = REGIONS[idx];
+    const msg = r.name + ': wavelength ' + fmtWavelength(logF)
+      + ', frequency ' + fmtFreq(logF)
+      + ', photon energy ' + fmtEnergy(logF)
+      + ', danger level ' + DANGER_LABEL[r.danger] + '.';
+    // Debounce so rapid dragging/sliding does not flood the live region
+    if (announceTimer) clearTimeout(announceTimer);
+    announceTimer = setTimeout(function () { srStatus.textContent = msg; }, 250);
   }
 
   // ─── UPDATE PROPERTIES PANEL ─────────────────────────────────────────────────
@@ -1290,18 +1318,9 @@
     setPointerPos(pos);
   });
 
-  // ─── POINTER DRAG ─────────────────────────────────────────────────────────────
+  // ─── POINTER DRAG (Pointer Events: mouse, touch, pen, whiteboard) ───────────────
   let dragging = false;
-
-  pointer.addEventListener('mousedown', (e) => {
-    dragging = true;
-    e.preventDefault();
-  });
-
-  pointer.addEventListener('touchstart', (e) => {
-    dragging = true;
-    e.preventDefault();
-  }, { passive: false });
+  let dragPointerId = null;
 
   function getBarRect() {
     return specCanvas.getBoundingClientRect();
@@ -1309,25 +1328,71 @@
 
   function posFromEvent(e) {
     const rect = getBarRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientX = e.clientX;
     return (clientX - rect.left) / rect.width;
   }
 
-  document.addEventListener('mousemove', (e) => {
-    if (!dragging) return;
-    setPointerPos(posFromEvent(e));
+  if (window.PointerEvent) {
+    pointer.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      dragPointerId = e.pointerId;
+      try { pointer.setPointerCapture(e.pointerId); } catch (err) {}
+      e.preventDefault();
+    });
+
+    pointer.addEventListener('pointermove', (e) => {
+      if (!dragging || e.pointerId !== dragPointerId) return;
+      setPointerPos(posFromEvent(e));
+      e.preventDefault();
+    });
+
+    function endPointerDrag(e) {
+      if (e.pointerId !== dragPointerId) return;
+      dragging = false;
+      dragPointerId = null;
+      try { pointer.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+    pointer.addEventListener('pointerup', endPointerDrag);
+    pointer.addEventListener('pointercancel', endPointerDrag);
+  } else {
+    // Fallback for very old browsers without Pointer Events
+    function posFromLegacyEvent(e) {
+      const rect = getBarRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      return (clientX - rect.left) / rect.width;
+    }
+    pointer.addEventListener('mousedown', (e) => { dragging = true; e.preventDefault(); });
+    pointer.addEventListener('touchstart', (e) => { dragging = true; e.preventDefault(); }, { passive: false });
+    document.addEventListener('mousemove', (e) => { if (dragging) setPointerPos(posFromLegacyEvent(e)); });
+    document.addEventListener('touchmove', (e) => {
+      if (!dragging) return;
+      setPointerPos(posFromLegacyEvent(e));
+      e.preventDefault();
+    }, { passive: false });
+    document.addEventListener('mouseup',  () => { dragging = false; });
+    document.addEventListener('touchend', () => { dragging = false; });
+  }
+
+  // Keyboard control of the pointer (arrow keys, Home/End, Page Up/Down)
+  pointer.addEventListener('keydown', (e) => {
+    const step = 0.01;
+    const bigStep = 0.05;
+    let handled = true;
+    switch (e.key) {
+      case 'ArrowLeft':
+      case 'ArrowDown':  setPointerPos(sliderPos - step); break;
+      case 'ArrowRight':
+      case 'ArrowUp':    setPointerPos(sliderPos + step); break;
+      case 'PageDown':   setPointerPos(sliderPos - bigStep); break;
+      case 'PageUp':     setPointerPos(sliderPos + bigStep); break;
+      case 'Home':       setPointerPos(0); break;
+      case 'End':        setPointerPos(1); break;
+      default: handled = false;
+    }
+    if (handled) e.preventDefault();
   });
 
-  document.addEventListener('touchmove', (e) => {
-    if (!dragging) return;
-    setPointerPos(posFromEvent(e));
-    e.preventDefault();
-  }, { passive: false });
-
-  document.addEventListener('mouseup',  () => { dragging = false; });
-  document.addEventListener('touchend', () => { dragging = false; });
-
-  // Click on spectrum bar
+  // Click / tap on spectrum bar
   specCanvas.addEventListener('click', (e) => {
     const rect = specCanvas.getBoundingClientRect();
     const pos = (e.clientX - rect.left) / rect.width;

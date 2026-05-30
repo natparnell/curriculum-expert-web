@@ -124,13 +124,185 @@ body {
 
 @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
+.read-btn {
+    margin-top: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 2px solid var(--accent);
+    border-radius: 20px;
+    background: #ffffff;
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s;
+    touch-action: manipulation;
+}
+.read-btn:hover { background: var(--accent); color: #ffffff; }
+.read-btn.speaking { background: var(--accent); color: #ffffff; }
+
+/* Challenge / quiz */
+.challenge-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 18px;
+    margin-bottom: 24px;
+}
+.challenge-card h3 {
+    font-size: 1.05rem;
+    font-weight: 900;
+    color: var(--text);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.challenge-intro { font-size: 0.82rem; color: var(--text-light); margin-bottom: 14px; }
+.challenge-score {
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--accent);
+    margin-bottom: 12px;
+}
+.q-prompt {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+.q-clue { font-size: 0.82rem; color: var(--text-light); margin-bottom: 14px; }
+.q-clue .q-species { font-weight: 800; color: var(--desert); }
+
+.q-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.q-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 6px;
+    border: 3px solid var(--border);
+    border-radius: 12px;
+    background: var(--card-bg);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.74rem;
+    font-weight: 800;
+    color: var(--text);
+    text-align: center;
+    transition: all 0.18s;
+    touch-action: manipulation;
+}
+.q-option .qo-icon { font-size: 1.5rem; }
+.q-option:hover:not(:disabled) { transform: scale(1.03); border-color: var(--accent); }
+.q-option:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.q-option.correct { border-color: #16a34a; background: #dcfce7; color: #166534; }
+.q-option.wrong { border-color: #dc2626; background: #fee2e2; color: #991b1b; }
+.q-option:disabled { cursor: default; }
+
+.q-feedback {
+    font-size: 0.84rem;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    display: none;
+}
+.q-feedback.show { display: block; animation: slideUp 0.25s ease; }
+.q-feedback.right { background: #dcfce7; color: #166534; border-left: 4px solid #16a34a; }
+.q-feedback.notyet { background: #fef2f2; color: #991b1b; border-left: 4px solid #dc2626; }
+
+.q-next {
+    width: 100%;
+    padding: 12px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 0.92rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: none;
+}
+.q-next.show { display: block; }
+.q-next:hover { filter: brightness(1.08); }
+
+.q-result {
+    text-align: center;
+    padding: 8px 0;
+}
+.q-result .q-result-emoji { font-size: 2.4rem; }
+.q-result .q-result-score { font-size: 1.3rem; font-weight: 900; color: var(--accent); margin: 6px 0; }
+.q-result .q-result-msg { font-size: 0.86rem; color: var(--text-light); margin-bottom: 14px; }
+.q-result button {
+    padding: 12px 22px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
 @media (max-width: 500px) {
     .biome-selector { grid-template-columns: repeat(2, 1fr); }
     .stat-row { grid-template-columns: 1fr 1fr; }
+    .q-options { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -304,6 +476,13 @@ body {
 <div class="main">
     <div class="biome-selector" id="biomeSelector"></div>
     <div id="biomeDisplay"></div>
+
+    <div class="challenge-card" aria-labelledby="challengeTitle">
+        <h3 id="challengeTitle"><span aria-hidden="true">&#x1F3AF;</span> Biome Challenge</h3>
+        <p class="challenge-intro">Read the clue, then choose the biome where each plant or animal belongs. Explore the biomes above first if you need a hand!</p>
+        <div class="challenge-score" id="challengeScore" aria-live="polite">Question 1 of 8 &middot; Score: 0</div>
+        <div id="challengeBody" aria-live="polite"></div>
+    </div>
 </div>
 
 <script>
@@ -415,13 +594,147 @@ function showBiome(id) {
                 <div class="chips-row">${b.humanImpact.map(h => `<span class="chip impact">${h}</span>`).join('')}</div>
 
                 <div class="fun-fact"><strong>Fun fact:</strong> ${b.fact}</div>
+                <button type="button" class="read-btn" id="readBtn" aria-label="Read this biome aloud"><span aria-hidden="true">\u{1F50A}</span> Read aloud</button>
             </div>
         </div>
     `;
+
+    const readBtn = document.getElementById('readBtn');
+    if (readBtn) {
+        readBtn.addEventListener('click', () => speakBiome(b, readBtn));
+    }
+}
+
+// Read-aloud using the browser SpeechSynthesis API (no audio files)
+function speakBiome(b, btn) {
+    if (!('speechSynthesis' in window)) return;
+    if (speechSynthesis.speaking) {
+        speechSynthesis.cancel();
+        btn.classList.remove('speaking');
+        return;
+    }
+    const text = b.name + '. Found in ' + b.location + '. ' + b.description +
+        ' A fun fact: ' + b.fact;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-GB';
+    if (window.westTTS) u.voice = window.westTTS.pick(u.lang || 'en-GB');
+    u.rate = 0.95;
+    u.onend = () => btn.classList.remove('speaking');
+    u.onerror = () => btn.classList.remove('speaking');
+    btn.classList.add('speaking');
+    speechSynthesis.speak(u);
 }
 
 // Show first biome
 showBiome('rainforest');
+
+/* ===== Biome Challenge: choose-the-biome quiz with immediate feedback ===== */
+const QUESTIONS = [
+    { type: 'animal', item: 'Camel', clue: 'I store fat in my hump and can go for days without water in the scorching heat.', answer: 'desert' },
+    { type: 'animal', item: 'Polar bear', clue: 'My thick white fur keeps me warm where the ground stays frozen all year.', answer: 'tundra' },
+    { type: 'plant', item: 'Kapok tree', clue: 'I grow incredibly tall to reach sunlight above a thick green canopy where it is hot and wet all year.', answer: 'rainforest' },
+    { type: 'animal', item: 'Lion', clue: 'I hunt across open grassland dotted with acacia trees, where there is a wet season and a dry season.', answer: 'grassland' },
+    { type: 'animal', item: 'Oak, badger and bluebells', clue: 'We live in a place with four seasons where many trees lose their leaves in autumn. This is the UK biome!', answer: 'temperate' },
+    { type: 'plant', item: 'Kelp', clue: 'I am a giant seaweed that grows in underwater forests near the surface where sunlight reaches.', answer: 'ocean' },
+    { type: 'plant', item: 'Cactus', clue: 'I store water in my thick stem and have spines instead of leaves to survive where it almost never rains.', answer: 'desert' },
+    { type: 'animal', item: 'Caribou', clue: 'I roam the cold, treeless plains and feed on mosses and lichens during the short summer.', answer: 'tundra' }
+];
+
+const challengeBody = document.getElementById('challengeBody');
+const challengeScore = document.getElementById('challengeScore');
+let qIndex = 0;
+let qScore = 0;
+let qAnswered = false;
+
+function renderQuestion() {
+    qAnswered = false;
+    const q = QUESTIONS[qIndex];
+    challengeScore.textContent = 'Question ' + (qIndex + 1) + ' of ' + QUESTIONS.length + ' · Score: ' + qScore;
+    const optsHtml = BIOMES.map(b =>
+        '<button type="button" class="q-option" data-id="' + b.id + '" aria-label="' + b.name + '">' +
+        '<span class="qo-icon" aria-hidden="true">' + b.icon + '</span><span>' + b.name + '</span></button>'
+    ).join('');
+    challengeBody.innerHTML =
+        '<div class="q-prompt">Which biome is home to this?</div>' +
+        '<div class="q-clue"><span class="q-species">' + q.item + '</span> – ' + q.clue + '</div>' +
+        '<div class="q-options" role="group" aria-label="Choose a biome">' + optsHtml + '</div>' +
+        '<div class="q-feedback" id="qFeedback" role="alert"></div>' +
+        '<button type="button" class="q-next" id="qNext">' +
+        (qIndex < QUESTIONS.length - 1 ? 'Next question →' : 'See my result →') + '</button>';
+
+    challengeBody.querySelectorAll('.q-option').forEach(btn => {
+        btn.addEventListener('click', () => checkAnswer(btn));
+    });
+    const firstOpt = challengeBody.querySelector('.q-option');
+    if (firstOpt) firstOpt.focus();
+    document.getElementById('qNext').addEventListener('click', nextQuestion);
+}
+
+function checkAnswer(btn) {
+    if (qAnswered) return;
+    qAnswered = true;
+    const q = QUESTIONS[qIndex];
+    const chosen = btn.dataset.id;
+    const correct = q.answer;
+    const correctBiome = BIOMES.find(x => x.id === correct);
+    const feedback = document.getElementById('qFeedback');
+
+    challengeBody.querySelectorAll('.q-option').forEach(o => {
+        o.disabled = true;
+        if (o.dataset.id === correct) o.classList.add('correct');
+        else if (o.dataset.id === chosen) o.classList.add('wrong');
+    });
+
+    if (chosen === correct) {
+        qScore++;
+        feedback.className = 'q-feedback right show';
+        feedback.textContent = '✅ Correct! ' + q.item + ' belongs in the ' + correctBiome.name + '.';
+    } else {
+        const chosenBiome = BIOMES.find(x => x.id === chosen);
+        feedback.className = 'q-feedback notyet show';
+        feedback.textContent = '❌ Not quite. ' + q.item + ' is not from the ' +
+            (chosenBiome ? chosenBiome.name : 'that biome') + '. It belongs in the ' +
+            correctBiome.name + ': ' + correctBiome.location + '.';
+    }
+    challengeScore.textContent = 'Question ' + (qIndex + 1) + ' of ' + QUESTIONS.length + ' · Score: ' + qScore;
+    const next = document.getElementById('qNext');
+    next.classList.add('show');
+    next.focus();
+}
+
+function nextQuestion() {
+    qIndex++;
+    if (qIndex >= QUESTIONS.length) {
+        showResult();
+    } else {
+        renderQuestion();
+    }
+}
+
+function showResult() {
+    const total = QUESTIONS.length;
+    let emoji, msg;
+    if (qScore === total) { emoji = '\u{1F31F}'; msg = 'Amazing! You are a biome expert.'; }
+    else if (qScore >= total * 0.75) { emoji = '\u{1F389}'; msg = 'Brilliant work! You really know your biomes.'; }
+    else if (qScore >= total * 0.5) { emoji = '\u{1F44D}'; msg = 'Good effort! Explore the biomes again and have another go.'; }
+    else { emoji = '\u{1F4DA}'; msg = 'Keep exploring the biomes above, then try again. You can do it!'; }
+
+    challengeScore.textContent = 'Challenge complete!';
+    challengeBody.innerHTML =
+        '<div class="q-result">' +
+        '<div class="q-result-emoji" aria-hidden="true">' + emoji + '</div>' +
+        '<div class="q-result-score">You scored ' + qScore + ' out of ' + total + '</div>' +
+        '<div class="q-result-msg">' + msg + '</div>' +
+        '<button type="button" id="qRestart">Play again</button>' +
+        '</div>';
+    document.getElementById('qRestart').addEventListener('click', () => {
+        qIndex = 0; qScore = 0;
+        renderQuestion();
+    });
+    document.getElementById('qRestart').focus();
+}
+
+renderQuestion();
 </script>
 </body>
 </html>

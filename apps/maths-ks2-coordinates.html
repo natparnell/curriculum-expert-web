@@ -168,7 +168,8 @@ body {
 }
 .shape-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 .shape-btns .btn { font-size: 0.8rem; padding: 6px 12px; }
-canvas { border-radius: 8px; cursor: crosshair; }
+canvas { border-radius: 8px; cursor: crosshair; touch-action: none; }
+canvas:focus { outline: 3px solid #16a34a; outline-offset: 2px; }
 .translation-controls, .reflection-controls {
   display: flex;
   flex-direction: column;
@@ -209,6 +210,47 @@ select, input[type="number"] {
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -421,7 +463,7 @@ select, input[type="number"] {
         <div class="target" id="challengeTarget">(3, 5)</div>
         <div class="hint">Click on the grid at the correct position</div>
       </div>
-      <div class="feedback" id="challengeFeedback"></div>
+      <div class="feedback" id="challengeFeedback" role="status" aria-live="assertive"></div>
       <button class="btn btn-primary" onclick="newChallenge()" style="width:100%;margin-top:6px;">Next Challenge</button>
     </div>
 
@@ -449,19 +491,21 @@ select, input[type="number"] {
     <!-- Reflect mode -->
     <div class="card mode-panel" id="reflectPanel" style="display:none;">
       <h3>Reflect Shape</h3>
-      <p class="instructions" style="margin-bottom:10px;">Choose an axis to reflect the shape. The original shape stays in grey.</p>
+      <p class="instructions" style="margin-bottom:10px;">Choose a mirror line to reflect the shape. The original shape stays in grey. This grid only shows the first quadrant (0 to 10), so we mirror in the lines x = 5 and y = 5 rather than the axes themselves.</p>
       <div class="reflection-controls">
-        <button class="btn btn-primary" onclick="reflectShape('y')">Reflect in Y axis (x = 0)</button>
-        <button class="btn btn-primary" onclick="reflectShape('x')">Reflect in X axis (y = 0)</button>
-        <button class="btn btn-primary" onclick="reflectCustom()">Reflect in line x = 5</button>
+        <button class="btn btn-primary" onclick="reflectShape('vertical')">Reflect in line x = 5</button>
+        <button class="btn btn-primary" onclick="reflectShape('horizontal')">Reflect in line y = 5</button>
         <button class="btn btn-secondary" onclick="clearReflection()">Clear Reflection</button>
       </div>
-      <div class="reflection-info" id="reflectionInfo">Click a reflection button to see the result.</div>
+      <div class="reflection-info" id="reflectionInfo" role="status" aria-live="polite">Click a reflection button to see the result.</div>
     </div>
   </div>
 
   <div class="grid-area">
-    <canvas id="gridCanvas" width="560" height="560"></canvas>
+    <canvas id="gridCanvas" width="560" height="560" tabindex="0" role="application"
+      aria-label="Coordinate grid, 0 to 10 on both axes. In Plot or Challenge mode, use the arrow keys to move the green crosshair and press Enter to place a point."></canvas>
+    <p id="gridLiveRegion" aria-live="polite"
+      style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;"></p>
   </div>
 </div>
 
@@ -477,10 +521,39 @@ let points = [];
 let shape = null; // { points: [{x,y}...], closed: true }
 let originalShape = null;
 let reflectedShape = null;
+let reflectionLine = null; // 'vertical' (x=5) or 'horizontal' (y=5)
 let totalTranslation = { x: 0, y: 0 };
 let score = 0;
 let attempts = 0;
 let challengeTarget = null;
+let cursor = { x: 0, y: 0 }; // keyboard crosshair position (grid coords)
+let cursorVisible = false;
+
+// Mirror status text into a visually hidden aria-live region so screen-reader
+// users hear the same updates the SpeechSynthesis voice gives sighted users.
+function announce(text) {
+  try {
+    const region = document.getElementById('gridLiveRegion');
+    if (!region || !text) return;
+    // Clear first so identical consecutive messages are still re-announced.
+    region.textContent = '';
+    window.setTimeout(function() { region.textContent = text; }, 30);
+  } catch (e) {}
+}
+
+// Read text aloud using the browser SpeechSynthesis API (UK English).
+function speak(text) {
+  announce(text);
+  try {
+    if (!('speechSynthesis' in window) || !text) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-GB';
+    if (window.westTTS) u.voice = window.westTTS.pick(u.lang || 'en-GB');
+    u.rate = 0.95;
+    window.speechSynthesis.speak(u);
+  } catch (e) {}
+}
 
 function resizeCanvas() {
   const area = canvas.parentElement;
@@ -558,15 +631,20 @@ function draw() {
   ctx.fillText('y', 0, 0);
   ctx.restore();
 
-  // reflection line for x=5
-  if (mode === 'reflect') {
+  // mirror line for the active reflection
+  if (mode === 'reflect' && reflectionLine) {
     ctx.setLineDash([6, 4]);
-    ctx.strokeStyle = '#9ca3af';
-    ctx.lineWidth = 1;
-    // draw x=5 line faintly
-    const r1 = gridToCanvas(5, 0);
-    const r2 = gridToCanvas(5, GRID_SIZE);
-    ctx.beginPath(); ctx.moveTo(r1.x, r1.y); ctx.lineTo(r2.x, r2.y); ctx.stroke();
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 2;
+    if (reflectionLine === 'vertical') {
+      const r1 = gridToCanvas(5, 0);
+      const r2 = gridToCanvas(5, GRID_SIZE);
+      ctx.beginPath(); ctx.moveTo(r1.x, r1.y); ctx.lineTo(r2.x, r2.y); ctx.stroke();
+    } else if (reflectionLine === 'horizontal') {
+      const r1 = gridToCanvas(0, 5);
+      const r2 = gridToCanvas(GRID_SIZE, 5);
+      ctx.beginPath(); ctx.moveTo(r1.x, r1.y); ctx.lineTo(r2.x, r2.y); ctx.stroke();
+    }
     ctx.setLineDash([]);
   }
 
@@ -598,6 +676,23 @@ function draw() {
       ctx.textBaseline = 'bottom';
       ctx.fillText(`(${p.x}, ${p.y})`, cp.x + 8, cp.y - 4);
     });
+  }
+
+  // keyboard crosshair cursor (for non-mouse access in plot/challenge modes)
+  if (cursorVisible && (mode === 'plot' || mode === 'challenge')) {
+    const cc = gridToCanvas(cursor.x, cursor.y);
+    ctx.strokeStyle = '#16a34a';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cc.x - 10, cc.y); ctx.lineTo(cc.x + 10, cc.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cc.x, cc.y - 10); ctx.lineTo(cc.x, cc.y + 10); ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cc.x, cc.y, 9, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#15803d';
+    ctx.font = `bold ${Math.max(11, cellSize * 0.26)}px Inter, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`(${cursor.x}, ${cursor.y})`, cc.x + 12, cc.y + 6);
   }
 
   // challenge target hint
@@ -655,7 +750,7 @@ function setMode(m) {
     plot: 'Click on the grid to plot points. Coordinates are shown as (x, y). Plot at least 3 points, then click "Connect Shape" to draw a shape.',
     challenge: 'A target coordinate is shown. Click on the grid at the correct position to score a point!',
     translate: 'Create a shape first (in Plot mode), then use the arrows to translate it. Watch how every coordinate changes by the same amount.',
-    reflect: 'Create a shape first (in Plot mode), then reflect it in the x-axis, y-axis, or the line x = 5.'
+    reflect: 'Create a shape first (in Plot mode), then reflect it in the mirror line x = 5 or y = 5. The mirror line is shown in red.'
   };
   document.getElementById('instructionsText').textContent = instructions[m];
 
@@ -673,21 +768,58 @@ function ensureShape() {
   }
 }
 
-canvas.addEventListener('click', function(e) {
-  const rect = canvas.getBoundingClientRect();
-  const cx = (e.clientX - rect.left) * (canvas.width / rect.width);
-  const cy = (e.clientY - rect.top) * (canvas.height / rect.height);
-  const g = canvasToGrid(cx, cy);
-
+// Place a point at the given grid coordinate (shared by mouse, touch, keyboard).
+function plotAt(g) {
   if (g.x < 0 || g.x > GRID_SIZE || g.y < 0 || g.y > GRID_SIZE) return;
-
   if (mode === 'plot') {
     points.push({ x: g.x, y: g.y });
     updatePointsList();
+    speak('Plotted ' + g.x + ', ' + g.y);
     draw();
   } else if (mode === 'challenge') {
     checkChallenge(g);
   }
+}
+
+// Pointer events cover mouse, pen and touch in one handler.
+canvas.addEventListener('pointerdown', function(e) {
+  if (mode !== 'plot' && mode !== 'challenge') return;
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const cx = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const cy = (e.clientY - rect.top) * (canvas.height / rect.height);
+  const g = canvasToGrid(cx, cy);
+  cursor = { x: Math.max(0, Math.min(GRID_SIZE, g.x)), y: Math.max(0, Math.min(GRID_SIZE, g.y)) };
+  plotAt(g);
+});
+
+// Keyboard access: arrow keys move a green crosshair, Enter/Space plots it.
+canvas.addEventListener('keydown', function(e) {
+  if (mode !== 'plot' && mode !== 'challenge') return;
+  let handled = true;
+  switch (e.key) {
+    case 'ArrowUp': cursor.y = Math.min(GRID_SIZE, cursor.y + 1); cursorVisible = true; break;
+    case 'ArrowDown': cursor.y = Math.max(0, cursor.y - 1); cursorVisible = true; break;
+    case 'ArrowRight': cursor.x = Math.min(GRID_SIZE, cursor.x + 1); cursorVisible = true; break;
+    case 'ArrowLeft': cursor.x = Math.max(0, cursor.x - 1); cursorVisible = true; break;
+    case 'Enter':
+    case ' ':
+      cursorVisible = true;
+      plotAt({ x: cursor.x, y: cursor.y });
+      break;
+    default: handled = false;
+  }
+  if (handled) {
+    e.preventDefault();
+    if (e.key.indexOf('Arrow') === 0) {
+      speak(cursor.x + ', ' + cursor.y);
+      draw();
+    }
+  }
+});
+
+canvas.addEventListener('focus', function() {
+  if (mode === 'plot' || mode === 'challenge') { cursorVisible = true; draw(); }
 });
 
 function updatePointsList() {
@@ -708,6 +840,7 @@ function clearPoints() {
   shape = null;
   originalShape = null;
   reflectedShape = null;
+  reflectionLine = null;
   totalTranslation = { x: 0, y: 0 };
   updatePointsList();
   document.getElementById('translationInfo').textContent = 'Translation: (0, 0)';
@@ -721,6 +854,7 @@ function connectShape() {
   points = [];
   totalTranslation = { x: 0, y: 0 };
   reflectedShape = null;
+  reflectionLine = null;
   updatePointsList();
   draw();
 }
@@ -737,6 +871,7 @@ function presetShape(type) {
   originalShape = shape.map(p => ({ ...p }));
   totalTranslation = { x: 0, y: 0 };
   reflectedShape = null;
+  reflectionLine = null;
   updatePointsList();
   draw();
 }
@@ -750,6 +885,7 @@ function newChallenge() {
   document.getElementById('challengeTarget').textContent = `(${challengeTarget.x}, ${challengeTarget.y})`;
   document.getElementById('challengeFeedback').textContent = '';
   document.getElementById('challengeFeedback').className = 'feedback';
+  speak('Plot the point ' + challengeTarget.x + ', ' + challengeTarget.y);
   draw();
 }
 
@@ -760,10 +896,26 @@ function checkChallenge(g) {
     score++;
     fb.textContent = 'Correct! Well done!';
     fb.className = 'feedback correct';
+    speak('Correct. Well done.');
     setTimeout(() => newChallenge(), 1200);
   } else {
-    fb.textContent = `Not quite! You clicked (${g.x}, ${g.y}). Try again!`;
+    // Genuine formative feedback: name which coordinate is off and in which
+    // direction, reinforcing "along the corridor, then up the stairs".
+    let hints = [];
+    if (g.x !== challengeTarget.x) {
+      hints.push('the x-coordinate (across) needs to be ' + (g.x < challengeTarget.x ? 'bigger' : 'smaller'));
+    } else {
+      hints.push('your x-coordinate (across) is right');
+    }
+    if (g.y !== challengeTarget.y) {
+      hints.push('the y-coordinate (up) needs to be ' + (g.y < challengeTarget.y ? 'bigger' : 'smaller'));
+    } else {
+      hints.push('your y-coordinate (up) is right');
+    }
+    const msg = 'Not quite. You clicked (' + g.x + ', ' + g.y + '). Remember: ' + hints.join(', and ') + '.';
+    fb.textContent = msg;
     fb.className = 'feedback wrong';
+    speak(msg);
   }
   document.getElementById('scoreDisplay').textContent = `Score: ${score} / ${attempts}`;
 }
@@ -791,31 +943,32 @@ function resetTranslation() {
 }
 
 // Reflect mode
-function reflectShape(axis) {
+// The grid only shows the first quadrant (0 to 10), so a true reflection in
+// x = 0 or y = 0 would send the shape off-grid. We mirror in the lines x = 5
+// and y = 5 instead. The midline is 5, so a point at distance d on one side
+// lands at distance d on the other: new value = 2 * 5 - old = 10 - old.
+const MIRROR = 5;
+function reflectShape(line) {
   if (!shape || shape.length === 0) return;
-  if (axis === 'x') {
-    // reflect in x-axis: y becomes -y (but we clamp to first quadrant view)
-    reflectedShape = shape.map(p => ({ x: p.x, y: -p.y + GRID_SIZE }));
+  reflectionLine = line;
+  if (line === 'vertical') {
+    // mirror line x = 5: x becomes 10 - x, y unchanged
+    reflectedShape = shape.map(p => ({ x: 2 * MIRROR - p.x, y: p.y }));
     document.getElementById('reflectionInfo').textContent =
-      'Reflected in x-axis. Each y-coordinate: y becomes ' + GRID_SIZE + ' - y.';
-  } else if (axis === 'y') {
-    reflectedShape = shape.map(p => ({ x: GRID_SIZE - p.x, y: p.y }));
+      'Reflected in the line x = 5. Each x-coordinate maps to 10 - x; the y-coordinate stays the same. Points on the line do not move.';
+  } else if (line === 'horizontal') {
+    // mirror line y = 5: y becomes 10 - y, x unchanged
+    reflectedShape = shape.map(p => ({ x: p.x, y: 2 * MIRROR - p.y }));
     document.getElementById('reflectionInfo').textContent =
-      'Reflected in y-axis. Each x-coordinate: x becomes ' + GRID_SIZE + ' - x.';
+      'Reflected in the line y = 5. Each y-coordinate maps to 10 - y; the x-coordinate stays the same. Points on the line do not move.';
   }
-  draw();
-}
-
-function reflectCustom() {
-  if (!shape || shape.length === 0) return;
-  reflectedShape = shape.map(p => ({ x: 10 - p.x, y: p.y }));
-  document.getElementById('reflectionInfo').textContent =
-    'Reflected in line x = 5. Each x: new x = 10 - x.';
+  speak(document.getElementById('reflectionInfo').textContent);
   draw();
 }
 
 function clearReflection() {
   reflectedShape = null;
+  reflectionLine = null;
   document.getElementById('reflectionInfo').textContent = 'Click a reflection button to see the result.';
   draw();
 }
@@ -825,6 +978,7 @@ function resetAll() {
   shape = null;
   originalShape = null;
   reflectedShape = null;
+  reflectionLine = null;
   totalTranslation = { x: 0, y: 0 };
   score = 0;
   attempts = 0;

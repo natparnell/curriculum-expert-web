@@ -45,7 +45,9 @@ header p { font-size: 0.85rem; opacity: 0.8; margin-top: 2px; }
 .panel { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px; }
 .panel h2 { font-size: 1rem; font-weight: 700; margin-bottom: 12px; color: var(--text); }
 .canvas-wrap { position: relative; width: 100%; overflow-x: auto; }
-canvas#histogram { display: block; width: 100%; max-width: 700px; margin: 0 auto; cursor: default; }
+canvas#histogram { display: block; width: 100%; max-width: 700px; margin: 0 auto; cursor: default; touch-action: none; }
+canvas#histogram:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .slider-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
 .slider-row label { font-size: 0.82rem; min-width: 80px; }
 .slider-row input[type=range] { flex: 1; min-width: 120px; accent-color: var(--accent); }
@@ -294,9 +296,11 @@ canvas#histogram { display: block; width: 100%; max-width: 700px; margin: 0 auto
   <div class="panel">
     <h2>Mark Distribution</h2>
     <div class="canvas-wrap">
-      <canvas id="histogram" width="700" height="400"></canvas>
+      <canvas id="histogram" width="700" height="400" role="application" tabindex="0" aria-label="Interactive histogram of student marks out of 100, with draggable grade boundary lines for grades 9 down to 1. Use the keyboard to select a boundary with the left and right arrow keys, then move it with the up and down arrow keys." aria-describedby="histKbdHelp"></canvas>
     </div>
     <p style="font-size:0.78rem;color:var(--text-muted);margin-top:6px;">Click and drag the vertical grade boundary lines to adjust. Bars re-colour instantly.</p>
+    <p id="histKbdHelp" style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">Keyboard: press Tab to focus the chart, then use Left and Right arrows to select a grade boundary and Up and Down arrows (or Plus and Minus) to raise or lower its mark.</p>
+    <div id="histStatus" class="sr-only" role="status" aria-live="polite"></div>
   </div>
 
   <div class="two-col">
@@ -370,6 +374,7 @@ canvas#histogram { display: block; width: 100%; max-width: 700px; margin: 0 auto
   let distribution = new Array(101).fill(0);
   const totalStudents = 200;
   let dragIdx = -1;
+  let selIdx = 0; // keyboard-selected boundary (0 = grade 9 min)
 
   const canvas = document.getElementById('histogram');
   const ctx = canvas.getContext('2d');
@@ -605,6 +610,20 @@ canvas#histogram { display: block; width: 100%; max-width: 700px; margin: 0 auto
     tbody.appendChild(trU);
   }
 
+  /* ---------- screen-reader announcement ---------- */
+  function announce(idx) {
+    const statusEl = document.getElementById('histStatus');
+    if (!statusEl) return;
+    const grade = 9 - idx;
+    const min = boundaries[idx];
+    const max = idx === 0 ? 100 : boundaries[idx - 1] - 1;
+    const { counts, total } = computeResults();
+    const pct = total ? ((counts[grade] / total) * 100).toFixed(1) : '0.0';
+    statusEl.textContent = 'Grade ' + grade + ' boundary at ' + min +
+      ' marks. Mark range ' + min + ' to ' + max + '. ' +
+      counts[grade] + ' students (' + pct + '%) at grade ' + grade + '.';
+  }
+
   /* ---------- drag interaction ---------- */
   function getCanvasPos(e) {
     const rect = canvas.getBoundingClientRect();
@@ -630,41 +649,89 @@ canvas#histogram { display: block; width: 100%; max-width: 700px; margin: 0 auto
     return Math.max(lo, Math.min(hi, mark));
   }
 
-  canvas.addEventListener('mousedown', function(e) {
+  /* Pointer Events unify mouse, touch and pen so the same drag works on
+     tablets and interactive whiteboards as well as with a mouse. */
+  canvas.addEventListener('pointerdown', function(e) {
     const pos = getCanvasPos(e);
     dragIdx = findBoundary(pos);
-    if (dragIdx >= 0) canvas.style.cursor = 'ew-resize';
+    if (dragIdx >= 0) {
+      selIdx = dragIdx;
+      canvas.style.cursor = 'ew-resize';
+      if (canvas.setPointerCapture) {
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+      e.preventDefault();
+    }
   });
-  canvas.addEventListener('mousemove', function(e) {
+  canvas.addEventListener('pointermove', function(e) {
     const pos = getCanvasPos(e);
     if (dragIdx >= 0) {
+      e.preventDefault();
       const mark = xToMark(pos.x);
       boundaries[dragIdx] = clampBoundary(dragIdx, mark);
       draw();
       updateResults();
+      announce(dragIdx);
     } else {
       canvas.style.cursor = findBoundary(pos) >= 0 ? 'ew-resize' : 'default';
     }
   });
-  canvas.addEventListener('mouseup', function() { dragIdx = -1; canvas.style.cursor = 'default'; });
-  canvas.addEventListener('mouseleave', function() { dragIdx = -1; canvas.style.cursor = 'default'; });
-
-  /* touch */
-  canvas.addEventListener('touchstart', function(e) {
-    const pos = getCanvasPos(e);
-    dragIdx = findBoundary(pos);
-    if (dragIdx >= 0) e.preventDefault();
-  }, { passive: false });
-  canvas.addEventListener('touchmove', function(e) {
-    if (dragIdx >= 0) {
-      e.preventDefault();
-      const pos = getCanvasPos(e);
-      boundaries[dragIdx] = clampBoundary(dragIdx, xToMark(pos.x));
-      draw();
-      updateResults();
+  function endPointer(e) {
+    if (dragIdx >= 0 && canvas.releasePointerCapture && e && e.pointerId !== undefined) {
+      try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
     }
-  }, { passive: false });
-  canvas.addEventListener('touchend', function() { dragIdx = -1; });
+    dragIdx = -1;
+    canvas.style.cursor = 'default';
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('pointerleave', function(e) {
+    if (dragIdx < 0) canvas.style.cursor = 'default';
+  });
+
+  /* ---------- keyboard interaction ---------- */
+  canvas.addEventListener('focus', function() { announce(selIdx); });
+  canvas.addEventListener('keydown', function(e) {
+    let handled = true;
+    switch (e.key) {
+      case 'ArrowRight':
+        selIdx = Math.min(8, selIdx + 1);
+        break;
+      case 'ArrowLeft':
+        selIdx = Math.max(0, selIdx - 1);
+        break;
+      case 'ArrowUp':
+      case '+':
+      case '=':
+        boundaries[selIdx] = clampBoundary(selIdx, boundaries[selIdx] + 1);
+        draw();
+        updateResults();
+        break;
+      case 'ArrowDown':
+      case '-':
+      case '_':
+        boundaries[selIdx] = clampBoundary(selIdx, boundaries[selIdx] - 1);
+        draw();
+        updateResults();
+        break;
+      case 'Home':
+        boundaries[selIdx] = clampBoundary(selIdx, 0);
+        draw();
+        updateResults();
+        break;
+      case 'End':
+        boundaries[selIdx] = clampBoundary(selIdx, 100);
+        draw();
+        updateResults();
+        break;
+      default:
+        handled = false;
+    }
+    if (handled) {
+      e.preventDefault();
+      announce(selIdx);
+    }
+  });
 
   /* ---------- controls ---------- */
   document.getElementById('presetSelect').addEventListener('change', function() {

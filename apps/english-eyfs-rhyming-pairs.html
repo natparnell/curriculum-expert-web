@@ -103,11 +103,54 @@ body {
     position: relative;
 }
 .rhyme-card:hover { transform: scale(1.05); }
+.rhyme-card:focus-visible { outline: 4px solid var(--accent); outline-offset: 3px; }
 .rhyme-card.selected { border-color: var(--accent); transform: scale(1.08); box-shadow: var(--shadow-lg); background: var(--accent-light); }
 .rhyme-card.matched { border-color: var(--success); background: var(--success-light); pointer-events: none; }
 .rhyme-card.wrong { animation: wobble 0.5s ease; border-color: #ef4444; }
+.rhyme-card.speaking { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-light); }
 .rhyme-card .emoji { font-size: 2.6rem; line-height: 1; }
 .rhyme-card .word { font-size: 0.95rem; font-weight: 800; color: var(--text); }
+.rhyme-card .speaker { position: absolute; top: 6px; right: 8px; font-size: 0.85rem; opacity: 0.45; }
+
+.sound-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 auto 12px;
+    padding: 8px 16px;
+    border: 2px solid var(--border);
+    border-radius: 50px;
+    background: var(--card-bg);
+    color: var(--accent);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.sound-toggle:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.sound-row { text-align: center; margin-bottom: 6px; }
+
+.feedback {
+    text-align: center;
+    font-size: 0.98rem;
+    font-weight: 700;
+    min-height: 1.4em;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    transition: all 0.2s;
+}
+.feedback.good { color: #166534; background: var(--success-light); }
+.feedback.bad { color: #991b1b; background: #fee2e2; }
+.feedback.empty { background: transparent; }
+
+.sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
 
 .next-btn {
     display: block;
@@ -180,6 +223,47 @@ body {
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -355,8 +439,14 @@ body {
         <span class="pairs" id="pairsFound">Pairs: 0</span>
         <span class="round" id="roundLabel">Round 1 of 4</span>
     </div>
-    <div class="instruction" id="instruction">Tap two cards that rhyme!</div>
-    <div class="card-grid" id="cardGrid"></div>
+    <div class="instruction" id="instruction">Tap a card to hear the word, then find two that rhyme!</div>
+    <div class="sound-row">
+        <button class="sound-toggle" id="soundToggle" type="button" aria-pressed="true">
+            <span aria-hidden="true">&#x1F50A;</span><span id="soundToggleLabel">Sound on</span>
+        </button>
+    </div>
+    <div class="feedback empty" id="feedback" role="status" aria-live="assertive">&#x200B;</div>
+    <div class="card-grid" id="cardGrid" role="group" aria-label="Rhyming word cards"></div>
     <button class="next-btn" id="nextBtn">Next Round!</button>
     <div class="complete-msg" id="completeMsg"></div>
 </div>
@@ -401,15 +491,91 @@ const ROUNDS = [
 
 const PAIR_COLOURS = ['#6366f1', '#ec4899', '#14b8a6', '#f97316', '#eab308', '#22c55e'];
 
+// Spoken-friendly rime endings (the rhyming sound) for screen-reader labels
+// and for modelling feedback. Keyed by word.
+const RIMES = {
+    cat: '-at', hat: '-at', dog: '-og', log: '-og', bee: '-ee', tree: '-ee',
+    star: '-ar', car: '-ar', moon: '-oon', spoon: '-oon', fish: '-ish', dish: '-ish',
+    house: '-ouse', mouse: '-ouse', cake: '-ake', snake: '-ake', rain: '-ain', train: '-ain',
+    boat: '-oat', coat: '-oat', frog: '-og', fog: '-og', king: '-ing', ring: '-ing'
+};
+
 let round = 0;
 let totalPairs = 0;
 let selected = null;
 let matchedCount = 0;
 let cards = [];
+let soundOn = true;
 
 const grid = document.getElementById('cardGrid');
 const nextBtn = document.getElementById('nextBtn');
 const completeMsg = document.getElementById('completeMsg');
+const feedbackEl = document.getElementById('feedback');
+const soundToggle = document.getElementById('soundToggle');
+const soundToggleLabel = document.getElementById('soundToggleLabel');
+
+// ---- Speech (browser SpeechSynthesis, no audio files, no network) ----
+const speechAvailable = ('speechSynthesis' in window) && ('SpeechSynthesisUtterance' in window);
+
+function pickVoice() {
+    if (!speechAvailable) return null;
+    const voices = window.speechSynthesis.getVoices() || [];
+    // Prefer a UK English voice for the correct rhyming sounds.
+    return voices.find(v => v.lang === 'en-GB')
+        || voices.find(v => /^en-GB/i.test(v.lang))
+        || voices.find(v => /^en/i.test(v.lang))
+        || null;
+}
+
+function speak(text, opts) {
+    opts = opts || {};
+    if (!soundOn || !speechAvailable) return;
+    try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-GB';
+        const v = (window.westTTS) ? window.westTTS.pick(u.lang || 'en-GB') : pickVoice();
+        if (v) u.voice = v;
+        u.rate = opts.rate || 0.85;
+        u.pitch = opts.pitch || 1.1;
+        if (opts.onend) u.onend = opts.onend;
+        if (opts.onstart) u.onstart = opts.onstart;
+        window.speechSynthesis.speak(u);
+    } catch (e) {}
+}
+
+function speakWord(word, el) {
+    if (!soundOn || !speechAvailable) return;
+    if (el) {
+        el.classList.add('speaking');
+        speak(word, {
+            rate: 0.8,
+            onend: () => el.classList.remove('speaking')
+        });
+        // Safety: clear highlight even if onend never fires.
+        setTimeout(() => el.classList.remove('speaking'), 1500);
+    } else {
+        speak(word, { rate: 0.8 });
+    }
+}
+
+// Some browsers populate voices asynchronously.
+if (speechAvailable) {
+    window.speechSynthesis.onvoiceschanged = pickVoice;
+}
+
+soundToggle.addEventListener('click', () => {
+    soundOn = !soundOn;
+    soundToggle.setAttribute('aria-pressed', String(soundOn));
+    soundToggleLabel.textContent = soundOn ? 'Sound on' : 'Sound off';
+    soundToggle.querySelector('span[aria-hidden]').innerHTML = soundOn ? '\u{1F50A}' : '\u{1F507}';
+    if (!soundOn && speechAvailable) window.speechSynthesis.cancel();
+});
+
+function setFeedback(text, type) {
+    feedbackEl.textContent = text || '​';
+    feedbackEl.className = 'feedback ' + (type || 'empty');
+}
 
 nextBtn.addEventListener('click', () => {
     round++;
@@ -424,7 +590,8 @@ function startRound() {
     nextBtn.style.display = 'none';
     completeMsg.style.display = 'none';
     document.getElementById('roundLabel').textContent = `Round ${round + 1} of ${ROUNDS.length}`;
-    document.getElementById('instruction').textContent = 'Tap two cards that rhyme!';
+    document.getElementById('instruction').textContent = 'Tap a card to hear the word, then find two that rhyme!';
+    setFeedback('', 'empty');
 
     // Shuffle cards
     cards = [...ROUNDS[round]];
@@ -436,8 +603,17 @@ function startRound() {
         el.className = 'rhyme-card';
         el.dataset.idx = i;
         el.dataset.word = card.word;
-        el.innerHTML = `<span class="emoji">${card.emoji}</span><span class="word">${card.word}</span>`;
+        el.setAttribute('role', 'button');
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('aria-label', `${card.word}. Tap to hear the word and to choose it.`);
+        el.innerHTML = `<span class="speaker" aria-hidden="true">\u{1F50A}</span><span class="emoji" role="img" aria-label="${card.word}">${card.emoji}</span><span class="word">${card.word}</span>`;
         el.addEventListener('click', () => onCardClick(i));
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                e.preventDefault();
+                onCardClick(i);
+            }
+        });
         grid.appendChild(el);
     });
 }
@@ -464,12 +640,14 @@ function onCardClick(idx) {
     if (selected === null) {
         selected = idx;
         el.classList.add('selected');
+        speakWord(cards[idx].word, el);
         return;
     }
 
     if (selected === idx) {
         el.classList.remove('selected');
         selected = null;
+        speakWord(cards[idx].word, el);
         return;
     }
 
@@ -492,25 +670,40 @@ function onCardClick(idx) {
         document.getElementById('pairsFound').textContent = `Pairs: ${totalPairs}`;
         spawnStars(3);
 
+        // Specific feedback that models the shared rhyming sound.
+        const rime = RIMES[word1] || '';
+        setFeedback(`Yes! ${word1} and ${word2} rhyme. They both end with the ${rime} sound.`, 'good');
+        // Say both words together so the child hears the rhyme.
+        speak(`${word1}, ${word2}. They rhyme!`, { rate: 0.8 });
+
         if (matchedCount === 3) {
             // Round complete
             celebrate();
             if (round < ROUNDS.length - 1) {
                 document.getElementById('instruction').textContent = 'All pairs found! Great job!';
+                setFeedback('All pairs found! Press Next Round to keep going.', 'good');
                 nextBtn.style.display = 'block';
+                setTimeout(() => speak('Well done! You found all the rhyming pairs. Press next round.', { rate: 0.85 }), 900);
             } else {
                 document.getElementById('instruction').textContent = '';
                 completeMsg.style.display = 'block';
                 completeMsg.textContent = '\u{1F389} You found all the rhyming pairs! Superstar! \u{1F31F}';
+                setFeedback('You found every rhyming pair. Superstar!', 'good');
                 celebrate();
                 setTimeout(celebrate, 600);
+                setTimeout(() => speak('Amazing! You found all the rhyming pairs. You are a rhyming superstar!', { rate: 0.85 }), 900);
             }
         }
     } else {
-        // No match
+        // No match: model why these two words do not rhyme.
         firstEl.classList.remove('selected');
         firstEl.classList.add('wrong');
         el.classList.add('wrong');
+        const rime1 = RIMES[word1] || '';
+        const rime2 = RIMES[word2] || '';
+        setFeedback(`Not quite. ${word1} ends with ${rime1} but ${word2} ends with ${rime2}. They do not sound the same at the end. Try again!`, 'bad');
+        // Say both words so the child can hear the different endings.
+        speak(`${word1}. ${word2}. Those endings sound different. Try again.`, { rate: 0.78 });
         setTimeout(() => {
             firstEl.classList.remove('wrong');
             el.classList.remove('wrong');

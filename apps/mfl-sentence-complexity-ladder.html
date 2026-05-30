@@ -125,6 +125,50 @@ main {
   font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--text-muted); margin-bottom: 12px;
 }
+.workspace-head { display: flex; align-items: center; justify-content: space-between; }
+.workspace-head h3 { margin-bottom: 12px; }
+.btn-listen {
+  background: var(--purple-50); border: 1px solid var(--purple-200);
+  color: var(--purple-700); border-radius: 6px; padding: 5px 12px;
+  font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.btn-listen:hover:not(:disabled) { background: var(--purple-100); border-color: var(--purple-400); }
+.btn-listen:disabled { opacity: 0.45; cursor: default; }
+.btn-listen.speaking { background: var(--purple-600); color: #fff; border-color: var(--purple-600); }
+/* Accuracy quiz */
+.quiz-panel {
+  background: var(--card); border-radius: var(--radius); padding: 20px 22px;
+  box-shadow: var(--shadow);
+}
+.quiz-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.quiz-head h3 {
+  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.quiz-score { font-size: 0.78rem; font-weight: 700; color: var(--purple-700); }
+.quiz-intro { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px; line-height: 1.5; }
+.quiz-question { font-size: 0.92rem; color: var(--text); margin-bottom: 12px; font-weight: 600; }
+.quiz-options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.quiz-option {
+  text-align: left; padding: 12px 16px; border-radius: 8px;
+  border: 2px solid var(--border); background: var(--bg);
+  font-size: 1.05rem; cursor: pointer; transition: all 0.15s;
+  color: var(--text); font-family: inherit; line-height: 1.4;
+}
+.quiz-option:hover:not(:disabled) { border-color: var(--purple-400); background: var(--purple-50); }
+.quiz-option:disabled { cursor: default; }
+.quiz-option.correct { border-color: #16a34a; background: #f0fdf4; color: #166534; }
+.quiz-option.wrong { border-color: #dc2626; background: #fef2f2; color: #991b1b; }
+.quiz-feedback { font-size: 0.85rem; line-height: 1.55; border-radius: 8px; padding: 0; min-height: 0; }
+.quiz-feedback.show { padding: 12px 14px; margin-bottom: 10px; }
+.quiz-feedback.ok { background: #f0fdf4; border: 1px solid #86efac; color: #166534; }
+.quiz-feedback.no { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
+.quiz-next {
+  background: var(--purple-600); color: #fff; border: none; border-radius: 7px;
+  padding: 9px 18px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  transition: background 0.15s;
+}
+.quiz-next:hover { background: var(--purple-700); }
 .sentence-display {
   font-size: 1.3rem; line-height: 1.8; min-height: 48px;
   padding: 12px 0; border-bottom: 2px dashed var(--border);
@@ -238,6 +282,12 @@ main {
 .grade-descriptor {
   font-size: 0.88rem; color: var(--text-muted); margin-bottom: 14px;
 }
+.accuracy-note {
+  font-size: 0.76rem; line-height: 1.5; color: #78350f;
+  background: #fffbeb; border: 1px solid #f4d58d; border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 14px; text-align: left;
+}
+.accuracy-note strong { color: #92400e; }
 .score-breakdown { text-align: left; font-size: 0.8rem; }
 .score-row {
   display: flex; justify-content: space-between; align-items: center;
@@ -263,6 +313,10 @@ main {
 .modal h4 { font-size: 0.9rem; margin: 14px 0 6px; color: var(--purple-700); }
 .modal p, .modal li { font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; }
 .modal ul { padding-left: 20px; margin-bottom: 10px; }
+.modal p.ms-warn {
+  background: #fffbeb; border-left: 4px solid #f59e0b; color: #78350f;
+  padding: 10px 12px; border-radius: 6px; margin: 10px 0;
+}
 .modal-close {
   float: right; background: none; border: none; font-size: 1.4rem;
   cursor: pointer; color: var(--text-muted); padding: 0 4px;
@@ -304,6 +358,47 @@ main {
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -494,7 +589,10 @@ main {
     <!-- Centre -->
     <div class="centre-col">
       <div class="workspace">
-        <h3>Your Sentence</h3>
+        <div class="workspace-head">
+          <h3>Your Sentence</h3>
+          <button class="btn-listen" id="listenBtn" type="button" onclick="speakSentence()" disabled>&#9658; Listen</button>
+        </div>
         <div class="sentence-display" id="sentenceDisplay"></div>
         <div class="translation-line" id="translationLine"></div>
         <div class="undo-strip" id="undoStrip"></div>
@@ -509,20 +607,35 @@ main {
         <h3>Sentence Structure</h3>
         <div class="tree-view" id="treeView"></div>
       </div>
+
+      <div class="quiz-panel" id="quizPanel">
+        <div class="quiz-head">
+          <h3>Accuracy Check</h3>
+          <span class="quiz-score" id="quizScore">0 / 0</span>
+        </div>
+        <p class="quiz-intro">Complexity is only half the job. Pick the sentence that is <strong>accurate</strong>. Both have the same structures, but one has a grammar or spelling error.</p>
+        <div class="quiz-question" id="quizQuestion"></div>
+        <div class="quiz-options" id="quizOptions"></div>
+        <div class="quiz-feedback" id="quizFeedback"></div>
+        <button class="quiz-next" id="quizNext" type="button" onclick="nextQuizItem()" hidden>Next question &rarr;</button>
+      </div>
     </div>
 
     <!-- Right -->
     <div class="right-col">
       <div class="grade-panel">
-        <h3>GCSE Grade Indicator</h3>
+        <h3>Complexity Score</h3>
         <div class="grade-ring">
           <svg viewBox="0 0 120 120">
             <circle class="bg-ring" cx="60" cy="60" r="50"/>
             <circle class="fg-ring" id="gradeRing" cx="60" cy="60" r="50" stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
           </svg>
-          <div class="grade-number" id="gradeNumber">1</div>
+          <div class="grade-number" id="gradeNumber">0</div>
         </div>
         <div class="grade-descriptor" id="gradeDescriptor">Basic single-clause sentence</div>
+        <div class="accuracy-note">
+          This score only measures the <strong>range of structures</strong> you have added. At GCSE, marks also depend on <strong>accuracy</strong>: correct verb forms, word order, gender, agreement and spelling. A long sentence full of errors scores lower than a shorter, accurate one.
+        </div>
         <div class="score-breakdown" id="scoreBreakdown"></div>
       </div>
     </div>
@@ -533,28 +646,25 @@ main {
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <button class="modal-close" onclick="toggleModal()">&times;</button>
-    <h2>GCSE Writing Mark Scheme Guide</h2>
-    <p>This tool maps sentence complexity features to GCSE MFL writing descriptors. The grade indicator reflects how the structural features of your sentence align with assessment criteria.</p>
-    <h4>Grade 1-2: Limited</h4>
-    <p>Short, simple sentences. Isolated words or phrases. Limited range of vocabulary and structures.</p>
-    <h4>Grade 3-4: Basic</h4>
-    <p>Simple sentences with some adjectives or adverbs. Occasional use of connectives. Mostly present tense.</p>
-    <h4>Grade 5-6: Good</h4>
-    <p>Sentences linked with connectives. Use of opinion phrases and some varied structures. Developing complexity.</p>
-    <h4>Grade 7-8: Very Good</h4>
-    <p>Subordinate clauses used confidently. Complex sentence structures with relative clauses. A range of vocabulary including higher-level items.</p>
-    <h4>Grade 9: Exceptional</h4>
-    <p>Highly complex sentences demonstrating sophisticated structures. Confident use of subordination, relative clauses, and varied connectives. Reads naturally and fluently.</p>
-    <h4>Complexity Features Scored</h4>
+    <h2>About the Complexity Score</h2>
+    <p>This tool helps you practise <strong>uplevelling</strong>: starting from a simple sentence and adding structures to widen your range. The score on the right measures only the <strong>range of structures</strong> you have used.</p>
+    <p class="ms-warn"><strong>It is not a GCSE grade.</strong> At GCSE, the writing marks reward range <em>and</em> accuracy together. Examiners look at correct verb forms, tenses, word order, gender and adjective agreement, and spelling (including accents). Stacking on extra clauses does <strong>not</strong> raise a grade if the language is inaccurate. A shorter, accurate sentence often scores better than a long one full of mistakes.</p>
+    <h4>How to use the score well</h4>
     <ul>
-      <li><strong>Simple sentence</strong> (base): The starting point. A single main clause.</li>
-      <li><strong>Adjective</strong> (+1): Adds description and detail to nouns.</li>
-      <li><strong>Adverb</strong> (+1): Modifies verbs, adding nuance to actions.</li>
-      <li><strong>Connective</strong> (+1.5): Links ideas, extends the sentence logically.</li>
-      <li><strong>Opinion phrase</strong> (+1.5): Demonstrates personal response, valued at GCSE.</li>
-      <li><strong>Subordinate clause</strong> (+2): Shows grammatical control and complexity.</li>
-      <li><strong>Relative clause</strong> (+2): Embeds additional information within the sentence.</li>
+      <li>Use it to check you are varying your structures, not just repeating simple sentences.</li>
+      <li>Then re-read your sentence and check every word is accurate before you would use it in real writing.</li>
+      <li>Click <strong>Listen</strong> to hear the sentence, and notice the accents: they change pronunciation and are marked at GCSE.</li>
     </ul>
+    <h4>Structures you can practise</h4>
+    <ul>
+      <li><strong>Adjective</strong>: adds detail to a noun. Watch placement and agreement (French and Spanish adjectives usually follow the noun and agree; German adjectives go before the noun and take an ending).</li>
+      <li><strong>Adverb</strong>: adds nuance to a verb. Position matters.</li>
+      <li><strong>Connective</strong>: links ideas and extends the sentence.</li>
+      <li><strong>Opinion phrase</strong>: gives a personal response. In German, openers ending in <em>dass</em> send the verb to the end of the clause.</li>
+      <li><strong>Subordinate clause</strong>: shows grammatical control (e.g. <em>weil</em>, <em>parce que</em>, <em>porque</em>).</li>
+      <li><strong>Relative clause</strong>: embeds extra information about a noun.</li>
+    </ul>
+    <p class="ms-warn">The point weightings are a learning aid only. They do not correspond to AQA, Edexcel, Eduqas or any awarding body mark scheme.</p>
   </div>
 </div>
 
@@ -563,21 +673,22 @@ main {
 const LANGS = {
   french: {
     label: 'French',
+    bcp47: 'fr-FR',
     starters: [
-      { sentence: 'Je mange une pizza.', translation: 'I eat a pizza.', base: 'Je mange une pizza' },
-      { sentence: 'J\'habite dans une maison.', translation: 'I live in a house.', base: 'J\'habite dans une maison' },
-      { sentence: 'Je joue au football.', translation: 'I play football.', base: 'Je joue au football' },
-      { sentence: 'Ma soeur regarde la television.', translation: 'My sister watches television.', base: 'Ma soeur regarde la television' },
-      { sentence: 'Nous allons au college.', translation: 'We go to school.', base: 'Nous allons au college' },
-      { sentence: 'Il fait ses devoirs.', translation: 'He does his homework.', base: 'Il fait ses devoirs' }
+      { sentence: 'Je mange une pizza.', translation: 'I eat a pizza.', base: 'Je mange une pizza', subject: 'Je', verb: 'mange', noun: 'une pizza' },
+      { sentence: 'J’habite dans une maison.', translation: 'I live in a house.', base: 'J’habite dans une maison', subject: 'J’', verb: 'habite', noun: 'dans une maison' },
+      { sentence: 'Je joue au football.', translation: 'I play football.', base: 'Je joue au football', subject: 'Je', verb: 'joue', noun: 'au football' },
+      { sentence: 'Ma sœur regarde la télévision.', translation: 'My sister watches television.', base: 'Ma sœur regarde la télévision', subject: 'Ma sœur', verb: 'regarde', noun: 'la télévision' },
+      { sentence: 'Nous allons au collège.', translation: 'We go to school.', base: 'Nous allons au collège', subject: 'Nous', verb: 'allons', noun: 'au collège' },
+      { sentence: 'Il fait ses devoirs.', translation: 'He does his homework.', base: 'Il fait ses devoirs', subject: 'Il', verb: 'fait', noun: 'ses devoirs' }
     ],
     additions: {
       adjective: [
-        { text: 'delicieuse', translation: 'delicious', insert: 'after-noun' },
+        { text: 'délicieuse', translation: 'delicious', insert: 'after-noun' },
         { text: 'grande', translation: 'big', insert: 'after-noun' },
-        { text: 'petit(e)', translation: 'small', insert: 'after-noun' },
-        { text: 'interessant(e)', translation: 'interesting', insert: 'after-noun' },
-        { text: 'nouveau/nouvelle', translation: 'new', insert: 'before-noun' }
+        { text: 'petite', translation: 'small', insert: 'after-noun' },
+        { text: 'intéressante', translation: 'interesting', insert: 'after-noun' },
+        { text: 'nouvelle', translation: 'new', insert: 'before-noun' }
       ],
       adverb: [
         { text: 'souvent', translation: 'often', insert: 'after-verb' },
@@ -594,38 +705,42 @@ const LANGS = {
         { text: 'puis', translation: 'then', insert: 'extend' }
       ],
       opinion: [
-        { text: 'A mon avis,', translation: 'In my opinion,', insert: 'prepend' },
+        { text: 'À mon avis,', translation: 'In my opinion,', insert: 'prepend' },
         { text: 'Je pense que', translation: 'I think that', insert: 'prepend' },
         { text: 'Je trouve que', translation: 'I find that', insert: 'prepend' },
         { text: 'Il me semble que', translation: 'It seems to me that', insert: 'prepend' }
       ],
       subordinate: [
         { text: 'quand il fait beau', translation: 'when the weather is nice', insert: 'clause-end' },
-        { text: 'si j\'ai le temps', translation: 'if I have time', insert: 'clause-end' },
+        { text: 'si j’ai le temps', translation: 'if I have time', insert: 'clause-end' },
         { text: 'bien que ce soit difficile', translation: 'although it is difficult', insert: 'clause-end' },
-        { text: 'parce que c\'est amusant', translation: 'because it is fun', insert: 'clause-end' }
+        { text: 'parce que c’est amusant', translation: 'because it is fun', insert: 'clause-end' }
       ],
       relative: [
-        { text: 'qui est pres du parc', translation: 'which is near the park', insert: 'relative' },
-        { text: 'que j\'adore', translation: 'which I love', insert: 'relative' },
-        { text: 'ou j\'ai grandi', translation: 'where I grew up', insert: 'relative' },
-        { text: 'dont je suis fier/fiere', translation: 'of which I am proud', insert: 'relative' }
+        { text: 'qui est près du parc', translation: 'which is near the park', insert: 'relative' },
+        { text: 'que j’adore', translation: 'which I love', insert: 'relative' },
+        { text: 'où j’ai grandi', translation: 'where I grew up', insert: 'relative' },
+        { text: 'dont je suis fière', translation: 'of which I am proud', insert: 'relative' }
       ]
     }
   },
   german: {
     label: 'German',
+    bcp47: 'de-DE',
+    // German is verb-second (V2). When an opinion clause beginning "..., dass" is
+    // prepended, the main clause becomes subordinate and the verb moves to the end,
+    // so those starters expose a verb-final form for use after a "dass" opener.
     starters: [
-      { sentence: 'Ich esse eine Pizza.', translation: 'I eat a pizza.', base: 'Ich esse eine Pizza' },
-      { sentence: 'Ich wohne in einem Haus.', translation: 'I live in a house.', base: 'Ich wohne in einem Haus' },
-      { sentence: 'Ich spiele Fussball.', translation: 'I play football.', base: 'Ich spiele Fussball' },
-      { sentence: 'Meine Schwester sieht fern.', translation: 'My sister watches television.', base: 'Meine Schwester sieht fern' },
-      { sentence: 'Wir gehen in die Schule.', translation: 'We go to school.', base: 'Wir gehen in die Schule' }
+      { sentence: 'Ich esse eine Pizza.', translation: 'I eat a pizza.', base: 'Ich esse eine Pizza', subject: 'Ich', verb: 'esse', noun: 'eine Pizza', det: 'eine', nounHead: 'Pizza', verbFinal: 'esse' },
+      { sentence: 'Ich wohne in einem Haus.', translation: 'I live in a house.', base: 'Ich wohne in einem Haus', subject: 'Ich', verb: 'wohne', noun: 'in einem Haus', det: 'einem', nounHead: 'Haus', verbFinal: 'wohne' },
+      { sentence: 'Ich spiele Fußball.', translation: 'I play football.', base: 'Ich spiele Fußball', subject: 'Ich', verb: 'spiele', noun: 'Fußball', det: '', nounHead: 'Fußball', verbFinal: 'spiele' },
+      { sentence: 'Meine Schwester sieht fern.', translation: 'My sister watches television.', base: 'Meine Schwester sieht fern', subject: 'Meine Schwester', verb: 'sieht', noun: 'fern', det: '', nounHead: 'fern', verbFinal: 'fernsieht', separable: true },
+      { sentence: 'Wir gehen in die Schule.', translation: 'We go to school.', base: 'Wir gehen in die Schule', subject: 'Wir', verb: 'gehen', noun: 'in die Schule', det: 'die', nounHead: 'Schule', verbFinal: 'gehen' }
     ],
     additions: {
       adjective: [
         { text: 'leckere', translation: 'delicious', insert: 'before-noun' },
-        { text: 'grosse', translation: 'big', insert: 'before-noun' },
+        { text: 'große', translation: 'big', insert: 'before-noun' },
         { text: 'kleine', translation: 'small', insert: 'before-noun' },
         { text: 'interessante', translation: 'interesting', insert: 'before-noun' },
         { text: 'neue', translation: 'new', insert: 'before-noun' }
@@ -646,18 +761,18 @@ const LANGS = {
       ],
       opinion: [
         { text: 'Meiner Meinung nach', translation: 'In my opinion', insert: 'prepend' },
-        { text: 'Ich denke, dass', translation: 'I think that', insert: 'prepend' },
-        { text: 'Ich finde, dass', translation: 'I find that', insert: 'prepend' },
-        { text: 'Es scheint mir, dass', translation: 'It seems to me that', insert: 'prepend' }
+        { text: 'Ich denke, dass', translation: 'I think that', insert: 'prepend-dass' },
+        { text: 'Ich finde, dass', translation: 'I find that', insert: 'prepend-dass' },
+        { text: 'Es scheint mir, dass', translation: 'It seems to me that', insert: 'prepend-dass' }
       ],
       subordinate: [
-        { text: 'wenn das Wetter schon ist', translation: 'when the weather is nice', insert: 'clause-end' },
+        { text: 'wenn das Wetter schön ist', translation: 'when the weather is nice', insert: 'clause-end' },
         { text: 'wenn ich Zeit habe', translation: 'if I have time', insert: 'clause-end' },
         { text: 'obwohl es schwierig ist', translation: 'although it is difficult', insert: 'clause-end' },
-        { text: 'weil es Spass macht', translation: 'because it is fun', insert: 'clause-end' }
+        { text: 'weil es Spaß macht', translation: 'because it is fun', insert: 'clause-end' }
       ],
       relative: [
-        { text: 'das in der Nahe des Parks ist', translation: 'which is near the park', insert: 'relative' },
+        { text: 'das in der Nähe des Parks ist', translation: 'which is near the park', insert: 'relative' },
         { text: 'das ich sehr mag', translation: 'which I really like', insert: 'relative' },
         { text: 'wo ich aufgewachsen bin', translation: 'where I grew up', insert: 'relative' },
         { text: 'worauf ich stolz bin', translation: 'of which I am proud', insert: 'relative' }
@@ -666,38 +781,39 @@ const LANGS = {
   },
   spanish: {
     label: 'Spanish',
+    bcp47: 'es-ES',
     starters: [
-      { sentence: 'Yo como una pizza.', translation: 'I eat a pizza.', base: 'Yo como una pizza' },
-      { sentence: 'Yo vivo en una casa.', translation: 'I live in a house.', base: 'Yo vivo en una casa' },
-      { sentence: 'Yo juego al futbol.', translation: 'I play football.', base: 'Yo juego al futbol' },
-      { sentence: 'Mi hermana ve la television.', translation: 'My sister watches television.', base: 'Mi hermana ve la television' },
-      { sentence: 'Nosotros vamos al colegio.', translation: 'We go to school.', base: 'Nosotros vamos al colegio' },
-      { sentence: 'El hace sus deberes.', translation: 'He does his homework.', base: 'El hace sus deberes' }
+      { sentence: 'Yo como una pizza.', translation: 'I eat a pizza.', base: 'Yo como una pizza', subject: 'Yo', verb: 'como', noun: 'una pizza' },
+      { sentence: 'Yo vivo en una casa.', translation: 'I live in a house.', base: 'Yo vivo en una casa', subject: 'Yo', verb: 'vivo', noun: 'en una casa' },
+      { sentence: 'Yo juego al fútbol.', translation: 'I play football.', base: 'Yo juego al fútbol', subject: 'Yo', verb: 'juego', noun: 'al fútbol' },
+      { sentence: 'Mi hermana ve la televisión.', translation: 'My sister watches television.', base: 'Mi hermana ve la televisión', subject: 'Mi hermana', verb: 've', noun: 'la televisión' },
+      { sentence: 'Nosotros vamos al colegio.', translation: 'We go to school.', base: 'Nosotros vamos al colegio', subject: 'Nosotros', verb: 'vamos', noun: 'al colegio' },
+      { sentence: 'Él hace sus deberes.', translation: 'He does his homework.', base: 'Él hace sus deberes', subject: 'Él', verb: 'hace', noun: 'sus deberes' }
     ],
     additions: {
       adjective: [
         { text: 'deliciosa', translation: 'delicious', insert: 'after-noun' },
         { text: 'grande', translation: 'big', insert: 'after-noun' },
-        { text: 'pequena', translation: 'small', insert: 'after-noun' },
+        { text: 'pequeña', translation: 'small', insert: 'after-noun' },
         { text: 'interesante', translation: 'interesting', insert: 'after-noun' },
-        { text: 'nueva', translation: 'new', insert: 'before-noun' }
+        { text: 'nueva', translation: 'new', insert: 'after-noun' }
       ],
       adverb: [
         { text: 'a menudo', translation: 'often', insert: 'after-verb' },
         { text: 'siempre', translation: 'always', insert: 'before-verb' },
-        { text: 'rapidamente', translation: 'quickly', insert: 'after-verb' },
+        { text: 'rápidamente', translation: 'quickly', insert: 'after-verb' },
         { text: 'normalmente', translation: 'normally', insert: 'before-verb' },
         { text: 'muy', translation: 'very', insert: 'before-adj' }
       ],
       connective: [
-        { text: 'y tambien', translation: 'and also', insert: 'extend' },
+        { text: 'y también', translation: 'and also', insert: 'extend' },
         { text: 'pero', translation: 'but', insert: 'extend' },
         { text: 'porque', translation: 'because', insert: 'extend' },
         { text: 'por lo tanto', translation: 'therefore', insert: 'extend' },
         { text: 'luego', translation: 'then', insert: 'extend' }
       ],
       opinion: [
-        { text: 'En mi opinion,', translation: 'In my opinion,', insert: 'prepend' },
+        { text: 'En mi opinión,', translation: 'In my opinion,', insert: 'prepend' },
         { text: 'Yo pienso que', translation: 'I think that', insert: 'prepend' },
         { text: 'Yo creo que', translation: 'I believe that', insert: 'prepend' },
         { text: 'Me parece que', translation: 'It seems to me that', insert: 'prepend' }
@@ -705,14 +821,14 @@ const LANGS = {
       subordinate: [
         { text: 'cuando hace buen tiempo', translation: 'when the weather is nice', insert: 'clause-end' },
         { text: 'si tengo tiempo', translation: 'if I have time', insert: 'clause-end' },
-        { text: 'aunque es dificil', translation: 'although it is difficult', insert: 'clause-end' },
+        { text: 'aunque es difícil', translation: 'although it is difficult', insert: 'clause-end' },
         { text: 'porque es divertido', translation: 'because it is fun', insert: 'clause-end' }
       ],
       relative: [
-        { text: 'que esta cerca del parque', translation: 'which is near the park', insert: 'relative' },
+        { text: 'que está cerca del parque', translation: 'which is near the park', insert: 'relative' },
         { text: 'que me encanta', translation: 'which I love', insert: 'relative' },
-        { text: 'donde creci', translation: 'where I grew up', insert: 'relative' },
-        { text: 'del que estoy orgulloso/a', translation: 'of which I am proud', insert: 'relative' }
+        { text: 'donde crecí', translation: 'where I grew up', insert: 'relative' },
+        { text: 'de la que estoy orgullosa', translation: 'of which I am proud', insert: 'relative' }
       ]
     }
   }
@@ -727,16 +843,18 @@ const TYPE_META = {
   relative:     { label: 'Relative Clause', colour: 'var(--rel-colour)', score: 2 }
 };
 
+/* Complexity bands. These describe the RANGE of structures only, never a grade.
+   Accuracy is assessed separately and is not measured here. */
 const GRADE_MAP = [
-  { min: 0, grade: 1, desc: 'Basic single-clause sentence' },
-  { min: 1, grade: 2, desc: 'Some description added' },
-  { min: 2, grade: 3, desc: 'Simple structures with detail' },
-  { min: 3, grade: 4, desc: 'Developing use of connectives' },
-  { min: 4.5, grade: 5, desc: 'Good range of structures' },
-  { min: 6, grade: 6, desc: 'Confident use of varied structures' },
-  { min: 7.5, grade: 7, desc: 'Complex sentences with subordination' },
-  { min: 9, grade: 8, desc: 'Highly developed complexity' },
-  { min: 10, grade: 9, desc: 'Exceptional sophistication and fluency' }
+  { min: 0,   grade: 0, desc: 'Basic single-clause sentence' },
+  { min: 1,   grade: 1, desc: 'Some description added' },
+  { min: 2,   grade: 2, desc: 'Simple structures with detail' },
+  { min: 3,   grade: 3, desc: 'Developing use of connectives' },
+  { min: 4.5, grade: 4, desc: 'Good range of structures' },
+  { min: 6,   grade: 5, desc: 'Confident use of varied structures' },
+  { min: 7.5, grade: 6, desc: 'Complex sentence with subordination' },
+  { min: 9,   grade: 7, desc: 'Wide range of complex structures' },
+  { min: 10,  grade: 8, desc: 'Very wide structural range (check accuracy)' }
 ];
 
 const LADDER_RUNGS = [
@@ -764,6 +882,7 @@ function init() {
   renderLadder();
   renderSentence();
   updateGrade();
+  loadQuiz();
 }
 
 /* ======= LANG TABS ======= */
@@ -790,6 +909,7 @@ function switchLang(lang) {
   renderTree();
   updateGrade();
   renderLadder();
+  loadQuiz();
 }
 
 /* ======= STARTERS ======= */
@@ -914,6 +1034,7 @@ function renderSentence() {
     display.innerHTML = '<span style="color:var(--text-muted);font-size:0.95rem;">Select a starter sentence above to begin.</span>';
     transLine.textContent = '';
     undoStrip.innerHTML = '';
+    updateListenBtn();
     return;
   }
 
@@ -938,6 +1059,8 @@ function renderSentence() {
   const transParts = buildTranslationParts(starter);
   transLine.textContent = transParts;
 
+  updateListenBtn();
+
   // Undo strip
   undoStrip.innerHTML = '';
   appliedAdditions.forEach(a => {
@@ -950,12 +1073,23 @@ function renderSentence() {
   });
 }
 
+/*
+ * Grammar engine.
+ * Assembles the sentence from labelled tokens (subject / verb / noun phrase) so
+ * each feature lands in a linguistically correct position:
+ *  - French / Spanish: adjective sits after the noun head ("une pizza délicieuse");
+ *    the one "before-noun" item (nouvelle / nueva) sits before it.
+ *  - German: attributive adjective sits before the noun head inside the noun phrase
+ *    ("eine leckere Pizza"); a "..., dass" opinion opener triggers verb-final order.
+ *  - Adverbs sit next to the verb; relative clause attaches to the noun phrase;
+ *    connective and subordinate clause extend the sentence at the end.
+ */
 function buildSentenceParts(starter) {
   const parts = [];
   const applied = [...appliedAdditions];
+  const lang = currentLang;
 
-  // Separate by insert type
-  const prepends = applied.filter(a => a.insert === 'prepend');
+  const prepends = applied.filter(a => a.insert === 'prepend' || a.insert === 'prepend-dass');
   const beforeVerb = applied.filter(a => a.insert === 'before-verb');
   const afterVerb = applied.filter(a => a.insert === 'after-verb');
   const beforeNoun = applied.filter(a => a.insert === 'before-noun');
@@ -965,97 +1099,163 @@ function buildSentenceParts(starter) {
   const clauseEnd = applied.filter(a => a.insert === 'clause-end');
   const relatives = applied.filter(a => a.insert === 'relative');
 
-  // Opinion/prepend zone
-  if (prepends.length > 0) {
-    prepends.forEach(p => parts.push({ type: p.type, text: p.text }));
-    parts.push({ type: 'simple', text: ' ' });
-  }
-  const hasPrependSlot = !prepends.length;
-  if (hasPrependSlot) {
-    parts.push({ type: 'drop', zoneId: 'prepend', label: '+ opinion' });
-    parts.push({ type: 'simple', text: ' ' });
-  }
+  const push = (type, text) => parts.push({ type, text });
+  const space = () => push('simple', ' ');
 
-  // Before-verb adverbs
-  beforeVerb.forEach(a => {
-    parts.push({ type: a.type, text: a.text });
-    parts.push({ type: 'simple', text: ' ' });
-  });
-
-  // Main sentence base
-  parts.push({ type: 'simple', text: starter.base });
-
-  // Before-adj intensifier
-  if (beforeAdj.length) {
-    parts.push({ type: 'simple', text: ' ' });
-    beforeAdj.forEach(a => parts.push({ type: a.type, text: a.text }));
-  }
-
-  // Before-noun adjective (German style)
-  if (beforeNoun.length) {
-    parts.push({ type: 'simple', text: ' ' });
-    beforeNoun.forEach(a => parts.push({ type: a.type, text: a.text }));
-  }
-
-  // After-noun adjective
-  if (afterNoun.length) {
-    parts.push({ type: 'simple', text: ' ' });
-    afterNoun.forEach(a => parts.push({ type: a.type, text: a.text }));
-  }
-
-  // Relative clause
-  if (relatives.length) {
-    parts.push({ type: 'simple', text: ' ' });
-    relatives.forEach(r => parts.push({ type: r.type, text: r.text }));
-  }
-
-  // After-verb adverbs
-  if (afterVerb.length) {
-    parts.push({ type: 'simple', text: ' ' });
-    afterVerb.forEach(a => parts.push({ type: a.type, text: a.text }));
-  }
-
-  // Drop zones for missing types
   const usedTypes = new Set(applied.map(a => a.type));
+
+  // ---- Opinion opener ----
+  const dassMode = lang === 'german' && prepends.some(p => p.insert === 'prepend-dass');
+  if (prepends.length > 0) {
+    prepends.forEach(p => push(p.type, p.text));
+    space();
+  } else {
+    parts.push({ type: 'drop', zoneId: 'prepend', label: '+ opinion' });
+    space();
+  }
+
+  // ---- Build the noun phrase with the adjective in the correct slot ----
+  function nounPhraseParts() {
+    const np = [];
+    if (lang === 'german') {
+      // German: determiner + [adjective] + noun head, inside the phrase.
+      const det = starter.det || '';
+      const pre = starter.noun.indexOf(starter.nounHead) > 0
+        ? starter.noun.slice(0, starter.noun.indexOf(starter.nounHead)).trim()
+        : '';
+      if (pre) { np.push({ type: 'simple', text: pre }); np.push({ type: 'simple', text: ' ' }); }
+      if (beforeNoun.length) {
+        beforeNoun.forEach(a => { np.push({ type: a.type, text: a.text }); np.push({ type: 'simple', text: ' ' }); });
+      }
+      np.push({ type: 'simple', text: starter.nounHead });
+    } else {
+      // French / Spanish: noun then post-nominal adjective; a "before-noun" item
+      // (e.g. "nouvelle") sits between the article and the noun: "une nouvelle maison".
+      if (beforeNoun.length) {
+        const words = starter.noun.split(' ');
+        const articles = new Set(['une', 'un', 'la', 'le', 'au', 'aux', 'dans', 'des', 'ses', 'mes', 'una', 'un', 'el', 'al', 'sus', 'mi', 'en', 'los', 'las']);
+        // peel off leading function words (article / preposition) so the adjective sits before the noun head
+        let lead = [];
+        while (words.length > 1 && articles.has(words[0].toLowerCase())) lead.push(words.shift());
+        if (lead.length) { np.push({ type: 'simple', text: lead.join(' ') }); np.push({ type: 'simple', text: ' ' }); }
+        beforeNoun.forEach(a => { np.push({ type: a.type, text: a.text }); np.push({ type: 'simple', text: ' ' }); });
+        np.push({ type: 'simple', text: words.join(' ') });
+      } else {
+        np.push({ type: 'simple', text: starter.noun });
+      }
+      if (afterNoun.length) {
+        np.push({ type: 'simple', text: ' ' });
+        afterNoun.forEach((a, i) => {
+          if (i > 0) np.push({ type: 'simple', text: ' ' });
+          if (beforeAdj.length && i === 0) beforeAdj.forEach(b => { np.push({ type: b.type, text: b.text }); np.push({ type: 'simple', text: ' ' }); });
+          np.push({ type: a.type, text: a.text });
+        });
+      }
+    }
+    return np;
+  }
+
+  // Opener shape governs what happens to the main clause that follows.
+  const openerText = prepends.length ? prepends[prepends.length - 1].text : '';
+  const openerEndsComma = /,\s*$/.test(openerText);          // "À mon avis,", "En mi opinión,"
+  const openerEndsQue = /\bque\s*$/i.test(openerText);        // "Je pense que", "Yo creo que"
+  // In French/Spanish a subject pronoun after a comma-opener or "que" is lowercased.
+  function maybeLowerSubject(s) {
+    if ((lang === 'french' || lang === 'spanish') && (openerEndsComma || openerEndsQue)) {
+      return s.charAt(0).toLowerCase() + s.slice(1);
+    }
+    return s;
+  }
+  // German verb-second: a fronted adverbial opener ("Meiner Meinung nach") inverts
+  // subject and verb in the main clause that follows.
+  const germanInvert = lang === 'german' && prepends.length > 0 && !dassMode;
+
+  if (lang === 'german' && germanInvert) {
+    // "Meiner Meinung nach esse ich eine Pizza" (verb before subject)
+    const subjPronouns = new Set(['Ich', 'Wir', 'Er', 'Sie', 'Es', 'Du']);
+    // lowercase a leading pronoun or possessive determiner mid-sentence; keep noun capitals
+    const subjDeterminers = new Set(['Meine', 'Meiner', 'Deine', 'Seine', 'Ihre', 'Unsere']);
+    let subj = starter.subject;
+    if (subjPronouns.has(subj)) subj = subj.toLowerCase();
+    else { const w = subj.split(' '); if (subjDeterminers.has(w[0])) { w[0] = w[0].toLowerCase(); subj = w.join(' '); } }
+    push('simple', starter.verb);
+    space();
+    beforeVerb.forEach(a => { push(a.type, a.text); space(); });
+    push('simple', subj);
+    if (afterVerb.length) { space(); afterVerb.forEach((a, i) => { if (i > 0) space(); push(a.type, a.text); }); }
+    space();
+    nounPhraseParts().forEach(p => parts.push(p));
+  } else if (lang === 'german' && dassMode) {
+    // Verb-final order after "..., dass": subject [adverbs] noun-phrase verbFinal.
+    // Lowercase a leading pronoun or possessive determiner; keep noun capitals.
+    const subjPronouns = new Set(['Ich', 'Wir', 'Er', 'Sie', 'Es', 'Du']);
+    const subjDeterminers = new Set(['Meine', 'Meiner', 'Deine', 'Seine', 'Ihre', 'Unsere']);
+    let subj = starter.subject;
+    if (subjPronouns.has(subj)) subj = subj.toLowerCase();
+    else { const w = subj.split(' '); if (subjDeterminers.has(w[0])) { w[0] = w[0].toLowerCase(); subj = w.join(' '); } }
+    push('simple', subj); space();
+    // adverbs sit before the object in a subordinate clause
+    beforeVerb.forEach(a => { push(a.type, a.text); space(); });
+    afterVerb.forEach(a => { push(a.type, a.text); space(); });
+    // a separable-verb starter (sieht fern) recombines into verbFinal, so no object slot
+    if (!starter.separable) {
+      nounPhraseParts().forEach(p => parts.push(p));
+      space();
+    }
+    push('simple', starter.verbFinal);
+  } else {
+    // Standard order: subject [before-verb adv] verb [after-verb adv] noun-phrase
+    push('simple', maybeLowerSubject(starter.subject));
+    space();
+    beforeVerb.forEach(a => { push(a.type, a.text); space(); });
+    push('simple', starter.verb);
+    if (afterVerb.length) { space(); afterVerb.forEach((a, i) => { if (i > 0) space(); push(a.type, a.text); }); }
+    space();
+    nounPhraseParts().forEach(p => parts.push(p));
+  }
+
+  // ---- Relative clause attaches to the noun phrase ----
+  if (relatives.length) {
+    space();
+    relatives.forEach(r => push(r.type, r.text));
+  }
+
+  // ---- Inline drop zones for still-missing main-clause features ----
   const mainDrops = [];
-  if (!usedTypes.has('adjective')) mainDrops.push({ zoneId: 'adj', label: '+ adj' });
+  if (!usedTypes.has('adjective')) mainDrops.push({ zoneId: 'adj', label: '+ adjective' });
   if (!usedTypes.has('adverb')) mainDrops.push({ zoneId: 'adv', label: '+ adverb' });
   if (!usedTypes.has('relative')) mainDrops.push({ zoneId: 'rel', label: '+ relative' });
-
   mainDrops.forEach(d => {
-    parts.push({ type: 'simple', text: ' ' });
+    space();
     parts.push({ type: 'drop', zoneId: d.zoneId, label: d.label });
   });
 
-  // Connective + extension
+  // ---- Connective + extension ----
   if (extensions.length) {
-    parts.push({ type: 'simple', text: ' ' });
-    extensions.forEach(a => {
-      parts.push({ type: a.type, text: a.text });
-      parts.push({ type: 'simple', text: ' ...' });
-    });
+    space();
+    extensions.forEach(a => { push(a.type, a.text); push('simple', ' …'); });
   } else {
-    parts.push({ type: 'simple', text: ' ' });
+    space();
     parts.push({ type: 'drop', zoneId: 'conn', label: '+ connective' });
   }
 
-  // Subordinate clauses
+  // ---- Subordinate clause ----
   if (clauseEnd.length) {
-    parts.push({ type: 'simple', text: ' ' });
-    clauseEnd.forEach(c => parts.push({ type: c.type, text: c.text }));
+    space();
+    clauseEnd.forEach(c => push(c.type, c.text));
   } else {
-    parts.push({ type: 'simple', text: ' ' });
+    space();
     parts.push({ type: 'drop', zoneId: 'sub', label: '+ clause' });
   }
 
-  parts.push({ type: 'simple', text: '.' });
+  push('simple', '.');
   return parts;
 }
 
 function buildTranslationParts(starter) {
   const applied = [...appliedAdditions];
-  const prepends = applied.filter(a => a.insert === 'prepend');
-  const others = applied.filter(a => a.insert !== 'prepend');
+  const prepends = applied.filter(a => a.insert === 'prepend' || a.insert === 'prepend-dass');
+  const others = applied.filter(a => a.insert !== 'prepend' && a.insert !== 'prepend-dass');
 
   let trans = '';
   if (prepends.length) trans += prepends.map(p => p.translation).join(' ') + ' ';
@@ -1219,6 +1419,143 @@ function renderLadder() {
   }
 
   svg.innerHTML = content;
+}
+
+/* ======= SPEECH (browser SpeechSynthesis, no audio files) ======= */
+function currentSentenceText() {
+  if (currentStarter === null) return '';
+  const starter = LANGS[currentLang].starters[currentStarter];
+  const parts = buildSentenceParts(starter);
+  let txt = '';
+  parts.forEach(p => {
+    if (p.type === 'drop') return;           // skip empty placeholders
+    if (p.text == null) return;
+    txt += p.text;
+  });
+  // tidy whitespace and the elided French apostrophe spacing
+  return txt.replace(/\s+/g, ' ').replace(/\s+\./g, '.').replace(/’\s+/g, '’').trim();
+}
+
+function updateListenBtn() {
+  const btn = document.getElementById('listenBtn');
+  if (!btn) return;
+  const ok = currentStarter !== null && 'speechSynthesis' in window;
+  btn.disabled = !ok;
+}
+
+function speakSentence() {
+  if (!('speechSynthesis' in window)) return;
+  const text = currentSentenceText();
+  if (!text) return;
+  const btn = document.getElementById('listenBtn');
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = LANGS[currentLang].bcp47 || 'en-GB';
+  u.rate = 0.9;
+  // pick the best available voice (Google UK English neural first, then matching Google/network voice)
+  if (window.westTTS) {
+    const best = window.westTTS.pick(u.lang || 'en-GB');
+    if (best) u.voice = best;
+  }
+  if (btn) { btn.classList.add('speaking'); btn.innerHTML = '&#9632; Playing'; }
+  u.onend = u.onerror = () => { if (btn) { btn.classList.remove('speaking'); btn.innerHTML = '&#9658; Listen'; } };
+  window.speechSynthesis.speak(u);
+}
+
+/* ======= ACCURACY QUIZ (real manipulation + specific feedback) ======= */
+const QUIZ = {
+  french: [
+    { good: 'Ma sœur regarde la télévision intéressante.', bad: 'Ma sœur regarde la télévision interessant.',
+      fb: 'In French the adjective follows the noun AND agrees with it. "Télévision" is feminine, so "intéressante" (with the accents). "interessant" is masculine and drops the é.' },
+    { good: 'À mon avis, je joue souvent au football.', bad: 'A mon avis, je joue souvant au football.',
+      fb: '"À" needs its grave accent, and "often" is "souvent", not "souvant". Accents and spelling are assessed at GCSE.' },
+    { good: 'J’habite dans une grande maison.', bad: 'J’habite dans une maison grande.',
+      fb: 'A small group of common adjectives (grand, petit, nouveau, beau) go BEFORE the noun: "une grande maison".' }
+  ],
+  german: [
+    { good: 'Ich denke, dass ich oft Fußball spiele.', bad: 'Ich denke, dass ich oft Fußball spiele spiele.',
+      fb: 'After "dass" the verb goes to the END of the clause: "...dass ich oft Fußball spiele." The verb appears once, at the end.' },
+    { good: 'Ich esse eine leckere Pizza.', bad: 'Ich esse eine Pizza leckere.',
+      fb: 'German attributive adjectives go BEFORE the noun and take an ending: "eine leckere Pizza", never after it.' },
+    { good: 'Es macht Spaß, weil das Wetter schön ist.', bad: 'Es macht Spass, weil das Wetter schon ist.',
+      fb: '"Spaß" uses ß, and "schön" (beautiful) needs its umlaut. "schon" without the umlaut means "already" and changes the meaning.' }
+  ],
+  spanish: [
+    { good: 'Mi hermana ve la televisión, que me encanta.', bad: 'Mi hermana ve la television, que me encanta.',
+      fb: '"Televisión" carries an accent on the final ó. Missing accents are spelling errors at GCSE.' },
+    { good: 'Yo juego al fútbol pequeño.', bad: 'Yo juego al fútbol pequena.',
+      fb: '"Fútbol" is masculine, so the adjective is "pequeño" (masculine), and "fútbol" needs its accent. "pequeña" is the feminine form.' },
+    { good: 'En mi opinión, como una pizza deliciosa.', bad: 'En mi opinion, como una pizza delicioso.',
+      fb: '"Opinión" needs its accent, and "pizza" is feminine so the adjective agrees: "deliciosa", not "delicioso".' }
+  ]
+};
+let quizIndex = 0;
+let quizCorrect = 0;
+let quizAnswered = 0;
+let quizLockedLang = null;
+
+function loadQuiz() {
+  if (quizLockedLang !== currentLang) {
+    quizLockedLang = currentLang;
+    quizIndex = 0; quizCorrect = 0; quizAnswered = 0;
+  }
+  renderQuizItem();
+  updateQuizScore();
+}
+
+function renderQuizItem() {
+  const pool = QUIZ[currentLang];
+  const item = pool[quizIndex % pool.length];
+  const qEl = document.getElementById('quizQuestion');
+  const optsEl = document.getElementById('quizOptions');
+  const fbEl = document.getElementById('quizFeedback');
+  const nextEl = document.getElementById('quizNext');
+  qEl.textContent = 'Which sentence is accurate?';
+  fbEl.className = 'quiz-feedback'; fbEl.textContent = '';
+  nextEl.hidden = true;
+
+  // randomise order
+  const options = Math.random() < 0.5 ? [item.good, item.bad] : [item.bad, item.good];
+  optsEl.innerHTML = '';
+  options.forEach(text => {
+    const btn = document.createElement('button');
+    btn.className = 'quiz-option';
+    btn.type = 'button';
+    btn.textContent = text;
+    btn.onclick = () => answerQuiz(btn, text === item.good, item, optsEl);
+    optsEl.appendChild(btn);
+  });
+}
+
+function answerQuiz(btn, isCorrect, item, optsEl) {
+  const buttons = optsEl.querySelectorAll('.quiz-option');
+  buttons.forEach(b => {
+    b.disabled = true;
+    if (b.textContent === item.good) b.classList.add('correct');
+    else b.classList.add('wrong');
+  });
+  const fbEl = document.getElementById('quizFeedback');
+  quizAnswered++;
+  if (isCorrect) {
+    quizCorrect++;
+    fbEl.className = 'quiz-feedback show ok';
+    fbEl.innerHTML = '<strong>Correct.</strong> ' + item.fb;
+  } else {
+    fbEl.className = 'quiz-feedback show no';
+    fbEl.innerHTML = '<strong>Not quite.</strong> ' + item.fb;
+  }
+  updateQuizScore();
+  document.getElementById('quizNext').hidden = false;
+}
+
+function nextQuizItem() {
+  quizIndex++;
+  renderQuizItem();
+}
+
+function updateQuizScore() {
+  const el = document.getElementById('quizScore');
+  if (el) el.textContent = quizCorrect + ' / ' + quizAnswered;
 }
 
 /* ======= MODAL ======= */

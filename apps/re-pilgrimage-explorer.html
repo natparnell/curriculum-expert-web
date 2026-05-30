@@ -88,7 +88,25 @@ main { max-width: 1400px; margin: 0 auto; padding: 16px; }
   background: var(--bg-secondary); border-radius: var(--border-radius); overflow: hidden;
   box-shadow: var(--shadow); position: relative;
 }
-canvas#mapCanvas { width: 100%; display: block; cursor: pointer; }
+canvas#mapCanvas { width: 100%; display: block; cursor: pointer; touch-action: none; }
+canvas#mapCanvas:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
+/* Visually hidden, keyboard/screen-reader accessible site list */
+.sr-only {
+  position: absolute !important; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+.map-sr-list:focus-within {
+  position: static !important; width: auto; height: auto;
+  clip: auto; margin: 0; padding: 10px 0; white-space: normal;
+}
+.map-sr-list button {
+  display: inline-block; margin: 4px; padding: 6px 12px;
+  border-radius: 14px; border: 1px solid var(--accent-gold-dim);
+  background: var(--bg-card); color: var(--text-primary);
+  font-size: 0.78rem; cursor: pointer;
+}
+.map-sr-list button:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
 .map-tooltip {
   position: absolute; display: none; padding: 8px 14px; border-radius: 8px;
   background: var(--bg-card); border: 1px solid var(--accent-gold-dim);
@@ -373,10 +391,12 @@ canvas#mapCanvas { width: 100%; display: block; cursor: pointer; }
     </div>
     <div class="map-area">
       <div class="map-wrapper">
-        <canvas id="mapCanvas"></canvas>
+        <canvas id="mapCanvas" role="img" tabindex="0" aria-label="World map showing pilgrimage sites as glowing dots, coloured by religion. Use the list of sites below to open details with a keyboard."></canvas>
         <div class="map-tooltip" id="mapTooltip"></div>
       </div>
     </div>
+    <div id="mapStatus" class="sr-only" role="status" aria-live="polite"></div>
+    <div class="map-sr-list sr-only" id="mapSrList" aria-label="Pilgrimage sites list. Select a site to view its details."></div>
   </div>
 
   <!-- Compare View -->
@@ -675,6 +695,7 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
       if (activeFilters.has(r)) { activeFilters.delete(r); btn.classList.remove('active'); }
       else { activeFilters.add(r); btn.classList.add('active'); }
       drawMap();
+      buildSrList();
     });
     bar.appendChild(btn);
   });
@@ -855,6 +876,37 @@ canvas.addEventListener('click', e => {
 
 canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
 
+/* Pointer Events: make the same hover/select interactions work by touch and pen.
+   Added alongside the mouse handlers so mouse continues to work unchanged. */
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerType === 'mouse') return; // mouse handled by mousemove above
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const site = getSiteAt(mx, my);
+  if (site) {
+    tooltip.style.display = 'block';
+    tooltip.textContent = site.name + ' (' + site.religion + ')';
+    let tx = mx + 16, ty = my - 10;
+    if (tx + 220 > W) tx = mx - 220;
+    if (ty < 0) ty = my + 20;
+    tooltip.style.left = tx + 'px';
+    tooltip.style.top = ty + 'px';
+  } else {
+    tooltip.style.display = 'none';
+  }
+});
+
+canvas.addEventListener('pointerup', e => {
+  if (e.pointerType === 'mouse') return; // mouse handled by click above
+  const rect = canvas.getBoundingClientRect();
+  const site = getSiteAt(e.clientX - rect.left, e.clientY - rect.top);
+  if (site) openDetail(site);
+});
+
+canvas.addEventListener('pointercancel', () => { tooltip.style.display = 'none'; });
+canvas.addEventListener('pointerleave', e => { if (e.pointerType !== 'mouse') tooltip.style.display = 'none'; });
+
 /* Detail Panel */
 function openDetail(site) {
   const color = getColor(site.religion);
@@ -882,6 +934,31 @@ function openDetail(site) {
   `;
   panel.style.borderLeftColor = color;
   document.getElementById('detailOverlay').classList.add('open');
+  const status = document.getElementById('mapStatus');
+  if (status) status.textContent = 'Showing details for ' + site.name + ', ' + site.religion + '. ' + site.location + '.';
+}
+
+/* Keyboard-accessible path: a focusable list of the currently visible sites.
+   Selecting one opens the same detail panel a mouse/touch user would get. */
+function buildSrList() {
+  const list = document.getElementById('mapSrList');
+  if (!list) return;
+  list.innerHTML = '';
+  const visible = SITES.filter(s => activeFilters.has(s.religion));
+  if (!visible.length) {
+    const note = document.createElement('p');
+    note.className = 'detail-meta-item';
+    note.textContent = 'No pilgrimage sites match the current filters.';
+    list.appendChild(note);
+    return;
+  }
+  visible.forEach(site => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = site.name + ' (' + site.religion + ')';
+    b.addEventListener('click', () => openDetail(site));
+    list.appendChild(b);
+  });
 }
 
 function closeDetail() {
@@ -959,6 +1036,7 @@ function init() {
   drawMap();
   initCompare();
   initMotivations();
+  buildSrList();
 }
 
 window.addEventListener('resize', () => { resizeCanvas(); });

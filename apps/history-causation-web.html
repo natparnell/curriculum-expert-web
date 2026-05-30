@@ -62,7 +62,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--gold)}
 .tag-Religious{background:var(--religious);color:#fff}
 
 /* CANVAS AREA */
-#canvasWrap{flex:1;position:relative;overflow:hidden;background:var(--navy)}
+#canvasWrap{flex:1;position:relative;overflow:hidden;background:var(--navy);touch-action:none}
 #bgCanvas{position:absolute;top:0;left:0;width:100%;height:100%}
 svg#mainSvg{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
 #nodeLayer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none}
@@ -74,7 +74,7 @@ svg#mainSvg{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
   border:2px solid var(--gold-dim);border-radius:var(--radius);
   padding:12px 14px;min-width:160px;max-width:240px;
   box-shadow:var(--shadow);transition:box-shadow .2s,border-color .2s;
-  user-select:none;
+  user-select:none;touch-action:none;
 }
 .web-node:hover{box-shadow:0 6px 30px rgba(212,168,67,.25);border-color:var(--gold)}
 .web-node.selected{border-color:var(--gold-light);box-shadow:0 0 20px rgba(212,168,67,.4)}
@@ -382,7 +382,7 @@ svg#mainSvg{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
 
   <!-- CANVAS -->
   <div id="canvasWrap" oncontextmenu="return false">
-    <canvas id="bgCanvas"></canvas>
+    <canvas id="bgCanvas" aria-hidden="true"></canvas>
     <svg id="mainSvg">
       <defs>
         <marker id="arrowHead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" fill="var(--gold)">
@@ -418,8 +418,8 @@ svg#mainSvg{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
         <h4>Connection Analysis</h4>
         <div id="analysisStats"></div>
         <h4 style="margin-top:18px">Category Breakdown</h4>
-        <div id="pieWrap"><canvas id="pieCanvas" width="180" height="180"></canvas></div>
-        <div id="pieLegend"></div>
+        <div id="pieWrap"><canvas id="pieCanvas" width="180" height="180" role="img" aria-label="Pie chart showing the breakdown of factor cards by category. The same figures are listed in text below the chart."></canvas></div>
+        <div id="pieLegend" aria-live="polite"></div>
         <h4 style="margin-top:18px">Strongest Path</h4>
         <div id="pathInfo" style="font-size:.75rem;color:var(--muted)">Click "Show Strongest Path" in the toolbar to highlight the most significant chain of causation.</div>
       </div>
@@ -632,8 +632,9 @@ function renderNode(node) {
   updateNodeHTML(el, node);
   updateNodeTransform(el, node);
   document.getElementById("nodeLayer").appendChild(el);
-  // Events
-  el.addEventListener("mousedown", e => {
+  // Events: pointerdown covers mouse, touch and pen so the same drag
+  // interaction works on tablets and interactive whiteboards.
+  el.addEventListener("pointerdown", e => {
     if (e.target.classList.contains("wn-star") || e.target.classList.contains("wn-delete")) return;
     if (connectionMode) {
       e.stopPropagation();
@@ -647,6 +648,10 @@ function renderNode(node) {
     dragOffsetY = e.clientY - rect.top;
     el.style.cursor = "grabbing";
     el.style.zIndex = 100;
+    // Capture so move/up keep firing on this element during a touch drag.
+    if (el.setPointerCapture && e.pointerId !== undefined) {
+      try { el.setPointerCapture(e.pointerId); } catch (ex) {}
+    }
   });
 }
 
@@ -721,8 +726,8 @@ function setupCanvasEvents() {
     } catch(ex) {}
   });
 
-  // Pan
-  wrap.addEventListener("mousedown", e => {
+  // Pan (pointerdown handles mouse, touch and pen)
+  wrap.addEventListener("pointerdown", e => {
     if (e.target.closest(".web-node") || e.target.closest(".arrow-label") || e.target.closest(".zoom-btn")) return;
     if (connectionMode && !e.target.closest(".web-node")) {
       // cancel connection
@@ -736,7 +741,7 @@ function setupCanvasEvents() {
     wrap.style.cursor = "grabbing";
   });
 
-  window.addEventListener("mousemove", e => {
+  window.addEventListener("pointermove", e => {
     if (dragNode) {
       const rect = wrap.getBoundingClientRect();
       const mx = e.clientX - rect.left;
@@ -755,7 +760,7 @@ function setupCanvasEvents() {
     }
   });
 
-  window.addEventListener("mouseup", () => {
+  function endPointerInteraction() {
     if (dragNode) {
       const el = document.getElementById("node-" + dragNode.id);
       if (el) { el.style.cursor = "grab"; el.style.zIndex = ""; }
@@ -765,7 +770,11 @@ function setupCanvasEvents() {
       isPanning = false;
       wrap.style.cursor = "";
     }
-  });
+  }
+  window.addEventListener("pointerup", endPointerInteraction);
+  // pointercancel fires if the browser takes over the gesture (e.g. a
+  // touch is interrupted); reset state so nothing stays stuck mid-drag.
+  window.addEventListener("pointercancel", endPointerInteraction);
 
   // Zoom
   wrap.addEventListener("wheel", e => {

@@ -92,6 +92,34 @@ select:focus{outline:none;border-color:var(--teal-accent)}
 .cloud-card h5{font-size:0.76rem;font-weight:700;margin-bottom:3px;color:var(--text-primary)}
 .cloud-card p{font-size:0.72rem;color:var(--text-secondary);line-height:1.45}
 
+/* Drag hint pill */
+.drag-pill{display:inline-flex;align-items:center;gap:5px;font-size:0.72rem;font-weight:600;color:var(--teal-dark);background:#e6fffa;border:1px solid var(--teal-light);border-radius:20px;padding:3px 10px}
+.drag-pill .grip{font-size:0.85rem}
+#weatherCanvas.grabbable{cursor:grab}
+#weatherCanvas.grabbing{cursor:grabbing}
+
+/* Challenge / quiz card */
+.quiz-card{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.quiz-card h3{font-size:0.85rem;padding:10px 14px;color:#fff;background:linear-gradient(90deg,var(--teal-dark),var(--teal-accent));font-weight:700;letter-spacing:0.3px}
+.quiz-body{padding:12px 14px}
+.quiz-q{font-size:0.82rem;font-weight:600;color:var(--text-primary);margin-bottom:8px;line-height:1.45}
+.quiz-q .qnum{display:inline-block;background:var(--teal-light);color:var(--teal-dark);border-radius:5px;padding:1px 7px;font-size:0.7rem;font-weight:700;margin-right:6px}
+.quiz-opts{display:flex;flex-direction:column;gap:7px}
+.quiz-opt{text-align:left;background:var(--panel-bg);border:2px solid var(--border-light);border-radius:8px;padding:8px 11px;font-size:0.78rem;color:var(--text-primary);cursor:pointer;font-family:inherit;line-height:1.4;transition:border-color 0.15s,background 0.15s}
+.quiz-opt:hover:not(:disabled){border-color:var(--teal-accent)}
+.quiz-opt:disabled{cursor:default}
+.quiz-opt.correct{border-color:#2f855a;background:#f0fff4;color:#22543d;font-weight:600}
+.quiz-opt.wrong{border-color:#c53030;background:#fff5f5;color:#742a2a}
+.quiz-feedback{margin-top:10px;font-size:0.76rem;line-height:1.5;padding:9px 11px;border-radius:8px;display:none}
+.quiz-feedback.show{display:block}
+.quiz-feedback.ok{background:#f0fff4;border:1px solid #9ae6b4;color:#22543d}
+.quiz-feedback.no{background:#fff5f5;border:1px solid #feb2b2;color:#742a2a}
+.quiz-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px}
+.quiz-score{font-size:0.74rem;color:var(--text-muted);font-weight:600}
+.quiz-next{background:var(--teal-dark);color:#e6fffa;border:none;padding:6px 14px;border-radius:7px;font-size:0.76rem;font-weight:600;cursor:pointer;font-family:inherit}
+.quiz-next:hover{background:var(--teal-accent)}
+.quiz-next:disabled{opacity:0.4;cursor:default}
+
 /* Status bar */
 .status-bar{background:var(--teal-dark);color:#e6fffa;padding:6px 16px;font-size:0.72rem;display:flex;justify-content:space-between;align-items:center;border-radius:0 0 var(--radius) var(--radius)}
 
@@ -110,6 +138,47 @@ select:focus{outline:none;border-color:var(--teal-accent)}
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -303,6 +372,10 @@ select:focus{outline:none;border-color:var(--teal-accent)}
       <label>Stage</label>
       <span id="stageLabel" style="font-size:0.82rem;font-weight:600;color:var(--teal-dark)">Initial</span>
     </div>
+    <div class="separator"></div>
+    <div class="control-group">
+      <span class="drag-pill"><span class="grip" aria-hidden="true">&#9776;</span>Drag the front, or use Play</span>
+    </div>
   </div>
 
   <!-- Main grid -->
@@ -312,10 +385,10 @@ select:focus{outline:none;border-color:var(--teal-accent)}
       <div class="canvas-card">
         <div class="canvas-header">
           <h2>Atmospheric Cross-Section</h2>
-          <span style="font-size:0.72rem;color:var(--sky-light);opacity:0.7">Altitude: 0 &ndash; 12 km</span>
+          <span style="font-size:0.72rem;color:var(--sky-light);opacity:0.7">Drag the front handle &bull; Altitude 0 &ndash; 12 km</span>
         </div>
         <div class="canvas-wrap">
-          <canvas id="weatherCanvas" width="900" height="420"></canvas>
+          <canvas id="weatherCanvas" class="grabbable" width="900" height="420" tabindex="0" role="application" aria-label="Atmospheric cross-section showing the selected weather front. Drag the round front handle, or use the left and right arrow keys to move the front and the up and down arrow keys to make its slope steeper or shallower. Temperature, pressure, cloud and rainfall readings respond live and are announced in the status bar below."></canvas>
           <div class="readouts" id="readouts"></div>
         </div>
         <div class="canvas-legend">
@@ -325,7 +398,7 @@ select:focus{outline:none;border-color:var(--teal-accent)}
           <div class="legend-item"><div class="legend-dot" style="background:#3182ce"></div>Precipitation</div>
           <div class="legend-item"><div class="legend-dot" style="background:#38a169"></div>Isobars</div>
         </div>
-        <div class="status-bar">
+        <div class="status-bar" role="status" aria-live="polite" aria-atomic="true">
           <span id="statusText">Select a front type and press Play to begin the simulation.</span>
           <span id="timeLabel">t = 0 hrs</span>
         </div>
@@ -337,13 +410,26 @@ select:focus{outline:none;border-color:var(--teal-accent)}
           <h2>Synoptic Chart View (Plan View)</h2>
         </div>
         <div class="synoptic-wrap">
-          <canvas id="synopticCanvas" width="900" height="200"></canvas>
+          <canvas id="synopticCanvas" width="900" height="200" role="img" aria-label="Synoptic plan-view chart of the same weather system, showing the low-pressure centre, isobars, high pressure, wind arrows and the front lines for the selected front type. Its state matches the simulation announced in the status bar above."></canvas>
         </div>
       </div>
     </div>
 
     <!-- Info panel -->
     <div class="side-panel">
+      <div class="quiz-card">
+        <h3>Match the Cloud to the Stage</h3>
+        <div class="quiz-body">
+          <div class="quiz-q"><span class="qnum" id="quizNum">Q1</span><span id="quizText">Loading question...</span></div>
+          <div class="quiz-opts" id="quizOpts" role="group" aria-label="Answer options"></div>
+          <div class="quiz-feedback" id="quizFeedback" role="status" aria-live="polite"></div>
+          <div class="quiz-foot">
+            <span class="quiz-score" id="quizScore">Score: 0 / 0</span>
+            <button class="quiz-next" id="quizNext" type="button" disabled>Next &#8594;</button>
+          </div>
+        </div>
+      </div>
+
       <div class="info-card">
         <h3>Current Front</h3>
         <div class="info-section" id="frontInfo">
@@ -423,6 +509,13 @@ let lastTs = 0;
 let particles = [];
 let cloudPuffs = [];
 
+/* Manipulation state: students drag the front handle to control position
+   (horizontal -> simTime/progress) and slope (vertical -> slopeFactor). */
+let dragging = false;
+let slopeFactor = 1;       /* 0.6 = shallow, 1.6 = steep. Default 1. */
+let handleScreen = { x: 0, y: 0, r: 14 }; /* live handle hit-box in CSS px */
+let cloudsDirty = false;   /* regenerate clouds when slope changes */
+
 /* ── Canvas setup ─────────────────────────── */
 const cvs = document.getElementById('weatherCanvas');
 const ctx = cvs.getContext('2d');
@@ -459,6 +552,30 @@ function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
 
 /* Progress: 0 = start, 1 = fully developed */
 function progress(){ return clamp(simTime / 18, 0, 1); }
+
+/* Surface-front X for the current front at progress p (CSS px). This is the
+   point students grab. Drag maps the handle X back to a progress value. */
+function frontSurfaceX(p){
+  const w = W();
+  if(currentFront === 'warm')      return lerp(-w * 0.1, w * 0.35, p);
+  else if(currentFront === 'cold') return lerp(w * 1.1, w * 0.4, p);
+  else                             return lerp(w * 0.5, w * 0.42, p);
+}
+/* Invert: given a handle X in CSS px, return the progress (0..1) it implies.
+   Warm fronts advance left-to-right, cold fronts right-to-left. */
+function xToProgress(x){
+  const w = W();
+  let p;
+  if(currentFront === 'warm')      p = (x - (-w * 0.1)) / (w * 0.35 - (-w * 0.1));
+  else if(currentFront === 'cold') p = (x - (w * 1.1)) / (w * 0.4 - (w * 1.1));
+  else                             p = (x - (w * 0.5)) / (w * 0.42 - (w * 0.5));
+  return clamp(p, 0, 1);
+}
+/* The handle Y rides on the surface front, lifted a little so it sits clear
+   of the ground line. Vertical drag adjusts slopeFactor, not progress. */
+function frontHandleY(){
+  return H() * 0.82 - 10;
+}
 
 /* ── Front data ───────────────────────────── */
 const FRONTS = {
@@ -542,13 +659,27 @@ function updateReadouts(){
     humidity = lerp(60, 95, p);
   }
 
+  /* Steeper slope -> sharper pressure fall and more rainfall.
+     For the warm front a steep slope is unusual, so we note it. */
+  const slopePct = Math.round((slopeFactor - 1) * 100);
+  pressL -= (slopeFactor - 1) * 4;
+  const rainWords = ['light','moderate','heavy'];
+  let rainIdx = 0;
+  if(currentFront === 'warm') rainIdx = slopeFactor > 1.15 ? 1 : 0;
+  else rainIdx = slopeFactor > 1.25 ? 2 : slopeFactor > 0.9 ? 1 : 0;
+  if(progress() < 0.25) rainIdx = 0;
+  const rain = (progress() < 0.25) ? 'none yet' : rainWords[rainIdx];
+  const slopeWord = slopeFactor < 0.85 ? 'shallow' : slopeFactor > 1.25 ? 'steep' : 'moderate';
+
   const el = document.getElementById('readouts');
   el.innerHTML =
     '<div class="readout-box"><strong>Left Temp</strong>' + tempL.toFixed(1) + ' &deg;C</div>' +
     '<div class="readout-box"><strong>Right Temp</strong>' + tempR.toFixed(1) + ' &deg;C</div>' +
     '<div class="readout-box"><strong>Pressure (L)</strong>' + pressL.toFixed(0) + ' hPa</div>' +
     '<div class="readout-box"><strong>Pressure (R)</strong>' + pressR.toFixed(0) + ' hPa</div>' +
-    '<div class="readout-box"><strong>Humidity</strong>' + humidity.toFixed(0) + '%</div>';
+    '<div class="readout-box"><strong>Humidity</strong>' + humidity.toFixed(0) + '%</div>' +
+    '<div class="readout-box"><strong>Front Slope</strong>' + slopeWord + ' (&times;' + slopeFactor.toFixed(1) + ')</div>' +
+    '<div class="readout-box"><strong>Rainfall</strong>' + rain + '</div>';
 }
 
 function updateStatus(){
@@ -783,6 +914,47 @@ function drawCrossSection(){
 
   /* Labels */
   drawLabels(w, h, groundY, p);
+
+  /* Draggable front handle */
+  drawHandle(w, h, groundY, p);
+}
+
+function drawHandle(w, h, groundY, p){
+  const hx = clamp(frontSurfaceX(p), 14, w - 14);
+  const hy = frontHandleY();
+  handleScreen.x = hx;
+  handleScreen.y = hy;
+  const col = currentFront === 'warm' ? WARM_COL : currentFront === 'cold' ? COLD_COL : OCCL_COL;
+
+  /* Pulse ring to advertise that it is grabbable */
+  if(!dragging){
+    const pulse = 1 + 0.25 * Math.sin(simTime * 4 + lastTs * 0.001);
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(hx, hy, handleScreen.r * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  /* Knob */
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(hx, hy, handleScreen.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  /* Horizontal grip arrows inside knob */
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(hx - 9, hy); ctx.lineTo(hx - 4, hy - 4); ctx.lineTo(hx - 4, hy + 4);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(hx + 9, hy); ctx.lineTo(hx + 4, hy - 4); ctx.lineTo(hx + 4, hy + 4);
+  ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 1;
 }
 
 function drawAirMasses(w, h, groundY, p){
@@ -790,24 +962,30 @@ function drawAirMasses(w, h, groundY, p){
   ctx.globalAlpha = 0.18;
   if(currentFront === 'warm'){
     const warmX = lerp(-w * 0.1, w * 0.35, p);
+    /* slopeFactor steepens the wedge: a higher factor shortens the run,
+       so the warm air climbs more sharply over the cold air. */
+    const run = (w * 0.5) / slopeFactor;
+    const ctrl = groundY * lerp(0.3, 0.18, clamp((slopeFactor - 0.6) / 1.0, 0, 1));
     ctx.fillStyle = WARM_COL;
     ctx.beginPath();
     ctx.moveTo(warmX, groundY);
-    ctx.quadraticCurveTo(warmX + w * 0.15, groundY * 0.3, warmX + w * 0.5, groundY * 0.05);
-    ctx.lineTo(warmX + w * 0.5, groundY);
+    ctx.quadraticCurveTo(warmX + run * 0.3, ctrl, warmX + run, groundY * 0.05);
+    ctx.lineTo(warmX + run, groundY);
     ctx.closePath();
     ctx.fill();
 
     /* Cold air ahead */
     ctx.fillStyle = COLD_COL;
-    ctx.fillRect(warmX + w * 0.45, groundY * 0.4, w, groundY * 0.6);
+    ctx.fillRect(warmX + run * 0.9, groundY * 0.4, w, groundY * 0.6);
   } else if(currentFront === 'cold'){
     const coldX = lerp(w * 1.1, w * 0.4, p);
+    const run = (w * 0.3) / slopeFactor;
+    const ctrl = groundY * lerp(0.2, 0.1, clamp((slopeFactor - 0.6) / 1.0, 0, 1));
     ctx.fillStyle = COLD_COL;
     ctx.beginPath();
     ctx.moveTo(coldX, groundY);
-    ctx.quadraticCurveTo(coldX - w * 0.08, groundY * 0.15, coldX - w * 0.3, groundY * 0.05);
-    ctx.lineTo(coldX - w * 0.3, groundY);
+    ctx.quadraticCurveTo(coldX - run * 0.27, ctrl, coldX - run, groundY * 0.05);
+    ctx.lineTo(coldX - run, groundY);
     ctx.closePath();
     ctx.fill();
 
@@ -854,18 +1032,21 @@ function drawFrontBoundary(w, h, groundY, p){
 
   if(currentFront === 'warm'){
     const warmX = lerp(-w * 0.1, w * 0.35, p);
+    const run = (w * 0.5) / slopeFactor;
+    const ctrl = groundY * lerp(0.3, 0.18, clamp((slopeFactor - 0.6) / 1.0, 0, 1));
     ctx.strokeStyle = WARM_COL;
     ctx.beginPath();
     ctx.moveTo(warmX, groundY);
-    ctx.quadraticCurveTo(warmX + w * 0.15, groundY * 0.3, warmX + w * 0.5, groundY * 0.05);
+    ctx.quadraticCurveTo(warmX + run * 0.3, ctrl, warmX + run, groundY * 0.05);
     ctx.stroke();
 
-    /* Warm front semicircles */
+    /* Warm front semicircles, evaluated on the same quadratic */
     const steps = 8;
     for(let i = 1; i < steps; i++){
       const t = i / steps;
-      const bx = warmX + (warmX + w * 0.5 - warmX) * t;
-      const by = groundY + (groundY * 0.05 - groundY) * t + (1 - t) * t * (groundY * 0.3 - groundY) * 2;
+      const mt = 1 - t;
+      const bx = mt*mt*warmX + 2*mt*t*(warmX + run * 0.3) + t*t*(warmX + run);
+      const by = mt*mt*groundY + 2*mt*t*ctrl + t*t*(groundY * 0.05);
       ctx.fillStyle = WARM_COL;
       ctx.beginPath();
       ctx.arc(bx, by, 5, Math.PI, 0);
@@ -873,18 +1054,21 @@ function drawFrontBoundary(w, h, groundY, p){
     }
   } else if(currentFront === 'cold'){
     const coldX = lerp(w * 1.1, w * 0.4, p);
+    const run = (w * 0.3) / slopeFactor;
+    const ctrl = groundY * lerp(0.2, 0.1, clamp((slopeFactor - 0.6) / 1.0, 0, 1));
     ctx.strokeStyle = COLD_COL;
     ctx.beginPath();
     ctx.moveTo(coldX, groundY);
-    ctx.quadraticCurveTo(coldX - w * 0.08, groundY * 0.15, coldX - w * 0.3, groundY * 0.05);
+    ctx.quadraticCurveTo(coldX - run * 0.27, ctrl, coldX - run, groundY * 0.05);
     ctx.stroke();
 
-    /* Cold front triangles */
+    /* Cold front triangles, evaluated on the same quadratic */
     const steps = 7;
     for(let i = 1; i < steps; i++){
       const t = i / steps;
-      const bx = coldX + (coldX - w * 0.3 - coldX) * t;
-      const by = groundY + (groundY * 0.05 - groundY) * t + (1 - t) * t * (groundY * 0.15 - groundY) * 2;
+      const mt = 1 - t;
+      const bx = mt*mt*coldX + 2*mt*t*(coldX - run * 0.27) + t*t*(coldX - run);
+      const by = mt*mt*groundY + 2*mt*t*ctrl + t*t*(groundY * 0.05);
       ctx.fillStyle = COLD_COL;
       ctx.beginPath();
       ctx.moveTo(bx - 5, by); ctx.lineTo(bx, by - 8); ctx.lineTo(bx + 5, by);
@@ -1271,9 +1455,14 @@ window.togglePlay = togglePlay;
 function resetSim(){
   playing = false;
   simTime = 0;
+  slopeFactor = 1;
+  dragging = false;
+  cloudsDirty = false;
   particles = [];
   lastTs = 0;
   document.getElementById('btnPlay').innerHTML = '&#9654; Play';
+  cvs.classList.remove('grabbing');
+  cvs.classList.add('grabbable');
   generateClouds();
 }
 window.resetSim = resetSim;
@@ -1282,9 +1471,179 @@ document.getElementById('speedSlider').addEventListener('input', function(){
   speed = parseFloat(this.value);
 });
 
+/* ── Direct manipulation: drag the front handle ───── */
+function canvasPoint(e){
+  const rect = cvs.getBoundingClientRect();
+  return { x: (e.clientX - rect.left), y: (e.clientY - rect.top) };
+}
+
+function onPointerDown(e){
+  const pt = canvasPoint(e);
+  const dx = pt.x - handleScreen.x, dy = pt.y - handleScreen.y;
+  /* Generous hit-box so it is touch-friendly */
+  if(dx*dx + dy*dy <= (handleScreen.r + 16) * (handleScreen.r + 16)){
+    dragging = true;
+    playing = false;
+    document.getElementById('btnPlay').innerHTML = '&#9654; Play';
+    cvs.classList.add('grabbing');
+    cvs.classList.remove('grabbable');
+    cvs.focus();
+    try { cvs.setPointerCapture(e.pointerId); } catch(err){}
+    e.preventDefault();
+  }
+}
+
+function onPointerMove(e){
+  if(!dragging) return;
+  const pt = canvasPoint(e);
+  /* Horizontal -> front position (progress) */
+  simTime = xToProgress(pt.x) * 18;
+  /* Vertical -> slope steepness. Dragging up steepens the front. */
+  const groundY = H() * 0.82;
+  const norm = clamp((groundY - pt.y) / (groundY * 0.6), 0, 1);
+  slopeFactor = lerp(0.6, 1.6, norm);
+  cloudsDirty = true;
+  e.preventDefault();
+}
+
+function onPointerUp(e){
+  if(!dragging) return;
+  dragging = false;
+  cvs.classList.remove('grabbing');
+  cvs.classList.add('grabbable');
+  if(cloudsDirty){ generateClouds(); cloudsDirty = false; }
+  try { cvs.releasePointerCapture(e.pointerId); } catch(err){}
+}
+
+cvs.addEventListener('pointerdown', onPointerDown);
+cvs.addEventListener('pointermove', onPointerMove);
+cvs.addEventListener('pointerup', onPointerUp);
+cvs.addEventListener('pointercancel', onPointerUp);
+
+/* Keyboard control for accessibility */
+cvs.addEventListener('keydown', function(e){
+  let used = true;
+  if(e.key === 'ArrowLeft' || e.key === 'ArrowRight'){
+    playing = false;
+    document.getElementById('btnPlay').innerHTML = '&#9654; Play';
+    /* Move the handle visually left/right; convert to progress so warm and
+       cold fronts both respond intuitively to the on-screen direction. */
+    const step = (e.key === 'ArrowRight' ? 1 : -1) * (W() * 0.03);
+    const newX = clamp(frontSurfaceX(progress()) + step, 14, W() - 14);
+    simTime = xToProgress(newX) * 18;
+  } else if(e.key === 'ArrowUp' || e.key === 'ArrowDown'){
+    slopeFactor = clamp(slopeFactor + (e.key === 'ArrowUp' ? 0.1 : -0.1), 0.6, 1.6);
+    generateClouds();
+  } else {
+    used = false;
+  }
+  if(used) e.preventDefault();
+});
+
+/* ── Predict-then-check challenge ──────────── */
+const QUIZ = [
+  {
+    q: 'A thin veil of high, wispy cirrus cloud appears, the very first sign of an approaching front, often 1,000 km ahead. Which front is on its way?',
+    opts: ['Warm front','Cold front','Occluded front'],
+    answer: 0,
+    why: 'Correct. High cirrus thickening to cirrostratus, then altostratus, is the classic warning sequence ahead of a WARM front.',
+    whyWrong: 'Not quite. Cirrus appearing far ahead, then thickening gradually, is the warning sequence of a WARM front, not a cold or occluded one.'
+  },
+  {
+    q: 'Towering cumulonimbus clouds build rapidly and bring a short, violent burst of heavy rain, hail and thunder, then the sky clears. Which front just passed?',
+    opts: ['Warm front','Cold front','Occluded front'],
+    answer: 1,
+    why: 'Correct. The steep slope of a COLD front forces warm air up sharply, building cumulonimbus and brief, intense storms before rapid clearing.',
+    whyWrong: 'Not quite. Short, violent cumulonimbus storms followed by quick clearing are the signature of a COLD front, where warm air is lifted steeply.'
+  },
+  {
+    q: 'You drag the cold air mass so its slope becomes much STEEPER. What happens to the weather along the front?',
+    opts: ['Gentle, widespread, long-lasting drizzle','More vigorous uplift, so heavier but shorter rain','No change; slope does not affect the weather'],
+    answer: 1,
+    why: 'Correct. A steeper slope forces air up faster, giving stronger uplift, taller clouds and heavier but shorter-lived rain.',
+    whyWrong: 'Not quite. A steeper slope means more vigorous uplift, so the rain is heavier but shorter-lived. Shallow slopes give the gentle, widespread rain.'
+  },
+  {
+    q: 'A faster cold front catches up with a warm front and lifts the warm sector completely off the ground. What is this called?',
+    opts: ['A warm front','A stationary front','An occluded front'],
+    answer: 2,
+    why: 'Correct. When the cold front catches the warm front and lifts the warm air clear of the surface, the result is an OCCLUDED front.',
+    whyWrong: 'Not quite. When a cold front overtakes a warm front and lifts the warm air off the surface, the result is an OCCLUDED front.'
+  },
+  {
+    q: 'Thick, dark nimbostratus cloud sits overhead giving steady, continuous moderate rain for several hours. Which front is most likely overhead?',
+    opts: ['Warm front','Cold front','Anticyclone (high pressure)'],
+    answer: 0,
+    why: 'Correct. Nimbostratus with steady, prolonged rain is typical of a WARM front, where gentle uplift spreads cloud over a wide area.',
+    whyWrong: 'Not quite. Steady, long-lasting rain from nimbostratus is typical of a WARM front. Cold fronts give short bursts; high pressure brings settled, dry weather.'
+  }
+];
+let quizIdx = 0, quizDone = 0, quizRight = 0, quizAnswered = false;
+
+function speak(text){
+  try {
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-GB';
+    if(window.westTTS){ var __v = window.westTTS.pick(u.lang || 'en-GB'); if(__v) u.voice = __v; }
+    u.rate = 0.98;
+    window.speechSynthesis.speak(u);
+  } catch(e){}
+}
+
+function renderQuiz(){
+  const item = QUIZ[quizIdx];
+  quizAnswered = false;
+  document.getElementById('quizNum').textContent = 'Q' + (quizIdx + 1);
+  document.getElementById('quizText').textContent = item.q;
+  const fb = document.getElementById('quizFeedback');
+  fb.className = 'quiz-feedback';
+  fb.textContent = '';
+  document.getElementById('quizNext').disabled = true;
+  const opts = document.getElementById('quizOpts');
+  opts.innerHTML = '';
+  item.opts.forEach((label, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'quiz-opt';
+    b.textContent = label;
+    b.addEventListener('click', () => answerQuiz(i));
+    opts.appendChild(b);
+  });
+  document.getElementById('quizScore').textContent = 'Score: ' + quizRight + ' / ' + quizDone;
+}
+
+function answerQuiz(choice){
+  if(quizAnswered) return;
+  quizAnswered = true;
+  const item = QUIZ[quizIdx];
+  const correct = choice === item.answer;
+  quizDone++;
+  if(correct) quizRight++;
+  const btns = document.querySelectorAll('#quizOpts .quiz-opt');
+  btns.forEach((b, i) => {
+    b.disabled = true;
+    if(i === item.answer) b.classList.add('correct');
+    else if(i === choice) b.classList.add('wrong');
+  });
+  const fb = document.getElementById('quizFeedback');
+  fb.className = 'quiz-feedback show ' + (correct ? 'ok' : 'no');
+  fb.textContent = correct ? item.why : item.whyWrong;
+  speak(correct ? 'Correct. ' + item.why : 'Not quite. ' + item.whyWrong);
+  document.getElementById('quizScore').textContent = 'Score: ' + quizRight + ' / ' + quizDone;
+  document.getElementById('quizNext').disabled = false;
+}
+
+document.getElementById('quizNext').addEventListener('click', function(){
+  quizIdx = (quizIdx + 1) % QUIZ.length;
+  renderQuiz();
+});
+
 /* ── Initialise ───────────────────────────── */
 updateInfoPanel();
 generateClouds();
+renderQuiz();
 animFrame = requestAnimationFrame(loop);
 
 })();

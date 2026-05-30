@@ -52,6 +52,48 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .p-dot.active{background:var(--accent);transform:scale(1.3)}
 .p-dot.done{background:var(--success)}
 
+.read-btn{display:inline-flex;align-items:center;gap:6px;margin:0 auto 6px;padding:7px 14px;border:2px solid var(--border);border-radius:50px;background:var(--card);color:var(--text2);font-family:'Inter',sans-serif;font-size:.78rem;font-weight:800;cursor:pointer;transition:all .2s}
+.read-btn:hover{transform:scale(1.04);border-color:var(--accent)}
+.read-btn.speaking{background:var(--accent-bg);border-color:var(--accent)}
+.read-row{display:flex;justify-content:center;margin-bottom:6px}
+
+/* Sequencing + quiz tasks */
+.task-block{margin-top:14px;padding:14px;background:var(--accent-bg);border-radius:14px;border:2px solid var(--border)}
+.task-title{font-size:.92rem;font-weight:800;text-align:center;margin-bottom:4px}
+.task-sub{font-size:.74rem;color:var(--text2);text-align:center;font-weight:700;margin-bottom:10px}
+.seq-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.seq-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card);border:2px solid var(--border);border-radius:12px;font-size:.84rem;font-weight:600;cursor:grab;touch-action:none;transition:border-color .2s,box-shadow .2s,transform .12s}
+.seq-item:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(190,24,93,.2)}
+.seq-item.dragging{opacity:.5;cursor:grabbing}
+.seq-item.lifted{box-shadow:0 6px 18px rgba(131,24,67,.25);border-color:var(--accent)}
+.seq-item .seq-icon{font-size:1.4rem;flex-shrink:0}
+.seq-item .seq-grip{margin-left:auto;color:var(--text2);font-size:1.1rem;flex-shrink:0}
+.seq-item.correct{border-color:var(--success);background:#f0fdf4}
+.seq-item.wrong{border-color:#ef4444;background:#fef2f2}
+.task-btns{display:flex;gap:8px}
+.task-btn{flex:1;padding:9px;border:none;border-radius:50px;font-family:'Inter',sans-serif;font-size:.82rem;font-weight:800;cursor:pointer;transition:transform .15s}
+.task-btn:hover{transform:scale(1.03)}
+.task-btn.check{background:var(--accent);color:#fff}
+.task-btn.reset{background:var(--card);color:var(--text2);border:2px solid var(--border)}
+.task-feedback{margin-top:10px;padding:10px 12px;border-radius:10px;font-size:.82rem;font-weight:700;text-align:center;display:none}
+.task-feedback.show{display:block;animation:fadeIn .25s ease}
+.task-feedback.good{background:#dcfce7;color:#166534;border:2px solid var(--success)}
+.task-feedback.bad{background:#fee2e2;color:#991b1b;border:2px solid #ef4444}
+
+.quiz-q{margin-bottom:14px}
+.quiz-q:last-of-type{margin-bottom:0}
+.quiz-prompt{font-size:.86rem;font-weight:700;margin-bottom:8px}
+.quiz-opts{display:flex;flex-direction:column;gap:7px}
+.quiz-opt{text-align:left;padding:9px 12px;background:var(--card);border:2px solid var(--border);border-radius:10px;font-family:'Inter',sans-serif;font-size:.82rem;font-weight:600;color:var(--text);cursor:pointer;transition:all .18s}
+.quiz-opt:hover:not(:disabled){border-color:var(--accent);transform:scale(1.01)}
+.quiz-opt:disabled{cursor:default}
+.quiz-opt.correct{border-color:var(--success);background:#f0fdf4;color:#166534}
+.quiz-opt.wrong{border-color:#ef4444;background:#fef2f2;color:#991b1b}
+.quiz-note{margin-top:6px;font-size:.76rem;font-weight:700;display:none}
+.quiz-note.show{display:block;animation:fadeIn .25s ease}
+.quiz-note.good{color:#166534}
+.quiz-note.bad{color:#991b1b}
+
 @keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .celebration{position:fixed;inset:0;pointer-events:none;z-index:1000}
@@ -60,6 +102,47 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -241,7 +324,18 @@ pages:[
 {icon:'&#x1F54A;&#xFE0F;',text:'Noah sent out a dove. It came back with an olive branch, showing that the water was going down and dry land was near.'},
 {icon:'&#x1F308;',text:'When the flood ended, God put a rainbow in the sky as a promise that He would never flood the whole world again.'}
 ],
-lesson:'This story teaches that God rewards those who are good and keep faith, even when others do not. The rainbow is a sign of hope and promise.'},
+lesson:'This story teaches that God rewards those who are good and keep faith, even when others do not. The rainbow is a sign of hope and promise.',
+seq:[
+{icon:'&#x1F6A2;',text:'Noah builds the ark'},
+{icon:'&#x1F98E;',text:'The animals come, two by two'},
+{icon:'&#x1F327;&#xFE0F;',text:'It rains for 40 days and nights'},
+{icon:'&#x1F54A;&#xFE0F;',text:'The dove returns with an olive branch'},
+{icon:'&#x1F308;',text:'God sends a rainbow as a promise'}
+],
+quiz:[
+{q:'Why did Noah send out the dove?',opts:['To find food for the animals','To see if dry land was near','To carry a message to God'],ans:1,why:'The dove came back with an olive branch, which showed the water was going down.'},
+{q:'What did the rainbow stand for?',opts:['A promise never to flood the whole world again','A warning of more rain','A path to a new kingdom'],ans:0,why:'God set the rainbow in the sky as a promise of hope.'}
+]},
 {name:'The Good Samaritan',icon:'&#x1F91D;',religion:'Christianity',colour:'#7c3aed',
 pages:[
 {icon:'&#x1F6B6;',text:'A man was walking along a road when robbers attacked him. They took his money and left him hurt by the side of the road.'},
@@ -251,7 +345,18 @@ pages:[
 {icon:'&#x1F489;',text:'The Samaritan cleaned the man\'s wounds, put him on his donkey, and took him to an inn to rest and get better.'},
 {icon:'&#x1F4B0;',text:'He paid the innkeeper to look after the man and promised to come back and pay for anything else he needed.'}
 ],
-lesson:'Jesus told this story to teach that we should help everyone, even people who are different from us. Being a good neighbour means being kind to all.'},
+lesson:'Jesus told this story to teach that we should help everyone, even people who are different from us. Being a good neighbour means being kind to all.',
+seq:[
+{icon:'&#x1F6B6;',text:'Robbers hurt a man on the road'},
+{icon:'&#x1F6B7;',text:'A priest walks past without helping'},
+{icon:'&#x1F91D;',text:'A Samaritan stops to help'},
+{icon:'&#x1F489;',text:'He cleans the wounds and takes him to an inn'},
+{icon:'&#x1F4B0;',text:'He pays the innkeeper to care for the man'}
+],
+quiz:[
+{q:'Who stopped to help the hurt man?',opts:['The priest','The important man','The Samaritan'],ans:2,why:'The Samaritan helped, even though his people and the hurt man did not usually get along.'},
+{q:'What did the Samaritan do after cleaning the wounds?',opts:['He took the man to an inn to rest','He left the man by the road','He took the man home to his family'],ans:0,why:'He put the man on his donkey and took him to an inn, then paid for his care.'}
+]},
 {name:'The Prophet and the Cat',icon:'&#x1F431;',religion:'Islam',colour:'#059669',
 pages:[
 {icon:'&#x1F54C;',text:'The Prophet Muhammad (peace be upon him) was known for his kindness to all living things, including animals.'},
@@ -260,7 +365,17 @@ pages:[
 {icon:'&#x2702;&#xFE0F;',text:'Instead of disturbing Muezza, he carefully cut the sleeve off his robe so the cat could continue sleeping peacefully.'},
 {icon:'&#x1F60A;',text:'When he returned from prayers, Muezza woke up and bowed to the Prophet. He stroked the cat gently three times.'}
 ],
-lesson:'This story teaches that Islam values kindness and compassion to all creatures, no matter how small. Even a tiny act of kindness is important.'},
+lesson:'This story teaches that Islam values kindness and compassion to all creatures, no matter how small. Even a tiny act of kindness is important.',
+seq:[
+{icon:'&#x1F431;',text:'Muezza the cat falls asleep on the robe'},
+{icon:'&#x1F64F;',text:'It is time for the Prophet to go to prayers'},
+{icon:'&#x2702;&#xFE0F;',text:'He cuts the sleeve so the cat can sleep'},
+{icon:'&#x1F60A;',text:'He returns and strokes the cat gently'}
+],
+quiz:[
+{q:'Why did the Prophet (peace be upon him) cut his sleeve?',opts:['Because the sleeve was torn','So his sleeping cat would not be disturbed','To make his robe lighter'],ans:1,why:'He did not want to wake Muezza, so he cut the sleeve rather than disturb the cat.'},
+{q:'What does this story show us about kindness?',opts:['Kindness only matters to people','Even small acts of kindness to animals matter','Animals should not be kept as pets'],ans:1,why:'Islam values compassion to all creatures, no matter how small.'}
+]},
 {name:'Rama and Sita',icon:'&#x1FA94;',religion:'Hinduism',colour:'#f59e0b',
 pages:[
 {icon:'&#x1F451;',text:'Prince Rama and his wife Sita were sent away from their kingdom to live in the forest for 14 years.'},
@@ -270,17 +385,42 @@ pages:[
 {icon:'&#x2B50;',text:'Rama defeated Ravana and rescued Sita. They travelled home together after their long time away.'},
 {icon:'&#x1FA94;',text:'The people lit thousands of lamps (diyas) to guide Rama and Sita home. This is why we celebrate Diwali, the Festival of Lights!'}
 ],
-lesson:'This story teaches that good always wins over evil. Diwali celebrates the triumph of light over darkness and the importance of loyalty and courage.'}
+lesson:'This story teaches that good always wins over evil. Diwali celebrates the triumph of light over darkness and the importance of loyalty and courage.',
+seq:[
+{icon:'&#x1F451;',text:'Rama and Sita go to live in the forest'},
+{icon:'&#x1F479;',text:'Ravana kidnaps Sita and takes her to Lanka'},
+{icon:'&#x1F435;',text:'Hanuman flies across the sea to find Sita'},
+{icon:'&#x2B50;',text:'Rama defeats Ravana and rescues Sita'},
+{icon:'&#x1FA94;',text:'People light diyas to guide them home'}
+],
+quiz:[
+{q:'Who helped Rama by flying across the sea to find Sita?',opts:['Ravana','Hanuman','Sita'],ans:1,why:'Hanuman the monkey god flew across the sea and told Sita that Rama was coming.'},
+{q:'Why do people light lamps at Diwali?',opts:['To keep the demons away each year','To guide Rama and Sita home, celebrating light over darkness','To cook food for the festival'],ans:1,why:'The lamps (diyas) guided Rama and Sita home. Diwali celebrates light winning over darkness.'}
+]}
 ];
 
 let currentStory=0,currentPage=0,completed=new Set();
+// Per-story working state for the sequencing task and quiz
+const taskState=STORIES.map(s=>({order:null,seqSolved:false,quizAnswered:s.quiz.map(()=>null)}));
 const storyTabs=document.getElementById('storyTabs');
 const storyCard=document.getElementById('storyCard');
+
+function speak(text){
+  if(!('speechSynthesis'in window))return;
+  // strip HTML entities for spoken output
+  const tmp=document.createElement('div');tmp.innerHTML=text;
+  const u=new SpeechSynthesisUtterance(tmp.textContent||tmp.innerText||'');
+  u.lang='en-GB';u.rate=.92;u.pitch=1;
+  if(window.westTTS){var _v=window.westTTS.pick(u.lang||'en-GB');if(_v)u.voice=_v;}
+  speechSynthesis.cancel();speechSynthesis.speak(u);
+  return u;
+}
+function shuffle(a){const r=a.slice();for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]];}return r;}
 
 STORIES.forEach((s,i)=>{
 const tab=document.createElement('div');tab.className='story-tab';tab.dataset.idx=i;
 tab.innerHTML=`<span class="t-icon">${s.icon}</span><div><div class="t-name">${s.name}</div><div class="t-religion">${s.religion}</div></div>`;
-tab.addEventListener('click',()=>{currentStory=i;currentPage=0;renderStory();});
+tab.addEventListener('click',()=>{speechSynthesis.cancel&&speechSynthesis.cancel();currentStory=i;currentPage=0;renderStory();});
 storyTabs.appendChild(tab);
 });
 
@@ -291,26 +431,158 @@ storyCard.classList.remove('show');void storyCard.offsetWidth;storyCard.classLis
 
 let pagesHtml='';
 s.pages.forEach((p,i)=>{
-pagesHtml+=`<div class="page${i===currentPage?' active':''}" data-p="${i}"><span class="page-icon">${p.icon}</span><div class="page-text">${p.text}</div><div class="page-num">Page ${i+1} of ${s.pages.length}</div></div>`;
+pagesHtml+=`<div class="page${i===currentPage?' active':''}" data-p="${i}"><span class="page-icon">${p.icon}</span><div class="page-text">${p.text}</div><div class="read-row"><button class="read-btn" data-read="${i}">&#x1F50A; Read aloud</button></div><div class="page-num">Page ${i+1} of ${s.pages.length}</div></div>`;
 });
 
 const isLast=currentPage===s.pages.length-1;
-const showLesson=isLast;
 
 storyCard.innerHTML=`
 <div class="story-banner" style="background:linear-gradient(135deg,${s.colour},${s.colour}cc)"><span class="s-icon">${s.icon}</span><div><h2>${s.name}</h2><div class="s-religion">${s.religion}</div></div></div>
 <div class="story-pages">${pagesHtml}
 <div class="progress-dots">${s.pages.map((_,i)=>`<div class="p-dot${i===currentPage?' active':''}${i<currentPage?' done':''}"></div>`).join('')}</div>
-${showLesson?`<div class="lesson-box"><strong>What does this story teach us?</strong> ${s.lesson}</div>`:''}
-<div class="nav-btns"><button class="nav-btn prev" id="prevBtn"${currentPage===0?' disabled':''}>&laquo; Back</button><button class="nav-btn next" id="nextBtn">${isLast?'Finish &#x2B50;':'Next &raquo;'}</button></div>
+<div class="nav-btns"><button class="nav-btn prev" id="prevBtn"${currentPage===0?' disabled':''}>&laquo; Back</button><button class="nav-btn next" id="nextBtn">${isLast?'Put it in order &#x1F9E9;':'Next &raquo;'}</button></div>
+${isLast?`<div id="taskMount"></div>`:''}
 </div>`;
 
-document.getElementById('prevBtn').addEventListener('click',()=>{if(currentPage>0){currentPage--;renderStory();}});
-document.getElementById('nextBtn').addEventListener('click',()=>{
-if(currentPage<s.pages.length-1){currentPage++;renderStory();}
-else{completed.add(currentStory);storyTabs.querySelectorAll('.story-tab').forEach((t,i)=>t.classList.toggle('done',completed.has(i)));spawnMini();
-if(completed.size===STORIES.length)celebrate();}
+storyCard.querySelectorAll('.read-btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    const idx=+b.dataset.read;
+    storyCard.querySelectorAll('.read-btn').forEach(x=>x.classList.remove('speaking'));
+    b.classList.add('speaking');
+    const u=speak(s.pages[idx].text);
+    if(u)u.onend=()=>b.classList.remove('speaking');
+  });
 });
+
+document.getElementById('prevBtn').addEventListener('click',()=>{speechSynthesis.cancel&&speechSynthesis.cancel();if(currentPage>0){currentPage--;renderStory();}});
+document.getElementById('nextBtn').addEventListener('click',()=>{
+speechSynthesis.cancel&&speechSynthesis.cancel();
+if(currentPage<s.pages.length-1){currentPage++;renderStory();}
+else{renderTask();document.getElementById('taskMount').scrollIntoView({behavior:'smooth',block:'nearest'});}
+});
+
+if(isLast)renderTask();
+}
+
+// ---- Sequencing task + comprehension quiz ----
+function renderTask(){
+const s=STORIES[currentStory];
+const st=taskState[currentStory];
+const mount=document.getElementById('taskMount');
+if(!mount)return;
+if(!st.order){let o=shuffle(s.seq.map((_,i)=>i));while(o.every((v,i)=>v===i))o=shuffle(o);st.order=o;}
+
+const seqItems=st.order.map((origIdx,pos)=>{
+  const ev=s.seq[origIdx];
+  return `<div class="seq-item" draggable="true" tabindex="0" role="listitem" aria-roledescription="Draggable story event. Press Enter to lift, arrow keys to move, Enter to drop." data-orig="${origIdx}"><span class="seq-icon">${ev.icon}</span><span class="seq-label">${ev.text}</span><span class="seq-grip" aria-hidden="true">&#x2261;</span></div>`;
+}).join('');
+
+const quizHtml=s.quiz.map((q,qi)=>`
+<div class="quiz-q" data-qi="${qi}">
+<div class="quiz-prompt">${qi+1}. ${q.q}</div>
+<div class="quiz-opts">${q.opts.map((o,oi)=>`<button class="quiz-opt" data-qi="${qi}" data-oi="${oi}">${o}</button>`).join('')}</div>
+<div class="quiz-note" data-note="${qi}"></div>
+</div>`).join('');
+
+mount.innerHTML=`
+<div class="task-block">
+<div class="task-title">&#x1F9E9; Put the story in order</div>
+<div class="task-sub">Drag the events, or tap one and use the arrow keys, then check your answer.</div>
+<div class="seq-list" id="seqList" role="list">${seqItems}</div>
+<div class="task-btns"><button class="task-btn check" id="seqCheck">Check order</button><button class="task-btn reset" id="seqReset">Shuffle again</button></div>
+<div class="task-feedback" id="seqFeedback"></div>
+</div>
+<div class="task-block" style="margin-top:12px">
+<div class="task-title">&#x1F4AC; What do you remember?</div>
+<div class="task-sub">Choose the best answer for each question.</div>
+${quizHtml}
+</div>
+<div class="lesson-box" id="lessonBox" style="display:${st.seqSolved&&st.quizAnswered.every(a=>a===true)?'block':'none'}"><strong>What does this story teach us?</strong> ${s.lesson}</div>`;
+
+wireSeq();
+wireQuiz();
+// restore any prior quiz answers
+st.quizAnswered.forEach((a,qi)=>{if(a!==null)markQuiz(qi,a===true?s.quiz[qi].ans:-2,a);});
+}
+
+function wireSeq(){
+const list=document.getElementById('seqList');
+let dragEl=null,lifted=null;
+function clearState(){list.querySelectorAll('.seq-item').forEach(x=>x.classList.remove('correct','wrong'));document.getElementById('seqFeedback').classList.remove('show','good','bad');}
+// Pointer/drag reordering
+list.querySelectorAll('.seq-item').forEach(item=>{
+  item.addEventListener('dragstart',e=>{dragEl=item;item.classList.add('dragging');clearState();});
+  item.addEventListener('dragend',()=>{dragEl&&dragEl.classList.remove('dragging');dragEl=null;});
+});
+list.addEventListener('dragover',e=>{
+  e.preventDefault();if(!dragEl)return;
+  const after=getAfter(list,e.clientY);
+  if(after==null)list.appendChild(dragEl);else list.insertBefore(dragEl,after);
+});
+function getAfter(container,y){
+  const els=[...container.querySelectorAll('.seq-item:not(.dragging)')];
+  return els.reduce((closest,child)=>{const box=child.getBoundingClientRect();const offset=y-box.top-box.height/2;if(offset<0&&offset>closest.offset)return{offset,element:child};return closest;},{offset:-Infinity}).element;
+}
+// Keyboard reordering: Enter lifts, arrows move, Enter drops
+list.querySelectorAll('.seq-item').forEach(item=>{
+  item.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===' '){
+      e.preventDefault();
+      if(lifted===item){item.classList.remove('lifted');lifted=null;}
+      else{if(lifted)lifted.classList.remove('lifted');lifted=item;item.classList.add('lifted');clearState();}
+    }else if((e.key==='ArrowUp'||e.key==='ArrowDown')&&lifted===item){
+      e.preventDefault();
+      if(e.key==='ArrowUp'&&item.previousElementSibling){list.insertBefore(item,item.previousElementSibling);item.focus();}
+      else if(e.key==='ArrowDown'&&item.nextElementSibling){list.insertBefore(item.nextElementSibling,item);item.focus();}
+    }
+  });
+});
+document.getElementById('seqReset').addEventListener('click',()=>{taskState[currentStory].order=null;taskState[currentStory].seqSolved=false;renderTask();});
+document.getElementById('seqCheck').addEventListener('click',()=>{
+  const items=[...list.querySelectorAll('.seq-item')];
+  let allRight=true;
+  items.forEach((it,pos)=>{const ok=(+it.dataset.orig)===pos;it.classList.toggle('correct',ok);it.classList.toggle('wrong',!ok);if(!ok)allRight=false;});
+  const fb=document.getElementById('seqFeedback');
+  if(allRight){fb.textContent='Well done! That is the correct order. \u{1F31F}';fb.className='task-feedback show good';taskState[currentStory].seqSolved=true;spawnMini();maybeFinish();}
+  else{const firstWrong=items.findIndex((it,pos)=>(+it.dataset.orig)!==pos);fb.textContent=`Not quite. The green ones are in the right place. Look again at event ${firstWrong+1} and try moving it.`;fb.className='task-feedback show bad';taskState[currentStory].seqSolved=false;}
+});
+}
+
+function markQuiz(qi,chosenOi,result){
+const s=STORIES[currentStory];const q=s.quiz[qi];
+const opts=document.querySelectorAll(`.quiz-opt[data-qi="${qi}"]`);
+opts.forEach(o=>{o.disabled=true;const oi=+o.dataset.oi;if(oi===q.ans)o.classList.add('correct');else if(oi===chosenOi)o.classList.add('wrong');});
+const note=document.querySelector(`.quiz-note[data-note="${qi}"]`);
+if(result===true){note.textContent='Correct! '+q.why;note.className='quiz-note show good';}
+else{note.textContent='The right answer is highlighted. '+q.why;note.className='quiz-note show bad';}
+}
+
+function wireQuiz(){
+const s=STORIES[currentStory];
+document.querySelectorAll('.quiz-opt').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const qi=+btn.dataset.qi,oi=+btn.dataset.oi;
+    if(taskState[currentStory].quizAnswered[qi]!==null)return;
+    const correct=oi===s.quiz[qi].ans;
+    taskState[currentStory].quizAnswered[qi]=correct;
+    markQuiz(qi,oi,correct);
+    if(correct)spawnMini();
+    maybeFinish();
+  });
+});
+}
+
+function maybeFinish(){
+const st=taskState[currentStory];
+const allQuiz=st.quizAnswered.every(a=>a!==null);
+if(st.seqSolved&&allQuiz){
+  const lb=document.getElementById('lessonBox');if(lb)lb.style.display='block';
+  if(!completed.has(currentStory)){
+    completed.add(currentStory);
+    storyTabs.querySelectorAll('.story-tab').forEach((t,i)=>t.classList.toggle('done',completed.has(i)));
+    if(completed.size===STORIES.length)celebrate();else spawnMini();
+  }
+}
 }
 
 function spawnMini(){const c=document.getElementById('celebration');const cols=['#be185d','#ec4899','#22c55e','#f59e0b','#3b82f6'];for(let i=0;i<10;i++){const e=document.createElement('div');e.className='confetti';e.style.cssText=`left:${Math.random()*100}vw;top:-10px;background:${cols[Math.floor(Math.random()*cols.length)]};width:${5+Math.random()*6}px;height:${5+Math.random()*6}px;border-radius:${Math.random()>.5?'50%':'2px'};animation-duration:${1+Math.random()*1.5}s;animation-delay:${Math.random()*.3}s;`;c.appendChild(e);setTimeout(()=>e.remove(),3000);}}

@@ -120,6 +120,40 @@ body {
     gap: 10px;
     margin-bottom: 16px;
 }
+.tap-hint {
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-light);
+    margin-bottom: 2px;
+}
+.audio-warn {
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #b45309;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 12px;
+    display: none;
+}
+.audio-warn.show { display: block; }
+.quiz-prompt {
+    text-align: center;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 12px;
+}
+.btn.hear {
+    background: linear-gradient(135deg, var(--accent), #a855f7);
+    color: white;
+    align-self: center;
+    padding: 10px 22px;
+    font-size: 0.92rem;
+}
 
 .btn {
     padding: 14px;
@@ -221,6 +255,47 @@ body {
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -402,6 +477,8 @@ body {
         <button class="mode-btn" id="modeQuiz" data-mode="quiz">Quiz</button>
     </div>
 
+    <div class="audio-warn" id="audioWarn">&#128263; Sound is not available in this browser. The letters will still light up, but you will not hear them.</div>
+
     <div class="word-display">
         <span class="word-icon" id="wordIcon"></span>
         <div class="word-hint" id="wordHint"></div>
@@ -410,12 +487,15 @@ body {
     <div class="blend-area" id="blendArea"></div>
 
     <div id="learnControls" class="controls">
-        <button class="btn sound" id="soundBtn">Tap each letter to hear its sound</button>
-        <button class="btn blend" id="blendBtn">Blend them together!</button>
+        <p class="tap-hint" id="tapHint">&#128072; Tap a letter to hear its sound</p>
+        <button class="btn sound" id="soundBtn">&#128266; Sound out each letter</button>
+        <button class="btn blend" id="blendBtn">&#128640; Blend them together!</button>
         <button class="btn next" id="nextBtn">Next Word</button>
     </div>
 
     <div id="quizControls" style="display:none;">
+        <p class="quiz-prompt" id="quizPrompt">Which sound is missing? Listen, then tap it.</p>
+        <button class="btn hear" id="hearMissingBtn">&#128266; Hear the missing sound</button>
         <div class="letter-options" id="letterOptions"></div>
         <div class="feedback" id="feedback"></div>
     </div>
@@ -442,6 +522,79 @@ let currentIdx = 0;
 let stars = 0;
 let soundIdx = -1;
 let quizMissing = -1;
+let soundingNow = false;
+
+// ----- Audio engine (Web Speech API) -----
+// Pure phoneme pronunciations: we speak the sound of each grapheme,
+// not its letter name (so "s" is "sss", not "ess"). Spellings below are
+// tuned to coax a clean pure phoneme out of an English text-to-speech voice.
+const PHONEME_SAY = {
+    a: 'a', b: 'buh', c: 'cuh', d: 'duh', e: 'eh', f: 'ff',
+    g: 'guh', h: 'huh', i: 'ih', j: 'juh', k: 'cuh', l: 'll',
+    m: 'mm', n: 'nn', o: 'o', p: 'puh', r: 'rr', s: 'sss',
+    t: 'tuh', u: 'uh', v: 'vv', w: 'wuh', x: 'cs', y: 'yuh', z: 'zz',
+    sh: 'shh', ch: 'chuh', th: 'thh'
+};
+
+const ttsAvailable = typeof window !== 'undefined'
+    && 'speechSynthesis' in window
+    && typeof window.SpeechSynthesisUtterance === 'function';
+
+function pickVoice() {
+    if (!ttsAvailable) return null;
+    const voices = window.speechSynthesis.getVoices() || [];
+    // Prefer a British English voice for KS1 phonics, then any English voice.
+    return voices.find(v => v.lang === 'en-GB')
+        || voices.find(v => /^en[-_]GB/i.test(v.lang))
+        || voices.find(v => /^en/i.test(v.lang))
+        || voices[0]
+        || null;
+}
+
+// Voices load asynchronously in some browsers; trigger the list to populate.
+if (ttsAvailable) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = function(){ window.speechSynthesis.getVoices(); };
+}
+
+// Speak arbitrary text. Returns a Promise that resolves when speech ends.
+function speak(text, opts) {
+    opts = opts || {};
+    return new Promise(function(resolve){
+        if (!ttsAvailable || !text) { resolve(); return; }
+        try {
+            const u = new SpeechSynthesisUtterance(text);
+            const v = pickVoice();
+            if (v) u.voice = v;
+            u.lang = (v && v.lang) || 'en-GB';
+            if (window.westTTS) {
+                const best = window.westTTS.pick(u.lang || 'en-GB');
+                if (best) u.voice = best;
+            }
+            u.rate = opts.rate != null ? opts.rate : 0.78;
+            u.pitch = opts.pitch != null ? opts.pitch : 1.12;
+            u.volume = 1;
+            u.onend = resolve;
+            u.onerror = resolve;
+            window.speechSynthesis.speak(u);
+        } catch (e) { resolve(); }
+    });
+}
+
+// Speak a single grapheme as its pure phoneme sound.
+function sayPhoneme(grapheme) {
+    const g = String(grapheme).toLowerCase();
+    return speak(PHONEME_SAY[g] || g, { rate: 0.7, pitch: 1.15 });
+}
+
+// Speak a whole word naturally.
+function sayWord(word) {
+    return speak(word, { rate: 0.85, pitch: 1.05 });
+}
+
+function stopSpeech() {
+    if (ttsAvailable) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+}
 
 const blendArea = document.getElementById('blendArea');
 const learnControls = document.getElementById('learnControls');
@@ -449,9 +602,24 @@ const quizControls = document.getElementById('quizControls');
 const letterOptions = document.getElementById('letterOptions');
 const feedbackEl = document.getElementById('feedback');
 
+// Show the no-audio warning if the browser cannot speak
+if (!ttsAvailable) {
+    const warn = document.getElementById('audioWarn');
+    if (warn) warn.classList.add('show');
+}
+
+// Quiz: hear the missing sound
+document.getElementById('hearMissingBtn').addEventListener('click', () => {
+    if (quizMissing < 0) return;
+    stopSpeech();
+    sayPhoneme(WORDS[currentIdx].sounds[quizMissing]);
+});
+
 // Mode toggle
 document.querySelectorAll('.mode-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+        stopSpeech();
+        soundingNow = false;
         mode = btn.dataset.mode;
         document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
@@ -461,57 +629,76 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     });
 });
 
-// Sound each letter on tap
+// Sound out each letter in turn, speaking its pure phoneme as it lights up
 document.getElementById('soundBtn').addEventListener('click', () => {
+    if (soundingNow) return;
+    stopSpeech();
     soundIdx = 0;
+    soundingNow = true;
     animateSound();
 });
 
-function animateSound() {
+async function animateSound() {
     const boxes = blendArea.querySelectorAll('.letter-box');
     boxes.forEach(b => b.classList.remove('active', 'sounding'));
+    const w = WORDS[currentIdx];
 
-    if (soundIdx < boxes.length) {
-        boxes[soundIdx].classList.add('sounding', 'active');
-        setTimeout(() => {
-            boxes[soundIdx].classList.remove('sounding');
-            soundIdx++;
-            setTimeout(animateSound, 400);
-        }, 350);
+    for (let i = 0; i < boxes.length; i++) {
+        boxes[i].classList.add('sounding', 'active');
+        await sayPhoneme(w.sounds[i]);
+        boxes[i].classList.remove('sounding');
+        await wait(180);
+        boxes[i].classList.remove('active');
     }
+    soundingNow = false;
 }
 
-// Blend animation
-document.getElementById('blendBtn').addEventListener('click', () => {
+function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Blend: speak each phoneme quickly then say the whole word, and reveal it
+document.getElementById('blendBtn').addEventListener('click', async () => {
+    stopSpeech();
     const boxes = blendArea.querySelectorAll('.letter-box');
+    const w = WORDS[currentIdx];
     boxes.forEach(b => { b.classList.add('revealed'); b.classList.remove('active'); });
-    // Show the full word
-    setTimeout(() => {
-        blendArea.innerHTML = '';
-        const fullBox = document.createElement('div');
-        fullBox.className = 'letter-box revealed';
-        fullBox.style.width = 'auto';
-        fullBox.style.padding = '10px 28px';
-        fullBox.style.fontSize = '2.2rem';
-        fullBox.textContent = WORDS[currentIdx].word;
-        fullBox.style.animation = 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)';
-        blendArea.appendChild(fullBox);
-    }, 600);
+
+    // Quick run of the pure sounds, in order
+    for (let i = 0; i < boxes.length; i++) {
+        boxes[i].classList.add('active');
+        await sayPhoneme(w.sounds[i]);
+        boxes[i].classList.remove('active');
+    }
+
+    // Show and pronounce the full blended word
+    blendArea.innerHTML = '';
+    const fullBox = document.createElement('div');
+    fullBox.className = 'letter-box revealed';
+    fullBox.style.width = 'auto';
+    fullBox.style.padding = '10px 28px';
+    fullBox.style.fontSize = '2.2rem';
+    fullBox.textContent = w.word;
+    fullBox.style.animation = 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)';
+    blendArea.appendChild(fullBox);
+    await sayWord(w.word);
 });
 
 // Next word
 document.getElementById('nextBtn').addEventListener('click', () => {
+    stopSpeech();
+    soundingNow = false;
     currentIdx++;
     if (currentIdx >= WORDS.length) currentIdx = 0;
     loadWord();
 });
 
-// Letter box click in learn mode
+// Letter box click in learn mode: light it up and speak its pure phoneme
 function onLetterBoxClick(idx) {
+    stopSpeech();
     const boxes = blendArea.querySelectorAll('.letter-box');
     boxes.forEach(b => b.classList.remove('active'));
     boxes[idx].classList.add('active', 'sounding');
     setTimeout(() => boxes[idx].classList.remove('sounding'), 300);
+    sayPhoneme(WORDS[currentIdx].sounds[idx]);
 }
 
 function loadWord() {
@@ -526,6 +713,10 @@ function loadWord() {
         renderLearnBlend(w);
     } else {
         renderQuizBlend(w);
+        // Play the missing sound once so the quiz is led by ear, not just sight
+        setTimeout(() => {
+            if (mode === 'quiz' && quizMissing >= 0) sayPhoneme(w.sounds[quizMissing]);
+        }, 350);
     }
 }
 
@@ -585,12 +776,16 @@ function renderQuizBlend(w) {
         const btn = document.createElement('button');
         btn.className = 'letter-option';
         btn.textContent = opt;
-        btn.addEventListener('click', () => checkQuizAnswer(opt, correct, btn));
+        btn.addEventListener('click', () => {
+            stopSpeech();
+            sayPhoneme(opt);          // child hears the sound they chose
+            checkQuizAnswer(opt, correct, btn);
+        });
         letterOptions.appendChild(btn);
     });
 }
 
-function checkQuizAnswer(picked, correct, btn) {
+async function checkQuizAnswer(picked, correct, btn) {
     if (picked === correct) {
         btn.classList.add('correct');
         const missingBox = document.getElementById('missingBox');
@@ -606,14 +801,26 @@ function checkQuizAnswer(picked, correct, btn) {
         celebrate();
 
         document.querySelectorAll('.letter-option').forEach(o => { o.style.pointerEvents = 'none'; });
+        // Sound out the full word so the answer is reinforced by ear
+        await wait(450);
+        await sayWord(WORDS[currentIdx].word);
         setTimeout(() => {
             currentIdx++;
             if (currentIdx >= WORDS.length) currentIdx = 0;
             loadWord();
-        }, 1800);
+        }, 900);
     } else {
         btn.classList.add('wrong');
-        setTimeout(() => btn.classList.remove('wrong'), 500);
+        feedbackEl.className = 'feedback show';
+        feedbackEl.style.background = '#fee2e2';
+        feedbackEl.style.color = '#991b1b';
+        feedbackEl.textContent = 'Not quite. Listen again and try another sound.';
+        setTimeout(() => {
+            btn.classList.remove('wrong');
+            feedbackEl.className = 'feedback';
+            feedbackEl.style.background = '';
+            feedbackEl.style.color = '';
+        }, 1400);
     }
 }
 
@@ -658,7 +865,6 @@ function celebrate() {
     }
 }
 
-// Fix the inline style issue
 loadWord();
 </script>
 </body>

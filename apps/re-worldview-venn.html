@@ -278,6 +278,7 @@ header h1 span {
   transition: all var(--transition);
   position: relative;
   user-select: none;
+  touch-action: none;
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -475,6 +476,7 @@ header h1 span {
   box-shadow: var(--shadow);
   pointer-events: auto;
   cursor: grab;
+  touch-action: none;
   max-width: 140px;
   line-height: 1.3;
   transition: border-color var(--transition), background var(--transition);
@@ -1282,9 +1284,8 @@ function createCardElement(card) {
     el.classList.toggle('show-detail');
   });
 
-  // Drag start
-  el.addEventListener('mousedown', (e) => startDrag(e, card, el));
-  el.addEventListener('touchstart', (e) => startDrag(e, card, el), { passive: false });
+  // Drag start (Pointer Events cover mouse, touch and pen)
+  el.addEventListener('pointerdown', (e) => startDrag(e, card, el));
 
   return el;
 }
@@ -1479,59 +1480,68 @@ function build3Venn(svg, W, H) {
 // ===========================
 function startDrag(e, card, el) {
   if (e.target.closest('.card-info-btn') || e.target.closest('.remove-btn')) return;
+  if (e.button !== undefined && e.button !== 0) return; // primary button / touch / pen only
   e.preventDefault();
 
-  const touch = e.touches ? e.touches[0] : e;
   const rect = el.getBoundingClientRect();
 
   dragState = {
     card,
     el,
-    offsetX: touch.clientX - rect.left,
-    offsetY: touch.clientY - rect.top,
-    startX: touch.clientX,
-    startY: touch.clientY,
-    ghost: null
+    offsetX: e.clientX - rect.left,
+    offsetY: e.clientY - rect.top,
+    startX: e.clientX,
+    startY: e.clientY,
+    ghost: null,
+    pointerId: e.pointerId,
+    captureEl: el
   };
+
+  // Capture the pointer so move/up keep firing even if the finger leaves the element
+  try { if (e.pointerId !== undefined) el.setPointerCapture(e.pointerId); } catch (err) {}
 
   // Create ghost
   const ghost = document.createElement('div');
   ghost.className = 'belief-card dragging';
   ghost.style.width = rect.width + 'px';
   ghost.innerHTML = `<span class="card-cat-dot" style="background:${getCatColor(card.category)}"></span><div class="card-content"><div class="card-title">${card.title}</div></div>`;
-  ghost.style.left = (touch.clientX - dragState.offsetX) + 'px';
-  ghost.style.top = (touch.clientY - dragState.offsetY) + 'px';
+  ghost.style.left = (e.clientX - dragState.offsetX) + 'px';
+  ghost.style.top = (e.clientY - dragState.offsetY) + 'px';
   document.body.appendChild(ghost);
   dragState.ghost = ghost;
 
   el.style.opacity = '0.3';
 
-  document.addEventListener('mousemove', onDragMove);
-  document.addEventListener('mouseup', onDragEnd);
-  document.addEventListener('touchmove', onDragMove, { passive: false });
-  document.addEventListener('touchend', onDragEnd);
+  document.addEventListener('pointermove', onDragMove);
+  document.addEventListener('pointerup', onDragEnd);
+  document.addEventListener('pointercancel', onDragEnd);
 }
 
 function onDragMove(e) {
   if (!dragState) return;
   e.preventDefault();
-  const touch = e.touches ? e.touches[0] : e;
-  dragState.ghost.style.left = (touch.clientX - dragState.offsetX) + 'px';
-  dragState.ghost.style.top = (touch.clientY - dragState.offsetY) + 'px';
+  dragState.ghost.style.left = (e.clientX - dragState.offsetX) + 'px';
+  dragState.ghost.style.top = (e.clientY - dragState.offsetY) + 'px';
 
   // Highlight zone
-  highlightZone(touch.clientX, touch.clientY);
+  highlightZone(e.clientX, e.clientY);
 }
 
 function onDragEnd(e) {
   if (!dragState) return;
-  const touch = e.changedTouches ? e.changedTouches[0] : e;
+
+  // Release pointer capture
+  try {
+    if (dragState.pointerId !== undefined && dragState.captureEl) {
+      dragState.captureEl.releasePointerCapture(dragState.pointerId);
+    }
+  } catch (err) {}
 
   // Determine which zone the card was dropped in
-  const zone = getZoneAtPoint(touch.clientX, touch.clientY);
+  const zone = getZoneAtPoint(e.clientX, e.clientY);
 
   if (zone) {
-    placeCard(dragState.card, zone, touch.clientX, touch.clientY);
+    placeCard(dragState.card, zone, e.clientX, e.clientY);
   }
 
   // Cleanup
@@ -1539,10 +1549,9 @@ function onDragEnd(e) {
   if (dragState.ghost) dragState.ghost.remove();
   clearZoneHighlights();
 
-  document.removeEventListener('mousemove', onDragMove);
-  document.removeEventListener('mouseup', onDragEnd);
-  document.removeEventListener('touchmove', onDragMove);
-  document.removeEventListener('touchend', onDragEnd);
+  document.removeEventListener('pointermove', onDragMove);
+  document.removeEventListener('pointerup', onDragEnd);
+  document.removeEventListener('pointercancel', onDragEnd);
   dragState = null;
 }
 
@@ -1659,9 +1668,8 @@ function renderPlacedCards() {
       updateScore();
     });
 
-    // Make placed card draggable again
-    el.addEventListener('mousedown', (e) => startPlacedDrag(e, card, el, cardId));
-    el.addEventListener('touchstart', (e) => startPlacedDrag(e, card, el, cardId), { passive: false });
+    // Make placed card draggable again (Pointer Events cover mouse, touch and pen)
+    el.addEventListener('pointerdown', (e) => startPlacedDrag(e, card, el, cardId));
 
     container.appendChild(el);
   });
@@ -1669,9 +1677,9 @@ function renderPlacedCards() {
 
 function startPlacedDrag(e, card, el, cardId) {
   if (e.target.closest('.remove-btn')) return;
+  if (e.button !== undefined && e.button !== 0) return; // primary button / touch / pen only
   e.preventDefault();
 
-  const touch = e.touches ? e.touches[0] : e;
   const rect = el.getBoundingClientRect();
 
   // Remove from placed
@@ -1682,43 +1690,54 @@ function startPlacedDrag(e, card, el, cardId) {
   dragState = {
     card,
     el: document.querySelector(`.belief-card[data-card-id="${cardId}"]`) || el,
-    offsetX: touch.clientX - rect.left,
-    offsetY: touch.clientY - rect.top,
-    ghost: null
+    offsetX: e.clientX - rect.left,
+    offsetY: e.clientY - rect.top,
+    ghost: null,
+    pointerId: e.pointerId,
+    captureEl: null
   };
 
   const ghost = document.createElement('div');
   ghost.className = 'belief-card dragging';
   ghost.style.width = '200px';
   ghost.innerHTML = `<span class="card-cat-dot" style="background:${getCatColor(card.category)}"></span><div class="card-content"><div class="card-title">${card.title}</div></div>`;
-  ghost.style.left = (touch.clientX - dragState.offsetX) + 'px';
-  ghost.style.top = (touch.clientY - dragState.offsetY) + 'px';
+  ghost.style.left = (e.clientX - dragState.offsetX) + 'px';
+  ghost.style.top = (e.clientY - dragState.offsetY) + 'px';
   document.body.appendChild(ghost);
   dragState.ghost = ghost;
 
-  document.addEventListener('mousemove', onDragMove);
-  document.addEventListener('mouseup', onPlacedDragEnd);
-  document.addEventListener('touchmove', onDragMove, { passive: false });
-  document.addEventListener('touchend', onPlacedDragEnd);
+  // The original placed card is removed from the DOM by the re-render above, so
+  // capture the pointer on the ghost to keep move/up firing during a touch drag.
+  try { if (e.pointerId !== undefined) { ghost.setPointerCapture(e.pointerId); dragState.captureEl = ghost; } } catch (err) {}
+
+  document.addEventListener('pointermove', onDragMove);
+  document.addEventListener('pointerup', onPlacedDragEnd);
+  document.addEventListener('pointercancel', onPlacedDragEnd);
 }
 
 function onPlacedDragEnd(e) {
   if (!dragState) return;
-  const touch = e.changedTouches ? e.changedTouches[0] : e;
-  const zone = getZoneAtPoint(touch.clientX, touch.clientY);
+
+  // Release pointer capture
+  try {
+    if (dragState.pointerId !== undefined && dragState.captureEl) {
+      dragState.captureEl.releasePointerCapture(dragState.pointerId);
+    }
+  } catch (err) {}
+
+  const zone = getZoneAtPoint(e.clientX, e.clientY);
 
   if (zone) {
-    placeCard(dragState.card, zone, touch.clientX, touch.clientY);
+    placeCard(dragState.card, zone, e.clientX, e.clientY);
   }
   // If dropped outside, card returns to bank (already removed from placedCards)
 
   if (dragState.ghost) dragState.ghost.remove();
   clearZoneHighlights();
 
-  document.removeEventListener('mousemove', onDragMove);
-  document.removeEventListener('mouseup', onPlacedDragEnd);
-  document.removeEventListener('touchmove', onDragMove);
-  document.removeEventListener('touchend', onPlacedDragEnd);
+  document.removeEventListener('pointermove', onDragMove);
+  document.removeEventListener('pointerup', onPlacedDragEnd);
+  document.removeEventListener('pointercancel', onPlacedDragEnd);
   dragState = null;
 
   renderCardBank();

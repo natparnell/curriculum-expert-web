@@ -1396,13 +1396,15 @@ function drawRadar() {
 
     for (let i = 0; i < NUM_SUBJECTS; i++) {
       const pt = spokePoint(i, scores[i], maxVal);
+      const draggable = whatifEnabled && idx === 0;
       const dot = svgEl('circle', {
         cx: pt.x, cy: pt.y,
-        r: whatifEnabled && idx === 0 ? '7' : '5',
+        r: draggable ? '7' : '5',
         fill: ENTITY_COLORS[idx],
         stroke: '#0f172a',
         'stroke-width': '2',
-        style: whatifEnabled && idx === 0 ? 'cursor:grab' : 'cursor:default',
+        style: (draggable ? 'cursor:grab' : 'cursor:default')
+          + (draggable ? ';touch-action:none' : ''),
         'data-entity': idx,
         'data-subject': i,
       }, svg);
@@ -1417,12 +1419,22 @@ function drawRadar() {
       });
       dot.addEventListener('mouseleave', hideTooltip);
 
-      // Drag handlers
-      if (whatifEnabled && idx === 0) {
+      // Drag handlers (mouse + touch/pen via Pointer Events)
+      if (draggable) {
         dot.addEventListener('mousedown', ev => {
           ev.preventDefault();
           draggingVertex = { entityIdx: idx, subjectIdx: i };
           document.body.style.cursor = 'grabbing';
+        });
+        dot.addEventListener('pointerdown', ev => {
+          // Avoid double-handling: mouse pointer events are covered by mousedown above
+          if (ev.pointerType === 'mouse') return;
+          ev.preventDefault();
+          draggingVertex = { entityIdx: idx, subjectIdx: i };
+          document.body.style.cursor = 'grabbing';
+          if (dot.setPointerCapture) {
+            try { dot.setPointerCapture(ev.pointerId); } catch (e) {}
+          }
         });
       }
     }
@@ -1495,7 +1507,7 @@ function drawRadar() {
 /* ===================================================================
    DRAG INTERACTIONS (What-If)
 =================================================================== */
-document.addEventListener('mousemove', ev => {
+function moveDraggedVertex(clientX, clientY) {
   if (!draggingVertex) return;
   const { entityIdx, subjectIdx } = draggingVertex;
 
@@ -1505,8 +1517,8 @@ document.addEventListener('mousemove', ev => {
   // Convert screen coords to SVG coords
   const scaleX = 520 / rect.width;
   const scaleY = 520 / rect.height;
-  const svgX = (ev.clientX - rect.left) * scaleX;
-  const svgY = (ev.clientY - rect.top) * scaleY;
+  const svgX = (clientX - rect.left) * scaleX;
+  const svgY = (clientY - rect.top) * scaleY;
 
   // Project onto the spoke axis
   const angle = angleForSpoke(subjectIdx);
@@ -1537,14 +1549,38 @@ document.addEventListener('mousemove', ev => {
     : newVal;
 
   drawRadar();
-});
+}
 
-document.addEventListener('mouseup', () => {
+function endDraggedVertex() {
   if (draggingVertex) {
     draggingVertex = null;
     document.body.style.cursor = '';
     drawRadar();
   }
+}
+
+document.addEventListener('mousemove', ev => {
+  moveDraggedVertex(ev.clientX, ev.clientY);
+});
+
+document.addEventListener('mouseup', endDraggedVertex);
+
+// Touch/pen dragging via Pointer Events (mouse handled above)
+document.addEventListener('pointermove', ev => {
+  if (ev.pointerType === 'mouse') return;
+  if (!draggingVertex) return;
+  ev.preventDefault();
+  moveDraggedVertex(ev.clientX, ev.clientY);
+}, { passive: false });
+
+document.addEventListener('pointerup', ev => {
+  if (ev.pointerType === 'mouse') return;
+  endDraggedVertex();
+});
+
+document.addEventListener('pointercancel', ev => {
+  if (ev.pointerType === 'mouse') return;
+  endDraggedVertex();
 });
 
 /* ===================================================================

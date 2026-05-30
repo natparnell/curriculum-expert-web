@@ -410,7 +410,111 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 }
 .clear-history:hover { color: var(--orange-600); }
 
+/* Read-aloud button on challenge card */
+.challenge-actions { margin-top: 16px; }
+.say-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border: 2px solid var(--orange-300);
+    background: var(--card-bg);
+    color: var(--orange-700);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.say-btn:hover { background: var(--orange-100); border-color: var(--orange-500); }
+.say-btn.speaking { background: var(--orange-500); color: white; border-color: var(--orange-500); }
+
+/* Teaching scaffolding grid */
+.teach-grid {
+    display: none;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+    margin-bottom: 24px;
+}
+.teach-grid.visible { display: grid; animation: fadeSlide 0.4s ease; }
+.teach-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    padding: 20px;
+}
+.teach-card h3 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--brown-700);
+    margin-bottom: 4px;
+}
+.teach-sub {
+    font-size: 0.82rem;
+    color: var(--text-light);
+    margin-bottom: 12px;
+}
+.focus-card { background: linear-gradient(135deg, var(--orange-50), var(--brown-50)); border-color: var(--orange-200); }
+.focus-pill {
+    background: var(--card-bg);
+    border: 2px solid var(--orange-300);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-weight: 700;
+    font-size: 0.98rem;
+    color: var(--text);
+    margin-bottom: 12px;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+}
+.teach-btn {
+    padding: 7px 16px;
+    border: 2px solid var(--brown-200);
+    background: var(--card-bg);
+    color: var(--brown-600);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.teach-btn:hover { background: var(--brown-50); border-color: var(--brown-400); }
+
+.check-list { list-style: none; }
+.check-list li { margin-bottom: 9px; }
+.check-list label {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    cursor: pointer;
+    color: var(--text);
+}
+.check-list input[type="checkbox"] {
+    margin-top: 3px;
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: var(--orange-500);
+}
+.check-list input[type="checkbox"]:checked + strong,
+.check-list label:has(input:checked) { color: var(--brown-700); }
+
+.reflect-card { background: linear-gradient(135deg, var(--brown-50), var(--cream)); }
+.reflect-list { padding-left: 20px; }
+.reflect-list li { font-size: 0.88rem; line-height: 1.5; margin-bottom: 8px; color: var(--text); }
+.reflect-list em { font-style: normal; font-weight: 700; color: var(--brown-700); }
+
 /* Responsive */
+@media (max-width: 900px) {
+    .teach-grid.visible { grid-template-columns: 1fr; }
+}
 @media (max-width: 900px) {
     .spinners-grid { grid-template-columns: 1fr; max-width: 360px; margin-left: auto; margin-right: auto; }
     .wheel-container { width: 180px; height: 180px; }
@@ -425,6 +529,47 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -606,9 +751,11 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
             <div class="spinner-label">Character</div>
             <div class="wheel-container">
                 <div class="wheel-pointer"></div>
-                <canvas class="wheel-canvas" id="wheelCharacter" width="400" height="400"></canvas>
+                <canvas class="wheel-canvas" id="wheelCharacter" width="400" height="400"
+                    role="button" tabindex="0"
+                    aria-label="Character wheel. Press Enter or Space to spin and choose a character."></canvas>
             </div>
-            <div class="result-display" id="resultCharacter">Spin to choose!</div>
+            <div class="result-display" id="resultCharacter" role="status" aria-live="polite" aria-atomic="true">Spin to choose!</div>
             <button class="spin-btn" onclick="spinWheel('character')">&#9654; Spin</button>
         </div>
 
@@ -616,9 +763,11 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
             <div class="spinner-label">Location</div>
             <div class="wheel-container">
                 <div class="wheel-pointer"></div>
-                <canvas class="wheel-canvas" id="wheelLocation" width="400" height="400"></canvas>
+                <canvas class="wheel-canvas" id="wheelLocation" width="400" height="400"
+                    role="button" tabindex="0"
+                    aria-label="Location wheel. Press Enter or Space to spin and choose a location."></canvas>
             </div>
-            <div class="result-display" id="resultLocation">Spin to choose!</div>
+            <div class="result-display" id="resultLocation" role="status" aria-live="polite" aria-atomic="true">Spin to choose!</div>
             <button class="spin-btn" onclick="spinWheel('location')">&#9654; Spin</button>
         </div>
 
@@ -626,9 +775,11 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
             <div class="spinner-label">Situation</div>
             <div class="wheel-container">
                 <div class="wheel-pointer"></div>
-                <canvas class="wheel-canvas" id="wheelSituation" width="400" height="400"></canvas>
+                <canvas class="wheel-canvas" id="wheelSituation" width="400" height="400"
+                    role="button" tabindex="0"
+                    aria-label="Situation wheel. Press Enter or Space to spin and choose a situation."></canvas>
             </div>
-            <div class="result-display" id="resultSituation">Spin to choose!</div>
+            <div class="result-display" id="resultSituation" role="status" aria-live="polite" aria-atomic="true">Spin to choose!</div>
             <button class="spin-btn" onclick="spinWheel('situation')">&#9654; Spin</button>
         </div>
     </div>
@@ -641,6 +792,52 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
     <div class="challenge-card" id="challengeCard">
         <h3>Your Improvisation Challenge</h3>
         <p class="challenge-text" id="challengeText"></p>
+        <div class="challenge-actions">
+            <button class="say-btn" type="button" id="speakChallengeBtn" onclick="speakChallenge()" aria-label="Read the challenge aloud">&#128264; Read aloud</button>
+        </div>
+    </div>
+
+    <!-- Teaching scaffolding: appears once a full challenge is set -->
+    <div class="teach-grid" id="teachGrid" aria-live="polite">
+        <div class="teach-card focus-card">
+            <h3>&#127919; This time, focus on&hellip;</h3>
+            <p class="teach-sub">Try one drama skill on purpose during your scene.</p>
+            <div class="focus-pill" id="focusPill">Spin a full challenge to get a skill focus</div>
+            <button class="teach-btn" type="button" onclick="newFocus()">&#8635; Different focus</button>
+        </div>
+
+        <div class="teach-card">
+            <h3>&#9989; Success criteria</h3>
+            <p class="teach-sub">A strong improvisation will&hellip;</p>
+            <ul class="check-list" id="successList">
+                <li><label><input type="checkbox"> Start with a clear <strong>freeze-frame</strong> so the audience knows the scene</label></li>
+                <li><label><input type="checkbox"> Stay <strong>in character</strong> with voice and body the whole time</label></li>
+                <li><label><input type="checkbox"> Show how the <strong>situation</strong> changes what the character does</label></li>
+                <li><label><input type="checkbox"> Use <strong>gesture and facial expression</strong>, not just words</label></li>
+                <li><label><input type="checkbox"> End on a clear <strong>final freeze</strong> or last line</label></li>
+            </ul>
+        </div>
+
+        <div class="teach-card">
+            <h3>&#128172; Peer feedback (two stars and a wish)</h3>
+            <p class="teach-sub">Watching a group? Tick what you saw, then say one wish out loud.</p>
+            <ul class="check-list" id="peerList">
+                <li><label><input type="checkbox"> I could tell <strong>who</strong> the character was straight away</label></li>
+                <li><label><input type="checkbox"> The <strong>place</strong> felt real (use of space and mime)</label></li>
+                <li><label><input type="checkbox"> The <strong>status</strong> between characters was clear (who was in charge?)</label></li>
+                <li><label><input type="checkbox"> Voice was <strong>loud and clear</strong> enough to hear</label></li>
+            </ul>
+        </div>
+
+        <div class="teach-card reflect-card">
+            <h3>&#129504; Reflection</h3>
+            <p class="teach-sub">Answer in your head, with a partner, or in your drama journal.</p>
+            <ol class="reflect-list">
+                <li>What is <em>one thing</em> your group did really well?</li>
+                <li>What would you change if you performed it again?</li>
+                <li>Which drama skill (voice, gesture, status, freeze-frame) do you want to improve next?</li>
+            </ol>
+        </div>
     </div>
 
     <div class="timer-section">
@@ -692,6 +889,7 @@ const DATA = {
 const state = {
     wheels: {},
     results: { character: null, location: null, situation: null },
+    currentFocus: null,
     history: [],
     timer: { duration: 60, remaining: 60, interval: null, running: false }
 };
@@ -766,15 +964,25 @@ function drawWheel(type) {
     ctx.fillText(data.emoji, cx, cy);
 }
 
-function getSelectedItem(type) {
+function getSelectedIndex(type) {
     const data = DATA[type];
     const n = data.items.length;
-    const anglePerSlice = (2 * Math.PI) / n;
+    const TWO_PI = 2 * Math.PI;
+    const anglePerSlice = TWO_PI / n;
     const rotation = state.wheels[type] || 0;
-    // Pointer is at top (-PI/2), so we find which slice is there
-    const normalizedAngle = ((2 * Math.PI) - (rotation % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI);
-    const index = Math.floor(normalizedAngle / anglePerSlice) % n;
-    return data.items[index];
+    // Slice i is drawn from (rotation + i*slice - PI/2) to the next boundary.
+    // The pointer sits at the top, angle -PI/2. The slice under the pointer is
+    // the one whose index satisfies floor(((-rotation) mod 2PI) / slice).
+    // We add a tiny epsilon so a boundary that lands exactly on the pointer
+    // resolves to the slice the eye sees, avoiding an off-by-one at the edge.
+    const eps = anglePerSlice * 1e-6;
+    const normalizedAngle = ((TWO_PI - (rotation % TWO_PI)) % TWO_PI + TWO_PI) % TWO_PI;
+    const index = Math.floor((normalizedAngle + eps) / anglePerSlice) % n;
+    return ((index % n) + n) % n;
+}
+
+function getSelectedItem(type) {
+    return DATA[type].items[getSelectedIndex(type)];
 }
 
 function spinWheel(type, callback) {
@@ -861,15 +1069,43 @@ function spinAll() {
 }
 
 function newChallenge() {
-    // Reset results
+    // Reset results and pick a fresh skill focus for the new challenge
     state.results = { character: null, location: null, situation: null };
+    state.currentFocus = null;
     document.getElementById('challengeCard').classList.remove('visible');
+    document.getElementById('teachGrid').classList.remove('visible');
     ['Character','Location','Situation'].forEach(t => {
         const el = document.getElementById('result' + t);
         el.textContent = 'Spin to choose!';
         el.classList.remove('has-result');
     });
     spinAll();
+}
+
+// Drama skill focuses (KS2): one teaching objective to layer onto the stimulus
+const SKILL_FOCUSES = [
+    'Freeze-frame: begin and end your scene with a still image.',
+    'Status: show clearly who is in charge and who is not.',
+    'Voice: change your pitch, pace or volume to fit the character.',
+    'Gesture: tell part of the story with your hands and body, not words.',
+    'Facial expression: let your face show how the character feels.',
+    'Use of space: move around to make the location feel real.',
+    'Thought-tracking: pause and say one line of what your character is thinking.',
+    'Mime: handle an imaginary object so the audience can picture it.'
+];
+
+function setFocus(text) {
+    const pill = document.getElementById('focusPill');
+    if (pill) pill.textContent = text;
+    state.currentFocus = text;
+}
+
+function newFocus() {
+    let next;
+    do {
+        next = SKILL_FOCUSES[Math.floor(Math.random() * SKILL_FOCUSES.length)];
+    } while (SKILL_FOCUSES.length > 1 && next === state.currentFocus);
+    setFocus(next);
 }
 
 function updateChallenge() {
@@ -879,7 +1115,33 @@ function updateChallenge() {
         const text = document.getElementById('challengeText');
         text.innerHTML = `You are a <span class="char">${character}</span> at a <span class="loc">${location}</span> and <span class="sit">${situation.toLowerCase()}</span>!`;
         card.classList.add('visible');
+        // Reveal teaching scaffolding and pick a skill focus
+        document.getElementById('teachGrid').classList.add('visible');
+        if (!state.currentFocus) newFocus();
     }
+}
+
+function speakChallenge() {
+    if (!('speechSynthesis' in window)) return;
+    const { character, location, situation } = state.results;
+    if (!character || !location || !situation) return;
+    const btn = document.getElementById('speakChallengeBtn');
+    const focus = state.currentFocus ? ' Your skill focus is: ' + state.currentFocus : '';
+    const sentence = 'You are a ' + character + ' at a ' + location + ', and ' +
+        situation.toLowerCase().replace(/[^a-z0-9 ]/gi, '') + '.' + focus;
+    try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(sentence);
+        utter.lang = 'en-GB';
+        if (window.westTTS) utter.voice = window.westTTS.pick(utter.lang || 'en-GB');
+        utter.rate = 0.95;
+        if (btn) {
+            btn.classList.add('speaking');
+            utter.onend = function(){ btn.classList.remove('speaking'); };
+            utter.onerror = function(){ btn.classList.remove('speaking'); };
+        }
+        window.speechSynthesis.speak(utter);
+    } catch (e) {}
 }
 
 function addToHistory() {
@@ -1009,6 +1271,17 @@ function resetTimer() {
 ['character', 'location', 'situation'].forEach(type => {
     state.wheels[type] = Math.random() * Math.PI * 2;
     drawWheel(type);
+    // Make each wheel keyboard-operable and clickable
+    const canvas = document.getElementById('wheel' + type.charAt(0).toUpperCase() + type.slice(1));
+    if (canvas) {
+        canvas.addEventListener('click', function(){ spinWheel(type); });
+        canvas.addEventListener('keydown', function(e){
+            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                e.preventDefault();
+                spinWheel(type);
+            }
+        });
+    }
 });
 updateTimerDisplay();
 </script>

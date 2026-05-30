@@ -90,6 +90,69 @@ canvas {
   display: block;
   width: 100%;
   cursor: pointer;
+  touch-action: none;
+}
+
+canvas:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.canvas-a11y-controls {
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-panel);
+}
+
+.canvas-a11y-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.canvas-a11y-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.canvas-a11y-buttons button {
+  border: 1px solid var(--border-color);
+  background: white;
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.canvas-a11y-buttons button:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.canvas-a11y-buttons button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .controls-panel {
@@ -529,7 +592,12 @@ canvas {
 <div class="app-container">
   <div class="main-grid">
     <div class="canvas-wrapper">
-      <canvas id="cycleCanvas" width="800" height="500"></canvas>
+      <canvas id="cycleCanvas" width="800" height="500" role="img" tabindex="0" aria-label="Animated water cycle diagram showing the sun, ocean, mountains, trees, clouds, rain or snow, surface runoff, infiltration and groundwater. Tap or click a feature to read about that process. The current flow rates are listed in the Flow Rates panel and announced below."></canvas>
+      <div id="cycleStatus" class="sr-only" aria-live="polite"></div>
+      <div class="canvas-a11y-controls">
+        <span class="canvas-a11y-label">Explore a process:</span>
+        <div id="zoneButtons" class="canvas-a11y-buttons"></div>
+      </div>
     </div>
 
     <div class="controls-panel">
@@ -1323,23 +1391,66 @@ canvas {
   const overlay = document.getElementById('popupOverlay');
   const popupTitle = document.getElementById('popupTitle');
   const popupText = document.getElementById('popupText');
+  const statusRegion = document.getElementById('cycleStatus');
 
-  canvas.addEventListener('click', (e) => {
+  function openZone(zone) {
+    popupTitle.textContent = zone.name;
+    popupText.textContent = zone.desc;
+    overlay.classList.add('visible');
+    if (statusRegion) {
+      statusRegion.textContent = zone.name + '. ' + zone.desc;
+    }
+  }
+
+  function hitTest(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = W / rect.width;
     const scaleY = H / rect.height;
-    const mx = (e.clientX - rect.left) * scaleX;
-    const my = (e.clientY - rect.top) * scaleY;
-
+    const mx = (clientX - rect.left) * scaleX;
+    const my = (clientY - rect.top) * scaleY;
     for (const zone of clickZones) {
-      if (zone.test(mx, my)) {
-        popupTitle.textContent = zone.name;
-        popupText.textContent = zone.desc;
-        overlay.classList.add('visible');
-        return;
-      }
+      if (zone.test(mx, my)) return zone;
     }
-  });
+    return null;
+  }
+
+  // Pointer Events give touch + pen + mouse parity (tablets, interactive
+  // whiteboards). Where supported we use these and suppress the legacy
+  // mouse handlers to avoid double-firing.
+  const supportsPointer = ('PointerEvent' in window);
+
+  if (supportsPointer) {
+    canvas.addEventListener('pointerup', (e) => {
+      // Ignore secondary buttons for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const zone = hitTest(e.clientX, e.clientY);
+      if (zone) { e.preventDefault(); openZone(zone); }
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return; // hover cursor only meaningful for mouse
+      canvas.style.cursor = hitTest(e.clientX, e.clientY) ? 'pointer' : 'default';
+    });
+  } else {
+    canvas.addEventListener('click', (e) => {
+      const zone = hitTest(e.clientX, e.clientY);
+      if (zone) openZone(zone);
+    });
+    canvas.addEventListener('mousemove', (e) => {
+      canvas.style.cursor = hitTest(e.clientX, e.clientY) ? 'pointer' : 'default';
+    });
+  }
+
+  // === Keyboard-accessible path: a button per process zone ===
+  const zoneButtonsWrap = document.getElementById('zoneButtons');
+  if (zoneButtonsWrap) {
+    clickZones.forEach((zone) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = zone.name;
+      b.addEventListener('click', () => openZone(zone));
+      zoneButtonsWrap.appendChild(b);
+    });
+  }
 
   document.getElementById('popupClose').addEventListener('click', () => {
     overlay.classList.remove('visible');
@@ -1347,20 +1458,11 @@ canvas {
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) overlay.classList.remove('visible');
   });
-
-  // === Hover cursor ===
-  canvas.addEventListener('mousemove', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = W / rect.width;
-    const scaleY = H / rect.height;
-    const mx = (e.clientX - rect.left) * scaleX;
-    const my = (e.clientY - rect.top) * scaleY;
-
-    let hovering = false;
-    for (const zone of clickZones) {
-      if (zone.test(mx, my)) { hovering = true; break; }
+  // Allow Escape to close the popup
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay.classList.contains('visible')) {
+      overlay.classList.remove('visible');
     }
-    canvas.style.cursor = hovering ? 'pointer' : 'default';
   });
 
   // === Main loop ===

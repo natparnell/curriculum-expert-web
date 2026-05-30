@@ -418,9 +418,178 @@ body {
     .tray-char .char-icon { font-size: 1.5rem; }
     .scene-btn { font-size: 0.78rem; padding: 8px 14px; }
 }
+
+/* Keyboard focus visibility for accessibility */
+.tray-char:focus-visible,
+.scene-btn:focus-visible,
+.ctrl-btn:focus-visible,
+.stage-character:focus-visible,
+.story-btn:focus-visible,
+.story-say-btn:focus-visible,
+#storyInput:focus-visible {
+    outline: 3px solid #1d4ed8;
+    outline-offset: 2px;
+}
+.stage-character.selected {
+    outline: 3px dashed #1d4ed8;
+    outline-offset: 4px;
+    border-radius: 8px;
+}
+
+/* Story prompt panel (scaffolds the child's own storytelling) */
+.story-panel {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px;
+    margin-bottom: 12px;
+}
+.story-step-label {
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #9b59b6;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+}
+.story-question {
+    text-align: center;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 10px;
+}
+.story-starters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+.story-btn {
+    padding: 9px 14px;
+    border: 3px solid #e6d6f0;
+    border-radius: 50px;
+    background: #faf5ff;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.story-btn:hover { transform: scale(1.05); border-color: #9b59b6; }
+.story-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.story-speaker-pick {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-light);
+}
+.story-speaker-pick select {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    padding: 8px 10px;
+    border-radius: 12px;
+    border: 3px solid #e6d6f0;
+    background: #faf5ff;
+    color: var(--text);
+    cursor: pointer;
+}
+#storyInput {
+    flex: 1 1 200px;
+    min-width: 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 10px 14px;
+    border: 3px solid #e6d6f0;
+    border-radius: 14px;
+    background: #fffdf9;
+    color: var(--text);
+}
+#storyInput::placeholder { color: #b8a8c4; }
+.story-say-btn {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #9b59b6, #6c5ce7);
+    color: white;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.2s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.story-say-btn:hover { transform: scale(1.05); }
+.story-say-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.story-hint {
+    text-align: center;
+    font-size: 0.74rem;
+    color: var(--text-light);
+    margin-top: 8px;
+}
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -615,8 +784,26 @@ body {
     </div>
 
     <div class="tray" id="tray">
-        <div class="tray-title">Characters - drag me onto the stage!</div>
-        <div class="tray-chars" id="trayChars"></div>
+        <div class="tray-title">Characters - drag me onto the stage, or press Enter on one to place it</div>
+        <div class="tray-chars" id="trayChars" role="list"></div>
+    </div>
+
+    <div class="story-panel" aria-labelledby="storyQuestion">
+        <div class="story-step-label" id="storyStepLabel">Step 1 of 5</div>
+        <div class="story-question" id="storyQuestion">Who is in your story?</div>
+        <div class="story-starters" id="storyStarters" role="group" aria-label="Story starter ideas"></div>
+        <div class="story-input-row">
+            <label class="story-speaker-pick">Who speaks?
+                <select id="storySpeaker" aria-label="Choose which character speaks"></select>
+            </label>
+            <input type="text" id="storyInput" maxlength="120"
+                placeholder="Tell the story in your own words..."
+                aria-label="Type what happens next in your story" autocomplete="off">
+            <button class="story-say-btn" id="storySayBtn" type="button">
+                <span aria-hidden="true">&#128483;</span> Say it!
+            </button>
+        </div>
+        <div class="story-hint" id="storyHint">Pick a starter, or type your own. Press "Say it!" to hear it on the stage.</div>
     </div>
 </div>
 
@@ -631,11 +818,33 @@ const CHARACTERS = [
     { id: 'fairy', icon: '🧚', label: 'Fairy', color: '#9b59b6' }
 ];
 
-const PROMPTS = [
-    "Hello!", "Let's go on an adventure!", "Oh no!", "Come with me!",
-    "Look over there!", "I'm so happy!", "What's that?!", "Let's be friends!",
-    "Hooray!", "Follow me!", "Watch out!", "Wow, amazing!"
+// Structured "what happens next?" sequence. Each step poses a question and
+// offers a small bank of story-starters the child can choose, change, or
+// replace with their own words. This scaffolds narrative and language rather
+// than supplying random canned lines.
+const STORY_STEPS = [
+    {
+        question: "Who is in your story?",
+        starters: ["Once upon a time there was a...", "One sunny day, a... woke up.", "Far away lived a kind..."]
+    },
+    {
+        question: "Where are they and what do they see?",
+        starters: ["I can see a tall tree.", "Look over there!", "What a beautiful place!"]
+    },
+    {
+        question: "What do they want to do?",
+        starters: ["Let's go on an adventure!", "Come with me, my friend.", "I will help you."]
+    },
+    {
+        question: "Oh no! What goes wrong?",
+        starters: ["Oh no, I am lost!", "Watch out, something is coming!", "I feel a little scared."]
+    },
+    {
+        question: "How does your story end?",
+        starters: ["We are safe now. Hooray!", "And they were friends forever.", "What a happy ending!"]
+    }
 ];
+let storyStep = 0;
 
 let curtainsOpen = false;
 let stageChars = []; // { id, element, x, y }
@@ -649,11 +858,28 @@ CHARACTERS.forEach(ch => {
     const el = document.createElement('div');
     el.className = 'tray-char';
     el.dataset.charId = ch.id;
+    el.setAttribute('role', 'listitem');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', ch.label + '. Press Enter to place on the stage.');
     el.innerHTML = `<span class="char-icon">${ch.icon}</span><span class="char-label">${ch.label}</span>`;
     trayContainer.appendChild(el);
 
     // Pointer events for drag
     el.addEventListener('pointerdown', e => startDragFromTray(e, ch));
+
+    // Keyboard alternative: Enter or Space places the character on the stage
+    el.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (stageChars.find(sc => sc.id === ch.id)) return;
+            // Place at a tidy spot, spread out so they do not overlap
+            const slot = stageChars.length;
+            const xPct = 20 + (slot % 4) * 20;
+            const yPct = 45 + (slot % 2) * 25;
+            el.classList.add('on-stage');
+            placeCharacter(ch, xPct, yPct);
+        }
+    });
 });
 
 // Scene picker
@@ -686,6 +912,7 @@ document.getElementById('clearBtn').addEventListener('click', () => {
     stageChars = [];
     document.querySelectorAll('.speech-bubble').forEach(b => b.remove());
     document.querySelectorAll('.tray-char').forEach(t => t.classList.remove('on-stage'));
+    refreshSpeakerOptions();
 });
 
 // Drag from tray
@@ -766,6 +993,9 @@ function placeCharacter(charData, xPct, yPct) {
     el.style.transform = 'translate(-50%, -50%)';
     el.textContent = charData.icon;
     el.dataset.charId = charData.id;
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', charData.label + ' on the stage. Use arrow keys to move, or Enter to make it speak your line.');
     dropZone.appendChild(el);
 
     const sc = { id: charData.id, element: el, x: xPct, y: yPct };
@@ -774,11 +1004,42 @@ function placeCharacter(charData, xPct, yPct) {
     // Make draggable on stage
     el.addEventListener('pointerdown', e2 => startDragOnStage(e2, sc));
 
+    // Keyboard alternative: move with arrows, speak the current line with Enter
+    el.addEventListener('keydown', e2 => keyboardMoveOnStage(e2, sc));
+
     // Check proximity to other characters
     checkProximity(sc);
 
     // Pop animation
     el.style.animation = 'bubblePop 0.4s cubic-bezier(0.34,1.56,0.64,1)';
+
+    // Keep the "who speaks?" dropdown in sync with who is on stage
+    refreshSpeakerOptions();
+}
+
+// Arrow-key movement and Enter-to-speak for stage characters (keyboard access)
+function keyboardMoveOnStage(e, sc) {
+    const step = 5;
+    let handled = true;
+    switch (e.key) {
+        case 'ArrowLeft':  sc.x = Math.max(5, sc.x - step); break;
+        case 'ArrowRight': sc.x = Math.min(95, sc.x + step); break;
+        case 'ArrowUp':    sc.y = Math.max(10, sc.y - step); break;
+        case 'ArrowDown':  sc.y = Math.min(90, sc.y + step); break;
+        case 'Enter':
+        case ' ':
+            // Speak the child's current story line through this character
+            document.getElementById('storySpeaker').value = sc.id;
+            sayCurrentLine();
+            break;
+        default: handled = false;
+    }
+    if (handled) {
+        e.preventDefault();
+        sc.element.style.left = sc.x + '%';
+        sc.element.style.top = sc.y + '%';
+        if (e.key.startsWith('Arrow')) checkProximity(sc);
+    }
 }
 
 function startDragOnStage(e, sc) {
@@ -817,13 +1078,18 @@ function checkProximity(movedChar) {
         if (other.id === movedChar.id) return;
         const dist = Math.sqrt(Math.pow(movedChar.x - other.x, 2) + Math.pow(movedChar.y - other.y, 2));
         if (dist < threshold) {
-            showSpeechBubble(movedChar);
-            showSpeechBubble(other);
+            // Two characters are close: nudge the child to put words in their
+            // mouths rather than auto-filling a random line.
+            showSpeechBubble(movedChar, "What shall I say?");
         }
     });
 }
 
-function showSpeechBubble(sc) {
+// Show a speech bubble above a character with the given text. If `speak` is
+// true the line is also read aloud using the browser SpeechSynthesis API, so
+// children who cannot yet read still hear their own story.
+function showSpeechBubble(sc, text, speak) {
+    if (!text) return;
     // Remove existing bubble for this char
     const existing = document.querySelector(`.speech-bubble[data-for="${sc.id}"]`);
     if (existing) existing.remove();
@@ -832,17 +1098,34 @@ function showSpeechBubble(sc) {
     const bubble = document.createElement('div');
     bubble.className = 'speech-bubble';
     bubble.dataset.for = sc.id;
-    bubble.textContent = PROMPTS[Math.floor(Math.random() * PROMPTS.length)];
+    bubble.textContent = text;
     bubble.style.left = sc.x + '%';
     bubble.style.top = (sc.y - 16) + '%';
     bubble.style.transform = 'translateX(-50%)';
+    bubble.style.whiteSpace = 'normal';
     dropZone.appendChild(bubble);
 
-    // Remove after delay
+    if (speak) speakLine(text);
+
+    // Remove after delay (longer for child-authored lines so they can read along)
     setTimeout(() => {
         bubble.style.animation = 'bubbleFade 0.4s ease forwards';
         setTimeout(() => bubble.remove(), 400);
-    }, 2800);
+    }, speak ? 4500 : 2800);
+}
+
+// Read a line aloud in UK English using the browser SpeechSynthesis API.
+function speakLine(text) {
+    try {
+        if (!('speechSynthesis' in window) || !text) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-GB';
+        if (window.westTTS) { var _v = window.westTTS.pick(u.lang || 'en-GB'); if (_v) u.voice = _v; }
+        u.rate = 0.92;
+        u.pitch = 1.1;
+        window.speechSynthesis.speak(u);
+    } catch (e) { /* speech not available; bubble still shows */ }
 }
 
 function spawnConfetti(count) {
@@ -863,6 +1146,90 @@ function spawnConfetti(count) {
         setTimeout(() => el.remove(), 4000);
     }
 }
+
+/* ----- Story scaffolding panel ----- */
+const storySpeakerSel = document.getElementById('storySpeaker');
+const storyInput = document.getElementById('storyInput');
+const storySayBtn = document.getElementById('storySayBtn');
+const storyStarters = document.getElementById('storyStarters');
+const storyStepLabel = document.getElementById('storyStepLabel');
+const storyQuestion = document.getElementById('storyQuestion');
+
+// Refresh the "Who speaks?" dropdown to list only characters on stage.
+function refreshSpeakerOptions() {
+    const prev = storySpeakerSel.value;
+    storySpeakerSel.innerHTML = '';
+    if (stageChars.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'Add a character first';
+        opt.disabled = true;
+        opt.selected = true;
+        storySpeakerSel.appendChild(opt);
+        storySayBtn.disabled = true;
+        return;
+    }
+    stageChars.forEach(sc => {
+        const ch = CHARACTERS.find(c => c.id === sc.id);
+        const opt = document.createElement('option');
+        opt.value = sc.id;
+        opt.textContent = (ch ? ch.icon + ' ' + ch.label : sc.id);
+        storySpeakerSel.appendChild(opt);
+    });
+    // Keep previous selection if still on stage
+    if (stageChars.find(sc => sc.id === prev)) storySpeakerSel.value = prev;
+    storySayBtn.disabled = false;
+}
+
+// Render the current step's question and starter buttons.
+function renderStoryStep() {
+    const step = STORY_STEPS[storyStep];
+    storyStepLabel.textContent = 'Step ' + (storyStep + 1) + ' of ' + STORY_STEPS.length;
+    storyQuestion.textContent = step.question;
+    storyStarters.innerHTML = '';
+    step.starters.forEach(text => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'story-btn';
+        b.textContent = text;
+        b.addEventListener('click', () => {
+            storyInput.value = text;
+            storyInput.focus();
+        });
+        storyStarters.appendChild(b);
+    });
+    // A "next part" button to advance the narrative sequence
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'story-btn';
+    next.style.borderColor = '#9b59b6';
+    next.innerHTML = (storyStep < STORY_STEPS.length - 1)
+        ? 'Next part &#8594;'
+        : 'Start again &#8635;';
+    next.addEventListener('click', () => {
+        storyStep = (storyStep + 1) % STORY_STEPS.length;
+        renderStoryStep();
+    });
+    storyStarters.appendChild(next);
+}
+
+// Make the chosen character speak the child's line, on stage and aloud.
+function sayCurrentLine() {
+    const text = storyInput.value.trim();
+    const speakerId = storySpeakerSel.value;
+    if (!text || !speakerId) return;
+    const sc = stageChars.find(s => s.id === speakerId);
+    if (!sc) return;
+    showSpeechBubble(sc, text, true);
+}
+
+storySayBtn.addEventListener('click', sayCurrentLine);
+storyInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); sayCurrentLine(); }
+});
+
+refreshSpeakerOptions();
+renderStoryStep();
 
 // Open curtains on load for a nice welcome
 setTimeout(() => {

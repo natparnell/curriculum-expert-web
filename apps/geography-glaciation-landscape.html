@@ -90,6 +90,18 @@ canvas {
   height: auto;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .controls-row {
   display: flex;
   flex-wrap: wrap;
@@ -564,8 +576,10 @@ canvas {
   </div>
 
   <div class="canvas-wrapper">
-    <canvas id="mainCanvas" width="1200" height="520"></canvas>
+    <canvas id="mainCanvas" width="1200" height="520" role="img" aria-label="Cross-section diagram of a mountain valley being shaped by a glacier. Use the playback, temperature and view-mode controls above to advance, retreat and inspect the glacier. A spoken summary of the current state appears below the diagram."></canvas>
   </div>
+
+  <div id="canvasLiveRegion" aria-live="polite" class="sr-only"></div>
 
   <div class="legend-row">
     <div class="legend-item"><div class="legend-swatch" style="background:#6b8fc7"></div>Glacier ice</div>
@@ -797,6 +811,17 @@ function setView(mode) {
   document.getElementById('tabAnim').className = 'view-tab' + (mode === 'animation' ? ' active' : '');
   document.getElementById('tabBefore').className = 'view-tab' + (mode === 'before' ? ' active' : '');
   document.getElementById('tabAfter').className = 'view-tab' + (mode === 'after' ? ' active' : '');
+  const region = document.getElementById('canvasLiveRegion');
+  if (region) {
+    if (mode === 'before') {
+      region.textContent = 'Before view: a V-shaped river valley with interlocking spurs and a river channel, shown before glaciation.';
+    } else if (mode === 'after') {
+      region.textContent = 'After view: a U-shaped glacial valley with a steep back wall, flat valley floor, ribbon lake or tarn, terminal moraine, truncated spur and hanging valley.';
+    } else {
+      lastAnnouncement = '';
+      region.textContent = 'Animation view: the live glacier simulation.';
+    }
+  }
   draw();
 }
 
@@ -870,6 +895,37 @@ function updateStats() {
   document.getElementById('statThickness').textContent = Math.floor(glacier.thickness * 2);
   document.getElementById('statErosion').textContent = Math.floor(glacier.erosionDepth);
   document.getElementById('statPhase').textContent = glacier.phase;
+  announceState();
+}
+
+/* Spoken summary of the simulation for keyboard and screen-reader users.
+   Only announces when the phase or the set of formed landforms changes, to
+   avoid flooding the live region on every frame. */
+let lastAnnouncement = '';
+function announceState() {
+  const region = document.getElementById('canvasLiveRegion');
+  if (!region) return;
+  const formed = [];
+  if (glacier.erosionDepth > 15) formed.push('corrie');
+  if (glacier.erosionDepth > 30) formed.push('arete');
+  if (glacier.erosionDepth > 50) formed.push('U-shaped valley');
+  if (glacier.erosionDepth > 40) formed.push('truncated spur');
+  if (glacier.erosionDepth > 60) formed.push('hanging valley');
+  if (glacier.terminalMoraineH > 5) formed.push('terminal moraine');
+  if (glacier.moraineDeposited > 5) formed.push('lateral moraine');
+  if (glacier.erosionDepth > 45 && glacier.moraineDeposited > 5) formed.push('medial moraine');
+  let msg = 'Phase: ' + glacier.phase + '. Glacier length ' + Math.floor(glacier.length * 3)
+    + ' metres, ice thickness ' + Math.floor(glacier.thickness * 2)
+    + ' metres, erosion depth ' + Math.floor(glacier.erosionDepth) + ' metres. ';
+  msg += formed.length
+    ? 'Landforms now visible: ' + formed.join(', ') + '.'
+    : 'No glacial landforms have formed yet.';
+  /* Compare on phase plus landform set only, so we do not re-announce every frame */
+  const signature = glacier.phase + '|' + formed.join(',');
+  if (signature !== lastAnnouncement) {
+    lastAnnouncement = signature;
+    region.textContent = msg;
+  }
 }
 
 function updateProcesses() {

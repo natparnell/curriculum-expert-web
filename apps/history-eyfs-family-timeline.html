@@ -204,6 +204,47 @@ body {
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -375,7 +416,7 @@ body {
 </div>
 
 <div class="main">
-    <div class="instruction" id="instruction">Tap an event, then tap a slot on the timeline to place it!</div>
+    <div class="instruction" id="instruction">Tap an event to hear it, then tap a slot to place it. Put them in order from first to last!</div>
 
     <div class="timeline" id="timeline"></div>
 
@@ -395,14 +436,20 @@ body {
 <div class="celebration" id="celebration"></div>
 
 <script>
+// Events kept within the EYFS "past and present" range (birth to nursery age).
+// Slots are labelled by their position in time (First, Next ...), not by a
+// pre-printed age, so the order is something the child works out, not reads off.
 const EVENTS = [
-    { id: 'born', icon: '&#x1F476;', name: 'Baby is born', order: 0, age: 'Birth' },
-    { id: 'walk', icon: '&#x1F6B6;', name: 'Learn to walk', order: 1, age: 'Age 1' },
-    { id: 'nursery', icon: '&#x1F3E0;', name: 'Start nursery', order: 2, age: 'Age 3' },
-    { id: 'school', icon: '&#x1F3EB;', name: 'Start school', order: 3, age: 'Age 4-5' },
-    { id: 'bike', icon: '&#x1F6B2;', name: 'Learn to ride a bike', order: 4, age: 'Age 5-6' },
-    { id: 'read', icon: '&#x1F4DA;', name: 'Read a book by yourself', order: 5, age: 'Age 6-7' }
+    { id: 'born', icon: '\u{1F476}', name: 'Baby is born' },
+    { id: 'crawl', icon: '\u{1F423}', name: 'Learn to crawl' },
+    { id: 'walk', icon: '\u{1F6B6}', name: 'Learn to walk' },
+    { id: 'talk', icon: '\u{1F5E3}\u{FE0F}', name: 'Say first words' },
+    { id: 'nursery', icon: '\u{1F3E0}', name: 'Start nursery' },
+    { id: 'school', icon: '\u{1F3EB}', name: 'Start big school' }
 ];
+
+// Ordinal labels for the timeline slots (first to last).
+const SLOT_LABELS = ['First', 'Next', 'Then', 'After that', 'Later', 'Last'];
 
 let selectedEvent = null;
 let slotContents = {};
@@ -412,38 +459,83 @@ const timeline = document.getElementById('timeline');
 const eventsGrid = document.getElementById('eventsGrid');
 const feedback = document.getElementById('feedback');
 
+// Read text aloud for early readers. Uses the browser SpeechSynthesis API
+// with UK English; no audio files needed.
+function speak(text) {
+    try {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-GB';
+        if (window.westTTS) { var v = window.westTTS.pick(u.lang || 'en-GB'); if (v) u.voice = v; }
+        u.rate = 0.9;
+        u.pitch = 1.05;
+        window.speechSynthesis.speak(u);
+    } catch (e) {}
+}
+
 function renderTimeline() {
     timeline.innerHTML = '';
     EVENTS.forEach((_, i) => {
         const slot = document.createElement('div');
         slot.className = 'timeline-slot' + (slotContents[i] ? ' filled' : '');
         slot.dataset.idx = i;
+        slot.setAttribute('role', 'button');
+        slot.setAttribute('tabindex', '0');
 
+        const label = SLOT_LABELS[i] || ('Step ' + (i + 1));
         if (slotContents[i]) {
             const evt = EVENTS.find(e => e.id === slotContents[i]);
-            slot.innerHTML = `<span class="slot-age">${EVENTS[i].age}</span><span class="slot-icon">${evt.icon}</span><span class="slot-name">${evt.name}</span>`;
+            slot.innerHTML = `<span class="slot-age">${label}</span><span class="slot-icon">${evt.icon}</span><span class="slot-name">${evt.name}</span>`;
+            slot.setAttribute('aria-label', `${label}: ${evt.name}. Tap to read aloud, or place a different event here.`);
         } else {
-            slot.innerHTML = `<span class="slot-age">${EVENTS[i].age}</span><span class="slot-placeholder">Tap an event then tap here</span>`;
+            slot.innerHTML = `<span class="slot-age">${label}</span><span class="slot-placeholder">Tap an event then tap here</span>`;
+            slot.setAttribute('aria-label', `${label}: empty slot. Tap an event then tap here.`);
         }
 
-        slot.addEventListener('click', () => placeEvent(i));
+        slot.addEventListener('click', () => onSlotActivate(i));
+        slot.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSlotActivate(i); }
+        });
         timeline.appendChild(slot);
     });
 }
 
+function onSlotActivate(i) {
+    if (selectedEvent) {
+        placeEvent(i);
+    } else if (slotContents[i]) {
+        // No event selected: read the placed event aloud (supports early readers).
+        const evt = EVENTS.find(e => e.id === slotContents[i]);
+        if (evt) speak(evt.name);
+    }
+}
+
+// Shuffle the event bank ONCE so cards do not jump around mid-task.
+let bankOrder = null;
 function renderEvents() {
     eventsGrid.innerHTML = '';
-    const shuffled = [...EVENTS].sort(() => Math.random() - 0.5);
-    shuffled.forEach(evt => {
+    if (!bankOrder) {
+        bankOrder = [...EVENTS].sort(() => Math.random() - 0.5).map(e => e.id);
+    }
+    bankOrder.forEach(id => {
+        const evt = EVENTS.find(e => e.id === id);
         const card = document.createElement('div');
         card.className = 'event-card';
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', usedEvents.has(evt.id) ? '-1' : '0');
         if (usedEvents.has(evt.id)) card.classList.add('used');
         if (selectedEvent === evt.id) card.classList.add('selected');
         card.innerHTML = `<span class="e-icon">${evt.icon}</span><span class="e-name">${evt.name}</span>`;
-        card.addEventListener('click', () => {
+        const select = () => {
             if (usedEvents.has(evt.id)) return;
             selectedEvent = evt.id;
+            speak(evt.name);
             renderEvents();
+        };
+        card.addEventListener('click', select);
+        card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); }
         });
         eventsGrid.appendChild(card);
     });
@@ -477,23 +569,32 @@ document.getElementById('clearBtn').addEventListener('click', () => {
     slotContents = {};
     usedEvents = new Set();
     selectedEvent = null;
+    bankOrder = null; // reshuffle the bank once, for a fresh attempt
     feedback.className = 'feedback';
+    try { window.speechSynthesis.cancel(); } catch (e) {}
     renderTimeline();
     renderEvents();
 });
 
 document.getElementById('checkBtn').addEventListener('click', () => {
+    // Always clear any previous green highlights first, so they never accumulate.
+    Array.from(timeline.children).forEach(s => s.classList.remove('correct'));
+
     if (Object.keys(slotContents).length < EVENTS.length) {
         feedback.className = 'feedback show try';
-        feedback.textContent = 'Place all the events on the timeline first!';
+        // Real glyph so it shows, not literal entity text.
+        feedback.textContent = '\u{1F9E9} Place all the events on the timeline first!';
+        speak('Place all the events on the timeline first.');
         return;
     }
 
     let allCorrect = true;
+    let correctCount = 0;
     EVENTS.forEach((evt, i) => {
         const slot = timeline.children[i];
         if (slotContents[i] === evt.id) {
             slot.classList.add('correct');
+            correctCount++;
         } else {
             allCorrect = false;
         }
@@ -501,11 +602,14 @@ document.getElementById('checkBtn').addEventListener('click', () => {
 
     if (allCorrect) {
         feedback.className = 'feedback show win';
-        feedback.textContent = '&#x2B50; Perfect! You put all the events in the right order! &#x2B50;';
+        // innerHTML so the star entities render as glyphs.
+        feedback.innerHTML = '&#x2B50; Perfect! You put all the events in the right order! &#x2B50;';
+        speak('Perfect! You put all the events in the right order!');
         celebrate();
     } else {
         feedback.className = 'feedback show try';
-        feedback.textContent = '&#x1F914; Not quite right. Green ones are correct. Try swapping the others!';
+        feedback.innerHTML = `&#x1F914; You got ${correctCount} of ${EVENTS.length} in the right place. The green ones are correct. Try swapping the others!`;
+        speak(`You got ${correctCount} of ${EVENTS.length} right. The green ones are correct. Try swapping the others.`);
     }
 });
 

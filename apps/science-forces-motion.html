@@ -643,8 +643,9 @@ canvas.graph {
   <!-- CENTRE: Canvas & Graphs -->
   <div class="canvas-area">
     <div class="sim-canvas-wrap">
-      <canvas id="simCanvas"></canvas>
+      <canvas id="simCanvas" role="img" aria-label="Free body diagram of the object showing applied force arrows, weight, friction, normal force and the resultant force. A text description of the current state is given below."></canvas>
     </div>
+    <p id="simCanvasDesc" aria-live="polite" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;"></p>
 
     <div class="equation-bar">
       <span>F = ma :&nbsp;</span>
@@ -662,11 +663,11 @@ canvas.graph {
     <div class="graphs-row">
       <div class="graph-wrap">
         <h3>Distance vs Time</h3>
-        <canvas class="graph" id="distGraph"></canvas>
+        <canvas class="graph" id="distGraph" role="img" aria-label="Line graph of distance travelled in metres against time in seconds during the simulation."></canvas>
       </div>
       <div class="graph-wrap">
         <h3>Velocity vs Time</h3>
-        <canvas class="graph" id="velGraph"></canvas>
+        <canvas class="graph" id="velGraph" role="img" aria-label="Line graph of velocity in metres per second against time in seconds during the simulation."></canvas>
       </div>
     </div>
   </div>
@@ -778,6 +779,38 @@ canvas.graph {
   const rVel = document.getElementById('rVel');
   const rDist = document.getElementById('rDist');
   const rTime = document.getElementById('rTime');
+  const simCanvasDesc = document.getElementById('simCanvasDesc');
+
+  // --- Accessibility: textual description of the diagram for screen readers ---
+  function describeState() {
+    if (!simCanvasDesc) return;
+    const net = getNetForce();
+    const fMag = Math.sqrt(net.x * net.x + net.y * net.y);
+    const accel = fMag / state.mass;
+    const parts = [];
+    parts.push('Object mass ' + state.mass + ' kilograms.');
+    if (state.forces.length) {
+      const fp = state.forces
+        .filter(f => f.magnitude >= 1)
+        .map(f => f.magnitude + ' newtons ' + f.dir);
+      parts.push(fp.length ? 'Applied forces: ' + fp.join(', ') + '.' : 'No applied forces.');
+    } else {
+      parts.push('No applied forces.');
+    }
+    parts.push('Gravity ' + (state.gravity ? 'on' : 'off') + '.');
+    parts.push('Friction ' + (state.friction ? 'on, coefficient ' + state.frictionCoeff.toFixed(2) : 'off') + '.');
+    if (fMag > 0.5) {
+      parts.push('Resultant force ' + fMag.toFixed(1) + ' newtons ' + getAngleLabel(net) + ', giving acceleration ' + accel.toFixed(2) + ' metres per second squared.');
+    } else {
+      parts.push('Forces are balanced, resultant force is zero, so there is no acceleration.');
+    }
+    if (state.simulating) {
+      const speed = Math.sqrt(state.velocity.x ** 2 + state.velocity.y ** 2);
+      const dist = Math.sqrt(state.position.x ** 2 + state.position.y ** 2);
+      parts.push('Simulating: at ' + state.simTime.toFixed(1) + ' seconds, velocity ' + speed.toFixed(2) + ' metres per second, distance ' + dist.toFixed(2) + ' metres.');
+    }
+    simCanvasDesc.textContent = parts.join(' ');
+  }
 
   // --- Canvas sizing ---
   function resizeCanvas(canvas) {
@@ -891,6 +924,7 @@ canvas.graph {
 
     const dir = fMag > 0.01 ? ` (${getAngleLabel(net)})` : '';
     eqDisplay.innerHTML = `${fMag.toFixed(1)} N = ${state.mass} kg &times; ${accel.toFixed(2)} m/s&sup2;${dir}`;
+    if (!state.simulating) describeState();
   }
 
   function getAngleLabel(net) {
@@ -1140,6 +1174,8 @@ canvas.graph {
   }
 
   // --- Simulation ---
+  let lastDescTime = 0;
+
   function startSimulation() {
     if (state.simulating) return;
 
@@ -1156,6 +1192,8 @@ canvas.graph {
 
     document.getElementById('simulateBtn').textContent = 'Running...';
     document.getElementById('simulateBtn').disabled = true;
+    lastDescTime = 0;
+    describeState();
 
     const net = getNetForce();
     const accelX = net.x / state.mass;
@@ -1212,6 +1250,11 @@ canvas.graph {
       drawFBD();
       drawGraphs();
 
+      if (state.simTime - lastDescTime >= 1) {
+        lastDescTime = state.simTime;
+        describeState();
+      }
+
       state.animId = requestAnimationFrame(frame);
     }
 
@@ -1226,6 +1269,7 @@ canvas.graph {
     }
     document.getElementById('simulateBtn').textContent = 'Simulate';
     document.getElementById('simulateBtn').disabled = false;
+    describeState();
   }
 
   function resetSim() {

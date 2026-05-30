@@ -38,6 +38,40 @@ body{font-family:var(--font-u);background:var(--bg);color:var(--text);line-heigh
 .passage-text .anno.grammar{border-color:var(--grammar);color:var(--grammar);background:var(--grammar-bg)}
 .passage-text .anno.style{border-color:var(--style);color:var(--style);background:var(--style-bg)}
 .passage-text .anno.theme{border-color:var(--theme);color:var(--theme);background:var(--theme-bg)}
+.passage-text .anno:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.passage-text.selectable{cursor:text;user-select:text}
+
+.read-aloud-btn{margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1.5px solid var(--border);border-radius:5px;background:var(--card);font-family:var(--font-u);font-size:.68rem;font-weight:600;cursor:pointer;color:var(--text2);transition:all .2s}
+.read-aloud-btn:hover{border-color:var(--accent);color:var(--accent)}
+.read-aloud-btn.speaking{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+.mode-toggle{display:flex;gap:0;margin-bottom:14px;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.mode-btn{flex:1;padding:9px;border:none;background:var(--card);font-family:var(--font-u);font-size:.7rem;font-weight:700;cursor:pointer;color:var(--text2);transition:all .2s}
+.mode-btn.active{background:var(--accent);color:#fff}
+
+.attempt-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
+.attempt-card h3{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px}
+.attempt-hint{font-size:.78rem;color:var(--text2);margin-bottom:10px;line-height:1.5}
+.attempt-selected{font-family:var(--font-d);font-style:italic;font-size:.9rem;background:var(--accent-bg);border:1px dashed var(--accent);border-radius:6px;padding:8px 10px;margin-bottom:10px;color:#5b21b6;min-height:38px;display:flex;align-items:center}
+.attempt-selected.empty{color:var(--text2);font-style:normal;border-style:dashed;border-color:var(--border)}
+.attempt-types{display:flex;gap:6px;margin-bottom:10px}
+.attempt-type-btn{flex:1;padding:7px;border:1.5px solid var(--border);border-radius:5px;background:var(--card);font-family:var(--font-u);font-size:.68rem;font-weight:600;cursor:pointer;color:var(--text2);transition:all .2s}
+.attempt-type-btn[data-type="grammar"].active{background:var(--grammar);color:#fff;border-color:var(--grammar)}
+.attempt-type-btn[data-type="style"].active{background:var(--style);color:#fff;border-color:var(--style)}
+.attempt-type-btn[data-type="theme"].active{background:var(--theme);color:#fff;border-color:var(--theme)}
+.attempt-note{width:100%;min-height:64px;border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-family:var(--font-u);font-size:.8rem;line-height:1.5;color:var(--text);resize:vertical;margin-bottom:10px}
+.attempt-note:focus{outline:none;border-color:var(--accent)}
+.attempt-submit{width:100%;padding:10px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-family:var(--font-u);font-size:.78rem;font-weight:700;cursor:pointer;transition:all .2s}
+.attempt-submit:hover:not(:disabled){filter:brightness(1.08)}
+.attempt-submit:disabled{background:var(--border);color:var(--text2);cursor:not-allowed}
+.attempt-feedback{margin-top:12px;border-radius:8px;padding:12px;font-size:.8rem;line-height:1.5}
+.attempt-feedback.match{background:var(--theme-bg);border:1px solid var(--theme);color:#065f46}
+.attempt-feedback.partial{background:#fef3c7;border:1px solid #d97706;color:#78350f}
+.attempt-feedback.nomodel{background:var(--accent-bg);border:1px solid var(--accent);color:#5b21b6}
+.attempt-feedback h4{font-size:.72rem;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.attempt-feedback .model-note{margin-top:8px;padding-top:8px;border-top:1px solid currentColor;opacity:.95}
+.attempt-feedback .your-row{margin-bottom:4px}
+.attempt-score{font-size:.74rem;color:var(--text2);margin-top:10px;font-weight:600}
 
 .side-panel{display:flex;flex-direction:column;gap:14px}
 .panel-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
@@ -63,6 +97,47 @@ body{font-family:var(--font-u);background:var(--bg);color:var(--text);line-heigh
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -230,7 +305,11 @@ body{font-family:var(--font-u);background:var(--bg);color:var(--text);line-heigh
 <div class="masthead"><h1>Literary Text <span>Analysis</span></h1><span class="tag">A-Level MFL</span></div>
 <div class="main">
 <div class="text-selector" id="textSelector"></div>
-<div class="tool-bar" id="toolBar">
+<div class="mode-toggle" id="modeToggle" role="tablist" aria-label="Working mode">
+<button class="mode-btn active" data-mode="analyse" role="tab" aria-selected="true">Analyse it yourself</button>
+<button class="mode-btn" data-mode="model" role="tab" aria-selected="false">Show model annotations</button>
+</div>
+<div class="tool-bar" id="toolBar" hidden>
 <button class="tool-btn active" data-tool="all">All</button>
 <button class="tool-btn" data-tool="grammar">Grammar</button>
 <button class="tool-btn" data-tool="style">Style</button>
@@ -244,7 +323,21 @@ body{font-family:var(--font-u);background:var(--bg);color:var(--text);line-heigh
 <div class="legend-item"><div class="legend-dot" style="background:var(--style)"></div> Style (imagery, rhetoric, register)</div>
 <div class="legend-item"><div class="legend-dot" style="background:var(--theme)"></div> Theme (meaning, context, symbolism)</div>
 </div></div>
-<div class="panel-card"><h3>Annotations</h3><div class="annotation-list" id="annoList"></div></div>
+<div class="attempt-card" id="attemptCard">
+<h3>Your annotation</h3>
+<p class="attempt-hint">Highlight a phrase in the passage, classify it, then write what you notice. Reveal the examiner's model note to compare.</p>
+<div class="attempt-selected empty" id="attemptSelected">No phrase selected yet</div>
+<div class="attempt-types" role="group" aria-label="Classify your annotation">
+<button class="attempt-type-btn" data-type="grammar" type="button">Grammar</button>
+<button class="attempt-type-btn" data-type="style" type="button">Style</button>
+<button class="attempt-type-btn" data-type="theme" type="button">Theme</button>
+</div>
+<textarea class="attempt-note" id="attemptNote" placeholder="Write your analysis of this phrase..." aria-label="Your analysis note"></textarea>
+<button class="attempt-submit" id="attemptSubmit" type="button" disabled>Reveal model annotation</button>
+<div id="attemptFeedback" aria-live="polite"></div>
+<div class="attempt-score" id="attemptScore" aria-live="polite"></div>
+</div>
+<div class="panel-card" id="annoPanel" hidden><h3>Annotations</h3><div class="annotation-list" id="annoList"></div></div>
 </div>
 </div>
 </div>
@@ -252,7 +345,7 @@ body{font-family:var(--font-u);background:var(--bg);color:var(--text);line-heigh
 <script>
 const TEXTS=[
 {
-title:'L\'&#xC9;tranger',author:'Albert Camus (1942)',lang:'French',
+title:'L\'&#xC9;tranger',author:'Albert Camus (1942)',lang:'French',bcp47:'fr-FR',
 passage:'Aujourd\'hui, maman est morte. Ou peut-&#xEA;tre hier, je ne sais pas. J\'ai re&#xE7;u un t&#xE9;l&#xE9;gramme de l\'asile: "M&#xE8;re d&#xE9;c&#xE9;d&#xE9;e. Enterrement demain. Sentiments distingu&#xE9;s." Cela ne veut rien dire. C\'&#xE9;tait peut-&#xEA;tre hier.',
 annotations:[
 {phrase:'Aujourd\'hui, maman est morte',type:'grammar',note:'Pass&#xE9; compos&#xE9; ("est morte") signals completed past action. "Maman" (informal) rather than "m&#xE8;re" (formal) creates an unsettling mix of intimacy and detachment.'},
@@ -263,7 +356,7 @@ annotations:[
 ]
 },
 {
-title:'La casa de Bernarda Alba',author:'Federico Garc&#xED;a Lorca (1936)',lang:'Spanish',
+title:'La casa de Bernarda Alba',author:'Federico Garc&#xED;a Lorca (1936)',lang:'Spanish',bcp47:'es-ES',
 passage:'&#xA1;Silencio! No os hag&#xE1;is ilusiones de que vais a poder conmigo. &#xA1;Hasta que salga de esta casa con los pies delante mandar&#xE9; en lo m&#xED;o y en lo vuestro!',
 annotations:[
 {phrase:'&#xA1;Silencio!',type:'style',note:'The imperative opens with a single-word exclamation. Bernarda\'s first and last words in the play are both "&#xA1;Silencio!", framing the entire drama as an exercise in suppression.'},
@@ -275,18 +368,45 @@ annotations:[
 }
 ];
 
-let currentText=0,activeTool='all';
+let currentText=0,activeTool='all',mode='analyse';
+let attempt={phrase:'',type:''};
+const completed={};
 const passageCard=document.getElementById('passageCard');
 const annoList=document.getElementById('annoList');
+const annoPanel=document.getElementById('annoPanel');
+const attemptCard=document.getElementById('attemptCard');
 const tooltipEl=document.getElementById('tooltip');
 const textSelector=document.getElementById('textSelector');
+const toolBar=document.getElementById('toolBar');
+const typeNames={grammar:'Grammar',style:'Style',theme:'Theme'};
+
+const attemptSelected=document.getElementById('attemptSelected');
+const attemptNote=document.getElementById('attemptNote');
+const attemptSubmit=document.getElementById('attemptSubmit');
+const attemptFeedback=document.getElementById('attemptFeedback');
+const attemptScore=document.getElementById('attemptScore');
+
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 TEXTS.forEach((t,i)=>{
 const btn=document.createElement('button');
 btn.className='text-btn'+(i===0?' active':'');
 btn.innerHTML=`${t.title} <small>(${t.lang})</small>`;
-btn.addEventListener('click',()=>{currentText=i;textSelector.querySelectorAll('.text-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');render();});
+btn.addEventListener('click',()=>{currentText=i;textSelector.querySelectorAll('.text-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');resetAttempt();render();});
 textSelector.appendChild(btn);
+});
+
+document.querySelectorAll('.mode-btn').forEach(btn=>{
+btn.addEventListener('click',()=>{
+mode=btn.dataset.mode;
+document.querySelectorAll('.mode-btn').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-selected','false');});
+btn.classList.add('active');btn.setAttribute('aria-selected','true');
+const isModel=mode==='model';
+toolBar.hidden=!isModel;
+annoPanel.hidden=!isModel;
+attemptCard.hidden=isModel;
+render();
+});
 });
 
 document.querySelectorAll('.tool-btn').forEach(btn=>{
@@ -298,19 +418,33 @@ render();
 });
 });
 
+// --- Read aloud (SpeechSynthesis) ---
+let speaking=false;
+function readAloud(btn){
+if(!('speechSynthesis'in window)){btn.textContent='Audio not supported';return;}
+const t=TEXTS[currentText];
+if(speaking){speechSynthesis.cancel();return;}
+const plain=passageCard.querySelector('.passage-text').textContent;
+const u=new SpeechSynthesisUtterance(plain);
+u.lang=t.bcp47;u.rate=.85;
+if(window.westTTS){const v=window.westTTS.pick(u.lang||'en-GB');if(v)u.voice=v;}
+u.onstart=()=>{speaking=true;btn.classList.add('speaking');btn.querySelector('.ra-label').textContent='Stop';};
+u.onend=u.onerror=()=>{speaking=false;btn.classList.remove('speaking');btn.querySelector('.ra-label').textContent='Read aloud';};
+speechSynthesis.cancel();speechSynthesis.speak(u);
+}
+
 function render(){
 const t=TEXTS[currentText];
+let inner;
+if(mode==='model'){
 const filtered=activeTool==='all'?t.annotations:t.annotations.filter(a=>a.type===activeTool);
-
 let html=t.passage;
 const sorted=[...filtered].sort((a,b)=>b.phrase.length-a.phrase.length);
 sorted.forEach(a=>{
 const esc=a.phrase.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-html=html.replace(new RegExp(esc,'g'),`<span class="anno ${a.type}" data-note="${a.note.replace(/"/g,'&quot;')}" data-type="${a.type}">${a.phrase}</span>`);
+html=html.replace(new RegExp(esc,'g'),`<span class="anno ${a.type}" tabindex="0" role="button" aria-label="${typeNames[a.type]} annotation: ${a.phrase.replace(/"/g,'&quot;')}" data-note="${a.note.replace(/"/g,'&quot;')}" data-type="${a.type}">${a.phrase}</span>`);
 });
-
-passageCard.innerHTML=`<div class="passage-header"><div><h2>${t.title}</h2><div class="author">${t.author}</div></div></div><div class="passage-text">${html}</div>`;
-
+inner=`<div class="passage-text">${html}</div>`;
 annoList.innerHTML='';
 filtered.forEach(a=>{
 const item=document.createElement('div');
@@ -318,11 +452,110 @@ item.className='anno-item '+a.type;
 item.innerHTML=`<div class="anno-phrase">"${a.phrase}"</div><div class="anno-note">${a.note}</div>`;
 annoList.appendChild(item);
 });
+}else{
+inner=`<div class="passage-text selectable" id="passageText" aria-label="Passage. Select a phrase to annotate it.">${t.passage}</div>`;
+}
+passageCard.innerHTML=`<div class="passage-header"><div><h2>${t.title}</h2><div class="author">${t.author}</div></div><button class="read-aloud-btn" id="readAloud" type="button" aria-label="Read passage aloud in ${t.lang}"><span aria-hidden="true">&#x1F50A;</span> <span class="ra-label">Read aloud</span></button></div>${inner}`;
+const ra=document.getElementById('readAloud');
+if(ra)ra.addEventListener('click',()=>readAloud(ra));
 }
 
-document.addEventListener('mouseover',e=>{const el=e.target.closest('.anno');if(!el)return;const types={grammar:'Grammar',style:'Style',theme:'Theme'};tooltipEl.innerHTML=`<span class="tt-type" style="color:var(--${el.dataset.type})">${types[el.dataset.type]}</span>${el.dataset.note}`;tooltipEl.classList.add('visible');});
-document.addEventListener('mousemove',e=>{if(tooltipEl.classList.contains('visible')){tooltipEl.style.left=Math.min(e.clientX+12,window.innerWidth-300)+'px';tooltipEl.style.top=Math.min(e.clientY+16,window.innerHeight-100)+'px';}});
-document.addEventListener('mouseout',e=>{if(e.target.closest('.anno'))tooltipEl.classList.remove('visible');});
+// --- Tooltip (pointer + keyboard focus) ---
+function showTip(el){tooltipEl.innerHTML=`<span class="tt-type" style="color:var(--${el.dataset.type})">${typeNames[el.dataset.type]}</span>${el.dataset.note}`;tooltipEl.classList.add('visible');const r=el.getBoundingClientRect();tooltipEl.style.left=Math.min(r.left,window.innerWidth-300)+'px';tooltipEl.style.top=Math.min(r.bottom+8,window.innerHeight-120)+'px';}
+function hideTip(){tooltipEl.classList.remove('visible');}
+document.addEventListener('pointerover',e=>{const el=e.target.closest('.anno');if(el)showTip(el);});
+document.addEventListener('pointermove',e=>{if(tooltipEl.classList.contains('visible')&&e.pointerType==='mouse'){tooltipEl.style.left=Math.min(e.clientX+12,window.innerWidth-300)+'px';tooltipEl.style.top=Math.min(e.clientY+16,window.innerHeight-120)+'px';}});
+document.addEventListener('pointerout',e=>{if(e.target.closest('.anno'))hideTip();});
+document.addEventListener('focusin',e=>{const el=e.target.closest('.anno');if(el)showTip(el);});
+document.addEventListener('focusout',e=>{if(e.target.closest('.anno'))hideTip();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')hideTip();});
+
+// --- Attempt workflow ---
+function resetAttempt(){
+attempt={phrase:'',type:''};
+attemptSelected.textContent='No phrase selected yet';
+attemptSelected.classList.add('empty');
+attemptNote.value='';
+attemptFeedback.innerHTML='';
+document.querySelectorAll('.attempt-type-btn').forEach(b=>b.classList.remove('active'));
+updateSubmit();
+updateScore();
+}
+function updateSubmit(){
+const ready=attempt.phrase&&attempt.type&&attemptNote.value.trim().length>0;
+attemptSubmit.disabled=!ready;
+}
+function captureSelection(){
+const sel=window.getSelection();
+if(!sel||sel.isCollapsed)return;
+const pt=document.getElementById('passageText');
+if(!pt||!pt.contains(sel.anchorNode)||!pt.contains(sel.focusNode))return;
+const text=sel.toString().trim();
+if(text.length<2)return;
+attempt.phrase=text;
+attemptSelected.textContent='"'+text+'"';
+attemptSelected.classList.remove('empty');
+updateSubmit();
+}
+document.addEventListener('mouseup',e=>{if(mode==='analyse')setTimeout(captureSelection,0);});
+document.addEventListener('touchend',()=>{if(mode==='analyse')setTimeout(captureSelection,0);});
+document.querySelectorAll('.attempt-type-btn').forEach(btn=>{
+btn.addEventListener('click',()=>{
+attempt.type=btn.dataset.type;
+document.querySelectorAll('.attempt-type-btn').forEach(b=>b.classList.remove('active'));
+btn.classList.add('active');
+updateSubmit();
+});
+});
+attemptNote.addEventListener('input',updateSubmit);
+
+const _dec=document.createElement('textarea');
+function decodeEntities(s){_dec.innerHTML=s;return _dec.value;}
+function normalise(s){return decodeEntities(s).toLowerCase().replace(/[^a-z0-9À-ɏ]+/g,' ').trim();}
+function findModel(){
+const t=TEXTS[currentText];
+const mine=normalise(attempt.phrase);
+let best=null,bestScore=0;
+t.annotations.forEach(a=>{
+const theirs=normalise(a.phrase);
+let score=0;
+if(theirs.includes(mine)||mine.includes(theirs)){
+const shorter=Math.min(mine.length,theirs.length),longer=Math.max(mine.length,theirs.length);
+score=shorter/longer;
+}
+if(score>bestScore){bestScore=score;best=a;}
+});
+return bestScore>=0.35?best:null;
+}
+attemptSubmit.addEventListener('click',()=>{
+const model=findModel();
+let html='';
+if(!model){
+attemptFeedback.className='attempt-feedback nomodel';
+html=`<h4>Original observation</h4><div class="your-row"><strong>You classified this as ${typeNames[attempt.type]}.</strong></div><p>There is no examiner model note for this exact phrase, so this is your own independent reading. Check your point names a specific technique (e.g. tense, imagery, symbol) and links it to effect or meaning. Compare with a peer or your teacher.</p>`;
+}else{
+const sameType=model.type===attempt.type;
+attemptFeedback.className='attempt-feedback '+(sameType?'match':'partial');
+html=`<h4>${sameType?'Strong match':'Reconsider your category'}</h4>`+
+`<div class="your-row">You said: <strong>${typeNames[attempt.type]}</strong>. Examiner category: <strong>${typeNames[model.type]}</strong>.</div>`+
+(sameType?`<p>You correctly identified this as a ${typeNames[model.type]} point. Now check whether your note captures the same effect.</p>`:`<p>The examiner reads this primarily as a <strong>${typeNames[model.type]}</strong> point. A phrase can carry more than one layer, so explain why your reading also holds, or revise.</p>`)+
+`<div class="model-note"><strong>Examiner's model note:</strong> ${model.note}</div>`;
+recordCompleted(model.type===attempt.type);
+}
+attemptFeedback.innerHTML=html;
+updateScore();
+});
+function recordCompleted(match){
+const key=currentText;
+if(!completed[key])completed[key]={attempts:0,matches:0};
+completed[key].attempts++;
+if(match)completed[key].matches++;
+}
+function updateScore(){
+const c=completed[currentText];
+if(c&&c.attempts){attemptScore.textContent=`Annotations attempted on this text: ${c.attempts} | category matches: ${c.matches}`;}
+else attemptScore.textContent='';
+}
 
 render();
 </script>

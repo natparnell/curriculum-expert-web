@@ -333,6 +333,49 @@
             border-radius: 4px;
         }
 
+        .speak-btn {
+            margin-left: 8px;
+            border: none;
+            background: #ede7f6;
+            color: #5e35b1;
+            border-radius: 6px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 1em;
+            line-height: 1;
+            transition: background 0.2s;
+        }
+
+        .speak-btn:hover { background: #d1c4e9; }
+        .speak-btn:focus-visible { outline: 2px solid #5e35b1; outline-offset: 2px; }
+
+        .spell-change {
+            display: inline-block;
+            margin-left: 8px;
+            font-size: 0.78em;
+            color: #b45309;
+            background: #fef3c7;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+
+        .irregular-warning {
+            background: #fff4f4;
+            border-left: 4px solid #f44336;
+            color: #7f1d1d;
+            padding: 12px 14px;
+            border-radius: 8px;
+            margin: 10px 0 5px;
+            line-height: 1.5;
+            font-size: 0.95em;
+        }
+
+        .quiz-option:focus-visible {
+            outline: 3px solid #5e35b1;
+            outline-offset: 2px;
+        }
+
         .sound-alike {
             background: #fff9c4;
             padding: 2px 4px;
@@ -370,6 +413,47 @@
     </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -537,7 +621,7 @@
     <div class="container">
         <header>
             <h1>🇫🇷 French Verb Conjugation Explorer</h1>
-            <p class="subtitle">Discover patterns, not just memorize tables</p>
+            <p class="subtitle">Discover patterns, not just memorise tables</p>
         </header>
 
         <div class="main-grid">
@@ -618,7 +702,7 @@
             },
             'choisir': { type: 'ir', english: 'to choose', irregular: false,
                 examples: ['Tu choisis la musique.', 'Elles choisissent un film.', 'Je choisis le bleu.'],
-                translations: ['You choose the music.', 'They choose a movie.', 'I choose the blue one.']
+                translations: ['You choose the music.', 'They choose a film.', 'I choose the blue one.']
             },
             'vendre': { type: 're', english: 'to sell', irregular: false,
                 examples: ['Il vend sa voiture.', 'Nous vendons des livres.', 'Vous vendez des fleurs.'],
@@ -650,42 +734,91 @@
             're': ['s', 's', '', 'ons', 'ez', 'ent']
         };
 
-        // Phonetic pronunciation guide (IPA-inspired but simplified for students)
-        const phoneticGuide = {
-            'er': {
-                'e': '/parle/', 'es': '/parle/', 'e': '/parle/',
-                'ons': '/parlɔ̃/', 'ez': '/parle/', 'ent': '/parle/'
-            },
-            'ir': {
-                'is': '/fini/', 'is': '/fini/', 'it': '/fini/',
-                'issons': '/finisɔ̃/', 'issez': '/finise/', 'issent': '/finis/'
-            },
-            're': {
-                's': '/vɑ̃/', 's': '/vɑ̃/', '': '/vɑ̃/',
-                'ons': '/vɑ̃dɔ̃/', 'ez': '/vɑ̃de/', 'ent': '/vɑ̃d/'
-            }
+        // Common KS3 irregular verbs that do NOT follow the regular patterns above.
+        // The tool conjugates them as if regular, so we flag them clearly to the learner.
+        const knownIrregulars = {
+            'aller': 'to go', 'avoir': 'to have', 'etre': 'to be', 'être': 'to be',
+            'faire': 'to do/make', 'prendre': 'to take', 'apprendre': 'to learn',
+            'comprendre': 'to understand', 'venir': 'to come', 'tenir': 'to hold',
+            'vouloir': 'to want', 'pouvoir': 'to be able to', 'devoir': 'to have to',
+            'savoir': 'to know', 'voir': 'to see', 'dire': 'to say', 'lire': 'to read',
+            'ecrire': 'to write', 'écrire': 'to write', 'boire': 'to drink',
+            'mettre': 'to put', 'partir': 'to leave', 'sortir': 'to go out',
+            'dormir': 'to sleep', 'ouvrir': 'to open', 'offrir': 'to offer',
+            'recevoir': 'to receive', 'connaitre': 'to know', 'connaître': 'to know'
         };
 
-        function getPhonetic(verb, ending, verbType) {
-            const stem = getStem(verb);
-            const stemPhonetic = stem.replace(/er$|ir$|re$/,'');
+        function getPhonetic(verb, pronounIndex, verbType) {
+            // Build the phonetic hint from the full conjugated form so spelling
+            // changes (e.g. mangeons) are reflected accurately.
+            const conj = conjugateVerb(verb, pronounIndex);
+            const root = conj.stem.replace(/g$|c$|ç$/, function(m){
+                return m === 'ç' ? 's' : m;
+            });
+            const ending = conj.ending;
 
-            // Simplified phonetics for display
             if (verbType === 'er') {
-                if (ending === 'ons') return `[${stemPhonetic}-ɔ̃]`;
-                if (ending === 'ez') return `[${stemPhonetic}-ay]`;
-                return `[${stemPhonetic}]`; // Silent ending
+                if (ending === 'ons') return `[${conj.stem}-ɔ̃]`;
+                if (ending === 'ez') return `[${conj.stem}-ay]`;
+                return `[${conj.stem}]`; // je/tu/il/ils endings are silent
             }
             if (verbType === 'ir') {
-                if (ending.includes('iss')) return `[${stemPhonetic}-ees]`;
-                return `[${stemPhonetic}-ee]`;
+                if (ending === 'is' || ending === 'it') return `[${conj.stem}-ee]`;
+                if (ending === 'issons') return `[${conj.stem}iss-ɔ̃]`;
+                if (ending === 'issez') return `[${conj.stem}iss-ay]`;
+                return `[${conj.stem}iss]`; // ils/elles -issent, silent ent
             }
             if (verbType === 're') {
-                if (ending === 'ons') return `[${stemPhonetic}-ɔ̃]`;
-                if (ending === 'ez') return `[${stemPhonetic}-ay]`;
-                if (ending === 'ent') return `[${stemPhonetic}d]`;
-                return `[${stemPhonetic}]`;
+                if (ending === 'ons') return `[${conj.stem}-ɔ̃]`;
+                if (ending === 'ez') return `[${conj.stem}-ay]`;
+                if (ending === 'ent') return `[${conj.stem}d]`;
+                return `[${conj.stem}]`; // silent final consonant
             }
+            return `[${conj.full}]`;
+        }
+
+        // Speak French text aloud using the browser's built-in voice (no audio files).
+        function speakFrench(text) {
+            if (!('speechSynthesis' in window)) {
+                alert('Sorry, your browser does not support speech playback.');
+                return;
+            }
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = 'fr-FR';
+            utter.rate = 0.85;
+            if (window.westTTS) {
+                const bestVoice = window.westTTS.pick(utter.lang || 'en-GB');
+                if (bestVoice) utter.voice = bestVoice;
+            } else {
+                const frVoice = window.speechSynthesis.getVoices().find(v => /^fr/i.test(v.lang));
+                if (frVoice) utter.voice = frVoice;
+            }
+            window.speechSynthesis.speak(utter);
+        }
+        // Voices can load asynchronously; trigger a load so they are ready on first click.
+        if ('speechSynthesis' in window) { window.speechSynthesis.getVoices(); }
+
+        // Show a clear warning when a verb is irregular and the regular-pattern
+        // conjugation shown below cannot be trusted.
+        function displayIrregularWarning(verb) {
+            const card = document.getElementById('conjugationTable').closest('.card');
+            let warn = document.getElementById('irregularWarning');
+            const info = verbDatabase[verb];
+            const isKnownIrregular = !!knownIrregulars[verb] || (info && info.irregular);
+            if (!isKnownIrregular) {
+                if (warn) warn.remove();
+                return;
+            }
+            if (!warn) {
+                warn = document.createElement('div');
+                warn.id = 'irregularWarning';
+                warn.className = 'irregular-warning';
+                card.insertBefore(warn, card.querySelector('.conjugation-table'));
+            }
+            warn.innerHTML = '&#9888; <strong>' + verb + '</strong> is an <strong>irregular verb</strong>. '
+                + 'The forms below apply the regular pattern and are <strong>not correct</strong> for this verb. '
+                + 'Use them only to see how the regular pattern would look, then check a verb table for the true forms.';
         }
 
         let currentVerb = 'parler';
@@ -728,7 +861,12 @@
             }
 
             if (!verbDatabase[verb]) {
-                verbDatabase[verb] = { type: type, english: 'custom verb', irregular: false };
+                const irregular = !!knownIrregulars[verb];
+                verbDatabase[verb] = {
+                    type: type,
+                    english: knownIrregulars[verb] || 'custom verb (assumed regular)',
+                    irregular: irregular
+                };
             }
 
             loadVerb(verb);
@@ -750,10 +888,20 @@
         }
 
         function conjugateVerb(verb, pronounIndex) {
-            const stem = getStem(verb);
+            let stem = getStem(verb);
             const info = verbDatabase[verb];
             const ending = endings[info.type][pronounIndex];
-            return { stem, ending, full: stem + ending };
+
+            // Spelling-change -ER verbs: the nous form (index 3, "-ons") keeps the
+            // soft consonant sound.  -ger verbs insert an 'e' (manger -> mangeons);
+            // -cer verbs use a cedilla (commencer -> commençons).
+            let spellChange = false;
+            if (info.type === 'er' && pronounIndex === 3) {
+                if (verb.endsWith('ger')) { stem = stem + 'e'; spellChange = true; }
+                else if (verb.endsWith('cer')) { stem = stem.slice(0, -1) + 'ç'; spellChange = true; }
+            }
+
+            return { stem, ending, full: stem + ending, spellChange };
         }
 
         function displayConjugation(verb) {
@@ -763,19 +911,26 @@
 
             pronouns.forEach((pronoun, index) => {
                 const conjugation = conjugateVerb(verb, index);
-                const phonetic = getPhonetic(verb, conjugation.ending, info.type);
+                const phonetic = getPhonetic(verb, index, info.type);
+                const spellNote = conjugation.spellChange
+                    ? ' <span class="spell-change" title="Spelling change to keep the soft sound">&#9733; spelling change</span>'
+                    : '';
+                const subject = index === 0 ? "je" : (index === 2 ? "il" : (index === 5 ? "ils" : pronoun));
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td class="pronoun">${pronoun}</td>
                     <td>
-                        <span class="stem">${conjugation.stem}</span><span class="ending">${conjugation.ending}</span>
+                        <span class="stem">${conjugation.stem}</span><span class="ending">${conjugation.ending}</span>${spellNote}
                     </td>
                     <td>
                         <span class="phonetic">${phonetic}</span>
+                        <button type="button" class="speak-btn" aria-label="Listen to ${subject} ${conjugation.full}" title="Listen" onclick="speakFrench('${subject} ${conjugation.full}')">&#128266;</button>
                     </td>
                 `;
                 tbody.appendChild(row);
             });
+
+            displayIrregularWarning(verb);
 
             // Add sentence examples section
             displaySentenceExamples(verb);
@@ -828,7 +983,7 @@
                     `<strong>Pattern Discovery:</strong> -ER verbs have the most regular pattern in French!`,
                     `<strong>Silent Endings:</strong> Notice how je/tu/il/elle/ils/elles all SOUND the same (only 'e' differs in spelling)`,
                     `<strong>Sound Pattern:</strong> 4 out of 6 forms sound identical - French loves silent endings!`,
-                    `<strong>Memorization Tip:</strong> Just learn "nous" and "vous" separately - the rest sound the same`
+                    `<strong>Memorisation Tip:</strong> Just learn "nous" and "vous" separately - the rest sound the same`
                 ],
                 'ir': [
                     `<strong>Pattern Discovery:</strong> -IR verbs add "-iss-" in plural forms (nous/vous/ils)`,
@@ -911,13 +1066,13 @@
                 .sort(() => Math.random() - 0.5);
 
             quizSection.innerHTML = `
-                <div class="quiz-question">How do you conjugate "${verb}" with "${pronoun}"?</div>
-                <div class="quiz-options" id="quizOptions">
+                <div class="quiz-question" id="quizQuestion">How do you conjugate "${verb}" with "${pronoun}"?</div>
+                <div class="quiz-options" id="quizOptions" role="group" aria-labelledby="quizQuestion">
                     ${options.map(opt => `
-                        <div class="quiz-option" onclick="checkAnswer('${opt}')">${opt}</div>
+                        <div class="quiz-option" role="button" tabindex="0" onclick="checkAnswer('${opt}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();checkAnswer('${opt}');}">${opt}</div>
                     `).join('')}
                 </div>
-                <div id="quizFeedback"></div>
+                <div id="quizFeedback" aria-live="polite"></div>
             `;
         }
 
@@ -934,15 +1089,22 @@
                 }
             });
 
+            const info = verbDatabase[currentVerb];
+            const ruleHint = {
+                'er': 'Take the stem and add the -ER ending: e, es, e, ons, ez, ent.',
+                'ir': 'Take the stem and add the -IR ending: is, is, it, issons, issez, issent.',
+                're': 'Take the stem and add the -RE ending: s, s, (nothing), ons, ez, ent.'
+            }[info.type];
+
             if (selected === quizAnswer) {
                 feedback.className = 'feedback correct';
-                feedback.textContent = '✓ Excellent! You\'ve mastered the pattern!';
+                feedback.innerHTML = `&#10003; Correct: <strong>${quizAnswer}</strong>. ${ruleHint}`;
             } else {
                 feedback.className = 'feedback incorrect';
-                feedback.textContent = `✗ Not quite. The correct answer is "${quizAnswer}". Notice the pattern!`;
+                feedback.innerHTML = `&#10007; Not quite. You chose "${selected}", but the answer is <strong>${quizAnswer}</strong>. ${ruleHint}`;
             }
 
-            setTimeout(() => generateQuiz(currentVerb), 3000);
+            setTimeout(() => generateQuiz(currentVerb), 4500);
         }
 
         initializeApp();

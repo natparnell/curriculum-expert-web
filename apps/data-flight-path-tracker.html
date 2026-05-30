@@ -174,6 +174,21 @@
     display: block;
     width: 100%;
     cursor: crosshair;
+    touch-action: none;
+  }
+  canvas#flightChart:focus-visible {
+    outline: 3px solid var(--teal-400);
+    outline-offset: -3px;
+  }
+  /* Visually hidden but available to screen readers */
+  .sr-only {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   /* ── Buttons ── */
@@ -754,7 +769,10 @@
         <button class="btn btn-ghost btn-sm" id="toggleBand">Hide band</button>
         <button class="btn btn-ghost btn-sm" id="toggleGrid">Hide grid</button>
       </div>
-      <canvas id="flightChart"></canvas>
+      <canvas id="flightChart" tabindex="0" role="application" aria-describedby="chartHelp"
+        aria-label="Progress chart plotting each student's assessment scores against the target band. Use arrow keys to select a student. In What-if mode, use up and down arrows to adjust the selected student's final projected score."></canvas>
+      <p id="chartHelp" class="sr-only">Interactive chart. Press the left and right arrow keys to move between students. In What-if mode, press the up and down arrow keys to raise or lower the selected student's final projected score. The current state is announced below.</p>
+      <div id="chartStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
       <div class="legend" id="chartLegend"></div>
     </div>
 
@@ -1505,6 +1523,39 @@
   }
 
   /* ────────────────────────────────────────────────
+     SCREEN-READER ANNOUNCEMENTS (aria-live)
+  ──────────────────────────────────────────────── */
+  const chartStatus = document.getElementById('chartStatus');
+
+  function statusLabel(score) {
+    if (score === null) return 'not yet assessed';
+    if (score < bandLower) return 'below target band';
+    if (score > bandUpper) return 'above target band';
+    return 'on track within target band';
+  }
+
+  function announce(msg) {
+    if (chartStatus) chartStatus.textContent = msg;
+  }
+
+  function announceStudent(student) {
+    if (!student) return;
+    let msg = student.name + '. ';
+    if (whatIfMode && student.whatIfScore !== null) {
+      const projected = Math.round(student.whatIfScore);
+      msg += 'Projected final score ' + projected + ', ' + statusLabel(projected) + '.';
+    } else {
+      const last = getLastScore(student);
+      if (last === null) {
+        msg += 'No scores entered yet.';
+      } else {
+        msg += 'Latest score ' + Math.round(last) + ', ' + statusLabel(last) + '.';
+      }
+    }
+    announce(msg);
+  }
+
+  /* ────────────────────────────────────────────────
      MOUSE INTERACTION
   ──────────────────────────────────────────────── */
   function getCanvasPos(e) {
@@ -1545,6 +1596,7 @@
     return pts[pts.length - 1];
   }
 
+  if (!window.PointerEvent) {
   canvas.addEventListener('mousemove', (e) => {
     const { x, y } = getCanvasPos(e);
     const ca = chartArea();
@@ -1674,6 +1726,149 @@
       dragging = false;
       dragStudentId = null;
       refreshAll();
+    }
+  });
+  } else {
+
+  /* ────────────────────────────────────────────────
+     POINTER INTERACTION (touch / pen / whiteboard)
+     Runs alongside the mouse handlers above so the same
+     drag and select gestures work by touch and stylus.
+     Mouse pointer events are ignored here to avoid
+     double-handling with the existing mouse listeners.
+  ──────────────────────────────────────────────── */
+  function getCanvasPosFromPointer(e) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    const { x, y } = getCanvasPosFromPointer(e);
+
+    if (!whatIfMode) {
+      // Tap to select nearest point (mirrors the mouse 'click' behaviour)
+      const hit = findNearestPoint(x, y);
+      if (hit) {
+        toggleStudentSelection(hit.student.id);
+        announceStudent(hit.student);
+      }
+      return;
+    }
+
+    // What-if mode: begin dragging the selected (or tapped) student's final point
+    if (selectedStudentId !== null) {
+      const sel = students.find(s => s.id === selectedStudentId);
+      if (sel) {
+        const lastPt = findLastPointForSelected(sel);
+        if (lastPt && Math.hypot(lastPt.x - x, lastPt.y - y) < 30) {
+          dragging = true;
+          dragStudentId = sel.id;
+          try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+
+    const ca = chartArea();
+    const n  = apCount();
+    let found = false;
+    students.forEach(student => {
+      if (found || !student.visible) return;
+      const pts = getStudentPoints(student, ca, n);
+      if (pts.length === 0) return;
+      const lastPt = pts[pts.length - 1];
+      if (Math.hypot(lastPt.x - x, lastPt.y - y) < 30) {
+        students.forEach(s => { s.selected = (s.id === student.id); });
+        selectedStudentId = student.id;
+        dragging = true;
+        dragStudentId = student.id;
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+        renderStudentList();
+        renderLegend();
+        draw();
+        found = true;
+        e.preventDefault();
+      }
+    });
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!dragging || dragStudentId === null || !whatIfMode) return;
+    e.preventDefault();
+    const { x, y } = getCanvasPosFromPointer(e);
+    const ca = chartArea();
+    const s = students.find(st => st.id === dragStudentId);
+    if (s) {
+      const score = Math.max(0, Math.min(yMax, scoreForY(y, ca)));
+      s.whatIfScore = score;
+      draw();
+      const lastAp = assessmentPoints[apCount() - 1];
+      showTooltip(e.clientX, e.clientY, s, score, lastAp + ' (projected)');
+    }
+  });
+
+  function endPointerDrag(e) {
+    if (dragging) {
+      const s = students.find(st => st.id === dragStudentId);
+      dragging = false;
+      dragStudentId = null;
+      hideTooltip();
+      refreshAll();
+      announceStudent(s);
+    }
+    if (e && e.pointerId !== undefined) {
+      try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+  }
+
+  canvas.addEventListener('pointerup', endPointerDrag);
+  canvas.addEventListener('pointercancel', endPointerDrag);
+  }
+
+  /* ────────────────────────────────────────────────
+     KEYBOARD INTERACTION (accessibility)
+     Left/Right: move selection between students.
+     Up/Down (What-if mode): adjust selected student's
+     final projected score. State is announced via the
+     aria-live region for screen-reader users.
+  ──────────────────────────────────────────────── */
+  canvas.addEventListener('keydown', (e) => {
+    const visibleStudents = students.filter(s => s.visible);
+    if (visibleStudents.length === 0) return;
+
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      let idx = visibleStudents.findIndex(s => s.id === selectedStudentId);
+      if (idx === -1) {
+        idx = (e.key === 'ArrowRight') ? 0 : visibleStudents.length - 1;
+      } else {
+        idx += (e.key === 'ArrowRight') ? 1 : -1;
+        if (idx < 0) idx = visibleStudents.length - 1;
+        if (idx >= visibleStudents.length) idx = 0;
+      }
+      const target = visibleStudents[idx];
+      students.forEach(s => { s.selected = (s.id === target.id); });
+      selectedStudentId = target.id;
+      renderStudentList();
+      renderLegend();
+      draw();
+      announceStudent(target);
+      return;
+    }
+
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && whatIfMode) {
+      const s = students.find(st => st.id === selectedStudentId);
+      if (!s) { announce('Select a student first using the left and right arrow keys.'); return; }
+      e.preventDefault();
+      const base = (s.whatIfScore !== null) ? s.whatIfScore : (getLastScore(s) ?? 0);
+      const step = e.shiftKey ? 5 : 1;
+      let next = base + (e.key === 'ArrowUp' ? step : -step);
+      next = Math.max(0, Math.min(yMax, next));
+      s.whatIfScore = next;
+      draw();
+      refreshAll();
+      announceStudent(s);
     }
   });
 

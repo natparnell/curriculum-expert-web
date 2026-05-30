@@ -359,7 +359,7 @@
     }
 
     .ring-label-text { font-size: 11px; fill: var(--grey-400); text-anchor: middle; pointer-events: none; }
-    .svg-person { cursor: grab; }
+    .svg-person { cursor: grab; touch-action: none; }
     .svg-person:active { cursor: grabbing; }
     .svg-person circle { transition: r 0.15s; }
     .svg-person:hover circle { r: 22; }
@@ -819,6 +819,8 @@
     let nextId = 1;
     let dragTarget = null;
     let dragOffset = { x: 0, y: 0 };
+    let dragPointerId = null;
+    let dragCaptureEl = null;
 
     const svg = document.getElementById('networkSvg');
     const peopleGroup = document.getElementById('peopleGroup');
@@ -965,8 +967,12 @@
             peopleGroup.appendChild(g);
 
             // Drag handlers
-            g.addEventListener('mousedown', startDrag);
-            g.addEventListener('touchstart', startDrag, { passive: false });
+            if (window.PointerEvent) {
+                g.addEventListener('pointerdown', startDrag);
+            } else {
+                g.addEventListener('mousedown', startDrag);
+                g.addEventListener('touchstart', startDrag, { passive: false });
+            }
         });
     }
 
@@ -1021,10 +1027,23 @@
         dragOffset.x = pt.x - person.x;
         dragOffset.y = pt.y - person.y;
 
-        document.addEventListener('mousemove', onDrag);
-        document.addEventListener('mouseup', endDrag);
-        document.addEventListener('touchmove', onDrag, { passive: false });
-        document.addEventListener('touchend', endDrag);
+        if (evt.type === 'pointerdown') {
+            dragPointerId = (typeof evt.pointerId === 'number') ? evt.pointerId : null;
+            try {
+                if (dragPointerId !== null) {
+                    g.setPointerCapture(dragPointerId);
+                    dragCaptureEl = g;
+                }
+            } catch (e) {}
+            document.addEventListener('pointermove', onDrag);
+            document.addEventListener('pointerup', endDrag);
+            document.addEventListener('pointercancel', endDrag);
+        } else {
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', endDrag);
+            document.addEventListener('touchmove', onDrag, { passive: false });
+            document.addEventListener('touchend', endDrag);
+        }
     }
 
     function onDrag(evt) {
@@ -1062,7 +1081,7 @@
         }
     }
 
-    function endDrag() {
+    function endDrag(evt) {
         if (dragTarget) {
             dragTarget = null;
             clearDropZoneHighlights();
@@ -1070,10 +1089,22 @@
             updateScore();
             updateReflection();
         }
+        if (dragPointerId !== null) {
+            try {
+                if (dragCaptureEl && dragCaptureEl.hasPointerCapture && dragCaptureEl.hasPointerCapture(dragPointerId)) {
+                    dragCaptureEl.releasePointerCapture(dragPointerId);
+                }
+            } catch (e) {}
+            dragPointerId = null;
+            dragCaptureEl = null;
+        }
         document.removeEventListener('mousemove', onDrag);
         document.removeEventListener('mouseup', endDrag);
         document.removeEventListener('touchmove', onDrag);
         document.removeEventListener('touchend', endDrag);
+        document.removeEventListener('pointermove', onDrag);
+        document.removeEventListener('pointerup', endDrag);
+        document.removeEventListener('pointercancel', endDrag);
     }
 
     function highlightDropZone(x, y) {

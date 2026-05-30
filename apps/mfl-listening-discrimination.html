@@ -316,7 +316,10 @@ header .subtitle {
   user-select:none;
 }
 .draggable-sound:active { cursor:grabbing; transform:scale(1.05); }
+.draggable-sound:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.draggable-sound.picked { background:var(--accent); border-color:var(--accent2); box-shadow:0 0 14px rgba(192,132,252,.5); transform:scale(1.06); }
 .draggable-sound.matched { opacity:.4; pointer-events:none; }
+.drop-zone:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .drop-zone {
   display:flex;
   align-items:center;
@@ -468,6 +471,47 @@ header .subtitle {
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -651,6 +695,8 @@ header .subtitle {
     <div class="stat">Accuracy: <span class="stat-val gold" id="statAccuracy">0%</span></div>
   </div>
 
+  <div id="voiceWarning" style="display:none;max-width:680px;margin:0 auto 16px;padding:10px 14px;border:1px solid var(--gold);background:rgba(251,191,36,.08);border-radius:var(--radius-sm);color:var(--gold);font-size:0.8rem;line-height:1.5;text-align:center"></div>
+
   <!-- EXPLORE MODE -->
   <div id="exploreMode">
     <div class="panel">
@@ -698,125 +744,125 @@ header .subtitle {
 /* ===== SOUND DATA ===== */
 const DATA = {
   fr: {
-    name: 'French', flag: '\uD83C\uDDEB\uD83C\uDDF7', colour: 'var(--french)', colourLight: 'var(--french-light)',
+    name: 'French', flag: '\uD83C\uDDEB\uD83C\uDDF7', colour: 'var(--french)', colourLight: 'var(--french-light)', lang: 'fr-FR',
     pairs: [
-      { a:{ symbol:'u', ipa:'/y/', word:'tu', meaning:'you', freq:320, mod:'sine', formant2:1900 },
-        b:{ symbol:'ou', ipa:'/u/', word:'tout', meaning:'all', freq:280, mod:'triangle', formant2:800 },
+      { a:{ symbol:'u', ipa:'/y/', word:'tu', say:'tu', meaning:'you', mod:'sine' },
+        b:{ symbol:'ou', ipa:'/u/', word:'tout', say:'tout', meaning:'all', mod:'triangle' },
         tip:'The French "u" requires rounded lips pushed forward with the tongue high and front. "ou" is a back vowel with lips rounded but tongue pulled back.',
         tongueA:{ height:85, front:75, lip:15 }, tongueB:{ height:85, front:25, lip:20 }
       },
-      { a:{ symbol:'\u00e9', ipa:'/e/', word:'les', meaning:'the (pl.)', freq:400, mod:'sine', formant2:2100 },
-        b:{ symbol:'\u00e8', ipa:'/\u025B/', word:'lait', meaning:'milk', freq:500, mod:'sine', formant2:1800 },
+      { a:{ symbol:'\u00e9', ipa:'/e/', word:'les', say:'les', meaning:'the (pl.)', mod:'sine' },
+        b:{ symbol:'\u00e8', ipa:'/\u025B/', word:'lait', say:'lait', meaning:'milk', mod:'sine' },
         tip:'"e accent aigu" is a close-mid front vowel with a tenser tongue. "e accent grave" opens the mouth wider in a more relaxed position.',
         tongueA:{ height:70, front:75, lip:30 }, tongueB:{ height:55, front:70, lip:35 }
       },
-      { a:{ symbol:'on', ipa:'/\u0254\u0303/', word:'bon', meaning:'good', freq:260, mod:'triangle', formant2:700 },
-        b:{ symbol:'an', ipa:'/\u0251\u0303/', word:'banc', meaning:'bench', freq:300, mod:'sawtooth', formant2:1100 },
+      { a:{ symbol:'on', ipa:'/\u0254\u0303/', word:'bon', say:'bon', meaning:'good', mod:'triangle' },
+        b:{ symbol:'an', ipa:'/\u0251\u0303/', word:'banc', say:'banc', meaning:'bench', mod:'sawtooth' },
         tip:'"on" is a rounded back nasal vowel. "an" is an open nasal vowel with the mouth wider and no lip rounding.',
         tongueA:{ height:50, front:25, lip:18 }, tongueB:{ height:35, front:50, lip:40 }
       },
-      { a:{ symbol:'in', ipa:'/\u025B\u0303/', word:'vin', meaning:'wine', freq:380, mod:'sine', formant2:1700 },
-        b:{ symbol:'un', ipa:'/\u0153\u0303/', word:'brun', meaning:'brown', freq:340, mod:'triangle', formant2:1400 },
+      { a:{ symbol:'in', ipa:'/\u025B\u0303/', word:'vin', say:'vin', meaning:'wine', mod:'sine' },
+        b:{ symbol:'un', ipa:'/\u0153\u0303/', word:'brun', say:'brun', meaning:'brown', mod:'triangle' },
         tip:'"in" is a front nasal vowel with spread lips. "un" adds lip rounding to a similar tongue position, creating a more muffled sound.',
         tongueA:{ height:55, front:70, lip:35 }, tongueB:{ height:55, front:65, lip:15 }
       },
-      { a:{ symbol:'r', ipa:'/\u0281/', word:'rouge', meaning:'red', freq:180, mod:'sawtooth', formant2:1200 },
-        b:{ symbol:'l', ipa:'/l/', word:'louge', meaning:'(lodge)', freq:220, mod:'sine', formant2:1000 },
+      { a:{ symbol:'r', ipa:'/\u0281/', word:'rue', say:'rue', meaning:'street', mod:'sawtooth' },
+        b:{ symbol:'l', ipa:'/l/', word:'lu', say:'lu', meaning:'read (past part.)', mod:'sine' },
         tip:'French "r" is uvular, produced at the back of the throat with vibration. "l" uses the tongue tip touching the ridge behind the upper teeth.',
         tongueA:{ height:40, front:15, lip:30 }, tongueB:{ height:60, front:80, lip:30 }
       },
-      { a:{ symbol:'b', ipa:'/b/', word:'bon', meaning:'good', freq:120, mod:'square', formant2:900 },
-        b:{ symbol:'p', ipa:'/p/', word:'pont', meaning:'bridge', freq:110, mod:'sine', formant2:900 },
+      { a:{ symbol:'b', ipa:'/b/', word:'bon', say:'bon', meaning:'good', mod:'square' },
+        b:{ symbol:'p', ipa:'/p/', word:'pont', say:'pont', meaning:'bridge', mod:'sine' },
         tip:'"b" is voiced: the vocal cords vibrate during production. "p" is voiceless: air is released in a short burst without vocal cord vibration.',
         tongueA:{ height:30, front:90, lip:5 }, tongueB:{ height:30, front:90, lip:5 }
       },
-      { a:{ symbol:'ss', ipa:'/s/', word:'poisson', meaning:'fish', freq:5000, mod:'sawtooth', formant2:4500 },
-        b:{ symbol:'z', ipa:'/z/', word:'poison', meaning:'poison', freq:4200, mod:'square', formant2:4000 },
-        tip:'"ss" produces a voiceless hissing sibilant. "z" adds voicing, creating a buzzing quality. The tongue position is identical for both.',
+      { a:{ symbol:'ss', ipa:'/s/', word:'poisson', say:'poisson', meaning:'fish', mod:'sawtooth' },
+        b:{ symbol:'s', ipa:'/z/', word:'poison', say:'poison', meaning:'poison', mod:'square' },
+        tip:'"ss" produces a voiceless hissing sibilant. The single "s" between vowels adds voicing, creating a buzzing /z/ quality. The tongue position is identical for both.',
         tongueA:{ height:75, front:78, lip:28 }, tongueB:{ height:75, front:78, lip:28 }
       }
     ]
   },
   de: {
-    name: 'German', flag: '\uD83C\uDDE9\uD83C\uDDEA', colour: 'var(--german)', colourLight: 'var(--german-light)',
+    name: 'German', flag: '\uD83C\uDDE9\uD83C\uDDEA', colour: 'var(--german)', colourLight: 'var(--german-light)', lang: 'de-DE',
     pairs: [
-      { a:{ symbol:'ch', ipa:'/\u00E7/', word:'ich', meaning:'I', freq:3500, mod:'sawtooth', formant2:3200 },
-        b:{ symbol:'sch', ipa:'/\u0283/', word:'isch', meaning:'(suffix)', freq:2800, mod:'square', formant2:2200 },
+      { a:{ symbol:'ch', ipa:'/\u00E7/', word:'ich', say:'ich', meaning:'I', mod:'sawtooth' },
+        b:{ symbol:'sch', ipa:'/\u0283/', word:'Tisch', say:'Tisch', meaning:'table', mod:'square' },
         tip:'"ich-Laut" (ch after front vowels) is a palatal fricative made with the tongue near the hard palate. "sch" is a postalveolar fricative with the tongue further back and lips rounded.',
         tongueA:{ height:80, front:70, lip:30 }, tongueB:{ height:70, front:55, lip:15 }
       },
-      { a:{ symbol:'\u00fc', ipa:'/y\u02D0/', word:'f\u00fchlen', meaning:'to feel', freq:320, mod:'sine', formant2:1850 },
-        b:{ symbol:'u', ipa:'/u\u02D0/', word:'Stuhl', meaning:'chair', freq:280, mod:'triangle', formant2:800 },
+      { a:{ symbol:'\u00fc', ipa:'/y\u02D0/', word:'f\u00fchlen', say:'f\u00fchlen', meaning:'to feel', mod:'sine' },
+        b:{ symbol:'u', ipa:'/u\u02D0/', word:'Stuhl', say:'Stuhl', meaning:'chair', mod:'triangle' },
         tip:'German "\u00fc" is identical to French "u": lips rounded, tongue high and front. "u" keeps the lips rounded but the tongue moves to the back of the mouth.',
         tongueA:{ height:85, front:75, lip:15 }, tongueB:{ height:85, front:25, lip:18 }
       },
-      { a:{ symbol:'\u00f6', ipa:'/\u00F8\u02D0/', word:'sch\u00f6n', meaning:'beautiful', freq:350, mod:'sine', formant2:1600 },
-        b:{ symbol:'o', ipa:'/o\u02D0/', word:'Sohn', meaning:'son', freq:300, mod:'triangle', formant2:850 },
+      { a:{ symbol:'\u00f6', ipa:'/\u00F8\u02D0/', word:'sch\u00f6n', say:'sch\u00f6n', meaning:'beautiful', mod:'sine' },
+        b:{ symbol:'o', ipa:'/o\u02D0/', word:'Sohn', say:'Sohn', meaning:'son', mod:'triangle' },
         tip:'"\u00f6" is a front rounded vowel: the tongue is in "e" position but the lips are rounded as for "o". Pure "o" has the tongue in a back position.',
         tongueA:{ height:65, front:70, lip:18 }, tongueB:{ height:65, front:25, lip:20 }
       },
-      { a:{ symbol:'z', ipa:'/ts/', word:'zehn', meaning:'ten', freq:4000, mod:'sawtooth', formant2:3800 },
-        b:{ symbol:'s', ipa:'/z/', word:'sein', meaning:'to be', freq:3600, mod:'square', formant2:3400 },
+      { a:{ symbol:'z', ipa:'/ts/', word:'zehn', say:'zehn', meaning:'ten', mod:'sawtooth' },
+        b:{ symbol:'s', ipa:'/z/', word:'sehen', say:'sehen', meaning:'to see', mod:'square' },
         tip:'German "z" is an affricate /ts/, starting with a stop then releasing into a hiss. "s" before vowels is a voiced /z/ like English "z".',
         tongueA:{ height:80, front:82, lip:26 }, tongueB:{ height:76, front:78, lip:28 }
       },
-      { a:{ symbol:'ach', ipa:'/x/', word:'Buch', meaning:'book', freq:2200, mod:'sawtooth', formant2:1800 },
-        b:{ symbol:'ch (ich)', ipa:'/\u00E7/', word:'Licht', meaning:'light', freq:3500, mod:'sawtooth', formant2:3200 },
+      { a:{ symbol:'ach', ipa:'/x/', word:'Buch', say:'Buch', meaning:'book', mod:'sawtooth' },
+        b:{ symbol:'ich', ipa:'/\u00E7/', word:'Licht', say:'Licht', meaning:'light', mod:'sawtooth' },
         tip:'"ach-Laut" (ch after back vowels) is a velar fricative at the back of the mouth. "ich-Laut" (after front vowels) is a palatal fricative further forward.',
         tongueA:{ height:60, front:20, lip:25 }, tongueB:{ height:80, front:70, lip:30 }
       },
-      { a:{ symbol:'ei', ipa:'/a\u026A/', word:'Eis', meaning:'ice', freq:420, mod:'sine', formant2:2000 },
-        b:{ symbol:'ie', ipa:'/i\u02D0/', word:'Tier', meaning:'animal', freq:280, mod:'sine', formant2:2400 },
+      { a:{ symbol:'ei', ipa:'/a\u026A/', word:'Eis', say:'Eis', meaning:'ice', mod:'sine' },
+        b:{ symbol:'ie', ipa:'/i\u02D0/', word:'Tier', say:'Tier', meaning:'animal', mod:'sine' },
         tip:'"ei" is a diphthong gliding from open "a" to "i". "ie" is a long, steady /i:/ sound. The letter order matches the pronunciation.',
         tongueA:{ height:40, front:55, lip:40 }, tongueB:{ height:90, front:80, lip:32 }
       },
-      { a:{ symbol:'w', ipa:'/v/', word:'Wasser', meaning:'water', freq:200, mod:'square', formant2:1100 },
-        b:{ symbol:'v', ipa:'/f/', word:'Vater', meaning:'father', freq:4500, mod:'sawtooth', formant2:4200 },
+      { a:{ symbol:'w', ipa:'/v/', word:'Wasser', say:'Wasser', meaning:'water', mod:'square' },
+        b:{ symbol:'v', ipa:'/f/', word:'Vater', say:'Vater', meaning:'father', mod:'sawtooth' },
         tip:'German "w" is pronounced like English "v" with lower lip against upper teeth and voicing. "v" in native German words is voiceless /f/.',
         tongueA:{ height:40, front:88, lip:10 }, tongueB:{ height:40, front:88, lip:10 }
       }
     ]
   },
   es: {
-    name: 'Spanish', flag: '\uD83C\uDDEA\uD83C\uDDF8', colour: 'var(--spanish)', colourLight: 'var(--spanish-light)',
+    name: 'Spanish', flag: '\uD83C\uDDEA\uD83C\uDDF8', colour: 'var(--spanish)', colourLight: 'var(--spanish-light)', lang: 'es-ES',
     pairs: [
-      { a:{ symbol:'r', ipa:'/\u027E/', word:'pero', meaning:'but', freq:240, mod:'sine', formant2:1300 },
-        b:{ symbol:'rr', ipa:'/r/', word:'perro', meaning:'dog', freq:240, mod:'square', formant2:1300 },
+      { a:{ symbol:'r', ipa:'/\u027E/', word:'pero', say:'pero', meaning:'but', mod:'sine' },
+        b:{ symbol:'rr', ipa:'/r/', word:'perro', say:'perro', meaning:'dog', mod:'square' },
         tip:'Single "r" is a single tap of the tongue against the alveolar ridge. "rr" is a trill with multiple rapid vibrations of the tongue tip.',
         tongueA:{ height:72, front:78, lip:30 }, tongueB:{ height:72, front:78, lip:30 }
       },
-      { a:{ symbol:'b (initial)', ipa:'/b/', word:'boca', meaning:'mouth', freq:120, mod:'square', formant2:900 },
-        b:{ symbol:'b (between vowels)', ipa:'/\u03B2/', word:'haba', meaning:'bean', freq:140, mod:'triangle', formant2:950 },
+      { a:{ symbol:'b (initial)', ipa:'/b/', word:'boca', say:'boca', meaning:'mouth', mod:'square' },
+        b:{ symbol:'b (between vowels)', ipa:'/\u03B2/', word:'haba', say:'haba', meaning:'bean', mod:'triangle' },
         tip:'Initial "b" is a full stop with lips completely closed. Between vowels, "b" softens to a fricative where the lips barely touch, allowing air through.',
         tongueA:{ height:30, front:90, lip:3 }, tongueB:{ height:30, front:88, lip:8 }
       },
-      { a:{ symbol:'d (initial)', ipa:'/d/', word:'donde', meaning:'where', freq:150, mod:'square', formant2:1500 },
-        b:{ symbol:'d (between vowels)', ipa:'/\u00F0/', word:'nada', meaning:'nothing', freq:170, mod:'triangle', formant2:1500 },
+      { a:{ symbol:'d (initial)', ipa:'/d/', word:'donde', say:'donde', meaning:'where', mod:'square' },
+        b:{ symbol:'d (between vowels)', ipa:'/\u00F0/', word:'nada', say:'nada', meaning:'nothing', mod:'triangle' },
         tip:'Initial "d" is a dental stop with the tongue firmly against the upper teeth. Between vowels it becomes a fricative like English "th" in "the".',
         tongueA:{ height:65, front:85, lip:30 }, tongueB:{ height:55, front:82, lip:32 }
       },
-      { a:{ symbol:'j', ipa:'/x/', word:'jota', meaning:'letter J', freq:2500, mod:'sawtooth', formant2:2000 },
-        b:{ symbol:'g (before e/i)', ipa:'/x/', word:'gente', meaning:'people', freq:2500, mod:'sawtooth', formant2:2000 },
+      { a:{ symbol:'j', ipa:'/x/', word:'jota', say:'jota', meaning:'letter J', mod:'sawtooth' },
+        b:{ symbol:'g (before e/i)', ipa:'/x/', word:'gente', say:'gente', meaning:'people', mod:'sawtooth' },
         tip:'Both "j" and "g" before "e" or "i" produce the same velar fricative /x/. This is a common source of spelling confusion for learners.',
         tongueA:{ height:55, front:20, lip:28 }, tongueB:{ height:55, front:20, lip:28 }
       },
-      { a:{ symbol:'\u00f1', ipa:'/\u0272/', word:'a\u00f1o', meaning:'year', freq:280, mod:'sine', formant2:1800 },
-        b:{ symbol:'n', ipa:'/n/', word:'ano', meaning:'anus', freq:260, mod:'sine', formant2:1500 },
-        tip:'"\u00f1" is a palatal nasal with the tongue blade pressed against the hard palate. "n" uses only the tongue tip against the alveolar ridge. The meaning difference can be significant!',
+      { a:{ symbol:'\u00f1', ipa:'/\u0272/', word:'a\u00f1o', say:'a\u00f1o', meaning:'year', mod:'sine' },
+        b:{ symbol:'n', ipa:'/n/', word:'cana', say:'cana', meaning:'grey hair', mod:'sine' },
+        tip:'"\u00f1" is a palatal nasal with the tongue blade pressed against the hard palate. "n" uses only the tongue tip against the alveolar ridge. Compare "a\u00f1o" (year) with the everyday word "cana" (grey hair).',
         tongueA:{ height:80, front:60, lip:28 }, tongueB:{ height:72, front:78, lip:30 }
       },
-      { a:{ symbol:'ll', ipa:'/\u028E/', word:'calle', meaning:'street', freq:300, mod:'sine', formant2:1900 },
-        b:{ symbol:'y', ipa:'/\u029D/', word:'yo', meaning:'I', freq:310, mod:'triangle', formant2:2000 },
+      { a:{ symbol:'ll', ipa:'/\u028E/', word:'calle', say:'calle', meaning:'street', mod:'sine' },
+        b:{ symbol:'y', ipa:'/\u029D/', word:'yo', say:'yo', meaning:'I', mod:'triangle' },
         tip:'"ll" and "y" have merged in most dialects (ye\u00edsmo). Where distinguished, "ll" is a lateral palatal and "y" is a palatal fricative.',
         tongueA:{ height:82, front:65, lip:28 }, tongueB:{ height:78, front:68, lip:28 }
       },
-      { a:{ symbol:'c (before e/i)', ipa:'/\u03B8/ or /s/', word:'cena', meaning:'dinner', freq:4800, mod:'sawtooth', formant2:4500 },
-        b:{ symbol:'s', ipa:'/s/', word:'sena', meaning:'(name)', freq:5000, mod:'sawtooth', formant2:4500 },
+      { a:{ symbol:'c (before e/i)', ipa:'/\u03B8/ or /s/', word:'cena', say:'cena', meaning:'dinner', mod:'sawtooth' },
+        b:{ symbol:'s', ipa:'/s/', word:'sena', say:'sena', meaning:'(river Seine)', mod:'sawtooth' },
         tip:'In Castilian Spanish, "c" before "e/i" is /\u03B8/ (like English "th"). In Latin American Spanish, both merge to /s/ (seseo).',
         tongueA:{ height:65, front:85, lip:28 }, tongueB:{ height:76, front:78, lip:28 }
       },
-      { a:{ symbol:'g (before a/o/u)', ipa:'/g/', word:'gato', meaning:'cat', freq:160, mod:'square', formant2:1000 },
-        b:{ symbol:'gu (before e/i)', ipa:'/g/', word:'guerra', meaning:'war', freq:160, mod:'square', formant2:1000 },
+      { a:{ symbol:'g (before a/o/u)', ipa:'/g/', word:'gato', say:'gato', meaning:'cat', mod:'square' },
+        b:{ symbol:'gu (before e/i)', ipa:'/g/', word:'guerra', say:'guerra', meaning:'war', mod:'square' },
         tip:'Before a/o/u, "g" is pronounced directly. Before e/i, a silent "u" is needed to keep the hard /g/ sound. Without "u", "g" would be /x/.',
         tongueA:{ height:50, front:18, lip:28 }, tongueB:{ height:50, front:18, lip:28 }
       }
@@ -829,13 +875,63 @@ let currentLang = 'fr';
 let currentPairIdx = -1;
 let currentMode = 'explore';
 let stats = { attempted:0, correct:0 };
-let audioCtx = null;
 let matchState = {};
 let quizState = {};
 
-function getAudioCtx() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  return audioCtx;
+/* ===== SPEECH SYNTHESIS ===== */
+const speech = {
+  supported: ('speechSynthesis' in window) && ('SpeechSynthesisUtterance' in window),
+  voices: [],
+  ready: false
+};
+
+function loadVoices() {
+  if (!speech.supported) return;
+  speech.voices = window.speechSynthesis.getVoices() || [];
+  speech.ready = speech.voices.length > 0;
+}
+
+if (speech.supported) {
+  loadVoices();
+  // Voices often load asynchronously on first call.
+  window.speechSynthesis.onvoiceschanged = function() {
+    loadVoices();
+    refreshVoiceWarning();
+  };
+}
+
+// Pick the best matching voice for a BCP-47 lang code (e.g. 'fr-FR').
+function pickVoice(langCode) {
+  if (!speech.voices.length) loadVoices();
+  if (!speech.voices.length) return null;
+  const base = langCode.split('-')[0].toLowerCase();
+  // Exact region match first, then base-language match.
+  return speech.voices.find(v => v.lang && v.lang.toLowerCase() === langCode.toLowerCase())
+      || speech.voices.find(v => v.lang && v.lang.toLowerCase().replace('_','-') === langCode.toLowerCase())
+      || speech.voices.find(v => v.lang && v.lang.toLowerCase().split(/[-_]/)[0] === base)
+      || null;
+}
+
+// Does the browser actually have a voice for the current language?
+function hasVoiceFor(langCode) {
+  if (!speech.supported) return false;
+  return !!pickVoice(langCode);
+}
+
+function refreshVoiceWarning() {
+  const el = document.getElementById('voiceWarning');
+  if (!el) return;
+  const lang = DATA[currentLang];
+  if (!speech.supported) {
+    el.style.display = 'block';
+    el.innerHTML = 'Your browser does not support speech playback. Try Chrome, Edge or Safari for the listening tasks.';
+  } else if (!hasVoiceFor(lang.lang)) {
+    el.style.display = 'block';
+    el.innerHTML = `No ${lang.name} speech voice is installed on this device, so the audio will fall back to your default voice and may sound anglicised. To hear authentic ${lang.name}, add a ${lang.name} language pack in your operating system speech settings.`;
+  } else {
+    el.style.display = 'none';
+    el.innerHTML = '';
+  }
 }
 
 /* ===== RENDER LANGUAGE TABS ===== */
@@ -871,34 +967,44 @@ function updateStats() {
   document.getElementById('statAccuracy').textContent = pct + '%';
 }
 
-/* ===== SVG WAVEFORM ===== */
-function generateWaveformSVG(freq, modType, colour, id) {
+/* ===== SVG WAVEFORM =====
+   Draws a representative speech waveform for a spoken word: an amplitude
+   envelope that rises and falls per syllable, with vowels (open, voiced)
+   shown as wider oscillations and consonants/fricatives as denser, lower
+   amplitude. This mirrors the structure of the real spoken signal rather
+   than an abstract synthesiser tone. */
+function generateWaveformSVG(sound, colour, id) {
   const w = 240, h = 70;
+  const word = (sound.say || sound.word || sound.symbol || '').toLowerCase();
+  const chars = word.replace(/[^a-zà-ÿ]/g, '').split('');
+  const n = Math.max(chars.length, 3);
+  const vowels = 'aeiouyàâäéèêëïîôöùûü';
+  // Deterministic pseudo-random so each word always draws the same shape.
+  let seed = 0;
+  for (const c of word) seed = (seed * 31 + c.charCodeAt(0)) % 100000;
+  const rand = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+
   let path = '';
-  const steps = 120;
+  const steps = 160;
   for (let i = 0; i <= steps; i++) {
     const x = (i / steps) * w;
-    const t = (i / steps) * Math.PI * 6;
-    let y;
-    if (modType === 'sine') {
-      y = h/2 + Math.sin(t * freq/300) * 25 * Math.sin(t * 0.5);
-    } else if (modType === 'triangle') {
-      const tri = 2 * Math.abs(2 * ((t * freq/300)/(2*Math.PI) - Math.floor((t * freq/300)/(2*Math.PI) + 0.5))) - 1;
-      y = h/2 + tri * 22 * Math.sin(t * 0.4);
-    } else if (modType === 'sawtooth') {
-      const saw = 2 * ((t * freq/300)/(2*Math.PI) - Math.floor(0.5 + (t * freq/300)/(2*Math.PI)));
-      y = h/2 + saw * 20 * Math.cos(t * 0.3);
-    } else {
-      const sq = Math.sign(Math.sin(t * freq/300));
-      y = h/2 + sq * 18 * Math.sin(t * 0.5);
-    }
+    const pos = (i / steps) * n;            // which character we are over
+    const ci = Math.min(Math.floor(pos), chars.length - 1);
+    const ch = chars[ci] || 'a';
+    const isVowel = vowels.indexOf(ch) >= 0;
+    // Envelope: gentle rise and fall across the whole word.
+    const env = Math.sin((i / steps) * Math.PI) * 0.6 + 0.4;
+    // Carrier frequency: fast/buzzy for fricatives, smoother for vowels.
+    const carrier = isVowel ? 6 + (ch.charCodeAt(0) % 4) : 16 + (ch.charCodeAt(0) % 8);
+    const amp = (isVowel ? 26 : 14) * env;
+    const jitter = (rand() - 0.5) * (isVowel ? 3 : 7);
+    const y = h/2 + Math.sin((i / steps) * Math.PI * carrier) * amp + jitter;
     path += (i === 0 ? 'M' : 'L') + ` ${x.toFixed(1)} ${y.toFixed(1)}`;
   }
   return `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
     <rect width="${w}" height="${h}" fill="rgba(0,0,0,.2)" rx="6"/>
-    <path d="${path}" fill="none" stroke="${colour}" stroke-width="2.5" stroke-linecap="round" opacity="0.9">
-      <animate id="waveAnim${id}" attributeName="stroke-dasharray" from="0 2000" to="2000 0" dur="1.2s" fill="freeze" begin="indefinite"/>
-    </path>
+    <line x1="0" y1="${h/2}" x2="${w}" y2="${h/2}" stroke="${colour}" stroke-width="0.5" opacity="0.25"/>
+    <path d="${path}" fill="none" stroke="${colour}" stroke-width="2" stroke-linecap="round" opacity="0.9"/>
   </svg>`;
 }
 
@@ -934,40 +1040,46 @@ function generateMouthSVG(tongue, colour, label) {
   </svg>`;
 }
 
-/* ===== PLAY SOUND ===== */
-function playSound(soundData, btnEl) {
-  const ctx = getAudioCtx();
-  if (ctx.state === 'suspended') ctx.resume();
+/* ===== PLAY SOUND (real speech via SpeechSynthesis) ===== */
+function playSound(soundData, btnEl, langOverride) {
+  if (!speech.supported) {
+    if (btnEl) {
+      const prev = btnEl.textContent;
+      btnEl.textContent = 'No speech support';
+      setTimeout(() => { btnEl.textContent = prev; }, 1400);
+    }
+    return;
+  }
+  const langCode = langOverride || (DATA[currentLang] && DATA[currentLang].lang) || 'en-GB';
+  // Cancel anything already speaking so rapid replays do not queue up.
+  try { window.speechSynthesis.cancel(); } catch (e) {}
 
-  const dur = 0.7;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  const filter = ctx.createBiquadFilter();
-
-  osc.type = soundData.mod || 'sine';
-  osc.frequency.setValueAtTime(soundData.freq, ctx.currentTime);
-  osc.frequency.linearRampToValueAtTime(soundData.freq * 1.02, ctx.currentTime + dur * 0.3);
-  osc.frequency.linearRampToValueAtTime(soundData.freq * 0.98, ctx.currentTime + dur);
-
-  filter.type = 'bandpass';
-  filter.frequency.setValueAtTime(soundData.formant2 || 1500, ctx.currentTime);
-  filter.Q.setValueAtTime(2.5, ctx.currentTime);
-
-  gain.gain.setValueAtTime(0, ctx.currentTime);
-  gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
-  gain.gain.setValueAtTime(0.3, ctx.currentTime + dur - 0.15);
-  gain.gain.linearRampToValueAtTime(0, ctx.currentTime + dur);
-
-  osc.connect(filter);
-  filter.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(ctx.currentTime);
-  osc.stop(ctx.currentTime + dur);
+  const text = soundData.say || soundData.word || soundData.symbol;
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = langCode;
+  const v = pickVoice(langCode);
+  if (v) utter.voice = v;
+  // Prefer the high-quality Google neural voice when available (network/online),
+  // otherwise keep the best local voice picked above for offline use.
+  if (window.westTTS) {
+    const wv = window.westTTS.pick(utter.lang || 'en-GB');
+    if (wv) utter.voice = wv;
+  }
+  utter.rate = 0.78;   // slightly slowed so phonemic detail is audible
+  utter.pitch = 1;
+  utter.volume = 1;
 
   if (btnEl) {
     btnEl.classList.add('playing');
-    setTimeout(() => btnEl.classList.remove('playing'), dur * 1000);
+    const stop = () => btnEl.classList.remove('playing');
+    utter.onend = stop;
+    utter.onerror = stop;
+    // Safety net in case onend never fires.
+    setTimeout(stop, 2500);
   }
+
+  // Some browsers need a tick after cancel() before speaking reliably.
+  setTimeout(() => { try { window.speechSynthesis.speak(utter); } catch (e) {} }, 60);
 }
 
 /* ===== RENDER EXPLORE MODE ===== */
@@ -1011,15 +1123,15 @@ function renderExercise() {
   waveRow.innerHTML = `
     <div class="wave-box">
       <div class="label" style="color:${lang.colour}">${pair.a.symbol} ${pair.a.ipa}</div>
-      ${generateWaveformSVG(pair.a.freq, pair.a.mod, lang.colour, 'A')}
+      ${generateWaveformSVG(pair.a, lang.colour, 'A')}
       <div style="font-size:0.85rem;color:var(--text2);margin-bottom:6px">${pair.a.word} (${pair.a.meaning})</div>
-      <button class="play-btn" id="playA">Play ${pair.a.symbol}</button>
+      <button class="play-btn" id="playA">&#9658; Hear "${pair.a.word}"</button>
     </div>
     <div class="wave-box">
       <div class="label" style="color:${lang.colourLight}">${pair.b.symbol} ${pair.b.ipa}</div>
-      ${generateWaveformSVG(pair.b.freq, pair.b.mod, lang.colourLight, 'B')}
+      ${generateWaveformSVG(pair.b, lang.colourLight, 'B')}
       <div style="font-size:0.85rem;color:var(--text2);margin-bottom:6px">${pair.b.word} (${pair.b.meaning})</div>
-      <button class="play-btn" id="playB">Play ${pair.b.symbol}</button>
+      <button class="play-btn" id="playB">&#9658; Hear "${pair.b.word}"</button>
     </div>`;
 
   document.getElementById('playA').onclick = function() { playSound(pair.a, this); };
@@ -1073,20 +1185,36 @@ function renderMatch() {
   // Sound chips
   const soundsDiv = document.createElement('div');
   soundsDiv.className = 'match-sounds';
-  soundsDiv.innerHTML = '<h4>Sounds (drag these)</h4>';
+  soundsDiv.innerHTML = '<h4>Sounds (drag, or click to pick up, then choose a word)</h4>';
   shuffledSymbols.forEach(sym => {
     const chip = document.createElement('span');
     chip.className = 'draggable-sound';
     chip.textContent = sym;
     chip.draggable = true;
     chip.dataset.symbol = sym;
+    chip.tabIndex = 0;
+    chip.setAttribute('role', 'button');
+    chip.setAttribute('aria-label', 'Sound ' + sym + '. Press Enter to pick up, then choose a word.');
     chip.addEventListener('dragstart', e => {
       e.dataTransfer.setData('text/plain', sym);
+      setSelectedChip(chip, sym);
     });
     // Touch support
     chip.addEventListener('touchstart', e => {
       matchState.dragging = sym;
       chip.style.opacity = '0.5';
+    });
+    // Click / keyboard: pick up this sound, then click a word to place it.
+    chip.addEventListener('click', () => {
+      if (chip.classList.contains('matched')) return;
+      setSelectedChip(chip, sym);
+    });
+    chip.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (chip.classList.contains('matched')) return;
+        setSelectedChip(chip, sym);
+      }
     });
     soundsDiv.appendChild(chip);
   });
@@ -1099,6 +1227,9 @@ function renderMatch() {
     const zone = document.createElement('div');
     zone.className = 'drop-zone';
     zone.dataset.idx = idx;
+    zone.tabIndex = 0;
+    zone.setAttribute('role', 'button');
+    zone.setAttribute('aria-label', 'Word ' + item.word + ' meaning ' + item.meaning + '. Drop or place the selected sound here.');
     zone.innerHTML = `<span class="word">${item.word} (${item.meaning})</span>`;
 
     zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
@@ -1108,6 +1239,7 @@ function renderMatch() {
       zone.classList.remove('over');
       const sym = e.dataTransfer.getData('text/plain');
       handleMatchDrop(idx, sym, zone);
+      clearSelectedChip();
     });
     // Touch support
     zone.addEventListener('touchend', e => {
@@ -1116,6 +1248,17 @@ function renderMatch() {
         matchState.dragging = null;
         document.querySelectorAll('.draggable-sound').forEach(c => c.style.opacity = '');
       }
+    });
+    // Click / keyboard placement of a picked-up sound.
+    const place = () => {
+      if (matchState.selectedSym) {
+        handleMatchDrop(idx, matchState.selectedSym, zone);
+        clearSelectedChip();
+      }
+    };
+    zone.addEventListener('click', place);
+    zone.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); place(); }
     });
 
     wordsDiv.appendChild(zone);
@@ -1142,6 +1285,16 @@ function renderMatch() {
   ex.appendChild(playRow);
 
   updateMatchProgress();
+}
+
+function setSelectedChip(chip, sym) {
+  document.querySelectorAll('.draggable-sound.picked').forEach(c => c.classList.remove('picked'));
+  matchState.selectedSym = sym;
+  chip.classList.add('picked');
+}
+function clearSelectedChip() {
+  matchState.selectedSym = null;
+  document.querySelectorAll('.draggable-sound.picked').forEach(c => c.classList.remove('picked'));
 }
 
 function findSoundBySymbol(sym) {
@@ -1303,6 +1456,7 @@ function handleQuizAnswer(optEl, q) {
 function render() {
   renderLangTabs();
   updateStats();
+  refreshVoiceWarning();
 
   document.getElementById('exploreMode').style.display = currentMode === 'explore' ? '' : 'none';
   document.getElementById('matchMode').style.display = currentMode === 'match' ? '' : 'none';

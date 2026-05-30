@@ -132,11 +132,22 @@
             font-size: 0.82rem;
             transition: box-shadow 0.15s, transform 0.15s;
             user-select: none;
+            touch-action: none;
         }
 
         .consequence-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
         .consequence-card:active { cursor: grabbing; }
         .consequence-card.placed { opacity: 0.4; pointer-events: none; }
+
+        .card-drag-ghost {
+            position: fixed;
+            z-index: 9999;
+            pointer-events: none;
+            opacity: 0.85;
+            margin: 0;
+            box-shadow: var(--shadow-lg);
+            transform: scale(1.02);
+        }
 
         .consequence-card[data-type="political"] { border-left-color: var(--colour-political); }
         .consequence-card[data-type="social"] { border-left-color: var(--colour-social); }
@@ -251,7 +262,7 @@
             opacity: 0.7;
         }
 
-        .node-group { cursor: grab; }
+        .node-group { cursor: grab; touch-action: none; }
         .node-group:active { cursor: grabbing; }
         .node-group.connecting { cursor: crosshair; }
 
@@ -955,6 +966,7 @@
             div.innerHTML = `<span class="card-type-badge">${card.type}</span><div>${card.text}</div>`;
 
             div.addEventListener('dragstart', onCardDragStart);
+            div.addEventListener('pointerdown', onCardPointerDown);
             tray.appendChild(div);
         });
 
@@ -992,18 +1004,94 @@
         e.dataTransfer.effectAllowed = 'move';
     }
 
+    // ========== TOUCH/PEN CARD DRAG (Pointer Events) ==========
+    // Native HTML5 drag-and-drop does not fire on touch devices, so for
+    // touch and pen pointers we replicate the SAME drag-card-onto-canvas
+    // interaction with Pointer Events and a floating clone. Mouse pointers
+    // are ignored here and keep using the native drag path above.
+    let cardDragState = null;
+
+    function onCardPointerDown(e) {
+        if (e.pointerType === 'mouse') return; // mouse uses native drag-and-drop
+        const card = e.currentTarget;
+        if (card.classList.contains('placed')) return;
+
+        const data = {
+            id: card.dataset.id,
+            text: card.querySelector('div') ? card.querySelector('div').textContent : card.textContent,
+            type: card.dataset.type,
+            lane: card.dataset.lane,
+            detail: card.dataset.detail || ''
+        };
+
+        const ghost = card.cloneNode(true);
+        ghost.classList.add('card-drag-ghost');
+        document.body.appendChild(ghost);
+
+        cardDragState = {
+            pointerId: e.pointerId,
+            data: data,
+            ghost: ghost,
+            width: card.getBoundingClientRect().width,
+            moved: false
+        };
+        positionCardGhost(e.clientX, e.clientY);
+        try { card.setPointerCapture(e.pointerId); } catch (err) {}
+        e.preventDefault();
+    }
+
+    function positionCardGhost(clientX, clientY) {
+        if (!cardDragState) return;
+        const g = cardDragState.ghost;
+        g.style.width = cardDragState.width + 'px';
+        g.style.left = (clientX - cardDragState.width / 2) + 'px';
+        g.style.top = (clientY - 20) + 'px';
+    }
+
+    document.addEventListener('pointermove', e => {
+        if (!cardDragState || e.pointerId !== cardDragState.pointerId) return;
+        cardDragState.moved = true;
+        positionCardGhost(e.clientX, e.clientY);
+        e.preventDefault();
+    });
+
+    function endCardDrag(e) {
+        if (!cardDragState || e.pointerId !== cardDragState.pointerId) return;
+        const ghost = cardDragState.ghost;
+        if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+
+        if (cardDragState.moved) {
+            const containerRect = svgContainer.getBoundingClientRect();
+            const overCanvas = e.clientX >= containerRect.left && e.clientX <= containerRect.right &&
+                               e.clientY >= containerRect.top && e.clientY <= containerRect.bottom;
+            if (overCanvas) {
+                placeCardAt(cardDragState.data, e.clientX, e.clientY);
+            }
+        }
+        cardDragState = null;
+    }
+
+    document.addEventListener('pointerup', endCardDrag);
+    document.addEventListener('pointercancel', endCardDrag);
+
     svgContainer.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
 
     svgContainer.addEventListener('drop', e => {
         e.preventDefault();
         let data;
         try { data = JSON.parse(e.dataTransfer.getData('application/json')); } catch { return; }
+        placeCardAt(data, e.clientX, e.clientY);
+    });
 
+    // Shared placement: drops a card's data onto the canvas at a viewport
+    // point. Used by both native HTML5 drag-and-drop (mouse) and the
+    // Pointer Events touch-drag path below.
+    function placeCardAt(data, clientX, clientY) {
         const rect = svg.getBoundingClientRect();
         const scrollLeft = svgContainer.scrollLeft;
         const scrollTop = svgContainer.scrollTop;
-        let dropX = e.clientX - rect.left + scrollLeft;
-        let dropY = e.clientY - rect.top + scrollTop;
+        let dropX = clientX - rect.left + scrollLeft;
+        let dropY = clientY - rect.top + scrollTop;
 
         // Snap to lane
         const lane = data.lane || getLaneFromY(dropY);
@@ -1036,7 +1124,7 @@
         if (card) card.classList.add('placed');
 
         renderAll();
-    });
+    }
 
     function getLaneFromY(y) {
         if (y < LANE_CONFIG.medium.y) return 'short';
@@ -1150,7 +1238,7 @@
                 });
             }
 
-            g.addEventListener('mousedown', e => onNodeMouseDown(e, node));
+            g.addEventListener('pointerdown', e => onNodePointerDown(e, node));
             g.addEventListener('click', e => onNodeClick(e, node));
             svg.appendChild(g);
         });
@@ -1175,22 +1263,28 @@
     }
 
     // ========== NODE INTERACTION ==========
-    function onNodeMouseDown(e, node) {
+    // Pointer Events drive node dragging so it works identically by mouse,
+    // touch, and pen. setPointerCapture keeps move/up events routed to the
+    // node group even when the pointer leaves the element mid-drag.
+    function onNodePointerDown(e, node) {
         if (connectMode) return;
         e.stopPropagation();
         const rect = svg.getBoundingClientRect();
         dragState = {
             node: node,
+            pointerId: e.pointerId,
+            target: e.currentTarget,
             offsetX: e.clientX - rect.left + svgContainer.scrollLeft - node.x,
             offsetY: e.clientY - rect.top + svgContainer.scrollTop - node.y,
             startX: node.x,
             startY: node.y,
             moved: false
         };
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
     }
 
-    document.addEventListener('mousemove', e => {
-        if (!dragState) return;
+    document.addEventListener('pointermove', e => {
+        if (!dragState || (dragState.pointerId !== undefined && e.pointerId !== dragState.pointerId)) return;
         const rect = svg.getBoundingClientRect();
         let nx = e.clientX - rect.left + svgContainer.scrollLeft - dragState.offsetX;
         let ny = e.clientY - rect.top + svgContainer.scrollTop - dragState.offsetY;
@@ -1205,7 +1299,7 @@
         renderAll();
     });
 
-    document.addEventListener('mouseup', () => {
+    function endNodeDrag() {
         if (dragState && dragState.moved) {
             const node = dragState.node;
             // Snap to nearest lane
@@ -1218,7 +1312,20 @@
             }
             renderAll();
         }
+        if (dragState && dragState.target && dragState.pointerId !== undefined) {
+            try { dragState.target.releasePointerCapture(dragState.pointerId); } catch (err) {}
+        }
         dragState = null;
+    }
+
+    document.addEventListener('pointerup', e => {
+        if (dragState && dragState.pointerId !== undefined && e.pointerId !== dragState.pointerId) return;
+        endNodeDrag();
+    });
+
+    document.addEventListener('pointercancel', e => {
+        if (dragState && dragState.pointerId !== undefined && e.pointerId !== dragState.pointerId) return;
+        endNodeDrag();
     });
 
     function onNodeClick(e, node) {

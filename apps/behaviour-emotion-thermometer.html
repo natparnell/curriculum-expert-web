@@ -700,19 +700,45 @@ function escapeAttr(str) {
 
 /* Thermometer interaction */
 let dragging = false;
+let activePointerId = null;
 function getSvgY(e) {
     const rect = thermoSvg.getBoundingClientRect();
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
     const scaleY = 380 / rect.height;
     return (clientY - rect.top) * scaleY;
 }
 
-thermoSvg.addEventListener('mousedown', e => { dragging = true; updateThermometer(yToLevel(getSvgY(e))); });
-thermoSvg.addEventListener('touchstart', e => { dragging = true; updateThermometer(yToLevel(getSvgY(e))); e.preventDefault(); }, { passive: false });
-document.addEventListener('mousemove', e => { if (dragging) updateThermometer(yToLevel(getSvgY(e))); });
-document.addEventListener('touchmove', e => { if (dragging) updateThermometer(yToLevel(getSvgY(e))); }, { passive: true });
-document.addEventListener('mouseup', () => { dragging = false; });
-document.addEventListener('touchend', () => { dragging = false; });
+if (window.PointerEvent) {
+    /* Unified pointer handling: works for mouse, touch and pen.
+       Same drag/click interaction across desktop, tablets and whiteboards. */
+    thermoSvg.addEventListener('pointerdown', e => {
+        dragging = true;
+        activePointerId = e.pointerId;
+        try { thermoSvg.setPointerCapture(e.pointerId); } catch (err) {}
+        updateThermometer(yToLevel(getSvgY(e)));
+        e.preventDefault();
+    });
+    thermoSvg.addEventListener('pointermove', e => {
+        if (dragging && e.pointerId === activePointerId) updateThermometer(yToLevel(getSvgY(e)));
+    });
+    function endThermoDrag(e) {
+        if (e.pointerId === activePointerId) {
+            dragging = false;
+            activePointerId = null;
+            try { thermoSvg.releasePointerCapture(e.pointerId); } catch (err) {}
+        }
+    }
+    thermoSvg.addEventListener('pointerup', endThermoDrag);
+    thermoSvg.addEventListener('pointercancel', endThermoDrag);
+} else {
+    /* Fallback for older browsers without Pointer Events. */
+    thermoSvg.addEventListener('mousedown', e => { dragging = true; updateThermometer(yToLevel(getSvgY(e))); });
+    thermoSvg.addEventListener('touchstart', e => { dragging = true; updateThermometer(yToLevel(getSvgY(e))); e.preventDefault(); }, { passive: false });
+    document.addEventListener('mousemove', e => { if (dragging) updateThermometer(yToLevel(getSvgY(e))); });
+    document.addEventListener('touchmove', e => { if (dragging) updateThermometer(yToLevel(getSvgY(e))); }, { passive: true });
+    document.addEventListener('mouseup', () => { dragging = false; });
+    document.addEventListener('touchend', () => { dragging = false; });
+}
 
 /* ===== BOOKMARKS ===== */
 function toggleBookmark(name) {

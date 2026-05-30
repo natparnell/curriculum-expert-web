@@ -726,12 +726,13 @@
 
       <!-- Canvas -->
       <div class="canvas-wrapper" id="canvas-area" style="display:none;">
-        <canvas id="blend-canvas" width="560" height="280"></canvas>
+        <canvas id="blend-canvas" width="560" height="280" role="img" aria-label="Animated visualisation of two ideas blending, from literal on the left to figurative on the right. The spoken description below announces the current state."></canvas>
         <div class="morph-slider-row">
-          <label>Literal</label>
-          <input type="range" id="morph-slider" min="0" max="100" value="0">
-          <label>Figurative</label>
+          <label id="morph-label-literal">Literal</label>
+          <input type="range" id="morph-slider" min="0" max="100" value="0" aria-label="Blend from literal to figurative" aria-describedby="canvas-state">
+          <label id="morph-label-figurative">Figurative</label>
         </div>
+        <p id="canvas-state" aria-live="polite" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;"></p>
       </div>
 
       <!-- Result -->
@@ -1444,6 +1445,9 @@ function clearPairing() {
   document.getElementById('result-area').innerHTML = '';
   document.getElementById('morph-slider').value = 0;
   morphValue = 0;
+  const stateRegion = document.getElementById('canvas-state');
+  if (stateRegion) stateRegion.textContent = '';
+  lastAnnouncedState = null;
   updateGenerateBtn();
   if (animFrame) cancelAnimationFrame(animFrame);
 }
@@ -1625,6 +1629,28 @@ function drawCanvas() {
   ctx.fillStyle = `rgba(212,168,67,${0.6 + t * 0.4})`;
   ctx.font = '14px "Segoe UI", sans-serif';
   ctx.fillText(blendLabel, cx, h - 16);
+
+  announceCanvasState(blendLabel);
+}
+
+/* Announce the current blend state to screen-reader users, but only when the
+   discrete state changes (the canvas redraws continuously, so we must not
+   re-announce on every animation frame). */
+let lastAnnouncedState = null;
+function announceCanvasState(blendLabel) {
+  const region = document.getElementById('canvas-state');
+  if (!region) return;
+  const stateWord = blendLabel === 'Blending...' ? 'Blending' : blendLabel;
+  const tenorName = selectedTenor ? selectedTenor.label : '';
+  const vehicleName = selectedVehicle ? selectedVehicle.label : '';
+  const message = stateWord === 'Literal'
+    ? `${stateWord}: ${tenorName} and ${vehicleName} shown as separate ideas.`
+    : stateWord === 'Figurative'
+      ? `${stateWord}: ${tenorName} now fully blended into ${vehicleName}.`
+      : `${stateWord}: ${tenorName} merging towards ${vehicleName}.`;
+  if (message === lastAnnouncedState) return;
+  lastAnnouncedState = message;
+  region.textContent = message;
 }
 
 function autoMorph() {

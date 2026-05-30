@@ -229,6 +229,18 @@
     width: 100%;
     height: 100%;
     display: block;
+    touch-action: none;
+  }
+  canvas:focus { outline: 2px solid var(--male); outline-offset: 2px; }
+
+  .visually-hidden {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .annotation-box {
@@ -554,8 +566,9 @@
       <span class="year-display" id="yearLeft">2020</span>
     </div>
     <div class="pyramid-canvas-wrapper" id="wrapperLeft">
-      <canvas id="canvasLeft"></canvas>
+      <canvas id="canvasLeft" tabindex="0" role="img" aria-label="Left population pyramid. Use the arrow keys to step through age groups and hear the share of male and female population for each."></canvas>
     </div>
+    <div id="liveLeft" class="visually-hidden" aria-live="polite"></div>
     <div class="stats-grid" id="statsLeft"></div>
   </div>
 
@@ -578,8 +591,9 @@
       <span class="year-display" id="yearRight">2020</span>
     </div>
     <div class="pyramid-canvas-wrapper" id="wrapperRight">
-      <canvas id="canvasRight"></canvas>
+      <canvas id="canvasRight" tabindex="0" role="img" aria-label="Right population pyramid. Use the arrow keys to step through age groups and hear the share of male and female population for each."></canvas>
     </div>
+    <div id="liveRight" class="visually-hidden" aria-live="polite"></div>
     <div class="stats-grid" id="statsRight"></div>
   </div>
 
@@ -593,8 +607,9 @@
       </div>
     </div>
     <div class="pyramid-canvas-wrapper" id="wrapperOverlay">
-      <canvas id="canvasOverlay"></canvas>
+      <canvas id="canvasOverlay" tabindex="0" role="img" aria-label="Overlaid comparison of both population pyramids. Use the arrow keys to step through age groups and hear the share of population for each country."></canvas>
     </div>
+    <div id="liveOverlay" class="visually-hidden" aria-live="polite"></div>
   </div>
 </div>
 
@@ -1391,59 +1406,118 @@ function drawOverlay() {
   document.getElementById('overlayLabelB').textContent = state.right.country + ' (' + DECADES[state.right.yearIdx] + ')';
 }
 
-// ─── TOOLTIP ───
+// ─── TOOLTIP / POINTER / KEYBOARD ───
+// Shared hit-test: turns a pointer position over a canvas into {ageIdx, isMale}.
+function hitTest(canvas, clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+  const padTop = 28, padBottom = 26;
+  const chartH = rect.height - padTop - padBottom;
+  const nGroups = AGE_GROUPS.length;
+  const centerX = rect.width / 2;
+  const rowIdx = Math.floor((my - padTop) / (chartH / nGroups));
+  const ageIdx = nGroups - 1 - rowIdx;
+  if (ageIdx < 0 || ageIdx >= nGroups || my < padTop || my > rect.height - padBottom) {
+    return null;
+  }
+  return { ageIdx, isMale: mx < centerX };
+}
+
+// Build the text for a given canvas / age group / sex.
+function readoutText(id, ageIdx, isMale) {
+  const sex = isMale ? 'Male' : 'Female';
+  if (id === 'canvasOverlay') {
+    const dL = animState.left, dR = animState.right;
+    const vL = isMale ? dL.male[ageIdx] : dL.female[ageIdx];
+    const vR = isMale ? dR.male[ageIdx] : dR.female[ageIdx];
+    return {
+      html: `<strong>${AGE_GROUPS[ageIdx]} ${sex}</strong><br>${state.left.country}: ${vL.toFixed(1)}%<br>${state.right.country}: ${vR.toFixed(1)}%`,
+      speak: `Age ${AGE_GROUPS[ageIdx]}, ${sex}. ${state.left.country}: ${vL.toFixed(1)} percent. ${state.right.country}: ${vR.toFixed(1)} percent.`
+    };
+  }
+  const data = id === 'canvasLeft' ? animState.left : animState.right;
+  const val = isMale ? data.male[ageIdx] : data.female[ageIdx];
+  return {
+    html: `<strong>${AGE_GROUPS[ageIdx]}</strong><br>${sex}: ${val.toFixed(1)}% of pop.`,
+    speak: `${data.country}. Age ${AGE_GROUPS[ageIdx]}, ${sex}: ${val.toFixed(1)} percent of population.`
+  };
+}
+
+function liveRegionFor(id) {
+  if (id === 'canvasLeft') return document.getElementById('liveLeft');
+  if (id === 'canvasRight') return document.getElementById('liveRight');
+  return document.getElementById('liveOverlay');
+}
+
+function showTooltipAt(id, hit, clientX, clientY) {
+  const tooltip = document.getElementById('tooltip');
+  if (!hit) { tooltip.style.display = 'none'; return; }
+  tooltip.innerHTML = readoutText(id, hit.ageIdx, hit.isMale).html;
+  tooltip.style.display = 'block';
+  tooltip.style.left = (clientX + 14) + 'px';
+  tooltip.style.top = (clientY - 10) + 'px';
+}
+
+// Keyboard cursor per canvas: current age group + sex.
+const kbCursor = {
+  canvasLeft: { ageIdx: 0, isMale: true },
+  canvasRight: { ageIdx: 0, isMale: true },
+  canvasOverlay: { ageIdx: 0, isMale: true }
+};
+
+function announceCursor(id) {
+  const c = kbCursor[id];
+  liveRegionFor(id).textContent = readoutText(id, c.ageIdx, c.isMale).speak;
+}
+
 function setupTooltips() {
   const tooltip = document.getElementById('tooltip');
   ['canvasLeft','canvasRight','canvasOverlay'].forEach(id => {
     const canvas = document.getElementById(id);
-    canvas.addEventListener('mousemove', (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
 
-      const padTop = 28, padBottom = 26, padSide = 52;
-      const chartH = rect.height - padTop - padBottom;
-      const nGroups = AGE_GROUPS.length;
-      const centerX = rect.width / 2;
-
-      // Determine which bar
-      const rowIdx = Math.floor((my - padTop) / (chartH / nGroups));
-      const ageIdx = nGroups - 1 - rowIdx;
-
-      if (ageIdx < 0 || ageIdx >= nGroups || my < padTop || my > rect.height - padBottom) {
-        tooltip.style.display = 'none';
-        return;
+    // Pointer events cover mouse, touch and pen with one path. Touch-drag is
+    // captured so a finger can slide across the bars to read values without
+    // scrolling the page (touch-action:none on the canvas).
+    function onMove(e) {
+      showTooltipAt(id, hitTest(canvas, e.clientX, e.clientY), e.clientX, e.clientY);
+    }
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse') {
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
       }
-
-      const isMale = mx < centerX;
-      let data;
-      if (id === 'canvasLeft') data = animState.left;
-      else if (id === 'canvasRight') data = animState.right;
-      else {
-        // In overlay, show both
-        const dL = animState.left;
-        const dR = animState.right;
-        const sex = isMale ? 'Male' : 'Female';
-        const vL = isMale ? dL.male[ageIdx] : dL.female[ageIdx];
-        const vR = isMale ? dR.male[ageIdx] : dR.female[ageIdx];
-        tooltip.innerHTML = `<strong>${AGE_GROUPS[ageIdx]} ${sex}</strong><br>${state.left.country}: ${vL.toFixed(1)}%<br>${state.right.country}: ${vR.toFixed(1)}%`;
-        tooltip.style.display = 'block';
-        tooltip.style.left = (e.clientX + 14) + 'px';
-        tooltip.style.top = (e.clientY - 10) + 'px';
-        return;
-      }
-
-      const sex = isMale ? 'Male' : 'Female';
-      const val = isMale ? data.male[ageIdx] : data.female[ageIdx];
-      tooltip.innerHTML = `<strong>${AGE_GROUPS[ageIdx]}</strong><br>${sex}: ${val.toFixed(1)}% of pop.`;
-      tooltip.style.display = 'block';
-      tooltip.style.left = (e.clientX + 14) + 'px';
-      tooltip.style.top = (e.clientY - 10) + 'px';
+      onMove(e);
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      // For touch/pen only move while the finger is down (capture set);
+      // mouse hover moves freely.
+      if (e.pointerType === 'mouse' || canvas.hasPointerCapture(e.pointerId)) onMove(e);
+    });
+    canvas.addEventListener('pointerup', () => { tooltip.style.display = 'none'; });
+    canvas.addEventListener('pointercancel', () => { tooltip.style.display = 'none'; });
+    canvas.addEventListener('pointerleave', (e) => {
+      if (e.pointerType === 'mouse') tooltip.style.display = 'none';
     });
 
-    canvas.addEventListener('mouseleave', () => {
-      tooltip.style.display = 'none';
+    // Keyboard path: arrow keys move through age groups (up/down) and
+    // between male and female (left/right). The reading is announced via the
+    // adjacent aria-live region for screen-reader / keyboard users.
+    canvas.addEventListener('keydown', (e) => {
+      const c = kbCursor[id];
+      const n = AGE_GROUPS.length;
+      let handled = true;
+      switch (e.key) {
+        case 'ArrowUp': c.ageIdx = Math.min(n - 1, c.ageIdx + 1); break;
+        case 'ArrowDown': c.ageIdx = Math.max(0, c.ageIdx - 1); break;
+        case 'ArrowLeft': c.isMale = true; break;
+        case 'ArrowRight': c.isMale = false; break;
+        case 'Home': c.ageIdx = 0; break;
+        case 'End': c.ageIdx = n - 1; break;
+        default: handled = false;
+      }
+      if (handled) { e.preventDefault(); announceCursor(id); }
     });
+    canvas.addEventListener('focus', () => announceCursor(id));
   });
 }
 

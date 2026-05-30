@@ -88,7 +88,8 @@ body {
     align-items: center;
     gap: 6px;
 }
-.prop-btn:hover { transform: scale(1.06); }
+.property-bar .prop-btn { cursor: default; pointer-events: none; opacity: 0.4; }
+.property-bar .prop-btn.active { opacity: 1; }
 .prop-btn.active { transform: scale(1.08); box-shadow: var(--shadow-lg); }
 .prop-btn[data-prop="hard"].active { border-color: var(--hard); background: var(--hard-bg); color: var(--hard); }
 .prop-btn[data-prop="soft"].active { border-color: var(--soft); background: var(--soft-bg); color: var(--soft); }
@@ -135,9 +136,51 @@ body {
 .obj-card:active { transform: scale(0.97); }
 .obj-card .obj-icon { font-size: 2.4rem; transition: transform 0.3s; }
 .obj-card .obj-name { font-size: 0.75rem; font-weight: 700; text-align: center; }
+.obj-card.selected { border-color: var(--accent); background: var(--accent-light); transform: scale(1.04); }
+.obj-card.selected::after {
+    content: '\2713';
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    font-size: 0.95rem;
+    font-weight: 900;
+    color: var(--accent);
+}
+.obj-card { position: relative; }
+.obj-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.obj-card.locked { cursor: default; }
+.obj-card.locked:hover { transform: none; }
 .obj-card.correct { border-color: #22c55e; background: #dcfce7; }
 .obj-card.correct .obj-icon { animation: bounce 0.4s ease; }
-.obj-card.wrong { animation: wobble 0.4s ease; border-color: #ef4444; }
+.obj-card.correct::after {
+    content: '\2713';
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    font-size: 1rem;
+    font-weight: 900;
+    color: #16a34a;
+}
+.obj-card.wrong { animation: wobble 0.4s ease; border-color: #ef4444; background: #fee2e2; }
+.obj-card.wrong::after {
+    content: '\2715';
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    font-size: 1rem;
+    font-weight: 900;
+    color: #dc2626;
+}
+.obj-card.missed { border-color: #f59e0b; background: #fef3c7; }
+.obj-card.missed::after {
+    content: '!';
+    position: absolute;
+    top: 2px;
+    right: 7px;
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: #d97706;
+}
 
 @keyframes bounce { 0%,100% { transform: scale(1); } 50% { transform: scale(1.2); } }
 @keyframes wobble { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
@@ -175,6 +218,77 @@ body {
 }
 .result-panel .desc { font-size: 0.85rem; margin-top: 10px; color: var(--text-light); line-height: 1.5; }
 
+.task-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.task-btn {
+    flex: 1;
+    padding: 14px 16px;
+    border: 0;
+    border-radius: 14px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s, opacity 0.2s;
+    touch-action: manipulation;
+    color: white;
+    box-shadow: var(--shadow);
+}
+.task-btn:active { transform: translateY(2px); }
+.task-btn:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+.task-btn.check { background: var(--accent); }
+.task-btn.next { background: #1d4ed8; }
+.task-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.task-btn .tb-icon { margin-right: 6px; }
+
+.feedback-panel {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 16px;
+    margin-bottom: 16px;
+    display: none;
+    animation: popIn 0.3s ease;
+    border: 3px solid var(--border);
+}
+.feedback-panel.show { display: block; }
+.feedback-panel.good { border-color: #22c55e; }
+.feedback-panel.partial { border-color: #f59e0b; }
+.feedback-panel .fb-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+}
+.feedback-panel .fb-body { font-size: 0.88rem; color: var(--text-light); line-height: 1.5; }
+.feedback-panel .fb-body strong { color: var(--text); }
+.feedback-panel ul { margin: 6px 0 0 18px; }
+.feedback-panel li { font-size: 0.85rem; margin-bottom: 3px; }
+
+.listen-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 6px 14px;
+    border: 2px solid var(--accent);
+    border-radius: 50px;
+    background: var(--card-bg);
+    color: var(--accent);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.listen-btn:active { transform: scale(0.96); }
+.listen-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
 .score-section {
     background: var(--card-bg);
     border-radius: var(--radius);
@@ -200,6 +314,47 @@ body {
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -367,33 +522,38 @@ body {
 
 <div class="header">
     <h1>Materials Sorter</h1>
-    <p>Sort objects by what they are made of!</p>
+    <p>Find every object with the property!</p>
 </div>
 
 <div class="main">
     <div class="info-bar">
-        <span id="modeLabel" style="color:var(--accent);">Explore Mode</span>
-        <span id="scoreLabel" style="color:var(--text-light);">Tap any object!</span>
+        <span id="modeLabel" style="color:var(--accent);">Round 1</span>
+        <span id="scoreLabel" style="color:var(--text-light);">Stars: 0</span>
     </div>
 
-    <div class="property-bar" id="propertyBar">
-        <button class="prop-btn" data-prop="hard">Hard</button>
-        <button class="prop-btn" data-prop="soft">Soft</button>
-        <button class="prop-btn" data-prop="stretchy">Stretchy</button>
-        <button class="prop-btn" data-prop="waterproof">Waterproof</button>
-        <button class="prop-btn" data-prop="rough">Rough</button>
-        <button class="prop-btn" data-prop="smooth">Smooth</button>
+    <div class="property-bar" id="propertyBar" aria-hidden="true">
+        <button class="prop-btn" data-prop="hard" tabindex="-1">Hard</button>
+        <button class="prop-btn" data-prop="soft" tabindex="-1">Soft</button>
+        <button class="prop-btn" data-prop="stretchy" tabindex="-1">Stretchy</button>
+        <button class="prop-btn" data-prop="waterproof" tabindex="-1">Waterproof</button>
+        <button class="prop-btn" data-prop="rough" tabindex="-1">Rough</button>
+        <button class="prop-btn" data-prop="smooth" tabindex="-1">Smooth</button>
     </div>
 
-    <div class="instruction" id="instruction">Tap an object to see what it is made of!</div>
+    <div class="instruction" id="instruction" role="status" aria-live="polite">Tap every object that is hard, then press Check.</div>
 
-    <div class="objects-grid" id="objectsGrid"></div>
+    <div class="objects-grid" id="objectsGrid" role="group" aria-label="Objects to sort"></div>
 
-    <div class="result-panel" id="resultPanel"></div>
+    <div class="task-controls">
+        <button class="task-btn check" id="checkBtn" type="button"><span class="tb-icon" aria-hidden="true">&#9989;</span>Check my answer</button>
+        <button class="task-btn next" id="nextBtn" type="button" style="display:none;"><span class="tb-icon" aria-hidden="true">&#10145;</span>Next round</button>
+    </div>
+
+    <div class="feedback-panel" id="feedbackPanel" role="status" aria-live="polite"></div>
 
     <div class="score-section">
-        <div class="sorted-count" id="sortedCount">0</div>
-        <div class="sorted-label">Objects explored</div>
+        <div class="sorted-count" id="sortedCount">0 / 6</div>
+        <div class="sorted-label">Rounds completed</div>
     </div>
 </div>
 
@@ -424,89 +584,227 @@ const OBJECTS = [
     { icon: '\u{1F9CA}', name: 'Glass Jar', material: 'Glass', props: ['hard', 'smooth', 'waterproof'], desc: 'Glass is very hard and super smooth. It is also waterproof, which is why we keep water in it!' }
 ];
 
-let activeProp = null;
-let explored = new Set();
+// One round per property. The child taps every object with that property, then checks.
+const ROUNDS = ['hard', 'soft', 'stretchy', 'waterproof', 'rough', 'smooth'];
 
 const objectsGrid = document.getElementById('objectsGrid');
-const resultPanel = document.getElementById('resultPanel');
+const instructionEl = document.getElementById('instruction');
+const feedbackPanel = document.getElementById('feedbackPanel');
+const checkBtn = document.getElementById('checkBtn');
+const nextBtn = document.getElementById('nextBtn');
+const modeLabel = document.getElementById('modeLabel');
+const scoreLabel = document.getElementById('scoreLabel');
+const sortedCount = document.getElementById('sortedCount');
 
-// Build property filter buttons
-document.querySelectorAll('.prop-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const prop = btn.dataset.prop;
-        if (activeProp === prop) {
-            activeProp = null;
-            btn.classList.remove('active');
-            document.getElementById('instruction').textContent = 'Tap an object to see what it is made of!';
-        } else {
-            activeProp = prop;
-            document.querySelectorAll('.prop-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            document.getElementById('instruction').textContent = `Which objects are ${PROPS[prop].label.toLowerCase()}?`;
-        }
-        renderObjects();
-    });
-});
+let roundIdx = 0;
+let targetProp = ROUNDS[0];
+let selected = new Set();
+let locked = false;      // true once a round has been checked
+let stars = 0;
+let completed = 0;
+
+// Speak helper using the browser SpeechSynthesis API (no audio files).
+function speak(text) {
+    if (!('speechSynthesis' in window)) return;
+    try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-GB';
+        if (window.westTTS) { const v = window.westTTS.pick(u.lang || 'en-GB'); if (v) u.voice = v; }
+        u.rate = 0.95;
+        u.pitch = 1.05;
+        window.speechSynthesis.speak(u);
+    } catch (e) {}
+}
+
+function instructionText() {
+    return 'Tap every object that is ' + PROPS[targetProp].label.toLowerCase() + ', then press Check.';
+}
+
+function startRound() {
+    selected.clear();
+    locked = false;
+    targetProp = ROUNDS[roundIdx];
+    document.querySelectorAll('.prop-btn').forEach(b => b.classList.toggle('active', b.dataset.prop === targetProp));
+    modeLabel.textContent = 'Round ' + (roundIdx + 1) + ' of ' + ROUNDS.length;
+    modeLabel.style.color = PROPS[targetProp].colour;
+    instructionEl.textContent = instructionText();
+    feedbackPanel.className = 'feedback-panel';
+    feedbackPanel.innerHTML = '';
+    checkBtn.style.display = '';
+    checkBtn.disabled = true;
+    nextBtn.style.display = 'none';
+    renderObjects();
+}
 
 function renderObjects() {
     objectsGrid.innerHTML = '';
     OBJECTS.forEach((obj, i) => {
         const card = document.createElement('div');
         card.className = 'obj-card';
+        const isSelected = selected.has(i);
+        const matches = obj.props.includes(targetProp);
 
-        if (activeProp) {
-            const matches = obj.props.includes(activeProp);
-            if (!matches) card.style.opacity = '0.25';
-            else {
-                card.style.borderColor = PROPS[activeProp].colour;
-                card.style.background = PROPS[activeProp].colour + '15';
-            }
+        if (!locked && isSelected) card.classList.add('selected');
+
+        if (locked) {
+            card.classList.add('locked');
+            if (isSelected && matches) card.classList.add('correct');
+            else if (isSelected && !matches) card.classList.add('wrong');
+            else if (!isSelected && matches) card.classList.add('missed');
         }
 
-        if (explored.has(i)) {
-            card.style.borderColor = '#22c55e';
-        }
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', locked ? '-1' : '0');
+        card.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+        card.setAttribute('aria-label', obj.name + (isSelected ? ', selected' : ''));
 
-        card.innerHTML = `<span class="obj-icon">${obj.icon}</span><span class="obj-name">${obj.name}</span>`;
-        card.addEventListener('click', () => showObject(i));
+        card.innerHTML = '<span class="obj-icon" aria-hidden="true">' + obj.icon + '</span><span class="obj-name">' + obj.name + '</span>';
+
+        if (!locked) {
+            card.addEventListener('click', () => toggleSelect(i));
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleSelect(i);
+                }
+            });
+        }
         objectsGrid.appendChild(card);
     });
 }
 
-function showObject(idx) {
-    const obj = OBJECTS[idx];
-    explored.add(idx);
-    document.getElementById('sortedCount').textContent = explored.size;
+function toggleSelect(idx) {
+    if (locked) return;
+    if (selected.has(idx)) selected.delete(idx);
+    else selected.add(idx);
+    checkBtn.disabled = selected.size === 0;
+    renderObjects();
+}
 
-    resultPanel.classList.remove('show');
-    void resultPanel.offsetWidth;
-    resultPanel.classList.add('show');
+function checkAnswer() {
+    if (locked) return;
+    locked = true;
 
-    let propsHtml = '';
-    obj.props.forEach(p => {
-        propsHtml += `<span class="prop-badge" style="background:${PROPS[p].colour};">${PROPS[p].label}</span>`;
+    const correctPicks = [];   // selected and matches
+    const wrongPicks = [];     // selected and does not match
+    const missed = [];         // not selected but matches
+
+    OBJECTS.forEach((obj, i) => {
+        const matches = obj.props.includes(targetProp);
+        const picked = selected.has(i);
+        if (picked && matches) correctPicks.push(obj);
+        else if (picked && !matches) wrongPicks.push(obj);
+        else if (!picked && matches) missed.push(obj);
     });
 
-    resultPanel.innerHTML = `
-        <div class="result-header">
-            <span class="r-icon">${obj.icon}</span>
-            <span class="r-name">${obj.name}</span>
-        </div>
-        <div class="material-label">Made from: ${obj.material}</div>
-        <div class="props-row">${propsHtml}</div>
-        <div class="desc">${obj.desc}</div>
-    `;
-
     renderObjects();
-    spawnMini();
+    checkBtn.style.display = 'none';
+    nextBtn.style.display = '';
+    nextBtn.focus();
 
-    if (explored.size === OBJECTS.length) {
-        setTimeout(() => {
-            document.getElementById('instruction').textContent = '\u{1F389} You explored every material! Amazing scientist!';
-            celebrate();
-        }, 500);
+    const allRight = wrongPicks.length === 0 && missed.length === 0;
+    const propWord = PROPS[targetProp].label.toLowerCase();
+    let title, body, spokenLead;
+
+    if (allRight) {
+        stars += 1;
+        scoreLabel.textContent = 'Stars: ' + stars;
+        feedbackPanel.classList.add('show', 'good');
+        title = '<span aria-hidden="true">⭐</span> Brilliant sorting!';
+        spokenLead = 'Brilliant sorting! You found every ' + propWord + ' object.';
+        body = '<div class="fb-body">You found <strong>every</strong> ' + propWord + ' object and did not pick any wrong ones. ' + reasonFor(targetProp) + '</div>';
+    } else {
+        feedbackPanel.classList.add('show', 'partial');
+        title = '<span aria-hidden="true">🔍</span> Good try, let us check.';
+        spokenLead = 'Good try. Let us check your sorting.';
+        let listItems = '';
+        wrongPicks.forEach(o => {
+            listItems += '<li><strong>' + o.name + '</strong> is not ' + propWord + '. It is ' + readableProps(o, targetProp) + '.</li>';
+        });
+        missed.forEach(o => {
+            listItems += '<li>You missed <strong>' + o.name + '</strong>. It is ' + propWord + ' because it is made of ' + o.material.toLowerCase() + '.</li>';
+        });
+        body = '<div class="fb-body">' + reasonFor(targetProp) + '<ul>' + listItems + '</ul></div>';
     }
+
+    feedbackPanel.innerHTML = '<div class="fb-title">' + title + '</div>' + body +
+        '<button class="listen-btn" id="listenBtn" type="button"><span aria-hidden="true">🔊</span> Read it to me</button>';
+
+    const spoken = spokenLead + ' ' + feedbackToSpeech(wrongPicks, missed, propWord);
+    const listenBtn = document.getElementById('listenBtn');
+    if (listenBtn) listenBtn.addEventListener('click', () => speak(spoken));
+    speak(spoken);
+
+    completed += 1;
+    sortedCount.textContent = completed + ' / ' + ROUNDS.length;
+
+    if (correctPicks.length > 0 && allRight) spawnMini();
 }
+
+function readableProps(obj, exclude) {
+    const words = obj.props.filter(p => p !== exclude).map(p => PROPS[p].label.toLowerCase());
+    if (words.length === 0) return 'made of ' + obj.material.toLowerCase();
+    if (words.length === 1) return words[0];
+    return words.slice(0, -1).join(', ') + ' and ' + words[words.length - 1];
+}
+
+function reasonFor(prop) {
+    const reasons = {
+        hard: 'Hard materials keep their shape and you cannot squash them.',
+        soft: 'Soft materials squash or bend easily when you press them.',
+        stretchy: 'Stretchy materials get longer when you pull them, then spring back.',
+        waterproof: 'Waterproof materials do not let water soak through them.',
+        rough: 'Rough materials feel bumpy and not flat when you touch them.',
+        smooth: 'Smooth materials feel flat and slippery, with no bumps.'
+    };
+    return reasons[prop] || '';
+}
+
+function feedbackToSpeech(wrongPicks, missed, propWord) {
+    let s = '';
+    wrongPicks.forEach(o => { s += o.name + ' is not ' + propWord + '. '; });
+    missed.forEach(o => { s += 'You missed the ' + o.name + '. It is ' + propWord + '. '; });
+    return s;
+}
+
+function nextRound() {
+    roundIdx += 1;
+    if (roundIdx >= ROUNDS.length) {
+        finishGame();
+        return;
+    }
+    startRound();
+}
+
+function finishGame() {
+    objectsGrid.innerHTML = '';
+    checkBtn.style.display = 'none';
+    nextBtn.style.display = 'none';
+    modeLabel.textContent = 'Finished!';
+    modeLabel.style.color = 'var(--accent)';
+    instructionEl.textContent = '\u{1F389} You sorted every property! You earned ' + stars + ' of ' + ROUNDS.length + ' stars.';
+    feedbackPanel.className = 'feedback-panel show good';
+    feedbackPanel.innerHTML = '<div class="fb-title"><span aria-hidden="true">🏆</span> Super sorting scientist!</div>' +
+        '<div class="fb-body">You finished all ' + ROUNDS.length + ' rounds and earned <strong>' + stars + ' of ' + ROUNDS.length + '</strong> stars. Press the button to play again.</div>' +
+        '<button class="listen-btn" id="playAgainBtn" type="button" style="background:var(--accent);color:#fff;border-color:var(--accent);"><span aria-hidden="true">🔁</span> Play again</button>';
+    speak('You sorted every property and earned ' + stars + ' out of ' + ROUNDS.length + ' stars. Well done!');
+    celebrate();
+    const pa = document.getElementById('playAgainBtn');
+    if (pa) pa.addEventListener('click', resetGame);
+}
+
+function resetGame() {
+    roundIdx = 0;
+    stars = 0;
+    completed = 0;
+    scoreLabel.textContent = 'Stars: 0';
+    sortedCount.textContent = '0 / ' + ROUNDS.length;
+    startRound();
+}
+
+checkBtn.addEventListener('click', checkAnswer);
+nextBtn.addEventListener('click', nextRound);
 
 function spawnMini() {
     const container = document.getElementById('celebration');
@@ -532,7 +830,7 @@ function celebrate() {
     }
 }
 
-renderObjects();
+startRound();
 </script>
 </body>
 </html>

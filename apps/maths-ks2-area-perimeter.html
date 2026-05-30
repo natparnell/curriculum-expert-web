@@ -179,6 +179,7 @@ body {
   cursor: pointer;
   transition: background 0.1s;
   position: relative;
+  touch-action: none;
 }
 .grid-cell:hover { background: #eff6ff; }
 .grid-cell.filled {
@@ -509,12 +510,42 @@ function buildGrid() {
       cell.dataset.c = c;
       cell.addEventListener('mousedown', (e) => onCellDown(r, c, e));
       cell.addEventListener('mouseenter', (e) => onCellEnter(r, c, e));
-      cell.addEventListener('touchstart', (e) => { e.preventDefault(); onCellDown(r, c, e); });
+      cell.addEventListener('pointerdown', (e) => onCellPointerDown(r, c, e));
       canvas.appendChild(cell);
     }
   }
   document.addEventListener('mouseup', onUp);
-  document.addEventListener('touchend', onUp);
+  document.addEventListener('pointermove', onPointerMove);
+  document.addEventListener('pointerup', onPointerUp);
+  document.addEventListener('pointercancel', onPointerUp);
+}
+
+// Pointer Events: make touch / pen / interactive-whiteboard drag work the
+// same as mouse. Mouse handlers above are kept for plain mouse interaction;
+// these handle touch and pen, which do not fire mouseenter while dragging.
+function onCellPointerDown(r, c, e) {
+  // Let plain mouse use the existing mouse handlers to avoid double-firing.
+  if (e.pointerType === 'mouse') return;
+  e.preventDefault();
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+  onCellDown(r, c, e);
+}
+
+function onPointerMove(e) {
+  if (e.pointerType === 'mouse') return;
+  if (!dragging) return;
+  e.preventDefault();
+  const target = document.elementFromPoint(e.clientX, e.clientY);
+  if (!target || !target.classList || !target.classList.contains('grid-cell')) return;
+  const r = parseInt(target.dataset.r, 10);
+  const c = parseInt(target.dataset.c, 10);
+  if (Number.isNaN(r) || Number.isNaN(c)) return;
+  onCellEnter(r, c, e);
+}
+
+function onPointerUp(e) {
+  if (e && e.pointerType === 'mouse') return;
+  onUp();
 }
 
 function getCell(r, c) {

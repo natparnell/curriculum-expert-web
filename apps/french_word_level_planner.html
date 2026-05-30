@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>French Word-Level Lesson Planner</title>
+    <title>French Word-Level Lesson Planner (KS3)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -417,6 +417,37 @@
             color: #d97706;
         }
 
+        .answer-key {
+            margin-top: 8px;
+            padding: 8px 10px;
+            background: #f0fff4;
+            border-left: 3px solid #48bb78;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #22543d;
+        }
+
+        .answer-key-block {
+            margin-top: 14px;
+            padding: 12px 14px;
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #22543d;
+            line-height: 1.7;
+        }
+
+        body.hide-answers .answer-key,
+        body.hide-answers .answer-key-block { display: none; }
+
+        .quiz-input {
+            padding: 6px 8px;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
         @media print {
             body {
                 background: white;
@@ -446,6 +477,47 @@
     </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -613,7 +685,7 @@
     <div class="container">
         <header>
             <h1>📚 French Word-Level Lesson Planner</h1>
-            <p>Create precise, bespoke materials with contextualized vocabulary for Year 11 French</p>
+            <p>Create accurate, bespoke KS3 French materials with grammatically contextualised vocabulary, model answers and answer keys</p>
         </header>
 
         <div class="main-content">
@@ -646,13 +718,35 @@
                 <div class="section">
                     <div class="section-title">🎯 Focus Words (Target Vocabulary)</div>
                     <div class="input-group">
-                        <label>Add words to focus on in this lesson</label>
+                        <label for="wordInput">Add a French word to focus on in this lesson</label>
                         <div class="quick-add">
-                            <input type="text" id="wordInput" placeholder="e.g., aimer, intéressant, la maison">
+                            <input type="text" id="wordInput" placeholder="e.g. aimer, intéressant, maison" aria-label="French focus word">
                             <button onclick="addWord()" class="btn-small">Add</button>
                         </div>
                     </div>
-                    <div class="word-list" id="wordBank"></div>
+                    <div class="input-group">
+                        <label for="posSelect">Part of speech (so frames stay grammatical)</label>
+                        <select id="posSelect" aria-label="Part of speech for the focus word">
+                            <option value="auto">Auto-detect (uses built-in KS3 list)</option>
+                            <option value="noun">Noun</option>
+                            <option value="verb">Verb (infinitive)</option>
+                            <option value="adjective">Adjective</option>
+                            <option value="adverb">Adverb</option>
+                        </select>
+                    </div>
+                    <div class="input-group" id="nounGenderGroup" style="display:none;">
+                        <label for="genderSelect">Gender (for nouns)</label>
+                        <select id="genderSelect" aria-label="Grammatical gender of the noun">
+                            <option value="m">Masculine (le / un)</option>
+                            <option value="f">Feminine (la / une)</option>
+                        </select>
+                    </div>
+                    <div class="input-group" id="glossGroup">
+                        <label for="glossInput">English meaning (optional, used in answer keys)</label>
+                        <input type="text" id="glossInput" placeholder="e.g. to like, interesting, house" aria-label="English meaning of the focus word">
+                    </div>
+                    <p style="font-size:12px;color:#718096;margin-bottom:8px;">Tagging the part of speech lets the planner build valid French and produce model answers. Words already in the built-in KS3 list are tagged automatically.</p>
+                    <div class="word-list" id="wordBank" aria-live="polite"></div>
                 </div>
 
                 <div class="section">
@@ -664,26 +758,22 @@
                     <div class="input-group">
                         <label>Grammar Focus</label>
                         <select id="grammarFocus">
-                            <option value="">Select grammar point...</option>
                             <option value="present">Present tense</option>
                             <option value="perfect">Perfect tense (passé composé)</option>
-                            <option value="imperfect">Imperfect tense</option>
-                            <option value="future">Future tense</option>
-                            <option value="conditional">Conditional</option>
-                            <option value="subjunctive">Subjunctive</option>
+                            <option value="nearfuture">Near future (aller + infinitive)</option>
                             <option value="adjectives">Adjective agreement</option>
-                            <option value="negatives">Negatives</option>
-                            <option value="pronouns">Pronouns</option>
+                            <option value="negatives">Negatives (ne...pas)</option>
                             <option value="opinions">Opinion phrases</option>
-                            <option value="time">Time expressions</option>
                         </select>
+                        <p style="font-size:11px;color:#718096;margin-top:4px;">KS3-appropriate structures. Each focus word is placed only in frames its part of speech actually fits.</p>
                     </div>
                     <div class="input-group">
-                        <label>Tier</label>
+                        <label>Challenge level (KS3 setting)</label>
                         <select id="tierSelect">
-                            <option value="foundation">Foundation</option>
-                            <option value="higher">Higher</option>
+                            <option value="foundation">Core (shorter frames, sentence starters)</option>
+                            <option value="higher">Extension (connectives, intensifiers, justify)</option>
                         </select>
+                        <p style="font-size:11px;color:#718096;margin-top:4px;">Core gives more scaffolding and simpler frames. Extension adds connectives, opinions and a justification clause.</p>
                     </div>
                 </div>
 
@@ -714,12 +804,16 @@
             </div>
 
             <div class="right-panel">
+                <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+                    <button type="button" class="btn-secondary btn-small" id="toggleAnswersBtn" onclick="toggleAnswers()" aria-pressed="false">🙈 Hide answer keys (student copy)</button>
+                </div>
                 <div class="tabs">
                     <button class="tab active" onclick="switchTab('sentences')">Sentence Builder</button>
                     <button class="tab" onclick="switchTab('gap')">Gap Fill</button>
                     <button class="tab" onclick="switchTab('translation')">Translation</button>
                     <button class="tab" onclick="switchTab('vocab')">Vocab Test</button>
                     <button class="tab" onclick="switchTab('speaking')">Speaking Cards</button>
+                    <button class="tab" onclick="switchTab('quiz')">Quick Quiz (self-marking)</button>
                 </div>
 
                 <div id="sentences" class="tab-content active">
@@ -781,9 +875,25 @@
                             <p style="color: #718096; font-style: italic;">Add focus words and click "Generate Materials" to create contextualized exercises</p>
                         </div>
                         <div class="button-group">
+                            <button onclick="speakAllCards()" class="btn-secondary">🔊 Hear prompts</button>
                             <button onclick="copyToClipboard('speakingOutput')">📋 Copy</button>
                             <button onclick="window.print()" class="btn-secondary">🖨️ Print</button>
                         </div>
+                    </div>
+                </div>
+
+                <div id="quiz" class="tab-content">
+                    <div class="output-section">
+                        <h3>Quick Quiz: French to English (self-marking)</h3>
+                        <p style="font-size:13px;color:#718096;margin-bottom:14px;">A live, self-marking check on the focus words. Type the English meaning, then mark each answer. Uses your built-in meanings where known and any English meanings you entered.</p>
+                        <div class="material-output" id="quizOutput">
+                            <p style="color: #718096; font-style: italic;">Add focus words and click "Generate Materials" to build a self-marking quiz</p>
+                        </div>
+                        <div class="button-group">
+                            <button onclick="markQuiz()">✅ Mark my answers</button>
+                            <button onclick="resetQuiz()" class="btn-secondary">↺ Reset</button>
+                        </div>
+                        <div id="quizScore" style="margin-top:14px;font-weight:600;color:#2d3748;" aria-live="polite"></div>
                     </div>
                 </div>
             </div>
@@ -791,6 +901,7 @@
     </div>
 
     <script>
+        // wordBank now holds objects: { fr, pos, gender, en }
         let wordBank = [];
         let vocabPool = {
             examSpec: [],
@@ -798,7 +909,118 @@
             combined: []
         };
 
-        // Expanded default vocabulary database
+        // ---- Tagged KS3 lexicon: maps a French word to part of speech, gender and English gloss ----
+        // pos: 'noun' | 'verb' | 'adjective' | 'adverb'; gender: 'm' | 'f' (nouns only)
+        const LEXICON = {
+            // verbs (infinitives)
+            'aimer': {pos:'verb', en:'to like'}, 'adorer': {pos:'verb', en:'to love'},
+            'détester': {pos:'verb', en:'to hate'}, 'préférer': {pos:'verb', en:'to prefer'},
+            'jouer': {pos:'verb', en:'to play'}, 'manger': {pos:'verb', en:'to eat'},
+            'regarder': {pos:'verb', en:'to watch'}, 'écouter': {pos:'verb', en:'to listen to'},
+            'parler': {pos:'verb', en:'to speak'}, 'habiter': {pos:'verb', en:'to live'},
+            'travailler': {pos:'verb', en:'to work'}, 'visiter': {pos:'verb', en:'to visit'},
+            'voyager': {pos:'verb', en:'to travel'}, 'acheter': {pos:'verb', en:'to buy'},
+            'danser': {pos:'verb', en:'to dance'}, 'chanter': {pos:'verb', en:'to sing'},
+            'nager': {pos:'verb', en:'to swim'}, 'lire': {pos:'verb', en:'to read'},
+            'dormir': {pos:'verb', en:'to sleep'}, 'aider': {pos:'verb', en:'to help'},
+            // nouns
+            'maison': {pos:'noun', gender:'f', en:'house'}, 'chambre': {pos:'noun', gender:'f', en:'bedroom'},
+            'cuisine': {pos:'noun', gender:'f', en:'kitchen'}, 'jardin': {pos:'noun', gender:'m', en:'garden'},
+            'famille': {pos:'noun', gender:'f', en:'family'}, 'père': {pos:'noun', gender:'m', en:'father'},
+            'mère': {pos:'noun', gender:'f', en:'mother'}, 'frère': {pos:'noun', gender:'m', en:'brother'},
+            'sœur': {pos:'noun', gender:'f', en:'sister'}, 'ami': {pos:'noun', gender:'m', en:'friend'},
+            'école': {pos:'noun', gender:'f', en:'school'}, 'collège': {pos:'noun', gender:'m', en:'secondary school'},
+            'professeur': {pos:'noun', gender:'m', en:'teacher'}, 'classe': {pos:'noun', gender:'f', en:'class'},
+            'ville': {pos:'noun', gender:'f', en:'town'}, 'parc': {pos:'noun', gender:'m', en:'park'},
+            'magasin': {pos:'noun', gender:'m', en:'shop'}, 'restaurant': {pos:'noun', gender:'m', en:'restaurant'},
+            'cinéma': {pos:'noun', gender:'m', en:'cinema'}, 'musée': {pos:'noun', gender:'m', en:'museum'},
+            'sport': {pos:'noun', gender:'m', en:'sport'}, 'football': {pos:'noun', gender:'m', en:'football'},
+            'musique': {pos:'noun', gender:'f', en:'music'}, 'film': {pos:'noun', gender:'m', en:'film'},
+            'livre': {pos:'noun', gender:'m', en:'book'}, 'chien': {pos:'noun', gender:'m', en:'dog'},
+            'chat': {pos:'noun', gender:'m', en:'cat'}, 'voiture': {pos:'noun', gender:'f', en:'car'},
+            'weekend': {pos:'noun', gender:'m', en:'weekend'}, 'vacances': {pos:'noun', gender:'f', en:'holidays'},
+            'repas': {pos:'noun', gender:'m', en:'meal'}, 'fête': {pos:'noun', gender:'f', en:'party'},
+            // adjectives (masculine singular form stored)
+            'beau': {pos:'adjective', en:'beautiful'}, 'joli': {pos:'adjective', en:'pretty'},
+            'bon': {pos:'adjective', en:'good'}, 'mauvais': {pos:'adjective', en:'bad'},
+            'grand': {pos:'adjective', en:'big'}, 'petit': {pos:'adjective', en:'small'},
+            'content': {pos:'adjective', en:'happy'}, 'triste': {pos:'adjective', en:'sad'},
+            'amusant': {pos:'adjective', en:'fun'}, 'ennuyeux': {pos:'adjective', en:'boring'},
+            'intéressant': {pos:'adjective', en:'interesting'}, 'important': {pos:'adjective', en:'important'},
+            'facile': {pos:'adjective', en:'easy'}, 'difficile': {pos:'adjective', en:'difficult'},
+            'rapide': {pos:'adjective', en:'fast'}, 'lent': {pos:'adjective', en:'slow'},
+            'cher': {pos:'adjective', en:'expensive'}, 'chaud': {pos:'adjective', en:'hot'},
+            'froid': {pos:'adjective', en:'cold'}, 'génial': {pos:'adjective', en:'great'},
+            'délicieux': {pos:'adjective', en:'delicious'}, 'fatigué': {pos:'adjective', en:'tired'},
+            // adverbs
+            'très': {pos:'adverb', en:'very'}, 'assez': {pos:'adverb', en:'quite'},
+            'trop': {pos:'adverb', en:'too'}, 'beaucoup': {pos:'adverb', en:'a lot'},
+            'bien': {pos:'adverb', en:'well'}, 'souvent': {pos:'adverb', en:'often'},
+            'toujours': {pos:'adverb', en:'always'}, 'parfois': {pos:'adverb', en:'sometimes'},
+            'rarement': {pos:'adverb', en:'rarely'}, 'vite': {pos:'adverb', en:'quickly'}
+        };
+
+        // Look up a word in the lexicon (case-insensitive, trims a leading article)
+        function lookupWord(raw) {
+            const w = raw.trim().toLowerCase().replace(/^(le |la |l'|les |un |une |des )/, '');
+            return LEXICON[w] || null;
+        }
+
+        // First-person present conjugation of a regular -er verb (covers the KS3 defaults here)
+        function conjugateJe(verb) {
+            const irregular = { 'lire':'lis', 'dormir':'dors', 'préférer':'préfère' };
+            if (irregular[verb]) return irregular[verb];
+            if (verb.endsWith('er')) {
+                let stem = verb.slice(0, -2);
+                if (verb === 'acheter') stem = 'achèt';
+                if (verb === 'manger') return 'mange'; // je form fine
+                if (verb === 'voyager') return 'voyage';
+                return stem + 'e';
+            }
+            return verb; // fall back to infinitive if unknown pattern
+        }
+
+        // Past participle for passé composé (regular -er + a few KS3 irregulars)
+        function pastParticiple(verb) {
+            const irregular = { 'lire':'lu', 'dormir':'dormi' };
+            if (irregular[verb]) return irregular[verb];
+            if (verb.endsWith('er')) return verb.slice(0, -2) + 'é';
+            return verb;
+        }
+
+        // Elision: "Je aime" -> "J'aime", "ne aime" -> "n'aime", "le ami" -> "l'ami"
+        function startsVowel(w) { return /^[aeiouhâàéèêîïôûy]/i.test(w); }
+        function jePlus(verbForm) { return startsVowel(verbForm) ? "J'" + verbForm : 'Je ' + verbForm; }
+        function nePlus(verbForm) { return startsVowel(verbForm) ? "n'" + verbForm : 'ne ' + verbForm; }
+
+        // Indefinite article matching gender
+        function indefArticle(gender) { return gender === 'f' ? 'une' : 'un'; }
+        function defArticle(gender) { return gender === 'f' ? 'la' : 'le'; }
+
+        // English simple past for the verb glosses (keeps model English natural)
+        function englishPast(en) {
+            const base = en.replace(/^to /, '');
+            const irregular = { 'eat':'ate', 'read':'read', 'sleep':'slept', 'buy':'bought',
+                'sing':'sang', 'swim':'swam', 'speak':'spoke', 'listen to':'listened to' };
+            if (irregular[base]) return irregular[base];
+            if (base.endsWith('e')) return base + 'd';
+            if (base.endsWith('y')) return base.slice(0, -1) + 'ied';
+            return base + 'ed';
+        }
+
+        // Adjective agreement: regular feminine + plural (covers KS3 defaults)
+        function agreeAdjective(adj, gender) {
+            const feminineMap = { 'beau':'belle', 'bon':'bonne', 'gros':'grosse', 'cher':'chère',
+                'délicieux':'délicieuse', 'ennuyeux':'ennuyeuse', 'fatigué':'fatiguée', 'lent':'lente' };
+            if (gender === 'f') {
+                if (feminineMap[adj]) return feminineMap[adj];
+                if (adj.endsWith('e')) return adj;
+                return adj + 'e';
+            }
+            return adj;
+        }
+
+        // Expanded default vocabulary database (used for filler words in frames)
         const defaultVocab = {
             verbs: ['aimer', 'adorer', 'détester', 'préférer', 'avoir', 'être', 'faire', 'aller', 'venir', 'partir', 'arriver', 'pouvoir', 'devoir', 'vouloir', 'prendre', 'manger', 'boire', 'regarder', 'écouter', 'parler', 'jouer', 'habiter', 'travailler', 'voyager', 'visiter', 'acheter', 'vendre', 'donner', 'trouver', 'penser', 'croire', 'savoir', 'connaître', 'comprendre', 'apprendre', 'écrire', 'lire', 'dire', 'voir', 'entendre', 'sortir', 'rentrer', 'rester', 'devenir', 'finir', 'commencer', 'continuer', 'essayer', 'aider', 'chercher', 'porter', 'montrer', 'ouvrir', 'fermer', 'dormir', 'se lever', 'se coucher', 'se réveiller'],
             nouns: ['maison', 'appartement', 'chambre', 'cuisine', 'salon', 'jardin', 'famille', 'père', 'mère', 'frère', 'sœur', 'parents', 'enfants', 'ami', 'amie', 'copain', 'copine', 'école', 'collège', 'lycée', 'université', 'classe', 'cours', 'professeur', 'élève', 'étudiant', 'ville', 'village', 'pays', 'région', 'quartier', 'rue', 'avenue', 'place', 'parc', 'magasin', 'supermarché', 'restaurant', 'café', 'cinéma', 'théâtre', 'musée', 'bibliothèque', 'église', 'gare', 'aéroport', 'temps', 'jour', 'semaine', 'mois', 'année', 'heure', 'minute', 'matin', 'après-midi', 'soir', 'nuit', 'travail', 'métier', 'emploi', 'vacances', 'weekend', 'fête', 'anniversaire', 'cadeau', 'livre', 'cahier', 'stylo', 'ordinateur', 'téléphone', 'portable', 'voiture', 'vélo', 'bus', 'train', 'avion', 'animal', 'chien', 'chat', 'oiseau', 'poisson', 'nourriture', 'repas', 'petit-déjeuner', 'déjeuner', 'dîner', 'pain', 'viande', 'poisson', 'légume', 'fruit', 'eau', 'lait', 'café', 'thé', 'jus', 'vin', 'argent', 'euro', 'prix', 'vêtement', 'pantalon', 'chemise', 'robe', 'chaussure', 'manteau', 'couleur', 'sport', 'football', 'tennis', 'natation', 'musique', 'film', 'chanson', 'émission', 'programme', 'chose', 'idée', 'problème', 'solution', 'question', 'réponse', 'monde', 'vie', 'mort', 'santé', 'maladie', 'médecin', 'hôpital'],
@@ -860,30 +1082,63 @@
             return [...new Set(words)]; // Remove duplicates
         }
 
+        const POS_LABEL = { noun:'noun', verb:'verb', adjective:'adj', adverb:'adv' };
+
         function addWord() {
             const input = document.getElementById('wordInput');
-            const word = input.value.trim();
+            const fr = input.value.trim();
+            if (!fr) return;
+            if (wordBank.some(w => w.fr.toLowerCase() === fr.toLowerCase())) { input.value = ''; return; }
 
-            if (word && !wordBank.includes(word)) {
-                wordBank.push(word);
-                updateWordBank();
-                input.value = '';
+            const posChoice = document.getElementById('posSelect').value;
+            const glossInput = document.getElementById('glossInput').value.trim();
+            const looked = lookupWord(fr);
+
+            let pos, gender, en;
+            if (posChoice === 'auto') {
+                if (looked) {
+                    pos = looked.pos;
+                    gender = looked.gender;
+                    en = glossInput || looked.en || '';
+                } else {
+                    // Cannot detect: ask the teacher to tag it so frames stay grammatical
+                    alert('"' + fr + '" is not in the built-in KS3 list, so the planner cannot tell its part of speech. Please choose a part of speech (and gender for nouns) before adding, so the generated French stays correct.');
+                    return;
+                }
+            } else {
+                pos = posChoice;
+                en = glossInput || (looked ? looked.en : '');
+                if (pos === 'noun') {
+                    gender = document.getElementById('genderSelect').value;
+                } else if (looked && looked.gender) {
+                    gender = looked.gender;
+                }
             }
+
+            wordBank.push({ fr, pos, gender, en });
+            updateWordBank();
+            input.value = '';
+            document.getElementById('glossInput').value = '';
         }
 
-        function removeWord(word) {
-            wordBank = wordBank.filter(w => w !== word);
+        function removeWord(fr) {
+            wordBank = wordBank.filter(w => w.fr !== fr);
             updateWordBank();
         }
 
         function updateWordBank() {
             const container = document.getElementById('wordBank');
             container.innerHTML = '';
-
+            if (wordBank.length === 0) {
+                container.innerHTML = '<span style="color:#a0aec0;font-size:13px;">No focus words yet</span>';
+                return;
+            }
             wordBank.forEach(word => {
                 const tag = document.createElement('div');
                 tag.className = 'word-tag';
-                tag.innerHTML = `${word} <span class="remove" onclick="removeWord('${word.replace(/'/g, "\\'")}')">×</span>`;
+                const meta = POS_LABEL[word.pos] + (word.gender ? ', ' + word.gender : '');
+                const frEsc = word.fr.replace(/'/g, "\\'");
+                tag.innerHTML = `${word.fr} <small style="opacity:.8;font-size:11px;">(${meta})</small> <span class="remove" role="button" tabindex="0" aria-label="Remove ${word.fr}" onclick="removeWord('${frEsc}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();removeWord('${frEsc}')}">×</span>`;
                 container.appendChild(tag);
             });
         }
@@ -912,143 +1167,7 @@
             generateTranslation(topic, grammar, tier, count);
             generateVocabTest(tier, count);
             generateSpeakingCards(topic, grammar, tier);
-        }
-
-        function generateSentences(topic, grammar, tier, count) {
-            const output = document.getElementById('sentenceOutput');
-            let html = `<h4>✏️ Contextualized Sentence Building</h4>`;
-            html += `<p><span class="grammar-tag">${grammar || 'mixed grammar'}</span><span class="difficulty-badge difficulty-${tier}">${tier}</span></p>`;
-            html += `<p><strong>Instructions:</strong> Write complete sentences that include the highlighted focus word. Use the grammar structure indicated.</p>`;
-
-            const sentences = generateContextualSentencePrompts(topic, grammar, tier, count);
-            sentences.forEach((sent, i) => {
-                html += `<div class="exercise-item">`;
-                html += `<strong>${i + 1}.</strong> ${sent.prompt}<br>`;
-                html += `<em style="font-size: 12px; color: #718096;">Focus word: <span class="target-word">${sent.focusWord}</span></em>`;
-                html += `<div style="margin-top: 10px; border-bottom: 1px solid #cbd5e0; min-height: 35px;"></div>`;
-                html += `</div>`;
-            });
-
-            output.innerHTML = html;
-        }
-
-        function generateGapFill(topic, grammar, tier, count) {
-            const output = document.getElementById('gapOutput');
-            let html = `<h4>📝 Contextualized Gap Fill</h4>`;
-            html += `<p><span class="grammar-tag">${grammar || 'mixed grammar'}</span><span class="difficulty-badge difficulty-${tier}">${tier}</span></p>`;
-            html += `<p><strong>Instructions:</strong> Complete each sentence with the appropriate word. The focus words are highlighted.</p>`;
-
-            const sentences = generateContextualGapFill(topic, grammar, tier, count);
-            sentences.forEach((sentence, i) => {
-                html += `<div class="exercise-item">`;
-                html += `<strong>${i + 1}.</strong> ${sentence.text}`;
-                if (sentence.focusWord) {
-                    html += `<br><em style="font-size: 12px; color: #718096;">Contains: <span class="target-word">${sentence.focusWord}</span></em>`;
-                }
-                html += `</div>`;
-            });
-
-            output.innerHTML = html;
-        }
-
-        function generateTranslation(topic, grammar, tier, count) {
-            const output = document.getElementById('translationOutput');
-            let html = `<h4>🔄 Contextualized Translation</h4>`;
-            html += `<p><span class="grammar-tag">${grammar || 'mixed grammar'}</span><span class="difficulty-badge difficulty-${tier}">${tier}</span></p>`;
-
-            html += `<div style="margin-bottom: 25px;">`;
-            html += `<h4 style="font-size: 14px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Section A: French to English</h4>`;
-
-            const frenchSentences = generateFrenchToEnglishSentences(topic, grammar, tier, Math.min(count, 6));
-            frenchSentences.forEach((sent, i) => {
-                html += `<div class="exercise-item">`;
-                html += `<strong>${i + 1}.</strong> ${sent.french}<br>`;
-                html += `<div style="margin-top: 8px; border-bottom: 1px solid #cbd5e0; min-height: 30px;"></div>`;
-                html += `</div>`;
-            });
-            html += `</div>`;
-
-            html += `<div>`;
-            html += `<h4 style="font-size: 14px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Section B: English to French</h4>`;
-            html += `<p style="font-size: 13px; color: #718096; margin-bottom: 10px;">Translate using the focus words provided:</p>`;
-
-            const englishSentences = generateEnglishToFrenchSentences(topic, tier, Math.min(count, 6));
-            englishSentences.forEach((sent, i) => {
-                html += `<div class="exercise-item">`;
-                html += `<strong>${i + 1}.</strong> ${sent.english}<br>`;
-                html += `<em style="font-size: 12px; color: #718096;">Use: <span class="target-word">${sent.focusWord}</span></em>`;
-                html += `<div style="margin-top: 8px; border-bottom: 1px solid #cbd5e0; min-height: 30px;"></div>`;
-                html += `</div>`;
-            });
-            html += `</div>`;
-
-            output.innerHTML = html;
-        }
-
-        function generateVocabTest(tier, count) {
-            const output = document.getElementById('vocabOutput');
-            let html = `<h4>📖 Vocabulary Test - Focus Words</h4>`;
-            html += `<p><span class="difficulty-badge difficulty-${tier}">${tier}</span></p>`;
-
-            html += `<div style="margin-bottom: 20px;">`;
-            html += `<h4 style="font-size: 14px; margin-bottom: 10px;">Section A: French to English</h4>`;
-
-            wordBank.forEach((word, i) => {
-                html += `<div class="exercise-item">`;
-                html += `<strong>${i + 1}.</strong> <span class="target-word">${word}</span> <span style="margin-left: 40px;">_____________________</span>`;
-                html += `</div>`;
-            });
-            html += `</div>`;
-
-            html += `<div style="margin-bottom: 20px;">`;
-            html += `<h4 style="font-size: 14px; margin-bottom: 10px;">Section B: Use in a sentence</h4>`;
-            html += `<p style="font-size: 13px; color: #718096; margin-bottom: 10px;">Write a complete sentence using each word:</p>`;
-
-            wordBank.forEach((word, i) => {
-                html += `<div class="exercise-item">`;
-                html += `<strong>${i + 1}.</strong> <span class="target-word">${word}</span>`;
-                html += `<div style="margin-top: 8px; border-bottom: 1px solid #cbd5e0; min-height: 30px;"></div>`;
-                html += `</div>`;
-            });
-            html += `</div>`;
-
-            html += `<div>`;
-            html += `<h4 style="font-size: 14px; margin-bottom: 10px;">Section C: Spelling Test</h4>`;
-            html += `<p style="font-size: 13px; color: #718096; margin-bottom: 10px;">Teacher will say the word - students write it:</p>`;
-
-            wordBank.forEach((word, i) => {
-                html += `<div class="exercise-item">`;
-                html += `<strong>${i + 1}.</strong> <span style="margin-left: 20px;">_____________________</span>`;
-                html += `</div>`;
-            });
-            html += `</div>`;
-
-            output.innerHTML = html;
-        }
-
-        function generateSpeakingCards(topic, grammar, tier) {
-            const output = document.getElementById('speakingOutput');
-            let html = `<h4>💬 Speaking Prompt Cards</h4>`;
-            html += `<p><span class="grammar-tag">${grammar || 'mixed grammar'}</span><span class="difficulty-badge difficulty-${tier}">${tier}</span></p>`;
-            html += `<p style="margin-bottom: 20px;"><strong>Instructions:</strong> Students must use the focus words in their spoken responses.</p>`;
-
-            const prompts = generateSpeakingPrompts(topic, tier, 6);
-            prompts.forEach((prompt, i) => {
-                html += `<div style="border: 2px dashed #667eea; padding: 15px; margin-bottom: 15px; border-radius: 8px; page-break-inside: avoid;">`;
-                html += `<div style="font-weight: 600; color: #667eea; margin-bottom: 8px;">Card ${i + 1}</div>`;
-                html += `<div style="font-size: 15px; margin-bottom: 10px;">${prompt.question}</div>`;
-                html += `<div style="font-size: 12px; color: #718096; margin-bottom: 6px;">`;
-                html += `<strong>Focus word:</strong> <span class="target-word">${prompt.focusWord}</span>`;
-                html += `</div>`;
-                if (prompt.hint) {
-                    html += `<div style="font-size: 11px; color: #a0aec0; font-style: italic;">`;
-                    html += `💡 ${prompt.hint}`;
-                    html += `</div>`;
-                }
-                html += `</div>`;
-            });
-
-            output.innerHTML = html;
+            generateQuiz(tier);
         }
 
         function getRandomFromArray(arr, count = 1) {
@@ -1056,149 +1175,339 @@
             return count === 1 ? shuffled[0] : shuffled.slice(0, count);
         }
 
-        function getVocabByType(type) {
-            const allVocab = getAllVocab();
-            return defaultVocab[type] || allVocab.slice(0, 20);
+        function tagSpan(text) {
+            return `<span class="target-word">${text}</span>`;
         }
 
-        function generateContextualSentencePrompts(topic, grammar, tier, count) {
-            const prompts = [];
-            const allVocab = getAllVocab();
+        function answerBox(html) {
+            return `<div class="answer-key">✔ Model answer: ${html}</div>`;
+        }
 
-            for (let i = 0; i < count && i < wordBank.length; i++) {
-                const focusWord = wordBank[i];
-                let prompt = '';
+        // ---- Grammar engine: build a valid French sentence for ONE focus word ----
+        // Returns { french, english } where the focus word is rendered grammatically.
+        // grammar drives the structure; tier adds a justification/connective at Extension.
+        function buildSentence(word, grammar, tier) {
+            const fr = word.fr, en = word.en || word.fr;
+            const ext = (tier === 'higher');
+            const becauseFr = ext ? ' parce que c\'est super' : '';
+            const becauseEn = ext ? ' because it is great' : '';
 
-                if (grammar === 'present') {
-                    const verb = getRandomFromArray(getVocabByType('verbs'));
-                    prompt = `Write a sentence using the present tense of "${verb}" that includes the word`;
-                } else if (grammar === 'perfect') {
-                    prompt = `Write a sentence in the passé composé (perfect tense) that includes the word`;
-                } else if (grammar === 'future') {
-                    prompt = `Write a sentence about the future that includes the word`;
-                } else if (grammar === 'adjectives') {
-                    prompt = `Write a sentence with correct adjective agreement that includes the word`;
-                } else if (grammar === 'opinions') {
-                    prompt = `Write an opinion sentence that includes the word`;
-                } else {
-                    const contexts = [
-                        `Write a sentence about ${topic || 'your day'} that includes the word`,
-                        `Describe something using the word`,
-                        `Write a sentence about your opinion using the word`,
-                        `Write a sentence about the past that includes the word`
-                    ];
-                    prompt = getRandomFromArray(contexts);
+            // NOUN frames: use an article matching gender. surface = the focus word as it appears.
+            if (word.pos === 'noun') {
+                const art = defArticle(word.gender);
+                const indef = indefArticle(word.gender);
+                const opts = [
+                    { french: `J'aime ${art} ${fr}${becauseFr}.`, english: `I like the ${en}${becauseEn}.`, surface: fr },
+                    { french: `Il y a ${indef} ${fr} ${ext ? 'très intéressant' + (word.gender==='f'?'e':'') : 'ici'}.`,
+                      english: `There is a${word.gender==='f'?'':'n'} ${ext?'very interesting ':''}${en} ${ext?'':'here'}.`, surface: fr },
+                    { french: `Le weekend, je vais ${ext ? 'souvent ' : ''}voir ${art} ${fr}.`, english: `At the weekend I ${ext?'often ':''}go to see the ${en}.`, surface: fr }
+                ];
+                return getRandomFromArray(opts);
+            }
+
+            // VERB frames: present, perfect, near future. surface = the form that appears in the sentence.
+            if (word.pos === 'verb') {
+                const je = conjugateJe(fr);
+                if (grammar === 'perfect') {
+                    const pp = pastParticiple(fr);
+                    return { french: `Hier, j'ai ${pp}${ext?' avec ma famille':''}.`,
+                             english: `Yesterday I ${englishPast(en)}${ext?' with my family':''}.`, surface: pp };
                 }
-
-                prompts.push({ prompt, focusWord });
+                if (grammar === 'nearfuture') {
+                    return { french: `Demain, je vais ${fr}${ext?' avec mes amis':''}.`,
+                             english: `Tomorrow I am going to ${en.replace(/^to /,'')}${ext?' with my friends':''}.`, surface: fr };
+                }
+                if (grammar === 'negatives') {
+                    return { french: `Je ${nePlus(je)} pas${ext?' le weekend':''}.`,
+                             english: `I do not ${en.replace(/^to /,'')}${ext?' at the weekend':''}.`, surface: je };
+                }
+                if (grammar === 'opinions') {
+                    return { french: `J'adore ${fr}${ext?' parce que c\'est génial':''}.`,
+                             english: `I love to ${en.replace(/^to /,'')}${ext?' because it is great':''}.`, surface: fr };
+                }
+                // present (default)
+                return { french: `${jePlus(je)}${ext?' souvent le weekend':''}.`,
+                         english: `I ${en.replace(/^to /,'')}${ext?' often at the weekend':''}.`, surface: je };
             }
 
-            return prompts;
+            // ADJECTIVE frames: agreement handled, used predicatively. surface = the agreed form.
+            if (word.pos === 'adjective') {
+                const subjF = getRandomFromArray([{n:'maison',g:'f',en:'house'},{n:'film',g:'m',en:'film'},{n:'repas',g:'m',en:'meal'},{n:'classe',g:'f',en:'class'}]);
+                const adjAgreed = agreeAdjective(fr, subjF.g);
+                const art = defArticle(subjF.g);
+                if (grammar === 'negatives') {
+                    return { french: `${subjF.g==='f'?'Cette':'Ce'} ${subjF.n} n'est pas ${adjAgreed}.`,
+                             english: `This ${subjF.en} is not ${en}.`, surface: adjAgreed };
+                }
+                return { french: `${art.charAt(0).toUpperCase()+art.slice(1)} ${subjF.n} est ${ext?'vraiment ':'très '}${adjAgreed}.`,
+                         english: `The ${subjF.en} is ${ext?'really ':'very '}${en}.`, surface: adjAgreed };
+            }
+
+            // ADVERB frames: modify a verb. surface = the adverb itself.
+            if (word.pos === 'adverb') {
+                return { french: `Je joue au football ${fr}${ext?' le weekend':''}.`,
+                         english: `I play football ${en}${ext?' at the weekend':''}.`, surface: fr };
+            }
+
+            // Fallback (should not happen because POS is required)
+            return { french: `J'aime ${fr}.`, english: `I like ${en}.`, surface: fr };
         }
 
-        function generateContextualGapFill(topic, grammar, tier, count) {
-            const sentences = [];
-            const allVocab = getAllVocab();
+        // SENTENCE BUILDING: structured prompt + a model answer for the teacher
+        function generateSentences(topic, grammar, tier, count) {
+            const output = document.getElementById('sentenceOutput');
+            let html = `<h4>✏️ Sentence Building (with model answers)</h4>`;
+            html += `<p>${grammarTag(grammar)}${tierBadge(tier)}</p>`;
+            html += `<p><strong>Instructions:</strong> Write a full sentence using the highlighted focus word and the grammar shown. A model answer is given for marking.</p>`;
 
-            for (let i = 0; i < count && i < wordBank.length; i++) {
-                const focusWord = wordBank[i];
-                let sentence = { text: '', focusWord };
-
-                // Build context around the focus word
-                const verb = getRandomFromArray(getVocabByType('verbs'));
-                const adj = getRandomFromArray(getVocabByType('adjectives'));
-                const adv = getRandomFromArray(getVocabByType('adverbs'));
-                const prep = getRandomFromArray(getVocabByType('prepositions'));
-
-                const templates = [
-                    `Je trouve que <span class="target-word">${focusWord}</span> est _____ ${adj}.`,
-                    `_____ <span class="target-word">${focusWord}</span> ${prep} le weekend est ${adj}.`,
-                    `Hier, j'ai vu <span class="target-word">${focusWord}</span> et c'était _____.`,
-                    `<span class="target-word">${focusWord}</span> _____ ${adv} dans la ville.`,
-                    `Il faut _____ <span class="target-word">${focusWord}</span> chaque jour.`,
-                    `Ma famille aime <span class="target-word">${focusWord}</span> parce que c'est _____.`
-                ];
-
-                sentence.text = getRandomFromArray(templates);
-                sentences.push(sentence);
+            const n = Math.min(count, wordBank.length);
+            for (let i = 0; i < n; i++) {
+                const word = wordBank[i];
+                const model = buildSentence(word, grammar, tier);
+                html += `<div class="exercise-item">`;
+                html += `<strong>${i + 1}.</strong> Use ${tagSpan(word.fr)} (${POS_LABEL[word.pos]}) in a ${grammarLabel(grammar)} sentence.`;
+                html += `<div style="margin-top: 10px; border-bottom: 1px solid #cbd5e0; min-height: 30px;"></div>`;
+                html += answerBox(model.french);
+                html += `</div>`;
             }
-
-            return sentences;
+            output.innerHTML = html;
         }
 
-        function generateFrenchToEnglishSentences(topic, grammar, tier, count) {
-            const sentences = [];
-            const allVocab = getAllVocab();
+        // GAP FILL: a complete valid sentence with the focus word blanked; answer = focus word
+        function generateGapFill(topic, grammar, tier, count) {
+            const output = document.getElementById('gapOutput');
+            let html = `<h4>📝 Gap Fill (with answer key)</h4>`;
+            html += `<p>${grammarTag(grammar)}${tierBadge(tier)}</p>`;
+            html += `<p><strong>Instructions:</strong> Write the missing focus word in each gap.</p>`;
 
-            for (let i = 0; i < count && i < wordBank.length; i++) {
-                const focusWord = wordBank[i];
-                const verb = getRandomFromArray(getVocabByType('verbs'));
-                const adj = getRandomFromArray(getVocabByType('adjectives'));
-                const noun = getRandomFromArray(getVocabByType('nouns'));
-
-                const templates = [
-                    `J'aime beaucoup <span class="target-word">${focusWord}</span> parce que c'est ${adj}.`,
-                    `Ma famille trouve <span class="target-word">${focusWord}</span> très ${adj}.`,
-                    `Quand je vais au ${noun}, je pense à <span class="target-word">${focusWord}</span>.`,
-                    `C'est important d'avoir <span class="target-word">${focusWord}</span> dans la vie.`,
-                    `Hier, j'ai vu <span class="target-word">${focusWord}</span> en ville.`,
-                    `<span class="target-word">${focusWord}</span> est ${adj} et ${adj}.`
-                ];
-
-                sentences.push({ french: getRandomFromArray(templates) });
+            const n = Math.min(count, wordBank.length);
+            const keys = [];
+            for (let i = 0; i < n; i++) {
+                const word = wordBank[i];
+                const model = buildSentence(word, grammar, tier);
+                // Blank out the actual surface form that appears (handles conjugated/agreed forms)
+                const surface = model.surface || word.fr;
+                const re = new RegExp('(^|\\s)' + surface.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=\\s|\\.|,|$)');
+                let blanked = model.french.replace(re, '$1<span class="blank">&nbsp;</span>');
+                if (blanked === model.french) {
+                    // Surface not found verbatim: fall back to a labelled blank so the task never silently fails
+                    blanked = model.french + ' <span class="blank">&nbsp;</span> (' + word.fr + ')';
+                }
+                html += `<div class="exercise-item">`;
+                html += `<strong>${i + 1}.</strong> ${blanked}`;
+                html += `<br><em style="font-size:12px;color:#718096;">English: ${model.english}</em>`;
+                html += `</div>`;
+                const ans = (surface !== word.fr) ? (surface + ' (from ' + word.fr + ')') : word.fr;
+                keys.push(`${i + 1}. ${tagSpan(ans)}`);
             }
-
-            return sentences;
+            html += `<div class="answer-key-block"><strong>Answer key:</strong><br>${keys.join('<br>')}</div>`;
+            output.innerHTML = html;
         }
 
-        function generateEnglishToFrenchSentences(topic, tier, count) {
-            const sentences = [];
+        // TRANSLATION: French to English (with answers) and English to French (with answers)
+        function generateTranslation(topic, grammar, tier, count) {
+            const output = document.getElementById('translationOutput');
+            let html = `<h4>🔄 Translation (with answer key)</h4>`;
+            html += `<p>${grammarTag(grammar)}${tierBadge(tier)}</p>`;
+            const n = Math.min(count, 6, wordBank.length);
 
-            for (let i = 0; i < count && i < wordBank.length; i++) {
-                const focusWord = wordBank[i];
-
-                const templates = [
-                    `I really like ${focusWord}`,
-                    `My family thinks ${focusWord} is important`,
-                    `Yesterday I saw ${focusWord}`,
-                    `${focusWord} is very interesting`,
-                    `I want to have ${focusWord}`,
-                    `We often talk about ${focusWord}`
-                ];
-
-                sentences.push({
-                    english: getRandomFromArray(templates).replace(focusWord, '______'),
-                    focusWord
-                });
+            // Section A: French to English
+            html += `<div style="margin-bottom: 25px;">`;
+            html += `<h4 style="font-size:14px;margin-bottom:12px;border-bottom:1px solid #e2e8f0;padding-bottom:5px;">Section A: French to English</h4>`;
+            const aKeys = [];
+            for (let i = 0; i < n; i++) {
+                const model = buildSentence(wordBank[i], grammar, tier);
+                html += `<div class="exercise-item">`;
+                html += `<strong>${i + 1}.</strong> ${model.french}`;
+                html += `<div style="margin-top:8px;border-bottom:1px solid #cbd5e0;min-height:28px;"></div>`;
+                html += `</div>`;
+                aKeys.push(`${i + 1}. ${model.english}`);
             }
+            html += `<div class="answer-key-block"><strong>Answers (A):</strong><br>${aKeys.join('<br>')}</div>`;
+            html += `</div>`;
 
-            return sentences;
+            // Section B: English to French (the English is the model, French is the answer)
+            html += `<div>`;
+            html += `<h4 style="font-size:14px;margin-bottom:12px;border-bottom:1px solid #e2e8f0;padding-bottom:5px;">Section B: English to French</h4>`;
+            html += `<p style="font-size:13px;color:#718096;margin-bottom:10px;">Translate into French. The focus word to use is shown.</p>`;
+            const bKeys = [];
+            for (let i = 0; i < n; i++) {
+                const word = wordBank[i];
+                const model = buildSentence(word, grammar, tier);
+                html += `<div class="exercise-item">`;
+                html += `<strong>${i + 1}.</strong> ${model.english}`;
+                html += `<br><em style="font-size:12px;color:#718096;">Use: ${tagSpan(word.fr)}</em>`;
+                html += `<div style="margin-top:8px;border-bottom:1px solid #cbd5e0;min-height:28px;"></div>`;
+                html += `</div>`;
+                bKeys.push(`${i + 1}. ${model.french}`);
+            }
+            html += `<div class="answer-key-block"><strong>Answers (B):</strong><br>${bKeys.join('<br>')}</div>`;
+            html += `</div>`;
+
+            output.innerHTML = html;
         }
 
-        function generateSpeakingPrompts(topic, tier, count) {
-            const prompts = [];
+        function generateVocabTest(tier, count) {
+            const output = document.getElementById('vocabOutput');
+            let html = `<h4>📖 Vocabulary Test (with answer key)</h4>`;
+            html += `<p>${tierBadge(tier)}</p>`;
 
-            const questionTemplates = [
-                { q: 'Parle-moi de {word}. Pourquoi est-ce important pour toi?', hint: 'Give at least 3 reasons' },
-                { q: 'Qu\'est-ce que tu penses de {word}?', hint: 'Express your opinion with justification' },
-                { q: 'Décris {word} en détail.', hint: 'Use lots of adjectives' },
-                { q: 'Qu\'as-tu fait avec {word} récemment?', hint: 'Use past tense' },
-                { q: 'Comment est-ce que {word} influence ta vie?', hint: 'Give examples' },
-                { q: 'Si tu pouvais changer {word}, que ferais-tu?', hint: 'Use conditional tense' }
-            ];
+            // Section A: French to English (answer key from gloss)
+            html += `<div style="margin-bottom:20px;">`;
+            html += `<h4 style="font-size:14px;margin-bottom:10px;">Section A: French to English</h4>`;
+            const keys = [];
+            wordBank.forEach((word, i) => {
+                html += `<div class="exercise-item">`;
+                html += `<strong>${i + 1}.</strong> ${tagSpan(word.fr)} <span style="margin-left:40px;">_____________________</span>`;
+                html += `</div>`;
+                keys.push(`${i + 1}. ${word.en || '(meaning not provided)'}`);
+            });
+            html += `<div class="answer-key-block"><strong>Answer key:</strong><br>${keys.join('<br>')}</div>`;
+            html += `</div>`;
 
-            for (let i = 0; i < count && i < wordBank.length; i++) {
-                const template = getRandomFromArray(questionTemplates);
-                const focusWord = wordBank[i];
+            // Section B: use in a sentence (model answers)
+            html += `<div style="margin-bottom:20px;">`;
+            html += `<h4 style="font-size:14px;margin-bottom:10px;">Section B: Use in a sentence</h4>`;
+            html += `<p style="font-size:13px;color:#718096;margin-bottom:10px;">Write a full sentence using each word. A model answer is given.</p>`;
+            wordBank.forEach((word, i) => {
+                const model = buildSentence(word, 'present', tier);
+                html += `<div class="exercise-item">`;
+                html += `<strong>${i + 1}.</strong> ${tagSpan(word.fr)}`;
+                html += `<div style="margin-top:8px;border-bottom:1px solid #cbd5e0;min-height:28px;"></div>`;
+                html += answerBox(model.french);
+                html += `</div>`;
+            });
+            html += `</div>`;
 
-                prompts.push({
-                    question: template.q.replace('{word}', focusWord),
-                    focusWord,
-                    hint: template.hint
-                });
+            // Section C: spelling test (teacher uses audio button)
+            html += `<div>`;
+            html += `<h4 style="font-size:14px;margin-bottom:10px;">Section C: Spelling (dictation)</h4>`;
+            html += `<p style="font-size:13px;color:#718096;margin-bottom:10px;">Use the audio buttons to hear each word, then write it. Answers are listed for marking.</p>`;
+            const spellKeys = [];
+            wordBank.forEach((word, i) => {
+                html += `<div class="exercise-item">`;
+                html += `<strong>${i + 1}.</strong> <button type="button" class="btn-small" onclick="speakWord('${word.fr.replace(/'/g,"\\'")}')" aria-label="Hear word ${i+1}">🔊 Hear</button> <span style="margin-left:20px;">_____________________</span>`;
+                html += `</div>`;
+                spellKeys.push(`${i + 1}. ${word.fr}`);
+            });
+            html += `<div class="answer-key-block"><strong>Answer key:</strong><br>${spellKeys.join('<br>')}</div>`;
+            html += `</div>`;
+
+            output.innerHTML = html;
+        }
+
+        function generateSpeakingCards(topic, grammar, tier) {
+            const output = document.getElementById('speakingOutput');
+            let html = `<h4>💬 Speaking Prompt Cards (with model answer)</h4>`;
+            html += `<p>${grammarTag(grammar)}${tierBadge(tier)}</p>`;
+            html += `<p style="margin-bottom:20px;"><strong>Instructions:</strong> Answer aloud, using the focus word. A model answer supports lower-confidence speakers.</p>`;
+
+            const n = Math.min(6, wordBank.length);
+            const questionByGrammar = {
+                perfect: 'Qu\'as-tu fait récemment avec ce mot?',
+                nearfuture: 'Que vas-tu faire ce weekend?',
+                negatives: 'Qu\'est-ce que tu ne fais pas?',
+                opinions: 'Que penses-tu de cela?',
+                adjectives: 'Comment est-ce, à ton avis?',
+                present: 'Parle-moi de cela. Pourquoi?'
+            };
+            for (let i = 0; i < n; i++) {
+                const word = wordBank[i];
+                const model = buildSentence(word, grammar, tier);
+                const q = questionByGrammar[grammar] || questionByGrammar.present;
+                html += `<div style="border:2px dashed #667eea;padding:15px;margin-bottom:15px;border-radius:8px;page-break-inside:avoid;">`;
+                html += `<div style="font-weight:600;color:#667eea;margin-bottom:8px;">Card ${i + 1}</div>`;
+                html += `<div style="font-size:15px;margin-bottom:10px;">${q} <button type="button" class="btn-small" onclick="speakText('${q.replace(/'/g,"\\'")}')" aria-label="Hear question ${i+1}">🔊</button></div>`;
+                html += `<div style="font-size:12px;color:#718096;margin-bottom:6px;"><strong>Focus word:</strong> ${tagSpan(word.fr)} (${POS_LABEL[word.pos]})</div>`;
+                html += answerBox(model.french);
+                html += `</div>`;
             }
+            output.innerHTML = html;
+        }
 
-            return prompts;
+        // ---- Self-marking quick quiz: French to English ----
+        let quizState = [];
+        function generateQuiz(tier) {
+            const output = document.getElementById('quizOutput');
+            document.getElementById('quizScore').textContent = '';
+            quizState = wordBank.map((w, i) => ({ fr: w.fr, en: (w.en || '').toLowerCase().trim(), idx: i }));
+
+            if (quizState.some(q => !q.en)) {
+                output.innerHTML = '<p style="color:#b45309;">Some focus words have no English meaning, so they cannot be auto-marked. Add a meaning when entering the word, or use words from the built-in KS3 list.</p>';
+                // still render the ones we can mark
+            }
+            let html = '';
+            quizState.forEach((q, i) => {
+                if (!q.en) return;
+                html += `<div class="exercise-item quiz-row" data-idx="${i}">`;
+                html += `<strong>${i + 1}.</strong> ${tagSpan(q.fr)} <button type="button" class="btn-small" onclick="speakWord('${q.fr.replace(/'/g,"\\'")}')" aria-label="Hear word ${i+1}">🔊</button>`;
+                html += ` &rarr; <input type="text" class="quiz-input" data-idx="${i}" placeholder="English meaning" aria-label="English meaning for ${q.fr}" style="width:200px;display:inline-block;margin-left:8px;">`;
+                html += ` <span class="quiz-feedback" data-idx="${i}" aria-live="polite" style="margin-left:8px;font-weight:600;"></span>`;
+                html += `</div>`;
+            });
+            if (!html) html = '<p style="color:#718096;">No auto-markable words. Add English meanings to enable the quiz.</p>';
+            output.innerHTML = html;
+        }
+
+        function markQuiz() {
+            let correct = 0, total = 0;
+            document.querySelectorAll('.quiz-input').forEach(inp => {
+                const idx = parseInt(inp.dataset.idx);
+                const q = quizState[idx];
+                if (!q || !q.en) return;
+                total++;
+                const given = inp.value.toLowerCase().trim().replace(/^(to |the |a |an )/, '');
+                const target = q.en.replace(/^(to |the |a |an )/, '');
+                const fb = document.querySelector('.quiz-feedback[data-idx="' + idx + '"]');
+                if (given && (given === target || target.split('/').map(s=>s.trim()).includes(given))) {
+                    correct++;
+                    fb.textContent = '✓ Correct';
+                    fb.style.color = '#22543d';
+                    inp.style.borderColor = '#48bb78';
+                } else {
+                    fb.textContent = given ? ('✗ Answer: ' + q.en) : ('Answer: ' + q.en);
+                    fb.style.color = '#c53030';
+                    inp.style.borderColor = '#e53e3e';
+                }
+            });
+            const score = document.getElementById('quizScore');
+            if (total === 0) { score.textContent = 'Nothing to mark yet.'; return; }
+            const pct = Math.round((correct / total) * 100);
+            let msg = pct === 100 ? 'Excellent, full marks!' : pct >= 60 ? 'Good effort, review the ones marked in red.' : 'Keep practising the words marked in red.';
+            score.textContent = `Score: ${correct} / ${total} (${pct}%). ${msg}`;
+        }
+
+        function resetQuiz() {
+            document.querySelectorAll('.quiz-input').forEach(inp => { inp.value = ''; inp.style.borderColor = '#cbd5e0'; });
+            document.querySelectorAll('.quiz-feedback').forEach(fb => { fb.textContent = ''; });
+            document.getElementById('quizScore').textContent = '';
+        }
+
+        // ---- Audio via browser SpeechSynthesis (no audio files) ----
+        function speakText(text) {
+            if (!('speechSynthesis' in window)) { alert('Speech is not supported in this browser.'); return; }
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'fr-FR';
+            if (window.westTTS) { var _v = window.westTTS.pick(u.lang || 'en-GB'); if (_v) u.voice = _v; }
+            u.rate = 0.9;
+            window.speechSynthesis.speak(u);
+        }
+        function speakWord(word) { speakText(word); }
+        function speakAllCards() {
+            const n = Math.min(6, wordBank.length);
+            for (let i = 0; i < n; i++) speakText(wordBank[i].fr);
+        }
+
+        // ---- Small label helpers ----
+        function grammarLabel(grammar) {
+            const m = { present:'present tense', perfect:'perfect tense', nearfuture:'near future', adjectives:'adjective agreement', negatives:'negative', opinions:'opinion' };
+            return m[grammar] || 'present tense';
+        }
+        function grammarTag(grammar) { return `<span class="grammar-tag">${grammarLabel(grammar)}</span>`; }
+        function tierBadge(tier) {
+            const label = tier === 'higher' ? 'Extension' : 'Core';
+            return `<span class="difficulty-badge difficulty-${tier}">${label}</span>`;
         }
 
         function copyToClipboard(elementId) {
@@ -1263,10 +1572,41 @@
         function loadWordSet(index) {
             const sets = JSON.parse(localStorage.getItem('frenchWordSets') || '[]');
             if (sets[index]) {
-                wordBank = [...sets[index].words];
+                // Normalise: old sets stored plain strings; new sets store tagged objects
+                wordBank = sets[index].words.map(w => {
+                    if (typeof w === 'string') {
+                        const looked = lookupWord(w);
+                        return { fr: w, pos: looked ? looked.pos : 'noun', gender: looked ? looked.gender : undefined, en: looked ? looked.en : '' };
+                    }
+                    return w;
+                });
                 updateWordBank();
             }
         }
+
+        function toggleAnswers() {
+            const hidden = document.body.classList.toggle('hide-answers');
+            const btn = document.getElementById('toggleAnswersBtn');
+            btn.textContent = hidden ? '👁 Show answer keys (teacher copy)' : '🙈 Hide answer keys (student copy)';
+            btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+        }
+
+        // Show/hide noun gender selector based on chosen part of speech, and prefill gloss for known words
+        document.getElementById('posSelect').addEventListener('change', function() {
+            document.getElementById('nounGenderGroup').style.display = (this.value === 'noun') ? 'block' : 'none';
+        });
+        document.getElementById('wordInput').addEventListener('blur', function() {
+            const looked = lookupWord(this.value);
+            const glossEl = document.getElementById('glossInput');
+            const posEl = document.getElementById('posSelect');
+            if (looked) {
+                if (!glossEl.value) glossEl.value = looked.en || '';
+                if (posEl.value === 'auto') {
+                    document.getElementById('nounGenderGroup').style.display = (looked.pos === 'noun') ? 'block' : 'none';
+                    if (looked.gender) document.getElementById('genderSelect').value = looked.gender;
+                }
+            }
+        });
 
         // Allow Enter key to add words
         document.getElementById('wordInput').addEventListener('keypress', function(e) {
@@ -1275,8 +1615,9 @@
             }
         });
 
-        // Load saved sets on page load
+        // Load saved sets and initialise the empty word bank message on page load
         loadSavedSets();
+        updateWordBank();
     </script>
 </body>
 </html>

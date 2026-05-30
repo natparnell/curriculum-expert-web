@@ -93,7 +93,9 @@ table.matrix td.grand-total { font-weight: 800; background: var(--header-bg); co
 table.matrix td.grand-total:hover { transform: none; box-shadow: none; }
 
 .canvas-wrap { padding: 12px; display: flex; justify-content: center; }
-canvas#sankey { width: 100%; max-height: 500px; }
+canvas#sankey { width: 100%; max-height: 500px; touch-action: none; }
+canvas#sankey:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .legend { display: flex; gap: 16px; padding: 8px 16px; font-size: 0.75rem; align-items: center; border-top: 1px solid var(--border); }
 .legend-item { display: flex; align-items: center; gap: 4px; }
 .legend-swatch { width: 14px; height: 14px; border-radius: 3px; }
@@ -361,8 +363,9 @@ canvas#sankey { width: 100%; max-height: 500px; }
   <div class="panel">
     <div class="panel-title">Sankey / Alluvial Diagram</div>
     <div class="canvas-wrap">
-      <canvas id="sankey" width="560" height="480"></canvas>
+      <canvas id="sankey" width="560" height="480" role="img" tabindex="0" aria-label="Sankey alluvial diagram showing how students flow from their Assessment Point 1 grade to their Assessment Point 2 grade. Focus this diagram for a spoken text summary of every grade transition."></canvas>
     </div>
+    <div id="sankeyDesc" class="sr-only" aria-live="polite" role="status"></div>
   </div>
 </div>
 
@@ -896,15 +899,15 @@ canvas#sankey { width: 100%; max-height: 500px; }
     ctx.fillText('AP1', leftX + colW / 2, padTop - 8);
     ctx.fillText('AP2', rightX + colW / 2, padTop - 8);
 
-    // --- Hover detection for ribbons ---
+    // --- Hover detection for ribbons (shared by mouse and touch via Pointer Events) ---
     var tooltip = document.getElementById('tooltip');
 
-    canvas.onmousemove = function(e) {
+    // Locate the ribbon under a given client coordinate, or null.
+    function ribbonAt(clientX, clientY) {
       var r = canvas.getBoundingClientRect();
-      var mx = (e.clientX - r.left) * (W / r.width);
-      var my = (e.clientY - r.top) * (H / r.height);
+      var mx = (clientX - r.left) * (W / r.width);
+      var my = (clientY - r.top) * (H / r.height);
 
-      var found = null;
       for (var i = 0; i < ribbons.length; i++) {
         var rb = ribbons[i];
         var t = (mx - rb.x0) / (rb.x1 - rb.x0);
@@ -916,28 +919,78 @@ canvas#sankey { width: 100%; max-height: 500px; }
         var yth = rb.lyh + (rb.ryh - rb.lyh) * smooth;
 
         if (my >= yt && my <= yth) {
-          found = rb;
-          break;
+          return rb;
         }
       }
+      return null;
+    }
 
+    function ribbonText(rb) {
+      var dir = classify(rb.ap1, rb.ap2);
+      var label = dir.charAt(0).toUpperCase() + dir.slice(1);
+      return 'Grade ' + rb.ap1 + ' to ' + rb.ap2 +
+        ': ' + rb.count + ' student' + (rb.count > 1 ? 's' : '') +
+        ' (' + label + ')';
+    }
+
+    // Unified pointer handler: works for mouse, touch and pen.
+    function handlePointerMove(e) {
+      var found = ribbonAt(e.clientX, e.clientY);
       if (found) {
-        var dir = classify(found.ap1, found.ap2);
-        var label = dir.charAt(0).toUpperCase() + dir.slice(1);
-        tooltip.textContent = 'Grade ' + found.ap1 + ' to ' + found.ap2 +
-          ': ' + found.count + ' student' + (found.count > 1 ? 's' : '') +
-          ' (' + label + ')';
+        tooltip.textContent = ribbonText(found);
         tooltip.style.display = 'block';
         tooltip.style.left = (e.clientX + 14) + 'px';
         tooltip.style.top = (e.clientY - 10) + 'px';
       } else {
         tooltip.style.display = 'none';
       }
-    };
+    }
 
-    canvas.onmouseleave = function() {
+    function hideTooltip() {
       tooltip.style.display = 'none';
-    };
+    }
+
+    if (window.PointerEvent) {
+      canvas.onpointermove = handlePointerMove;
+      canvas.onpointerdown = function(e) {
+        // Touch/pen tap: capture so a drag across ribbons keeps reporting.
+        if (e.pointerType !== 'mouse' && canvas.setPointerCapture) {
+          try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+        }
+        handlePointerMove(e);
+      };
+      canvas.onpointerup = function(e) {
+        if (canvas.releasePointerCapture) {
+          try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+        }
+        if (e.pointerType !== 'mouse') hideTooltip();
+      };
+      canvas.onpointercancel = hideTooltip;
+      canvas.onpointerleave = function(e) {
+        if (e.pointerType === 'mouse') hideTooltip();
+      };
+    } else {
+      // Legacy fallback for browsers without Pointer Events.
+      canvas.onmousemove = handlePointerMove;
+      canvas.onmouseleave = hideTooltip;
+    }
+
+    // --- Keyboard / screen-reader accessible summary of all flows ---
+    var desc = document.getElementById('sankeyDesc');
+    if (desc) {
+      var summary;
+      if (!ribbons.length) {
+        summary = 'No grade transitions to describe for the current filters.';
+      } else {
+        var sorted = ribbons.slice().sort(function(a, b) { return b.count - a.count; });
+        var parts = sorted.map(ribbonText);
+        summary = 'Grade transition flows, largest first: ' + parts.join('; ') + '.';
+      }
+      desc.textContent = summary;
+      canvas.setAttribute('aria-label',
+        'Sankey alluvial diagram of grade transitions from Assessment Point 1 to Assessment Point 2. ' +
+        summary);
+    }
   }
 
   // --- ADD STUDENT MODAL ---

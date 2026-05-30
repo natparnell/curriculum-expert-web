@@ -149,6 +149,47 @@ body {
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -322,6 +363,7 @@ body {
 <div class="main">
     <div class="tabs">
         <button class="tab-btn active" data-tab="grid">Grid References</button>
+        <button class="tab-btn" data-tab="distance">Distance</button>
         <button class="tab-btn" data-tab="compass">Compass</button>
         <button class="tab-btn" data-tab="key">Map Key</button>
     </div>
@@ -333,14 +375,20 @@ body {
 
     <!-- Grid References tab -->
     <div id="gridTab">
-        <div class="map-container"><canvas id="mapCanvas"></canvas></div>
+        <div class="map-container"><canvas id="mapCanvas" tabindex="0" role="img" aria-label="Ordnance Survey style map grid. Numbered grid lines run along the bottom (eastings) and up the side (northings). Map features sit inside the squares."></canvas></div>
         <div class="question-card" id="gridQuestion"></div>
+    </div>
+
+    <!-- Distance tab -->
+    <div id="distanceTab" style="display:none;">
+        <div class="map-container"><canvas id="distCanvas" tabindex="0" role="img" aria-label="Distance map. Two places are marked. Each grid square is one kilometre across."></canvas></div>
+        <div class="question-card" id="distanceQuestion"></div>
     </div>
 
     <!-- Compass tab -->
     <div id="compassTab" style="display:none;">
         <div class="compass-area">
-            <svg class="compass-svg" viewBox="0 0 200 200">
+            <svg class="compass-svg" viewBox="0 0 200 200" aria-hidden="true">
                 <circle cx="100" cy="100" r="90" fill="none" stroke="#e2e8f0" stroke-width="3"/>
                 <circle cx="100" cy="100" r="70" fill="none" stroke="#f1f5f9" stroke-width="1"/>
                 <line x1="100" y1="10" x2="100" y2="190" stroke="#e2e8f0" stroke-width="1"/>
@@ -381,9 +429,17 @@ body {
         </div>
         <div class="info-section">
             <h3>How to Read a 4-Figure Grid Reference</h3>
-            <p><strong>Step 1:</strong> Read ALONG the bottom first (the Easting). Find the number on the horizontal axis.</p>
-            <p><strong>Step 2:</strong> Read UP the side (the Northing). Find the number on the vertical axis.</p>
-            <p><strong>Remember:</strong> "Along the corridor, up the stairs!" Eastings always come before Northings.</p>
+            <p>A 4-figure grid reference names a <strong>square</strong> by the two numbered grid lines that cross at its <strong>bottom-left corner</strong>. It always has four digits.</p>
+            <p><strong>Step 1:</strong> Read ALONG the bottom first to the line on the left of the square. This two-digit number is the <strong>easting</strong> (e.g. 19).</p>
+            <p><strong>Step 2:</strong> Read UP the side to the line below the square. This two-digit number is the <strong>northing</strong> (e.g. 44).</p>
+            <p><strong>Step 3:</strong> Put them together with no gap: easting then northing, so 19 and 44 gives <strong>1944</strong>.</p>
+            <p><strong>Remember:</strong> "Along the corridor, up the stairs!" Eastings always come before northings.</p>
+            <button class="answer-btn" id="speakRefHelp" type="button" style="margin-top:10px;" aria-label="Read this explanation aloud">&#x1F50A; Read aloud</button>
+        </div>
+        <div class="info-section">
+            <h3>Measuring Distance on a Map</h3>
+            <p>Maps are drawn to <strong>scale</strong>. On the Distance tab, each grid square is <strong>1 kilometre</strong> across. To measure how far apart two places are, count the squares between them.</p>
+            <p>For straight up, down, left or right moves, just count the squares. The Distance tab lets you practise this with instant feedback.</p>
         </div>
     </div>
 </div>
@@ -395,6 +451,17 @@ const canvas = document.getElementById('mapCanvas');
 const ctx = canvas.getContext('2d');
 
 const GRID_SIZE = 6;
+// Grid LINES are numbered using two-digit Ordnance Survey style labels.
+// The bottom-left line of the whole map is easting 18, northing 43.
+// A feature in column c, row r sits in the square whose bottom-left
+// corner is the line easting (BASE_E + c), northing (BASE_N + r).
+const BASE_E = 18;
+const BASE_N = 43;
+const lineE = c => BASE_E + c;            // two-digit easting label for a vertical line
+const lineN = r => BASE_N + r;            // two-digit northing label for a horizontal line
+// A real 4-figure grid reference: easting line then northing line of the bottom-left corner.
+const gridRef = (c, r) => `${lineE(c)}${lineN(r)}`;
+
 const FEATURES = [
     { name: 'Church', icon: '\u26EA', col: 1, row: 4 },
     { name: 'School', icon: '\u{1F3EB}', col: 3, row: 2 },
@@ -410,6 +477,18 @@ let score = 0;
 let questionNum = 0;
 let currentTab = 'grid';
 
+function speak(text) {
+    try {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-GB';
+        u.rate = 0.95;
+        if (window.westTTS) { var __v = window.westTTS.pick(u.lang || 'en-GB'); if (__v) u.voice = __v; }
+        window.speechSynthesis.speak(u);
+    } catch (e) {}
+}
+
 // Tabs
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -417,9 +496,11 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.add('active');
         currentTab = btn.dataset.tab;
         document.getElementById('gridTab').style.display = currentTab === 'grid' ? 'block' : 'none';
+        document.getElementById('distanceTab').style.display = currentTab === 'distance' ? 'block' : 'none';
         document.getElementById('compassTab').style.display = currentTab === 'compass' ? 'block' : 'none';
         document.getElementById('keyTab').style.display = currentTab === 'key' ? 'block' : 'none';
         if (currentTab === 'grid') { drawMap(); loadGridQuestion(); }
+        if (currentTab === 'distance') { drawDistMap(); loadDistanceQuestion(); }
         if (currentTab === 'compass') loadCompassQuestion();
     });
 });
@@ -449,16 +530,16 @@ function drawMap() {
         ctx.stroke();
     }
 
-    // Grid numbers
+    // Grid LINE numbers (two-digit OS-style labels, sitting on the lines)
     ctx.fillStyle = '#64748b';
-    ctx.font = `bold ${cellSize * 0.3}px Inter`;
+    ctx.font = `bold ${cellSize * 0.26}px Inter`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (let i = 0; i <= GRID_SIZE; i++) {
-        // Bottom (eastings)
-        ctx.fillText(String(i), offset + i * cellSize, offset + GRID_SIZE * cellSize + cellSize * 0.4);
-        // Left (northings)
-        ctx.fillText(String(i), offset * 0.4, offset + (GRID_SIZE - i) * cellSize);
+        // Bottom: eastings, labelled on each vertical line
+        ctx.fillText(String(lineE(i)), offset + i * cellSize, offset + GRID_SIZE * cellSize + cellSize * 0.4);
+        // Left: northings, labelled on each horizontal line (bottom line is smallest)
+        ctx.fillText(String(lineN(i)), offset * 0.45, offset + (GRID_SIZE - i) * cellSize);
     }
 
     // Axis labels
@@ -489,20 +570,31 @@ function drawMap() {
 
 function loadGridQuestion() {
     const feature = FEATURES[questionNum % FEATURES.length];
-    const correctRef = `${feature.col}${feature.row}`;
+    const correctRef = gridRef(feature.col, feature.row);
+    const correctE = lineE(feature.col);
+    const correctN = lineN(feature.row);
 
-    // Generate wrong answers
+    // Generate plausible wrong answers (valid four-figure refs on this map)
     const wrongs = new Set();
-    while (wrongs.size < 3) {
-        const r = `${Math.floor(Math.random()*GRID_SIZE)}${Math.floor(Math.random()*GRID_SIZE)}`;
-        if (r !== correctRef) wrongs.add(r);
+    let guard = 0;
+    while (wrongs.size < 3 && guard < 60) {
+        guard++;
+        const c = Math.floor(Math.random() * GRID_SIZE);
+        const r = Math.floor(Math.random() * GRID_SIZE);
+        const ref = gridRef(c, r);
+        if (ref !== correctRef) wrongs.add(ref);
     }
-    const options = [correctRef, ...wrongs].sort(() => Math.random() - 0.5);
+    // A classic mistake: reversing easting and northing. Include it sometimes.
+    if (correctE !== correctN && wrongs.size >= 1) {
+        const swapped = `${correctN}${correctE}`;
+        if (swapped !== correctRef) { wrongs.delete([...wrongs][wrongs.size - 1]); wrongs.add(swapped); }
+    }
+    const options = [correctRef, ...wrongs].slice(0, 4).sort(() => Math.random() - 0.5);
 
     const qCard = document.getElementById('gridQuestion');
     qCard.innerHTML = `<div class="q-text">What is the 4-figure grid reference for the <span class="q-highlight">${feature.icon} ${feature.name}</span>?</div>
-        <div class="answer-row" id="gridAnswers"></div>
-        <div class="feedback" id="gridFeedback"></div>`;
+        <div class="answer-row" id="gridAnswers" role="group" aria-label="Choose the four-figure grid reference"></div>
+        <div class="feedback" id="gridFeedback" role="status" aria-live="polite"></div>`;
 
     document.getElementById('questionLabel').textContent = `Question ${questionNum + 1}`;
 
@@ -510,19 +602,21 @@ function loadGridQuestion() {
         const btn = document.createElement('button');
         btn.className = 'answer-btn';
         btn.textContent = opt;
-        btn.addEventListener('click', () => checkGridAnswer(opt, correctRef, btn));
+        btn.setAttribute('aria-label', 'Grid reference ' + opt.split('').join(' '));
+        btn.addEventListener('click', () => checkGridAnswer(opt, correctRef, correctE, correctN, btn));
         document.getElementById('gridAnswers').appendChild(btn);
     });
 }
 
-function checkGridAnswer(picked, correct, btn) {
+function checkGridAnswer(picked, correct, correctE, correctN, btn) {
     const fb = document.getElementById('gridFeedback');
     document.querySelectorAll('#gridAnswers .answer-btn').forEach(b => b.style.pointerEvents = 'none');
 
     if (picked === correct) {
         btn.classList.add('correct');
         fb.className = 'feedback show win';
-        fb.textContent = '\u2705 Correct! Along ' + correct[0] + ', up ' + correct[1] + '!';
+        fb.textContent = `\u2705 Correct! Easting ${correctE} along the corridor, northing ${correctN} up the stairs, so ${correct}.`;
+        speak(`Correct. Easting ${correctE}, northing ${correctN}, so ${correct.split('').join(' ')}.`);
         score++;
         document.getElementById('scoreLabel').textContent = `Score: ${score}`;
         spawnMini();
@@ -531,14 +625,18 @@ function checkGridAnswer(picked, correct, btn) {
         document.querySelectorAll('#gridAnswers .answer-btn').forEach(b => {
             if (b.textContent === correct) b.classList.add('correct');
         });
+        const reversed = picked === `${correctN}${correctE}`;
         fb.className = 'feedback show try';
-        fb.textContent = '\u274C The answer is ' + correct + '. Remember: along then up!';
+        fb.textContent = reversed
+            ? `\u274C Close! You read it the wrong way round. Easting first (${correctE}) then northing (${correctN}): the answer is ${correct}.`
+            : `\u274C Not quite. Read along to ${correctE}, then up to ${correctN}: the answer is ${correct}.`;
+        speak(reversed ? 'Close. Easting first, then northing. The answer is ' + correct.split('').join(' ') : 'The answer is ' + correct.split('').join(' '));
     }
 
     setTimeout(() => {
         questionNum++;
         loadGridQuestion();
-    }, 2000);
+    }, 2600);
 }
 
 // Compass questions
@@ -588,6 +686,158 @@ function loadCompassQuestion() {
     });
 }
 
+// ---- Distance measurement task ----
+// Two places sit on grid-square centres. Distance is measured in whole
+// kilometres along straight lines: either horizontal or vertical (so the
+// answer is always a whole number of squares for KS2).
+const distCanvas = document.getElementById('distCanvas');
+const distCtx = distCanvas.getContext('2d');
+let distState = null;
+let distanceIdx = 0;
+
+const DIST_PLACES = [
+    { icon: '\u{1F3EB}', name: 'School' },
+    { icon: '⛪', name: 'Church' },
+    { icon: '\u{1F3EA}', name: 'Shop' },
+    { icon: '\u{1F33E}', name: 'Farm' },
+    { icon: '\u{1F309}', name: 'Bridge' },
+    { icon: '\u{1F333}', name: 'Forest' }
+];
+
+function makeDistRound() {
+    const a = { col: Math.floor(Math.random() * GRID_SIZE), row: Math.floor(Math.random() * GRID_SIZE) };
+    const horizontal = Math.random() < 0.5;
+    let bCol = a.col, bRow = a.row;
+    const span = 2 + Math.floor(Math.random() * (GRID_SIZE - 2)); // 2..GRID_SIZE-1 squares
+    if (horizontal) {
+        if (a.col + span < GRID_SIZE) bCol = a.col + span;
+        else bCol = a.col - span;
+        if (bCol < 0) bCol = a.col + (GRID_SIZE - 1 - a.col);
+    } else {
+        if (a.row + span < GRID_SIZE) bRow = a.row + span;
+        else bRow = a.row - span;
+        if (bRow < 0) bRow = a.row + (GRID_SIZE - 1 - a.row);
+    }
+    const dist = Math.abs(bCol - a.col) + Math.abs(bRow - a.row); // one of these is 0
+    const places = [...DIST_PLACES].sort(() => Math.random() - 0.5);
+    return {
+        a: { ...a, ...places[0] },
+        b: { col: bCol, row: bRow, icon: places[1].icon, name: places[1].name },
+        answer: dist
+    };
+}
+
+function drawDistMap() {
+    if (!distState) distState = makeDistRound();
+    const size = distCanvas.parentElement.clientWidth;
+    distCanvas.width = size;
+    distCanvas.height = size;
+    const cellSize = size / (GRID_SIZE + 1);
+    const offset = cellSize;
+    const cx = c => offset + (c + 0.5) * cellSize;
+    const cy = r => offset + (GRID_SIZE - r - 0.5) * cellSize;
+
+    distCtx.fillStyle = '#f0fdf4';
+    distCtx.fillRect(0, 0, size, size);
+
+    distCtx.strokeStyle = '#cbd5e1';
+    distCtx.lineWidth = 1;
+    for (let i = 0; i <= GRID_SIZE; i++) {
+        distCtx.beginPath();
+        distCtx.moveTo(offset + i * cellSize, offset);
+        distCtx.lineTo(offset + i * cellSize, offset + GRID_SIZE * cellSize);
+        distCtx.stroke();
+        distCtx.beginPath();
+        distCtx.moveTo(offset, offset + i * cellSize);
+        distCtx.lineTo(offset + GRID_SIZE * cellSize, offset + i * cellSize);
+        distCtx.stroke();
+    }
+
+    // scale note
+    distCtx.fillStyle = '#0d9488';
+    distCtx.font = `bold ${cellSize * 0.24}px Inter`;
+    distCtx.textAlign = 'center';
+    distCtx.textBaseline = 'middle';
+    distCtx.fillText('Each square = 1 km', size / 2, offset * 0.45);
+
+    // line between the two places
+    const A = distState.a, B = distState.b;
+    distCtx.strokeStyle = '#ef4444';
+    distCtx.lineWidth = 3;
+    distCtx.setLineDash([6, 5]);
+    distCtx.beginPath();
+    distCtx.moveTo(cx(A.col), cy(A.row));
+    distCtx.lineTo(cx(B.col), cy(B.row));
+    distCtx.stroke();
+    distCtx.setLineDash([]);
+
+    [A, B].forEach(p => {
+        distCtx.font = `${cellSize * 0.5}px serif`;
+        distCtx.textAlign = 'center';
+        distCtx.textBaseline = 'middle';
+        distCtx.fillText(p.icon, cx(p.col), cy(p.row));
+        distCtx.fillStyle = '#1e293b';
+        distCtx.font = `bold ${cellSize * 0.18}px Inter`;
+        distCtx.fillText(p.name, cx(p.col), cy(p.row) + cellSize * 0.35);
+    });
+}
+
+function loadDistanceQuestion() {
+    if (!distState) distState = makeDistRound();
+    const A = distState.a, B = distState.b, ans = distState.answer;
+    const qCard = document.getElementById('distanceQuestion');
+    const opts = new Set([ans]);
+    let guard = 0;
+    while (opts.size < 4 && guard < 40) {
+        guard++;
+        const delta = (Math.random() < 0.5 ? -1 : 1) * (1 + Math.floor(Math.random() * 3));
+        const v = ans + delta;
+        if (v >= 1 && v <= GRID_SIZE) opts.add(v);
+    }
+    const options = [...opts].sort(() => Math.random() - 0.5);
+
+    qCard.innerHTML = `<div class="q-text">How far is it from the <span class="q-highlight">${A.icon} ${A.name}</span> to the <span class="q-highlight">${B.icon} ${B.name}</span>? Count the squares (each square is 1 km).</div>
+        <div class="answer-row" id="distAnswers" role="group" aria-label="Choose the distance in kilometres"></div>
+        <div class="feedback" id="distFeedback" role="status" aria-live="polite"></div>`;
+    document.getElementById('questionLabel').textContent = `Question ${distanceIdx + 1}`;
+
+    options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'answer-btn';
+        btn.textContent = `${opt} km`;
+        btn.addEventListener('click', () => checkDistanceAnswer(opt, ans, btn));
+        document.getElementById('distAnswers').appendChild(btn);
+    });
+}
+
+function checkDistanceAnswer(picked, correct, btn) {
+    const fb = document.getElementById('distFeedback');
+    document.querySelectorAll('#distAnswers .answer-btn').forEach(b => b.style.pointerEvents = 'none');
+    if (picked === correct) {
+        btn.classList.add('correct');
+        fb.className = 'feedback show win';
+        fb.textContent = `✅ Correct! There are ${correct} squares between them, and each square is 1 km, so the distance is ${correct} km.`;
+        speak(`Correct. ${correct} kilometres.`);
+        score++;
+        document.getElementById('scoreLabel').textContent = `Score: ${score}`;
+        spawnMini();
+    } else {
+        btn.classList.add('wrong');
+        document.querySelectorAll('#distAnswers .answer-btn').forEach(b => {
+            if (b.textContent === `${correct} km`) b.classList.add('correct');
+        });
+        fb.className = 'feedback show try';
+        fb.textContent = `❌ Not quite. Count the squares along the red line carefully: it crosses ${correct} squares, so the answer is ${correct} km.`;
+        speak('Not quite. Count the squares along the line. The answer is ' + correct + ' kilometres.');
+    }
+    setTimeout(() => {
+        distanceIdx++;
+        distState = makeDistRound();
+        drawDistMap();
+        loadDistanceQuestion();
+    }, 2600);
+}
+
 function spawnMini() {
     const container = document.getElementById('celebration');
     const colours = ['#0d9488','#14b8a6','#2dd4bf','#22c55e','#fbbf24'];
@@ -600,7 +850,19 @@ function spawnMini() {
     }
 }
 
-window.addEventListener('resize', drawMap);
+window.addEventListener('resize', () => {
+    if (currentTab === 'grid') drawMap();
+    if (currentTab === 'distance') drawDistMap();
+});
+
+// Read-aloud button on the Map Key tab
+const speakBtn = document.getElementById('speakRefHelp');
+if (speakBtn) {
+    speakBtn.addEventListener('click', () => {
+        speak('A four figure grid reference names a square by the two numbered grid lines that cross at its bottom left corner. Read along the corridor first to find the easting, then up the stairs to find the northing. Put the easting and northing together to make four digits. For example, easting 19 and northing 44 gives 1 9 4 4.');
+    });
+}
+
 drawMap();
 loadGridQuestion();
 </script>

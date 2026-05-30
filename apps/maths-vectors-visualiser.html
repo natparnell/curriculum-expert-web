@@ -98,6 +98,24 @@
             border: 1px solid var(--border-color);
             cursor: crosshair;
             display: block;
+            touch-action: none;
+        }
+
+        canvas:focus-visible {
+            outline: 3px solid var(--vec-r);
+            outline-offset: 2px;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
 
         /* Readout bar beneath canvas */
@@ -573,7 +591,11 @@
     <main>
         <!-- Canvas area -->
         <div class="canvas-wrap">
-            <canvas id="vecCanvas" width="700" height="500"></canvas>
+            <canvas id="vecCanvas" width="700" height="500" tabindex="0" role="application"
+                    aria-label="Interactive coordinate grid showing vector a, vector b and their resultant. Drag the handles at the tips of vector a and vector b to change them, or use the keyboard."
+                    aria-describedby="canvasHelp"></canvas>
+            <p class="sr-only" id="canvasHelp">Press Tab to focus the grid. Use the A and B keys to select which vector to move, then use the arrow keys to adjust its components. Hold Shift with an arrow key for finer steps.</p>
+            <div class="sr-only" id="canvasLive" aria-live="polite" aria-atomic="true"></div>
             <div class="readout">
                 <div class="readout-card vec-a">
                     <div class="label">Vector a</div>
@@ -1121,6 +1143,8 @@
         /* --------------------------------------------------------
            Dragging
         -------------------------------------------------------- */
+        var kbActive = 'a';   // which vector the keyboard currently moves
+
         function getCanvasPos(e) {
             var rect = canvas.getBoundingClientRect();
             var clientX, clientY;
@@ -1155,8 +1179,12 @@
             var hit = hitTest(pos);
             if (hit) {
                 state.dragging = hit;
+                kbActive = hit;
                 canvas.style.cursor = 'grabbing';
                 e.preventDefault();
+                if (e.pointerId !== undefined && canvas.setPointerCapture) {
+                    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+                }
             }
         }
 
@@ -1190,20 +1218,71 @@
             draw();
         }
 
-        function onPointerUp() {
+        function onPointerUp(e) {
             if (state.dragging) {
+                if (e && e.pointerId !== undefined && canvas.releasePointerCapture) {
+                    try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+                }
+                announceState();
                 state.dragging = null;
                 canvas.style.cursor = 'crosshair';
             }
         }
 
-        canvas.addEventListener('mousedown', onPointerDown);
-        window.addEventListener('mousemove', onPointerMove);
-        window.addEventListener('mouseup', onPointerUp);
+        // Pointer Events cover mouse, touch and pen, so a single set of
+        // handlers works on desktops, tablets and interactive whiteboards.
+        canvas.addEventListener('pointerdown', onPointerDown);
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', onPointerUp);
 
-        canvas.addEventListener('touchstart', onPointerDown, { passive: false });
-        window.addEventListener('touchmove', onPointerMove, { passive: false });
-        window.addEventListener('touchend', onPointerUp);
+        /* --------------------------------------------------------
+           Keyboard accessibility for the canvas
+        -------------------------------------------------------- */
+        function announceState() {
+            var live = document.getElementById('canvasLive');
+            if (!live) return;
+            var r = resultant();
+            var active = kbActive === 'b' ? 'b' : 'a';
+            live.textContent =
+                'Vector ' + active + ' selected. ' +
+                'Vector a is (' + fmt(state.a.x) + ', ' + fmt(state.a.y) + '). ' +
+                'Vector b is (' + fmt(state.b.x) + ', ' + fmt(state.b.y) + '). ' +
+                'Resultant is (' + fmt(r.x) + ', ' + fmt(r.y) + '), ' +
+                'magnitude ' + mag(r).toFixed(2) + ', ' +
+                'angle ' + angleDeg(r).toFixed(1) + ' degrees.';
+        }
+
+        canvas.addEventListener('keydown', function (e) {
+            var k = e.key;
+            if (k === 'a' || k === 'A') {
+                kbActive = 'a';
+                announceState();
+                e.preventDefault();
+                return;
+            }
+            if (k === 'b' || k === 'B') {
+                kbActive = 'b';
+                announceState();
+                e.preventDefault();
+                return;
+            }
+            var step = e.shiftKey ? 0.1 : 0.5;
+            var dx = 0, dy = 0;
+            if (k === 'ArrowLeft') dx = -step;
+            else if (k === 'ArrowRight') dx = step;
+            else if (k === 'ArrowUp') dy = step;
+            else if (k === 'ArrowDown') dy = -step;
+            else return;
+
+            e.preventDefault();
+            var target = kbActive === 'b' ? state.b : state.a;
+            target.x = clampVal(Math.round((target.x + dx) * 10) / 10);
+            target.y = clampVal(Math.round((target.y + dy) * 10) / 10);
+            syncInputsFromState();
+            draw();
+            announceState();
+        });
 
         /* --------------------------------------------------------
            Init

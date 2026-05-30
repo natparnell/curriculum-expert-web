@@ -82,15 +82,101 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
+/* ===== Diagnose the Governance Gap (interactive task) ===== */
+.challenge{margin-top:24px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.challenge h3{font-family:'Playfair Display',serif;font-size:1.05rem;font-weight:700;margin-bottom:4px;color:var(--accent)}
+.challenge .lede{font-size:0.8rem;color:var(--text2);margin-bottom:6px}
+.challenge .instr{font-size:0.74rem;color:var(--text2);margin-bottom:14px}
+.challenge .instr kbd{background:var(--bg);border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;padding:1px 5px;font-size:0.68rem;font-family:inherit}
+
+.score-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.score-pill{font-size:0.72rem;font-weight:700;background:var(--accent-bg);color:#0f766e;padding:5px 12px;border-radius:20px}
+.btn-mini{font-family:'DM Sans',sans-serif;font-size:0.7rem;font-weight:700;cursor:pointer;border:1.5px solid var(--border);background:var(--card);color:var(--text2);padding:5px 12px;border-radius:6px;transition:all 0.15s}
+.btn-mini:hover{border-color:var(--accent);color:var(--text)}
+
+.token-tray{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;padding:12px;background:var(--bg);border:1px dashed var(--border);border-radius:8px;min-height:54px}
+.token-tray .tray-label{width:100%;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text2);margin-bottom:2px}
+.token{font-size:0.74rem;font-weight:700;color:white;padding:7px 13px;border-radius:20px;cursor:grab;user-select:none;touch-action:none;border:2px solid transparent;transition:transform 0.1s,box-shadow 0.15s;display:inline-flex;align-items:center;gap:6px}
+.token:focus-visible{outline:3px solid #0f172a;outline-offset:2px}
+.token.dragging{opacity:0.45}
+.token.placed{cursor:default;opacity:0.5}
+.token.kb-selected{box-shadow:0 0 0 3px #0f172a,0 0 0 6px #fde68a;transform:scale(1.05)}
+
+.scenario-list{display:flex;flex-direction:column;gap:12px}
+.scenario{display:grid;grid-template-columns:1fr 150px;gap:14px;align-items:stretch;padding:14px;border:1px solid var(--border);border-radius:8px;background:var(--card);transition:border-color 0.15s,background 0.15s}
+.scenario .s-text{font-size:0.82rem;line-height:1.5;color:var(--text)}
+.scenario .s-text .s-num{font-weight:800;color:var(--accent);margin-right:6px}
+.dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--border);border-radius:8px;background:var(--bg);padding:8px;text-align:center;cursor:pointer;transition:all 0.15s}
+.dropzone .dz-hint{font-size:0.66rem;color:var(--text2);font-weight:600}
+.dropzone.dragover{border-color:var(--accent);background:var(--accent-bg)}
+.dropzone.kb-target{border-color:#0f172a;background:#fde68a}
+.dropzone .dropped{font-size:0.72rem;font-weight:700;color:white;padding:6px 11px;border-radius:18px}
+.scenario.correct{border-color:#86efac;background:#f0fdf4}
+.scenario.incorrect{border-color:#fca5a5;background:#fef2f2}
+.dz-verdict{font-size:0.66rem;font-weight:700;margin-top:2px}
+.dz-verdict.ok{color:#166534}
+.dz-verdict.no{color:#991b1b}
+.feedback{margin-top:6px;font-size:0.72rem;line-height:1.45;color:var(--text2)}
+.feedback strong{color:var(--text)}
+
+.result-box{margin-top:16px;padding:14px;border-radius:8px;font-size:0.85rem;font-weight:600;display:none}
+.result-box.show{display:block;animation:fadeIn 0.3s ease}
+.result-box.high{background:#dcfce7;color:#166534;border:1px solid #86efac}
+.result-box.mid{background:#fef9c3;color:#854d0e;border:1px solid #fde047}
+.result-box.low{background:#fef2f2;color:#991b1b;border:1px solid #fca5a5}
+
 @media(max-width:600px){
     .meta-row{grid-template-columns:1fr 1fr}
     .critique-grid{grid-template-columns:1fr}
     .masthead{padding:12px 16px}
     .main{padding:12px}
+    .scenario{grid-template-columns:1fr}
+    .dropzone{min-height:54px}
 }
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -272,6 +358,27 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
             <tbody id="compareBody"></tbody>
         </table>
     </div>
+
+    <div class="challenge" id="challenge">
+        <h3>Diagnose the Governance Gap</h3>
+        <p class="lede">Each card below describes a real-world situation. Which actor in global governance is best placed to act, given its purpose and its binding power? Map every organisation to the scenario where it has most leverage.</p>
+        <p class="instr"><strong>Drag</strong> a token onto a scenario, or use the keyboard: <kbd>Tab</kbd> to a token, <kbd>Enter</kbd> to pick it up, <kbd>Tab</kbd> to a drop zone, <kbd>Enter</kbd> to place it.</p>
+
+        <div class="score-bar">
+            <span class="score-pill" id="scorePill">0 of 4 placed</span>
+            <button class="btn-mini" id="checkBtn" type="button">Check answers</button>
+            <button class="btn-mini" id="resetBtn" type="button">Reset</button>
+            <button class="btn-mini" id="readBtn" type="button" aria-label="Read the task aloud">&#128266; Read aloud</button>
+        </div>
+
+        <div class="token-tray" id="tokenTray" aria-label="Organisation tokens">
+            <span class="tray-label">Drag from here</span>
+        </div>
+
+        <div class="scenario-list" id="scenarioList"></div>
+
+        <div class="result-box" id="resultBox" role="status" aria-live="polite"></div>
+    </div>
 </div>
 
 <script>
@@ -381,6 +488,267 @@ function showOrg(id) {
 }
 
 showOrg('un');
+
+/* ===================================================================
+   Diagnose the Governance Gap: drag-to-match task with marked feedback
+   =================================================================== */
+const SCENARIOS = [
+    {
+        answer: 'wto',
+        text: 'Two member states are locked in a dispute: one accuses the other of imposing illegal tariffs that breach an existing trade agreement. They want a binding ruling that, if ignored, allows retaliatory measures.',
+        feedback: 'The <strong>WTO</strong> runs the rules-based dispute settlement system. Its rulings have "teeth": a winning state can be authorised to impose retaliatory tariffs, which is exactly the binding leverage this scenario needs.'
+    },
+    {
+        answer: 'eu',
+        text: 'A bloc of neighbouring states wants to set a single, legally enforceable carbon-neutrality target by 2050, backed by a common carbon border tax that overrides individual national policy.',
+        feedback: 'The <strong>EU</strong> is supranational: its law has primacy over national law in agreed areas. The European Green Deal shows it can impose binding emissions targets and a carbon border tax that individual states could not achieve alone.'
+    },
+    {
+        answer: 'ngo',
+        text: 'An Ebola outbreak is spreading in a region where the national government has collapsed and large international bodies have not yet mobilised. Emergency medical teams are needed on the ground within days.',
+        feedback: 'An <strong>NGO</strong> such as MSF can operate where governments are absent or unwilling and respond fast. It has no legal authority, but its flexibility and grassroots reach fill the governance gap before slower bodies arrive.'
+    },
+    {
+        answer: 'un',
+        text: 'A territorial conflict threatens to escalate into war. The international community wants to authorise a peacekeeping force and impose sanctions with the legitimacy of near-universal membership behind it.',
+        feedback: 'The <strong>UN</strong> Security Council can authorise peacekeeping operations and binding sanctions, and its near-universal membership gives that action legitimacy. No other actor here combines that reach with enforcement authority.'
+    }
+];
+
+const tray = document.getElementById('tokenTray');
+const scenarioList = document.getElementById('scenarioList');
+const scorePill = document.getElementById('scorePill');
+const checkBtn = document.getElementById('checkBtn');
+const resetBtn = document.getElementById('resetBtn');
+const readBtn = document.getElementById('readBtn');
+const resultBox = document.getElementById('resultBox');
+
+let kbHeld = null;     // token element currently picked up via keyboard
+let checked = false;   // have answers been checked
+
+function orgById(id){ return ORGS.find(o => o.id === id); }
+
+function buildToken(org){
+    const t = document.createElement('span');
+    t.className = 'token';
+    t.dataset.id = org.id;
+    t.style.background = org.colour;
+    t.setAttribute('draggable', 'true');
+    t.setAttribute('tabindex', '0');
+    t.setAttribute('role', 'button');
+    t.setAttribute('aria-label', org.name + ', drag to a scenario');
+    t.textContent = org.name;
+    return t;
+}
+
+function buildTask(){
+    // Reset state
+    kbHeld = null;
+    checked = false;
+    resultBox.className = 'result-box';
+    resultBox.textContent = '';
+
+    // Tray with shuffled tokens
+    tray.querySelectorAll('.token').forEach(n => n.remove());
+    const shuffled = ORGS.slice().sort(() => Math.random() - 0.5);
+    shuffled.forEach(org => { tray.appendChild(buildToken(org)); });
+
+    // Scenario cards in fixed order
+    scenarioList.innerHTML = '';
+    SCENARIOS.forEach((sc, i) => {
+        const row = document.createElement('div');
+        row.className = 'scenario';
+        row.dataset.answer = sc.answer;
+        row.dataset.index = i;
+        row.innerHTML = `
+            <div class="s-text"><span class="s-num">${i + 1}.</span>${sc.text}<div class="feedback" data-fb></div></div>
+            <div class="dropzone" data-zone tabindex="0" role="button" aria-label="Scenario ${i + 1} drop zone, empty">
+                <span class="dz-hint">Drop an organisation here</span>
+            </div>`;
+        scenarioList.appendChild(row);
+    });
+
+    wireDragAndDrop();
+    updateScore();
+}
+
+function placedCount(){
+    return scenarioList.querySelectorAll('.dropzone .dropped').length;
+}
+
+function updateScore(){
+    scorePill.textContent = placedCount() + ' of ' + SCENARIOS.length + ' placed';
+}
+
+/* Place a token id into a zone. Returns the previous occupant id (or null). */
+function placeInZone(zone, id){
+    const existing = zone.querySelector('.dropped');
+    let displaced = null;
+    if (existing) {
+        displaced = existing.dataset.id;
+        existing.remove();
+    }
+    const hint = zone.querySelector('.dz-hint');
+    if (hint) hint.style.display = 'none';
+
+    const org = orgById(id);
+    const chip = document.createElement('span');
+    chip.className = 'dropped';
+    chip.dataset.id = id;
+    chip.style.background = org.colour;
+    chip.textContent = org.name;
+    zone.appendChild(chip);
+    zone.setAttribute('aria-label', 'Scenario drop zone, contains ' + org.name);
+
+    // grey out the source token in the tray
+    setTokenPlaced(id, true);
+    // if a token was displaced back, re-enable it in the tray
+    if (displaced && displaced !== id) setTokenPlaced(displaced, false);
+
+    // clearing any previous marking
+    if (checked) clearMarking();
+    updateScore();
+}
+
+function setTokenPlaced(id, isPlaced){
+    const tok = tray.querySelector('.token[data-id="' + id + '"]');
+    if (!tok) return;
+    tok.classList.toggle('placed', isPlaced);
+    tok.setAttribute('draggable', isPlaced ? 'false' : 'true');
+    tok.setAttribute('tabindex', isPlaced ? '-1' : '0');
+}
+
+function clearMarking(){
+    checked = false;
+    resultBox.className = 'result-box';
+    resultBox.textContent = '';
+    scenarioList.querySelectorAll('.scenario').forEach(row => {
+        row.classList.remove('correct', 'incorrect');
+        const fb = row.querySelector('[data-fb]');
+        if (fb) fb.textContent = '';
+        const v = row.querySelector('.dz-verdict');
+        if (v) v.remove();
+    });
+}
+
+function wireDragAndDrop(){
+    // --- Native HTML5 drag (mouse / trackpad) ---
+    tray.querySelectorAll('.token').forEach(tok => {
+        tok.addEventListener('dragstart', e => {
+            if (tok.classList.contains('placed')) { e.preventDefault(); return; }
+            e.dataTransfer.setData('text/plain', tok.dataset.id);
+            e.dataTransfer.effectAllowed = 'move';
+            tok.classList.add('dragging');
+        });
+        tok.addEventListener('dragend', () => tok.classList.remove('dragging'));
+        // keyboard pickup / placement
+        tok.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (tok.classList.contains('placed')) return;
+                selectTokenForKb(tok);
+            }
+        });
+        tok.addEventListener('click', () => {
+            if (tok.classList.contains('placed')) return;
+            selectTokenForKb(tok);
+        });
+    });
+
+    scenarioList.querySelectorAll('.dropzone').forEach(zone => {
+        zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+        zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+        zone.addEventListener('drop', e => {
+            e.preventDefault();
+            zone.classList.remove('dragover');
+            const id = e.dataTransfer.getData('text/plain');
+            if (id) placeInZone(zone, id);
+        });
+        // keyboard / click placement target
+        const tryPlace = () => {
+            if (!kbHeld) return;
+            placeInZone(zone, kbHeld.dataset.id);
+            clearKbSelection();
+        };
+        zone.addEventListener('click', tryPlace);
+        zone.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tryPlace(); }
+        });
+    });
+}
+
+function selectTokenForKb(tok){
+    if (kbHeld === tok) { clearKbSelection(); return; }
+    clearKbSelection();
+    kbHeld = tok;
+    tok.classList.add('kb-selected');
+    scenarioList.querySelectorAll('.dropzone').forEach(z => z.classList.add('kb-target'));
+}
+
+function clearKbSelection(){
+    if (kbHeld) kbHeld.classList.remove('kb-selected');
+    kbHeld = null;
+    scenarioList.querySelectorAll('.dropzone').forEach(z => z.classList.remove('kb-target'));
+}
+
+function checkAnswers(){
+    if (placedCount() < SCENARIOS.length) {
+        resultBox.className = 'result-box show mid';
+        resultBox.textContent = 'Place an organisation in every scenario before checking. ' + placedCount() + ' of ' + SCENARIOS.length + ' done so far.';
+        return;
+    }
+    checked = true;
+    let correct = 0;
+    scenarioList.querySelectorAll('.scenario').forEach(row => {
+        const zone = row.querySelector('.dropzone');
+        const chip = zone.querySelector('.dropped');
+        const placed = chip ? chip.dataset.id : null;
+        const right = placed === row.dataset.answer;
+        if (right) correct++;
+        row.classList.toggle('correct', right);
+        row.classList.toggle('incorrect', !right);
+
+        let v = row.querySelector('.dz-verdict');
+        if (!v) { v = document.createElement('div'); v.className = 'dz-verdict'; zone.appendChild(v); }
+        v.classList.toggle('ok', right);
+        v.classList.toggle('no', !right);
+        v.textContent = right ? 'Correct' : 'Not the best fit';
+
+        const idx = parseInt(row.dataset.index, 10);
+        const fb = row.querySelector('[data-fb]');
+        if (right) {
+            fb.innerHTML = SCENARIOS[idx].feedback;
+        } else {
+            const expect = orgById(row.dataset.answer);
+            fb.innerHTML = 'Best fit here is <strong>' + expect.name + '</strong>. ' + SCENARIOS[idx].feedback;
+        }
+    });
+
+    let cls = 'low', msg;
+    if (correct === SCENARIOS.length) { cls = 'high'; msg = 'Full marks: ' + correct + ' of ' + SCENARIOS.length + '. You have matched every actor to where its binding power gives it most leverage.'; }
+    else if (correct >= SCENARIOS.length / 2) { cls = 'mid'; msg = correct + ' of ' + SCENARIOS.length + ' correct. Read the feedback under the cards you missed, then reset and try again.'; }
+    else { cls = 'low'; msg = correct + ' of ' + SCENARIOS.length + ' correct. Use the Comparison Table and Evaluation panels to compare binding power, then have another go.'; }
+    resultBox.className = 'result-box show ' + cls;
+    resultBox.textContent = msg;
+}
+
+checkBtn.addEventListener('click', checkAnswers);
+resetBtn.addEventListener('click', buildTask);
+readBtn.addEventListener('click', () => {
+    try {
+        if (!('speechSynthesis' in window)) return;
+        speechSynthesis.cancel();
+        const intro = 'Diagnose the governance gap. For each scenario, decide which organisation has most leverage given its purpose and binding power, then drag it onto the card. ';
+        const body = SCENARIOS.map((s, i) => 'Scenario ' + (i + 1) + '. ' + s.text).join(' ');
+        const u = new SpeechSynthesisUtterance(intro + body);
+        u.lang = 'en-GB';
+        if (window.westTTS) { var _v = window.westTTS.pick(u.lang || 'en-GB'); if (_v) u.voice = _v; }
+        u.rate = 0.95;
+        speechSynthesis.speak(u);
+    } catch (e) {}
+});
+
+buildTask();
 </script>
 </body>
 </html>

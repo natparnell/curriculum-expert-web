@@ -92,6 +92,7 @@ body {
     cursor: grab;
     transition: transform 0.15s;
     z-index: 5;
+    touch-action: none;
 }
 .placed-building:active { cursor: grabbing; transform: scale(1.1); z-index: 10; }
 .placed-building .b-icon { font-size: 2.2rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
@@ -105,26 +106,13 @@ body {
     white-space: nowrap;
 }
 
-/* Drop zones */
-.drop-zone {
-    position: absolute;
-    border: 3px dashed rgba(255,255,255,0.5);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    background: rgba(255,255,255,0.15);
-}
-.drop-zone.highlight { border-color: var(--accent); background: rgba(16,185,129,0.2); }
-.drop-zone.filled { border-style: solid; border-color: rgba(255,255,255,0.3); background: transparent; }
-.drop-zone .zone-hint {
-    font-size: 0.6rem;
-    font-weight: 700;
-    color: rgba(255,255,255,0.6);
-    text-align: center;
-    pointer-events: none;
-}
+/* Route line (home to school) drawn on the map */
+.route-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 4; }
+.route-svg path { fill: none; stroke: #1d4ed8; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 2 14; opacity: 0.85; }
+
+/* Keyboard focus + selected highlight on placed buildings */
+.placed-building:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; border-radius: 8px; }
+.bank-item:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
 
 /* Building bank */
 .building-bank {
@@ -179,6 +167,74 @@ body {
     font-weight: 700;
 }
 
+/* Task card: the structured mission */
+.task-card {
+    background: linear-gradient(135deg, #ecfeff, #d1fae5);
+    border: 3px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}
+.task-card .task-step {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-light);
+}
+.task-card .task-text {
+    font-size: 1.05rem;
+    font-weight: 800;
+    margin: 4px 0 10px;
+    line-height: 1.35;
+}
+.task-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.task-btn {
+    border: 0;
+    border-radius: 12px;
+    padding: 9px 14px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.1s, background 0.15s;
+}
+.task-btn:active { transform: translateY(1px); }
+.task-btn.primary { background: var(--accent); color: white; }
+.task-btn.primary:hover { background: #059669; }
+.task-btn.ghost { background: white; color: var(--text-light); border: 2px solid var(--border); }
+.task-btn.ghost:hover { background: var(--accent-light); }
+.task-btn:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+.task-progress { font-size: 0.7rem; font-weight: 700; color: var(--text-light); margin-top: 8px; }
+
+/* Feedback toast */
+.feedback-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--text);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 14px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    z-index: 900;
+    max-width: 90vw;
+    text-align: center;
+}
+.feedback-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.feedback-toast.good { background: #059669; }
+.feedback-toast.try { background: #d97706; }
+
+/* Route drawing active state */
+.map-canvas.route-mode { cursor: crosshair; box-shadow: 0 0 0 4px #1d4ed8, var(--shadow-lg); }
+
 .celebration { position: fixed; inset: 0; pointer-events: none; z-index: 1000; }
 .confetti { position: absolute; border-radius: 2px; animation: confettiFall linear forwards; }
 @keyframes confettiFall { 0% { opacity:1; transform: translateY(0) rotate(0); } 100% { opacity:0; transform: translateY(100vh) rotate(720deg) scale(0.3); } }
@@ -191,6 +247,47 @@ body {
 </style>
 </head>
 <body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
 <!-- DEMO-DATA-NOTICE v1 -->
 <style>
 .demo-data-banner {
@@ -362,15 +459,27 @@ body {
 </div>
 
 <div class="main">
-    <div class="instruction" id="instruction">Drag buildings onto the map to create your neighbourhood!</div>
+    <div class="task-card" id="taskCard">
+        <div class="task-step" id="taskStep">Task 1</div>
+        <div class="task-text" id="taskText" aria-live="polite">Loading your map task...</div>
+        <div class="task-actions">
+            <button class="task-btn primary" id="checkBtn" type="button">Check my map</button>
+            <button class="task-btn ghost" id="hearBtn" type="button" aria-label="Hear the task read aloud">&#x1F50A; Hear it</button>
+            <button class="task-btn ghost" id="routeBtn" type="button" hidden>&#x270F;&#xFE0F; Draw my route</button>
+        </div>
+        <div class="task-progress" id="taskProgress">Task 1 of 5</div>
+    </div>
 
-    <div class="map-canvas" id="mapCanvas">
-        <!-- Roads will be added by JS -->
+    <div class="instruction" id="instruction">Tap a building below, then tap the map to place it.</div>
+
+    <div class="map-canvas" id="mapCanvas" tabindex="0" role="application"
+         aria-label="Neighbourhood map. A road runs left to right and another runs top to bottom. Choose a building, then press a number key 1 to 9 to place it, or tap the map.">
+        <!-- Roads and route line are added by JS -->
     </div>
 
     <div class="building-bank" id="buildingBank">
-        <h3>Buildings (tap then tap the map)</h3>
-        <div class="buildings-row" id="buildingsRow"></div>
+        <h3>Buildings (tap a building, then tap the map)</h3>
+        <div class="buildings-row" id="buildingsRow" role="listbox" aria-label="Buildings you can place"></div>
     </div>
 
     <div class="score-bar">
@@ -378,6 +487,8 @@ body {
         <span id="totalLabel" style="color:var(--text-light);">Buildings: 8</span>
     </div>
 </div>
+
+<div class="feedback-toast" id="feedbackToast" role="status" aria-live="assertive"></div>
 
 <div class="celebration" id="celebration"></div>
 
@@ -394,11 +505,44 @@ const BUILDINGS = [
 ];
 
 let placed = {};
+let positions = {};        // id -> { x, y } in percent (icon centre)
 let selectedBuilding = null;
 let placedCount = 0;
 
 const mapCanvas = document.getElementById('mapCanvas');
 const buildingsRow = document.getElementById('buildingsRow');
+const feedbackToast = document.getElementById('feedbackToast');
+
+// --- Speech (en-GB) ---
+function speak(text) {
+    try {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-GB';
+        if (window.westTTS) { var _v = window.westTTS.pick(u.lang || 'en-GB'); if (_v) u.voice = _v; }
+        u.rate = 0.95;
+        u.pitch = 1.05;
+        window.speechSynthesis.speak(u);
+    } catch (e) {}
+}
+
+// --- Feedback toast ---
+let toastTimer = null;
+function showFeedback(text, kind, alsoSpeak) {
+    feedbackToast.textContent = text;
+    feedbackToast.className = 'feedback-toast show' + (kind ? ' ' + kind : '');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { feedbackToast.classList.remove('show'); }, 3400);
+    if (alsoSpeak !== false) speak(text);
+}
+
+// --- Geometry helpers (percent space) ---
+function dist(a, b) {
+    if (!a || !b) return Infinity;
+    return Math.hypot(a.x - b.x, a.y - b.y);
+}
+// "Near" = within ~28% of the map. Roads cross at 50% (vertical) / 45% (horizontal).
 
 // Draw roads on the map
 function drawRoads() {
@@ -416,17 +560,34 @@ function drawRoads() {
 drawRoads();
 
 // Build bank
-BUILDINGS.forEach(b => {
+BUILDINGS.forEach((b, i) => {
     const item = document.createElement('div');
     item.className = 'bank-item';
     item.dataset.id = b.id;
-    item.innerHTML = `<span class="b-icon">${b.icon}</span><span class="b-name">${b.name}</span>`;
+    item.tabIndex = 0;
+    item.setAttribute('role', 'option');
+    item.setAttribute('aria-label', `${b.name}. Press number ${i + 1} to choose, then place on the map.`);
+    item.innerHTML = `<span class="b-icon" aria-hidden="true">${b.icon}</span><span class="b-name">${b.name}</span>`;
     item.addEventListener('click', () => selectBuilding(b.id));
+    item.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectBuilding(b.id); }
+    });
     buildingsRow.appendChild(item);
+});
+
+// Number keys 1-9: pick a building from the bank
+document.addEventListener('keydown', e => {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= BUILDINGS.length) {
+        const b = BUILDINGS[n - 1];
+        if (b && !placed[b.id]) { selectBuilding(b.id); mapCanvas.focus(); }
+    }
 });
 
 // Map click to place
 mapCanvas.addEventListener('click', e => {
+    if (routeMode) return; // route drawing handled separately
     if (!selectedBuilding) return;
     const rect = mapCanvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -437,14 +598,41 @@ mapCanvas.addEventListener('click', e => {
     placeBuilding(selectedBuilding, pctX, pctY);
 });
 
+// Keyboard placement: Enter/Space drops the chosen building near the map centre
+// (children can then nudge with arrow keys); arrows also nudge the last placed building.
+mapCanvas.addEventListener('keydown', e => {
+    if (selectedBuilding && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        placeBuilding(selectedBuilding, 50, 50);
+        return;
+    }
+    const last = lastPlacedId && document.getElementById('placed-' + lastPlacedId);
+    if (last && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        const p = positions[lastPlacedId];
+        if (!p) return;
+        const step = 5;
+        if (e.key === 'ArrowUp') p.y = Math.max(6, p.y - step);
+        if (e.key === 'ArrowDown') p.y = Math.min(94, p.y + step);
+        if (e.key === 'ArrowLeft') p.x = Math.max(6, p.x - step);
+        if (e.key === 'ArrowRight') p.x = Math.min(94, p.x + step);
+        last.style.left = `calc(${p.x}% - 20px)`;
+        last.style.top = `calc(${p.y}% - 20px)`;
+    }
+});
+
+let lastPlacedId = null;
+
 function selectBuilding(id) {
     if (placed[id]) return;
     selectedBuilding = id;
     document.querySelectorAll('.bank-item').forEach(b => {
         b.style.outline = b.dataset.id === id ? '3px solid var(--accent)' : 'none';
+        b.setAttribute('aria-selected', b.dataset.id === id ? 'true' : 'false');
     });
     const b = BUILDINGS.find(b => b.id === id);
-    document.getElementById('instruction').textContent = `Now tap the map to place ${b.name}!`;
+    document.getElementById('instruction').textContent = `Now tap the map to place the ${b.name}. (Or press Enter on the map.)`;
+    speak(`You chose ${b.name}. Now tap the map to place it.`);
 }
 
 function placeBuilding(id, pctX, pctY) {
@@ -455,34 +643,70 @@ function placeBuilding(id, pctX, pctY) {
     const existing = document.getElementById('placed-' + id);
     if (existing) existing.remove();
 
+    const cx = Math.max(6, Math.min(94, pctX));
+    const cy = Math.max(6, Math.min(94, pctY));
+    positions[id] = { x: cx, y: cy };
+    lastPlacedId = id;
+
     const el = document.createElement('div');
     el.className = 'placed-building';
     el.id = 'placed-' + id;
-    el.style.left = `calc(${pctX}% - 20px)`;
-    el.style.top = `calc(${pctY}% - 20px)`;
-    el.innerHTML = `<span class="b-icon">${b.icon}</span><span class="b-label">${b.name}</span>`;
+    el.tabIndex = 0;
+    el.setAttribute('role', 'img');
+    el.setAttribute('aria-label', `${b.name} placed on the map. Drag, or use arrow keys, to move it.`);
+    el.style.left = `calc(${cx}% - 20px)`;
+    el.style.top = `calc(${cy}% - 20px)`;
+    el.innerHTML = `<span class="b-icon" aria-hidden="true">${b.icon}</span><span class="b-label">${b.name}</span>`;
     el.style.animation = 'popIn 0.3s ease';
 
-    // Allow repositioning by dragging
+    // Allow repositioning by dragging. Pointer Events cover mouse, touch and pen
+    // with one code path, so the same drag works on tablets and whiteboards.
     let dragging = false;
-    el.addEventListener('mousedown', e => { dragging = true; e.preventDefault(); });
-    el.addEventListener('touchstart', e => { dragging = true; e.preventDefault(); });
-
-    const moveHandler = e => {
-        if (!dragging) return;
+    let dragPointerId = null;
+    el.addEventListener('pointerdown', e => {
+        if (routeMode) return; // in route mode, taps pick the route; do not start a drag
+        dragging = true;
+        dragPointerId = e.pointerId;
+        e.preventDefault();
+        try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    el.addEventListener('pointermove', e => {
+        if (!dragging || (dragPointerId !== null && e.pointerId !== dragPointerId)) return;
         const rect = mapCanvas.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        const px = ((clientX - rect.left) / rect.width * 100);
-        const py = ((clientY - rect.top) / rect.height * 100);
-        el.style.left = `calc(${Math.max(2,Math.min(90,px))}% - 20px)`;
-        el.style.top = `calc(${Math.max(2,Math.min(90,py))}% - 20px)`;
+        const px = Math.max(6, Math.min(94, (e.clientX - rect.left) / rect.width * 100));
+        const py = Math.max(6, Math.min(94, (e.clientY - rect.top) / rect.height * 100));
+        el.style.left = `calc(${px}% - 20px)`;
+        el.style.top = `calc(${py}% - 20px)`;
+        positions[id] = { x: px, y: py };
+        lastPlacedId = id;
+        if (routeFrom === id || routeTo === id) drawRoute();
+    });
+    const endDrag = e => {
+        if (!dragging) return;
+        dragging = false;
+        dragPointerId = null;
+        try { if (e && e.pointerId != null) el.releasePointerCapture(e.pointerId); } catch (err) {}
     };
-    const upHandler = () => { dragging = false; };
-    document.addEventListener('mousemove', moveHandler);
-    document.addEventListener('mouseup', upHandler);
-    document.addEventListener('touchmove', moveHandler);
-    document.addEventListener('touchend', upHandler);
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+
+    // Keyboard nudge for this specific placed building when focused
+    el.addEventListener('keydown', e => {
+        if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const p = positions[id];
+        if (!p) return;
+        const step = 5;
+        if (e.key === 'ArrowUp') p.y = Math.max(6, p.y - step);
+        if (e.key === 'ArrowDown') p.y = Math.min(94, p.y + step);
+        if (e.key === 'ArrowLeft') p.x = Math.max(6, p.x - step);
+        if (e.key === 'ArrowRight') p.x = Math.min(94, p.x + step);
+        el.style.left = `calc(${p.x}% - 20px)`;
+        el.style.top = `calc(${p.y}% - 20px)`;
+        lastPlacedId = id;
+        if (routeFrom === id || routeTo === id) drawRoute();
+    });
 
     mapCanvas.appendChild(el);
     placed[id] = true;
@@ -494,15 +718,10 @@ function placeBuilding(id, pctX, pctY) {
     document.querySelectorAll('.bank-item').forEach(b => b.style.outline = 'none');
 
     document.getElementById('placedLabel').textContent = `Placed: ${placedCount}`;
-    document.getElementById('instruction').textContent = placedCount < BUILDINGS.length
-        ? 'Great! Choose another building to place.'
-        : '\u{1F389} You built your whole neighbourhood! Amazing!';
+    document.getElementById('instruction').textContent = 'Nice! Now check your map, or move it with the arrow keys.';
 
     spawnMini();
-
-    if (placedCount === BUILDINGS.length) {
-        setTimeout(celebrate, 300);
-    }
+    el.focus();
 }
 
 function spawnMini() {
@@ -528,6 +747,197 @@ function celebrate() {
         setTimeout(() => el.remove(), 4500);
     }
 }
+
+/* =========================================================================
+   STRUCTURED TASKS: teach relative location (near, across, route)
+   Each task has a prompt, the building(s) it needs, and a check() that
+   returns { ok, msg } so the child gets specific formative feedback.
+   ========================================================================= */
+const NEAR = 30;   // percent: counts as "near"
+const FAR  = 36;   // percent: must be at least this far apart for "across"
+
+function name(id) { const b = BUILDINGS.find(x => x.id === id); return b ? b.name : id; }
+
+const TASKS = [
+    {
+        step: 'Task 1',
+        text: 'Put your home \u{1F3E0} somewhere on the map. This is where your map begins!',
+        need: ['home'],
+        check() {
+            return placed.home
+                ? { ok: true, msg: 'Well done! Your home is on the map.' }
+                : { ok: false, msg: 'Choose My Home, then tap the map to place it.' };
+        }
+    },
+    {
+        step: 'Task 2',
+        text: 'Put the shop \u{1F3EA} NEAR your home, so you do not have far to walk.',
+        need: ['home', 'shop'],
+        check() {
+            if (!placed.home) return { ok: false, msg: 'Place your home first.' };
+            if (!placed.shop) return { ok: false, msg: 'Now place the shop on the map.' };
+            const d = dist(positions.home, positions.shop);
+            return d <= NEAR
+                ? { ok: true, msg: 'Brilliant! The shop is near your home. Easy to walk!' }
+                : { ok: false, msg: 'The shop is a bit far. Move it closer to your home and check again.' };
+        }
+    },
+    {
+        step: 'Task 3',
+        text: 'Put the school \u{1F3EB} ACROSS the road, far from your home.',
+        need: ['home', 'school'],
+        check() {
+            if (!placed.home) return { ok: false, msg: 'Place your home first.' };
+            if (!placed.school) return { ok: false, msg: 'Now place the school on the map.' };
+            const d = dist(positions.home, positions.school);
+            return d >= FAR
+                ? { ok: true, msg: 'Great thinking! The school is across, far from home.' }
+                : { ok: false, msg: 'They are very close together. Move the school further away and check again.' };
+        }
+    },
+    {
+        step: 'Task 4',
+        text: 'Put the park \u{1F333} BETWEEN your home and your school.',
+        need: ['home', 'school', 'park'],
+        check() {
+            if (!placed.home || !placed.school) return { ok: false, msg: 'Place your home and your school first.' };
+            if (!placed.park) return { ok: false, msg: 'Now place the park on the map.' };
+            const h = positions.home, s = positions.school, p = positions.park;
+            const mid = { x: (h.x + s.x) / 2, y: (h.y + s.y) / 2 };
+            return dist(p, mid) <= NEAR
+                ? { ok: true, msg: 'Perfect! The park is between home and school.' }
+                : { ok: false, msg: 'Try putting the park halfway between home and school, then check.' };
+        }
+    },
+    {
+        step: 'Task 5',
+        text: 'Now DRAW your route from home \u{1F3E0} to school \u{1F3EB}. Tap "Draw my route", then tap your home, then tap your school.',
+        need: ['home', 'school'],
+        showRoute: true,
+        check() {
+            if (!placed.home || !placed.school) return { ok: false, msg: 'You need home and school on the map first.' };
+            return (routeFrom === 'home' && routeTo === 'school')
+                ? { ok: true, msg: 'Fantastic! You drew the route from home to school. You are a map maker!' }
+                : { ok: false, msg: 'Tap "Draw my route", then tap your home, then tap your school.' };
+        }
+    }
+];
+
+let currentTask = 0;
+let tasksDone = false;
+
+const taskStepEl = document.getElementById('taskStep');
+const taskTextEl = document.getElementById('taskText');
+const taskProgressEl = document.getElementById('taskProgress');
+const checkBtn = document.getElementById('checkBtn');
+const hearBtn = document.getElementById('hearBtn');
+const routeBtn = document.getElementById('routeBtn');
+
+function renderTask() {
+    if (tasksDone) return;
+    const t = TASKS[currentTask];
+    taskStepEl.textContent = t.step;
+    taskTextEl.textContent = t.text;
+    taskProgressEl.textContent = `Task ${currentTask + 1} of ${TASKS.length}`;
+    routeBtn.hidden = !t.showRoute;
+    routeBtn.textContent = '\u{270F}\u{FE0F} Draw my route';
+}
+
+checkBtn.addEventListener('click', () => {
+    if (tasksDone) return;
+    const t = TASKS[currentTask];
+    const result = t.check();
+    if (result.ok) {
+        showFeedback('\u{2705} ' + result.msg, 'good');
+        spawnMini();
+        currentTask++;
+        if (currentTask >= TASKS.length) {
+            tasksDone = true;
+            taskStepEl.textContent = 'All done!';
+            taskTextEl.textContent = '\u{1F389} You finished every map task. You can keep adding buildings for fun!';
+            taskProgressEl.textContent = `${TASKS.length} of ${TASKS.length} tasks complete`;
+            checkBtn.textContent = 'Finished!';
+            checkBtn.disabled = true;
+            routeBtn.hidden = true;
+            setTimeout(celebrate, 250);
+            setTimeout(() => speak('You finished every map task. Well done, map maker!'), 600);
+        } else {
+            setTimeout(renderTask, 700);
+        }
+    } else {
+        showFeedback('\u{1F914} ' + result.msg, 'try');
+    }
+});
+
+hearBtn.addEventListener('click', () => {
+    if (tasksDone) { speak(taskTextEl.textContent); return; }
+    speak(TASKS[currentTask].text.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, ''));
+});
+
+/* ---- Route drawing (home -> school) ---- */
+let routeMode = false;
+let routeFrom = null;
+let routeTo = null;
+let routeSvg = null;
+
+function ensureRouteSvg() {
+    if (routeSvg) return routeSvg;
+    routeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    routeSvg.setAttribute('class', 'route-svg');
+    routeSvg.setAttribute('viewBox', '0 0 100 100');
+    routeSvg.setAttribute('preserveAspectRatio', 'none');
+    routeSvg.innerHTML = '<path d=""></path>';
+    mapCanvas.appendChild(routeSvg);
+    return routeSvg;
+}
+
+function drawRoute() {
+    if (!routeFrom || !routeTo) return;
+    const a = positions[routeFrom], b = positions[routeTo];
+    if (!a || !b) return;
+    const svg = ensureRouteSvg();
+    // Right-angle path (along the streets) for a more map-like route.
+    svg.querySelector('path').setAttribute('d', `M ${a.x} ${a.y} L ${b.x} ${a.y} L ${b.x} ${b.y}`);
+}
+
+routeBtn.addEventListener('click', () => {
+    if (!placed.home || !placed.school) {
+        showFeedback('\u{1F914} Place your home and your school first.', 'try');
+        return;
+    }
+    routeMode = !routeMode;
+    routeFrom = null; routeTo = null;
+    mapCanvas.classList.toggle('route-mode', routeMode);
+    routeBtn.textContent = routeMode ? 'Tap your home first...' : '\u{270F}\u{FE0F} Draw my route';
+    if (routeMode) {
+        document.getElementById('instruction').textContent = 'Route mode: tap your home, then tap your school.';
+        speak('Route mode. Tap your home, then tap your school.');
+    }
+});
+
+// While in route mode, clicking a placed building sets the route start/end.
+mapCanvas.addEventListener('click', e => {
+    if (!routeMode) return;
+    const el = e.target.closest('.placed-building');
+    if (!el) return;
+    const id = el.id.replace('placed-', '');
+    if (!routeFrom) {
+        if (id !== 'home') { showFeedback('\u{1F914} Tap your home \u{1F3E0} first.', 'try'); return; }
+        routeFrom = 'home';
+        routeBtn.textContent = 'Now tap your school...';
+        showFeedback('Good. Now tap your school.', null);
+    } else if (!routeTo) {
+        if (id !== 'school') { showFeedback('\u{1F914} Now tap your school \u{1F3EB}.', 'try'); return; }
+        routeTo = 'school';
+        drawRoute();
+        routeMode = false;
+        mapCanvas.classList.remove('route-mode');
+        routeBtn.textContent = '\u{270F}\u{FE0F} Draw my route';
+        showFeedback('\u{2705} You drew your route! Now press "Check my map".', 'good');
+    }
+});
+
+renderTask();
 </script>
 <style>
 @keyframes popIn { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }

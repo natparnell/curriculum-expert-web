@@ -222,6 +222,7 @@ mark.suspicious .hl-badge{background:var(--red);color:#fff}
   transform:rotate(var(--rot,0deg));
   transition:box-shadow .2s,transform .15s;
   font-size:.8rem;
+  touch-action:none;
 }
 .ev-card:hover{
   box-shadow:4px 4px 25px rgba(0,0,0,.6);
@@ -704,7 +705,7 @@ mark.suspicious .hl-badge{background:var(--red);color:#fff}
         <span class="card-count" id="cardCount">0 items</span>
       </div>
       <div class="evidence-wall" id="evidenceWall">
-        <canvas id="connectionCanvas"></canvas>
+        <canvas id="connectionCanvas" aria-hidden="true"></canvas>
         <div class="no-evidence" id="noEvidence">
           Highlight passages in the text and tag them as<br>
           <strong style="color:#e74c3c">Suspicious</strong> or <strong style="color:#2ecc71">Trustworthy</strong><br>
@@ -1223,41 +1224,71 @@ function renderEvidenceWall() {
 }
 
 function makeDraggable(card, hlId) {
-  let startX, startY, origX, origY;
+  // Pointer Events unify mouse, touch and pen so the card drags identically
+  // on desktops, tablets and interactive whiteboards. setPointerCapture keeps
+  // move/up events flowing to the card even if the pointer leaves it mid-drag.
+  let startX, startY, origX, origY, activePointer = null;
   const onDown = e => {
     if (e.target.closest('.card-actions')) return;
+    if (activePointer !== null) return;
     e.preventDefault();
+    activePointer = e.pointerId;
     card.classList.add('dragging');
-    const ev = e.touches ? e.touches[0] : e;
-    startX = ev.clientX; startY = ev.clientY;
+    startX = e.clientX; startY = e.clientY;
     origX = cardPositions[hlId].x;
     origY = cardPositions[hlId].y;
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    document.addEventListener('touchmove', onMove, { passive: false });
-    document.addEventListener('touchend', onUp);
+    try { card.setPointerCapture(e.pointerId); } catch (err) {}
+    card.addEventListener('pointermove', onMove);
+    card.addEventListener('pointerup', onUp);
+    card.addEventListener('pointercancel', onUp);
   };
   const onMove = e => {
+    if (e.pointerId !== activePointer) return;
     e.preventDefault();
-    const ev = e.touches ? e.touches[0] : e;
-    const dx = ev.clientX - startX;
-    const dy = ev.clientY - startY;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
     cardPositions[hlId].x = Math.max(0, origX + dx);
     cardPositions[hlId].y = Math.max(0, origY + dy);
     card.style.left = cardPositions[hlId].x + 'px';
     card.style.top = cardPositions[hlId].y + 'px';
     drawConnections();
   };
-  const onUp = () => {
+  const onUp = e => {
+    if (e && e.pointerId !== activePointer) return;
+    activePointer = null;
     card.classList.remove('dragging');
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
-    document.removeEventListener('touchmove', onMove);
-    document.removeEventListener('touchend', onUp);
+    try { if (e) card.releasePointerCapture(e.pointerId); } catch (err) {}
+    card.removeEventListener('pointermove', onMove);
+    card.removeEventListener('pointerup', onUp);
+    card.removeEventListener('pointercancel', onUp);
     expandWallIfNeeded();
   };
-  card.addEventListener('mousedown', onDown);
-  card.addEventListener('touchstart', onDown, { passive: false });
+  card.addEventListener('pointerdown', onDown);
+
+  // Fallback for browsers without Pointer Events (gated so it cannot double-fire).
+  if (!window.PointerEvent) {
+    card.addEventListener('mousedown', e => {
+      if (e.target.closest('.card-actions')) return;
+      e.preventDefault();
+      card.classList.add('dragging');
+      const sX = e.clientX, sY = e.clientY, oX = cardPositions[hlId].x, oY = cardPositions[hlId].y;
+      const mv = ev => {
+        cardPositions[hlId].x = Math.max(0, oX + ev.clientX - sX);
+        cardPositions[hlId].y = Math.max(0, oY + ev.clientY - sY);
+        card.style.left = cardPositions[hlId].x + 'px';
+        card.style.top = cardPositions[hlId].y + 'px';
+        drawConnections();
+      };
+      const up = () => {
+        card.classList.remove('dragging');
+        document.removeEventListener('mousemove', mv);
+        document.removeEventListener('mouseup', up);
+        expandWallIfNeeded();
+      };
+      document.addEventListener('mousemove', mv);
+      document.addEventListener('mouseup', up);
+    });
+  }
 }
 
 function expandWallIfNeeded() {

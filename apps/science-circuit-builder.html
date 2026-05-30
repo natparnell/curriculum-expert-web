@@ -33,7 +33,7 @@ select.btn{appearance:none;padding-right:24px;background-image:url("data:image/s
 /* LEFT PANEL - TOOLBOX */
 #toolbox{background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
 #toolbox h2{font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin:4px 0 2px}
-.tool-item{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;cursor:grab;transition:all .15s;background:var(--panel2);user-select:none}
+.tool-item{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;cursor:grab;transition:all .15s;background:var(--panel2);user-select:none;touch-action:none}
 .tool-item:hover{border-color:var(--accent);background:rgba(59,130,246,.05);transform:translateX(2px)}
 .tool-item:active{cursor:grabbing}
 .tool-icon{width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
@@ -54,7 +54,8 @@ select.btn{appearance:none;padding-right:24px;background-image:url("data:image/s
 #grid-canvas{z-index:0}
 #main-canvas{z-index:1}
 #overlay-canvas{z-index:2;pointer-events:none}
-#interaction-layer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:3}
+#interaction-layer{position:absolute;top:0;left:0;width:100%;height:100%;z-index:3;touch-action:none}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
 /* RIGHT PANEL - READINGS */
 #readings{background:var(--panel);border-left:1px solid var(--border);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
@@ -352,20 +353,20 @@ select.btn{appearance:none;padding-right:24px;background-image:url("data:image/s
   </div>
 
   <div id="canvas-wrap">
-    <canvas id="grid-canvas"></canvas>
-    <canvas id="main-canvas"></canvas>
-    <canvas id="overlay-canvas"></canvas>
-    <div id="interaction-layer"></div>
+    <canvas id="grid-canvas" aria-hidden="true"></canvas>
+    <canvas id="main-canvas" role="img" aria-label="Circuit diagram showing the components you have placed, the wires connecting them, and the current flowing around the circuit."></canvas>
+    <canvas id="overlay-canvas" aria-hidden="true"></canvas>
+    <div id="interaction-layer" tabindex="0" role="application" aria-label="Circuit building area. Drag components from the toolbox to place them, then connect their terminals with wires. Works by mouse, touch and interactive whiteboard."></div>
   </div>
 
   <div id="readings">
     <h2>Circuit Status</h2>
     <div class="reading-card status" id="status-card">
       <div class="label">Status</div>
-      <div class="status-text ok" id="status-text">Ready &mdash; add components to begin</div>
+      <div class="status-text ok" id="status-text" role="status" aria-live="polite">Ready &mdash; add components to begin</div>
     </div>
     <h2>Meter Readings</h2>
-    <div id="meter-readings">
+    <div id="meter-readings" aria-live="polite">
       <div style="font-size:.8rem;color:var(--text2);padding:8px">No meters placed yet.</div>
     </div>
     <h2>Component Info</h2>
@@ -1384,6 +1385,57 @@ document.querySelectorAll('.tool-item').forEach(el => {
     toolDragType = null;
     if (toolDragGhost) { toolDragGhost.remove(); toolDragGhost = null; }
   });
+
+  // Touch / pen fallback: native HTML5 drag-and-drop does not fire on touch,
+  // so replicate the toolbox-to-canvas drag using pointer events.
+  el.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') return; // mouse uses native drag above
+    e.preventDefault();
+    const type = el.dataset.type;
+    let ghost = null;
+    let placed = false;
+    const moveGhost = (cx, cy) => {
+      if (!ghost) {
+        ghost = el.cloneNode(true);
+        ghost.style.position = 'fixed';
+        ghost.style.opacity = '0.7';
+        ghost.style.pointerEvents = 'none';
+        ghost.style.zIndex = '10000';
+        ghost.style.width = el.offsetWidth + 'px';
+        document.body.appendChild(ghost);
+      }
+      ghost.style.left = (cx - 40) + 'px';
+      ghost.style.top = (cy - 20) + 'px';
+    };
+    const onMove = ev => { ev.preventDefault(); moveGhost(ev.clientX, ev.clientY); };
+    const finish = ev => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', finish);
+      document.removeEventListener('pointercancel', cancel);
+      if (ghost) { ghost.remove(); ghost = null; }
+      // Drop only if released over the canvas area
+      const r = mainCvs.getBoundingClientRect();
+      const x = ev.clientX, y = ev.clientY;
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+        const gx = snap(x - r.left - COMP_W * GRID / 2);
+        const gy = snap(y - r.top - COMP_H * GRID / 2);
+        const comp = createComponent(type, gx, gy);
+        state.components.push(comp);
+        state.selectedComponent = comp;
+        solveCircuit();
+        render();
+      }
+    };
+    const cancel = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', finish);
+      document.removeEventListener('pointercancel', cancel);
+      if (ghost) { ghost.remove(); ghost = null; }
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', finish);
+    document.addEventListener('pointercancel', cancel);
+  });
 });
 
 interLayer.addEventListener('dragover', e => {
@@ -1412,10 +1464,14 @@ let dragComp = null;
 let dragStart = null;
 let hasDragged = false;
 
-interLayer.addEventListener('mousedown', e => {
+function onPointerDown(e) {
   if (e.button === 2) return; // right click handled separately
   const pos = getMousePos(e);
   state._lastMouse = pos;
+  // Capture pointer so move/up keep firing during a drag (touch + whiteboard)
+  if (e.pointerId !== undefined && interLayer.setPointerCapture) {
+    try { interLayer.setPointerCapture(e.pointerId); } catch (err) {}
+  }
 
   // Check terminal click first (for wiring)
   const termHit = findTerminalAt(pos.x, pos.y);
@@ -1487,9 +1543,11 @@ interLayer.addEventListener('mousedown', e => {
     }
     render();
   }
-});
+}
+interLayer.addEventListener('mousedown', onPointerDown);
+interLayer.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') onPointerDown(e); });
 
-interLayer.addEventListener('mousemove', e => {
+function onPointerMove(e) {
   const pos = getMousePos(e);
   state._lastMouse = pos;
 
@@ -1525,10 +1583,14 @@ interLayer.addEventListener('mousemove', e => {
       'Drag components from the toolbox to get started';
   }
   document.getElementById('sb-mode').textContent = 'Mode: ' + (state.deleteMode ? 'Delete' : state.wiringFrom ? 'Wiring' : 'Build');
-});
+}
+interLayer.addEventListener('mousemove', onPointerMove);
+interLayer.addEventListener('pointermove', e => { if (e.pointerType !== 'mouse') onPointerMove(e); });
 
-interLayer.addEventListener('mouseup', e => {
-  const wasDragging = hasDragged;
+function onPointerUp(e) {
+  if (e && e.pointerId !== undefined && interLayer.releasePointerCapture) {
+    try { interLayer.releasePointerCapture(e.pointerId); } catch (err) {}
+  }
   if (mouseDown && dragComp) {
     if (hasDragged) {
       solveCircuit();
@@ -1539,7 +1601,10 @@ interLayer.addEventListener('mouseup', e => {
     setTimeout(() => { hasDragged = false; }, 0);
     render();
   }
-});
+}
+interLayer.addEventListener('mouseup', onPointerUp);
+interLayer.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') onPointerUp(e); });
+interLayer.addEventListener('pointercancel', e => { if (e.pointerType !== 'mouse') onPointerUp(e); });
 
 // Click for switch toggle
 interLayer.addEventListener('click', e => {

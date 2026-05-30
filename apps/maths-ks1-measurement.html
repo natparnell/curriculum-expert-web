@@ -195,6 +195,7 @@ body {
   position: relative;
   margin-top: 10px;
   cursor: grab;
+  touch-action: none;
 }
 .ruler-container.dragging { cursor: grabbing; }
 .ruler {
@@ -343,6 +344,7 @@ body {
   font-size: 0.7rem;
   color: #fff;
   cursor: grab;
+  touch-action: none;
   transition: transform 0.2s;
 }
 .weight-item:hover { transform: scale(1.1); }
@@ -782,35 +784,36 @@ function setupMeasure(el) {
     <button class="action-btn secondary" onclick="newQuestion()">New Question</button>
   `;
 
-  // Ruler dragging
+  // Ruler dragging (Pointer Events: covers mouse, touch and pen)
   const rc = document.getElementById('rulerContainer');
-  let startX = 0, startLeft = 0;
+  let startX = 0, startLeft = 0, activePointerId = null;
 
   function onDown(e) {
     state.dragging = true;
+    activePointerId = e.pointerId;
     rc.classList.add('dragging');
-    const evt = e.touches ? e.touches[0] : e;
-    startX = evt.clientX;
+    startX = e.clientX;
     startLeft = parseInt(rc.style.left) || 0;
+    try { rc.setPointerCapture(e.pointerId); } catch (err) {}
     e.preventDefault();
   }
   function onMove(e) {
-    if (!state.dragging) return;
-    const evt = e.touches ? e.touches[0] : e;
-    const dx = evt.clientX - startX;
+    if (!state.dragging || e.pointerId !== activePointerId) return;
+    const dx = e.clientX - startX;
     rc.style.left = (startLeft + dx) + 'px';
     e.preventDefault();
   }
-  function onUp() {
+  function onUp(e) {
+    if (e.pointerId !== activePointerId) return;
     state.dragging = false;
+    activePointerId = null;
     rc.classList.remove('dragging');
+    try { rc.releasePointerCapture(e.pointerId); } catch (err) {}
   }
-  rc.addEventListener('mousedown', onDown);
-  rc.addEventListener('touchstart', onDown, {passive:false});
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('touchmove', onMove, {passive:false});
-  document.addEventListener('mouseup', onUp);
-  document.addEventListener('touchend', onUp);
+  rc.addEventListener('pointerdown', onDown);
+  rc.addEventListener('pointermove', onMove);
+  rc.addEventListener('pointerup', onUp);
+  rc.addEventListener('pointercancel', onUp);
 }
 
 window.checkMeasure = function(btn, val) {

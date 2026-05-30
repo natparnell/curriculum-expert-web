@@ -202,6 +202,8 @@ body {
 .key-angle-btn:hover { border-color: #2563eb; background: #eff6ff; }
 
 svg { display: block; }
+#angleSvg { touch-action: none; }
+.ray-handle { touch-action: none; }
 
 @media (max-width: 700px) {
   .main-layout { flex-direction: column; }
@@ -618,25 +620,56 @@ function getMouseAngle(e) {
   return ang;
 }
 
-svgEl.addEventListener('mousedown', (e) => {
-  const t = e.target;
-  if (t.dataset && t.dataset.ray) {
-    draggingRay = parseInt(t.dataset.ray);
-    e.preventDefault();
+// Pointer Events cover mouse, touch and pen on modern browsers, tablets and
+// whiteboards. Use ONLY the pointer path when supported, otherwise fall back to
+// the legacy mouse + touch handlers, so the drag logic never runs twice.
+let activePointerId = null;
+function endPointerDrag(e) {
+  if (activePointerId !== null && e.pointerId !== activePointerId) return;
+  draggingRay = null;
+  if (activePointerId !== null) {
+    try { svgEl.releasePointerCapture(activePointerId); } catch (err) {}
   }
-});
-svgEl.addEventListener('touchstart', (e) => {
-  const t = e.target;
-  if (t.dataset && t.dataset.ray) {
-    draggingRay = parseInt(t.dataset.ray);
+  activePointerId = null;
+}
+if (window.PointerEvent) {
+  svgEl.addEventListener('pointerdown', (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.ray) {
+      draggingRay = parseInt(t.dataset.ray);
+      activePointerId = e.pointerId;
+      try { svgEl.setPointerCapture(e.pointerId); } catch (err) {}
+      e.preventDefault();
+    }
+  });
+  svgEl.addEventListener('pointermove', (e) => {
+    if (!draggingRay || (activePointerId !== null && e.pointerId !== activePointerId)) return;
     e.preventDefault();
-  }
-});
+    onDrag(e);
+  });
+  svgEl.addEventListener('pointerup', endPointerDrag);
+  svgEl.addEventListener('pointercancel', endPointerDrag);
+} else {
+  svgEl.addEventListener('mousedown', (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.ray) {
+      draggingRay = parseInt(t.dataset.ray);
+      e.preventDefault();
+    }
+  });
+  svgEl.addEventListener('touchstart', (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.ray) {
+      draggingRay = parseInt(t.dataset.ray);
+      e.preventDefault();
+    }
+  });
 
-document.addEventListener('mousemove', onDrag);
-document.addEventListener('touchmove', onDrag);
-document.addEventListener('mouseup', () => { draggingRay = null; });
-document.addEventListener('touchend', () => { draggingRay = null; });
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('touchmove', onDrag);
+  document.addEventListener('mouseup', () => { draggingRay = null; });
+  document.addEventListener('touchend', () => { draggingRay = null; });
+}
 
 function onDrag(e) {
   if (!draggingRay) return;

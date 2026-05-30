@@ -435,6 +435,20 @@
     max-width: 100%;
   }
 
+  canvas:focus { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   canvas.drag-mode { cursor: grab; }
   canvas.drag-mode.dragging { cursor: grabbing; }
   canvas.event-mode { cursor: cell; }
@@ -873,8 +887,9 @@
       <span id="coord-display" class="toolbar-label"></span>
     </div>
     <div class="canvas-wrap" id="canvas-wrap">
-      <canvas id="mainCanvas"></canvas>
+      <canvas id="mainCanvas" tabindex="0" role="application" aria-label="Interactive tension curve graph. Story progress runs left to right; tension level runs bottom to top. Drag control points to shape the curve, or place labelled events. With the keyboard: use arrow keys to move the selected control point, Page Down and Page Up to select the next or previous point, and Delete to remove the selected point."></canvas>
     </div>
+    <div id="canvas-aria-live" aria-live="polite" class="sr-only"></div>
     <div class="status-bar">
       <span><strong>Mode:</strong> <span id="status-mode">Edit Curve</span></span>
       <span><strong>Control points:</strong> <span id="status-points">0</span></span>
@@ -1459,14 +1474,131 @@ function isInPlotArea(cx, cy) {
   return cx >= PAD.left && cx <= PAD.left + gw && cy >= PAD.top && cy <= PAD.top + gh;
 }
 
+// Mouse handlers (retained for completeness; Pointer Events below cover
+// mouse, touch and pen with a single code path).
 canvas.addEventListener('mousedown', onDown);
 canvas.addEventListener('mousemove', onMove);
 canvas.addEventListener('mouseup', onUp);
 canvas.addEventListener('mouseleave', onLeave);
 canvas.addEventListener('dblclick', onDblClick);
-canvas.addEventListener('touchstart', e => { e.preventDefault(); onDown(e); }, {passive:false});
-canvas.addEventListener('touchmove', e => { e.preventDefault(); onMove(e); }, {passive:false});
-canvas.addEventListener('touchend', e => { e.preventDefault(); onUp(e); }, {passive:false});
+
+// Pointer Events: unify mouse, touch and pen so dragging works on tablets
+// and interactive whiteboards. touch-action:none on the canvas (see CSS)
+// stops touch-drag from scrolling the page.
+let activePointerId = null;
+canvas.addEventListener('pointerdown', function(e) {
+  // Let mouse continue through its own listeners to avoid double handling.
+  if (e.pointerType === 'mouse') return;
+  e.preventDefault();
+  activePointerId = e.pointerId;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  onDown(e);
+}, {passive:false});
+canvas.addEventListener('pointermove', function(e) {
+  if (e.pointerType === 'mouse') return;
+  e.preventDefault();
+  onMove(e);
+}, {passive:false});
+canvas.addEventListener('pointerup', function(e) {
+  if (e.pointerType === 'mouse') return;
+  e.preventDefault();
+  if (activePointerId !== null) {
+    try { canvas.releasePointerCapture(activePointerId); } catch (err) {}
+    activePointerId = null;
+  }
+  onUp(e);
+}, {passive:false});
+canvas.addEventListener('pointercancel', function(e) {
+  if (e.pointerType === 'mouse') return;
+  if (activePointerId !== null) {
+    try { canvas.releasePointerCapture(activePointerId); } catch (err) {}
+    activePointerId = null;
+  }
+  onLeave();
+}, {passive:false});
+
+// ============================================================
+// KEYBOARD ACCESSIBILITY (canvas)
+// ============================================================
+let kbSelectedIndex = -1; // index into controlPoints for keyboard users
+
+function announce(msg) {
+  const live = document.getElementById('canvas-aria-live');
+  if (live) live.textContent = msg;
+}
+
+function describePoint(i) {
+  const p = controlPoints[i];
+  if (!p) return '';
+  return 'Point ' + (i + 1) + ' of ' + controlPoints.length +
+    '. Story progress ' + Math.round(p.x * 100) + ' percent, tension ' +
+    Math.round(p.y * 100) + ' percent.';
+}
+
+canvas.addEventListener('keydown', function(e) {
+  // Never trap Tab: keyboard users must be able to leave the canvas.
+  if (e.key === 'Tab') return;
+  if (mode !== 'curve' || controlPoints.length === 0) return;
+  const step = e.shiftKey ? 0.05 : 0.01;
+  switch (e.key) {
+    // PageDown / PageUp (or n / p) cycle which control point is selected.
+    case 'PageDown': case 'n': case 'N': {
+      e.preventDefault();
+      kbSelectedIndex = (kbSelectedIndex + 1 + controlPoints.length) % controlPoints.length;
+      hoveredIndex = kbSelectedIndex;
+      drawAll();
+      announce(describePoint(kbSelectedIndex));
+      break;
+    }
+    case 'PageUp': case 'p': case 'P': {
+      e.preventDefault();
+      kbSelectedIndex = (kbSelectedIndex - 1 + controlPoints.length) % controlPoints.length;
+      hoveredIndex = kbSelectedIndex;
+      drawAll();
+      announce(describePoint(kbSelectedIndex));
+      break;
+    }
+    case 'ArrowLeft': case 'ArrowRight': case 'ArrowUp': case 'ArrowDown': {
+      if (kbSelectedIndex < 0) kbSelectedIndex = 0;
+      e.preventDefault();
+      const p = controlPoints[kbSelectedIndex];
+      if (!p) break;
+      if (e.key === 'ArrowLeft')  p.x = Math.max(0, Math.min(1, p.x - step));
+      if (e.key === 'ArrowRight') p.x = Math.max(0, Math.min(1, p.x + step));
+      if (e.key === 'ArrowUp')    p.y = Math.max(0, Math.min(1, p.y + step));
+      if (e.key === 'ArrowDown')  p.y = Math.max(0, Math.min(1, p.y - step));
+      hoveredIndex = kbSelectedIndex;
+      drawAll();
+      announce(describePoint(kbSelectedIndex));
+      break;
+    }
+    case 'Delete': case 'Backspace': {
+      if (kbSelectedIndex < 0) break;
+      e.preventDefault();
+      controlPoints.splice(kbSelectedIndex, 1);
+      if (kbSelectedIndex >= controlPoints.length) kbSelectedIndex = controlPoints.length - 1;
+      hoveredIndex = kbSelectedIndex;
+      updateStatus();
+      drawAll();
+      announce(controlPoints.length
+        ? 'Point removed. ' + describePoint(kbSelectedIndex)
+        : 'Point removed. No points remain.');
+      break;
+    }
+  }
+});
+
+canvas.addEventListener('focus', function() {
+  if (mode === 'curve' && controlPoints.length) {
+    if (kbSelectedIndex < 0) kbSelectedIndex = 0;
+    hoveredIndex = kbSelectedIndex;
+    drawAll();
+    announce('Tension curve focused. ' + describePoint(kbSelectedIndex) +
+      ' Use arrow keys to move the point, Tab to select another, Delete to remove.');
+  } else {
+    announce('Tension curve focused.');
+  }
+});
 
 function onDown(e) {
   const {x, y} = getCanvasPos(e);

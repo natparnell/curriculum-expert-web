@@ -110,7 +110,7 @@ button{cursor:pointer;font-family:inherit;font-size:inherit}
 .node{
   position:absolute;padding:14px 16px;border-radius:var(--radius);
   min-width:180px;max-width:260px;font-size:.85rem;line-height:1.4;
-  cursor:move;user-select:none;z-index:10;
+  cursor:move;user-select:none;z-index:10;touch-action:none;
   box-shadow:var(--shadow);border:2px solid transparent;
   transition:box-shadow .2s ease;
 }
@@ -458,7 +458,7 @@ button{cursor:pointer;font-family:inherit;font-size:inherit}
     <div class="canvas-wrapper" id="canvasWrapper">
       <div class="workspace" id="workspace">
         <div class="workspace-inner" id="workspaceInner">
-          <canvas id="canvas"></canvas>
+          <canvas id="canvas" role="img" aria-label="Argument map connections: arrows linking premise and conclusion nodes. The same structure is reported in words on the Validation tab."></canvas>
           <div class="empty-state" id="emptyState">
             <h3>Your workspace is empty</h3>
             <p>Select a topic, then click premise cards to add them here.<br>Use "Connect Nodes" to draw arrows between them.</p>
@@ -697,6 +697,7 @@ function renderNodes(){
     div.style.left = n.x + 'px';
     div.style.top = n.y + 'px';
     div.innerHTML = `<span class="node-label">${label}</span><button class="node-delete" onclick="event.stopPropagation();removeNode(${n.id})">&times;</button>${n.text}`;
+    div.addEventListener('pointerdown', e=>startDrag(e, n));
     div.addEventListener('mousedown', e=>startDrag(e, n));
     div.addEventListener('click', e=>handleNodeClick(e, n));
     container.appendChild(div);
@@ -708,22 +709,42 @@ function updateEmptyState(){
 }
 
 /* ── Dragging ─────────────────────────────────────────────────────── */
+/* Supports both Pointer Events (touch / pen / mouse on tablets and
+   interactive whiteboards) and legacy mouse events. The handlers share
+   clientX/clientY so a single implementation serves both. */
+let dragPointerId = null;
+let dragCaptureEl = null;
+let dragUsingPointer = false;
+
 function startDrag(e, node){
+  // If a PointerEvent has already started the drag, ignore the
+  // compatibility mousedown that some browsers fire afterwards.
+  if(dragging) return;
   if(connectMode || e.target.classList.contains('node-delete')) return;
   e.preventDefault();
   dragging = node;
   const el = document.querySelector(`.node[data-id="${node.id}"]`);
   const rect = el.getBoundingClientRect();
-  const ws = document.getElementById('workspace');
-  const wsRect = ws.getBoundingClientRect();
   dragOffset.x = e.clientX - rect.left;
   dragOffset.y = e.clientY - rect.top;
-  document.addEventListener('mousemove', onDrag);
-  document.addEventListener('mouseup', endDrag);
+
+  dragUsingPointer = (typeof PointerEvent !== 'undefined') && (e instanceof PointerEvent);
+  if(dragUsingPointer){
+    dragPointerId = e.pointerId;
+    dragCaptureEl = el;
+    try { el.setPointerCapture(e.pointerId); } catch(err){}
+    document.addEventListener('pointermove', onDrag);
+    document.addEventListener('pointerup', endDrag);
+    document.addEventListener('pointercancel', endDrag);
+  } else {
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', endDrag);
+  }
 }
 
 function onDrag(e){
   if(!dragging) return;
+  if(dragUsingPointer && e.pointerId !== undefined && e.pointerId !== dragPointerId) return;
   const ws = document.getElementById('workspace');
   const wsRect = ws.getBoundingClientRect();
   const x = e.clientX - wsRect.left + ws.scrollLeft - dragOffset.x;
@@ -738,10 +759,20 @@ function onDrag(e){
   drawConnections();
 }
 
-function endDrag(){
+function endDrag(e){
+  if(dragUsingPointer && e && e.pointerId !== undefined && e.pointerId !== dragPointerId) return;
   dragging = null;
   document.removeEventListener('mousemove', onDrag);
   document.removeEventListener('mouseup', endDrag);
+  document.removeEventListener('pointermove', onDrag);
+  document.removeEventListener('pointerup', endDrag);
+  document.removeEventListener('pointercancel', endDrag);
+  if(dragCaptureEl && dragPointerId !== null){
+    try { dragCaptureEl.releasePointerCapture(dragPointerId); } catch(err){}
+  }
+  dragPointerId = null;
+  dragCaptureEl = null;
+  dragUsingPointer = false;
 }
 
 /* ── Connect mode ─────────────────────────────────────────────────── */
