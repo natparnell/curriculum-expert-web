@@ -88,6 +88,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   .header-actions{ display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap; }
   .nav-link{ display:inline-flex; align-items:center; gap:0.35rem; background:#fff; color:#6b5744; font-size:0.8rem; font-weight:600; padding:0.4rem 0.9rem; border:1.5px solid #e0d5c5; border-radius:999px; text-decoration:none; transition:all 0.15s; white-space:nowrap; }
   .nav-link:hover{ border-color:#e07020; color:#e07020; }
+  .nav-link.active{ background:#fbeee3; border-color:#e07020; color:#c96830; }
   .actions-divider{ width:1px; height:22px; background:#e0d5c5; margin:0 0.2rem; }
   .ce-link{ display:inline-flex; align-items:center; gap:0.35rem; background:linear-gradient(135deg,#e07020,#c96830); color:#fff; font-size:0.8rem; font-weight:700; padding:0.4rem 0.9rem; border-radius:999px; text-decoration:none; transition:all 0.15s; white-space:nowrap; }
   .ce-link:hover{ background:linear-gradient(135deg,#c96830,#b05a28); box-shadow:0 2px 8px rgba(224,112,32,0.25); }
@@ -138,7 +139,8 @@ TEMPLATE = r"""<!DOCTYPE html>
       above key stage, so you can trace a thread (for example "Number") from Reception to A level.</p>
     </div>
     <div class="header-actions">
-      <a href="/apps" class="nav-link">&#128218; Educational Apps</a>
+      <a href="/apps" class="nav-link">&#128241; Educational Apps</a>
+      <a href="/curriculum-mapping" class="nav-link active">&#128218; Curriculum Mapping</a>
       <span class="actions-divider"></span>
       <a href="/" class="ce-link">&#129302; Curriculum Expert</a>
     </div>
