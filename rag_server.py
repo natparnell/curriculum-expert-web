@@ -1403,6 +1403,13 @@ def feedback_page():
     return send_file(APP_DIR / 'feedback.html')
 
 
+@app.route('/curriculum-map')
+@app.route('/curriculum-map/')
+def curriculum_map():
+    """Serve the curriculum coverage map (subjects and NC strands linked to apps)."""
+    return send_file(APP_DIR / 'curriculum-map.html')
+
+
 @app.route('/apps')
 @app.route('/apps/')
 def apps_portal():
