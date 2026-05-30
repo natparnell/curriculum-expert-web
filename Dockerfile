@@ -23,6 +23,7 @@ COPY admin.html .
 COPY feedback.html .
 COPY apps-portal.html .
 COPY curriculum-map.html .
+COPY curriculum-mapping.html .
 COPY apps/ ./apps/
 
 # Knowledge files for RAG indexing

@@ -1410,6 +1410,13 @@ def curriculum_map():
     return send_file(APP_DIR / 'curriculum-map.html')
 
 
+@app.route('/curriculum-mapping')
+@app.route('/curriculum-mapping/')
+def curriculum_mapping():
+    """Serve the friendly NC mapping page (subject -> domain -> strand -> apps)."""
+    return send_file(APP_DIR / 'curriculum-mapping.html')
+
+
 @app.route('/apps')
 @app.route('/apps/')
 def apps_portal():
