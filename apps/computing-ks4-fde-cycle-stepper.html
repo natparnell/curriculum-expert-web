@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FDE Cycle Stepper &#x2013; Fetch, Decode, Execute</title>
+<style>
+  :root {
+    --ink: #16213a;
+    --muted: #5a6577;
+    --paper: #eef1f8;
+    --card: #ffffff;
+    --line: #d9e0ee;
+    --cpu: #2e6fd6;
+    --cpu-soft: #dbe8fc;
+    --mem: #6a3fd1;
+    --mem-soft: #ece4ff;
+    --bus: #c8541f;
+    --good: #1f8a52;
+    --good-soft: #d8f0e2;
+    --warn: #b3471a;
+    --warn-soft: #fbe1d6;
+    --accent: #2e6fd6;
+    --shadow: 0 6px 22px rgba(22, 33, 58, 0.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 18px 16px 72px; }
+  header.app-head { margin-bottom: 14px; }
+  .kicker {
+    display: inline-block;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+    background: #e2ecfb;
+    border-radius: 999px;
+    padding: 4px 12px;
+  }
+  h1 { font-size: clamp(1.5rem, 4vw, 2.15rem); margin: 10px 0 4px; letter-spacing: -0.01em; }
+  .aim {
+    font-size: 0.95rem;
+    color: var(--muted);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 8px 0 0;
+  }
+  .aim strong { color: var(--ink); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-top: 16px;
+  }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; letter-spacing: -0.01em; }
+  h3 { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 8px; }
+
+  .layout { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 880px) {
+    .layout { grid-template-columns: 1.15fr 0.85fr; align-items: start; }
+  }
+
+  /* CPU + memory diagram */
+  .machine { display: grid; gap: 12px; }
+  .block {
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+    background: #fbfcff;
+  }
+  .block.cpu { border-color: var(--cpu); background: var(--cpu-soft); }
+  .block.mem { border-color: var(--mem); background: var(--mem-soft); }
+  .block-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .block.cpu .block-title { color: var(--cpu); }
+  .block.mem .block-title { color: var(--mem); }
+
+  .regs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  @media (min-width: 540px) { .regs { grid-template-columns: repeat(3, 1fr); } }
+  .reg {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    transition: box-shadow .25s, border-color .25s, transform .15s;
+  }
+  .reg .name { font-size: 0.7rem; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
+  .reg .full { font-size: 0.62rem; color: var(--muted); display: block; }
+  .reg .val {
+    font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--ink);
+    margin-top: 2px;
+  }
+  .reg.flash { border-color: var(--bus); box-shadow: 0 0 0 3px var(--warn-soft); transform: translateY(-1px); }
+  .reg.flash .val { color: var(--bus); }
+
+  /* RAM table */
+  .ram { width: 100%; border-collapse: collapse; font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 0.82rem; }
+  .ram th, .ram td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; }
+  .ram th { background: #f1edff; font-weight: 700; color: var(--mem); font-family: inherit; font-size: 0.74rem; }
+  .ram tr.pc-here td { background: var(--good-soft); }
+  .ram tr.pc-here td:first-child::after { content: ' \25C0 PC'; color: var(--good); font-weight: 700; font-size: 0.7rem; }
+  .ram .addr { color: var(--muted); width: 64px; }
+  .ram .instr { font-weight: 700; }
+  .ram .desc { color: var(--muted); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 0.76rem; }
+
+  /* stage strip */
+  .stages { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .stage-pill {
+    flex: 1 1 0; min-width: 88px; text-align: center;
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 8px; font-size: 0.78rem; font-weight: 700; color: var(--muted);
+    background: #fff;
+  }
+  .stage-pill.active { background: var(--cpu); color: #fff; border-color: var(--cpu); }
+  .stage-pill.done { background: var(--good-soft); color: var(--good); border-color: var(--good); }
+
+  /* prediction panel */
+  .predict-q { font-size: 0.95rem; margin: 0 0 10px; }
+  .predict-q b { color: var(--cpu); }
+  .pred-row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+  .pred-input {
+    flex: 1 1 140px;
+    font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 1.05rem; font-weight: 700;
+    padding: 10px 12px; border: 2px solid var(--line); border-radius: 8px;
+    text-align: center; min-width: 0;
+  }
+  .pred-input:focus { outline: none; border-color: var(--cpu); box-shadow: 0 0 0 3px var(--cpu-soft); }
+  .hint { font-size: 0.78rem; color: var(--muted); margin: 6px 0 0; }
+
+  button {
+    font-family: inherit; font-weight: 700; cursor: pointer;
+    border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink);
+    padding: 10px 14px; font-size: 0.92rem; transition: background .15s, transform .1s, box-shadow .15s;
+  }
+  button:hover { box-shadow: var(--shadow); }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+  button.primary { background: var(--cpu); color: #fff; border-color: var(--cpu); }
+  button.primary:hover { background: #245bb0; }
+  button.ghost { background: #f5f7fc; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+  .feedback {
+    margin-top: 12px; border-radius: 8px; padding: 12px 14px; font-size: 0.9rem;
+    border: 1px solid var(--line); background: #f7f9fd; min-height: 1px;
+  }
+  .feedback.good { background: var(--good-soft); border-color: var(--good); }
+  .feedback.bad { background: var(--warn-soft); border-color: var(--warn); }
+  .feedback.info { background: var(--cpu-soft); border-color: var(--cpu); }
+  .feedback b { display: block; margin-bottom: 2px; }
+
+  .score { font-size: 0.82rem; color: var(--muted); }
+  .score b { color: var(--ink); }
+
+  .narrate { font-size: 0.9rem; color: var(--ink); background: #fffdf4; border: 1px solid #efe2b8; border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+
+  details.help { margin-top: 16px; }
+  details.help summary { cursor: pointer; font-weight: 700; color: var(--accent); font-size: 0.9rem; }
+  details.help[open] summary { margin-bottom: 8px; }
+  details.help ul { margin: 6px 0 0; padding-left: 20px; font-size: 0.88rem; color: var(--muted); }
+  details.help li { margin-bottom: 4px; }
+  details.help b { color: var(--ink); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); border: 0;
+  }
+  .legend { font-size: 0.74rem; color: var(--muted); margin-top: 8px; }
+  .legend span { display: inline-block; margin-right: 12px; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <span class="kicker">Computing &middot; KS4 &middot; Systems architecture</span>
+    <h1>FDE Cycle Stepper</h1>
+    <p class="aim"><strong>Teacher aim:</strong> Pupils trace the fetch, decode, execute cycle through the CPU. Before each step they predict the next value of a register, the MAR, the MDR or the program counter, then check against the live machine.</p>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: the machine -->
+    <section class="card" aria-labelledby="machine-h">
+      <h2 id="machine-h">The machine state</h2>
+
+      <div class="stages" id="stages" role="list" aria-label="Cycle stage">
+        <div class="stage-pill" role="listitem" data-stage="fetch">Fetch</div>
+        <div class="stage-pill" role="listitem" data-stage="decode">Decode</div>
+        <div class="stage-pill" role="listitem" data-stage="execute">Execute</div>
+      </div>
+
+      <div class="machine">
+        <div class="block cpu">
+          <div class="block-title">CPU registers</div>
+          <div class="regs" id="cpuRegs">
+            <div class="reg" id="reg-PC"><span class="name">PC</span><span class="full">Program counter</span><span class="val">0</span></div>
+            <div class="reg" id="reg-MAR"><span class="name">MAR</span><span class="full">Memory address reg.</span><span class="val">0</span></div>
+            <div class="reg" id="reg-MDR"><span class="name">MDR</span><span class="full">Memory data reg.</span><span class="val">0</span></div>
+            <div class="reg" id="reg-CIR"><span class="name">CIR</span><span class="full">Current instruction reg.</span><span class="val">-</span></div>
+            <div class="reg" id="reg-ACC"><span class="name">ACC</span><span class="full">Accumulator</span><span class="val">0</span></div>
+          </div>
+          <p class="legend">
+            <span><span class="swatch" style="background:var(--bus)"></span>Just changed</span>
+            <span>MAR sends the address; MDR carries the data.</span>
+          </p>
+        </div>
+
+        <div class="block mem">
+          <div class="block-title">RAM (primary storage, volatile)</div>
+          <table class="ram" id="ramTable" aria-label="RAM contents by address">
+            <thead><tr><th class="addr">Address</th><th>Instruction</th><th>Plain English</th></tr></thead>
+            <tbody id="ramBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="narrate" id="narrate" aria-live="polite">Press <b>Start cycle</b> to load the first instruction from RAM.</div>
+    </section>
+
+    <!-- RIGHT: prediction -->
+    <section class="card" aria-labelledby="predict-h">
+      <h2 id="predict-h">Class prediction</h2>
+      <p class="predict-q" id="predictQ">Press <b>Start cycle</b> to begin. The first prediction appears here.</p>
+
+      <div class="pred-row">
+        <input class="pred-input" id="predInput" inputmode="text" autocomplete="off"
+               aria-label="Type the predicted next value" placeholder="value" disabled>
+        <button class="primary" id="checkBtn" disabled>Check</button>
+      </div>
+      <p class="hint" id="predHint">Numbers may be typed in decimal. For the CIR, type the mnemonic such as LDA or ADD.</p>
+
+      <div class="feedback info" id="feedback" role="status" aria-live="polite">
+        Predict each value before you reveal it. You earn a tick for every value you call correctly.
+      </div>
+
+      <div class="btn-row">
+        <button class="primary" id="startBtn">Start cycle</button>
+        <button class="ghost" id="stepBtn" disabled>Reveal &amp; step &#x25B6;</button>
+        <button class="ghost" id="resetBtn">Reset machine</button>
+      </div>
+
+      <p class="score" id="score" aria-live="polite" style="margin-top:12px;">Predictions correct: <b>0</b> of <b>0</b></p>
+
+      <details class="help">
+        <summary>How the cycle works (revision card)</summary>
+        <ul>
+          <li><b>Fetch:</b> the address in the <b>PC</b> is copied to the <b>MAR</b>. RAM returns the instruction into the <b>MDR</b>, which is copied to the <b>CIR</b>. The <b>PC</b> then increments by 1, ready for the next instruction.</li>
+          <li><b>Decode:</b> the control unit interprets the <b>CIR</b>: which operation, and which operand (address or value).</li>
+          <li><b>Execute:</b> the ALU or control unit carries it out, for example loading from RAM into the <b>ACC</b>, or adding to the <b>ACC</b>.</li>
+          <li><b>RAM</b> is volatile primary storage: it loses its contents when power is removed. <b>ROM</b> holds the boot program and is non-volatile. Secondary storage (SSD, hard disk) keeps programs when off.</li>
+        </ul>
+      </details>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- Demonstration program (fictional, illustrative only) ----
+  // A tiny accumulator machine. Addresses 0..3 hold instructions; 4..6 hold data.
+  var RAM = [
+    { addr: 0, instr: "LDA 5",  desc: "Load value at address 5 into ACC" },
+    { addr: 1, instr: "ADD 6",  desc: "Add value at address 6 to ACC" },
+    { addr: 2, instr: "STA 4",  desc: "Store ACC into address 4" },
+    { addr: 3, instr: "HLT",    desc: "Halt the program" },
+    { addr: 4, instr: "0",      desc: "Data: result slot" },
+    { addr: 5, instr: "12",     desc: "Data: first number" },
+    { addr: 6, instr: "30",     desc: "Data: second number" }
+  ];
+
+  // Machine state
+  var state = {};
+  function freshState() {
+    return { PC: 0, MAR: 0, MDR: "0", CIR: "-", ACC: 0, stage: null, halted: false };
+  }
+
+  // Step queue: each item is one observable micro-step the class predicts.
+  // { stage, reg, full, prompt, answer, kind, after(state) }
+  var queue = [];
+  var qIndex = -1;        // index of the CURRENT pending prediction
+  var correct = 0, asked = 0;
+  var running = false;
+
+  // DOM
+  var $ = function (id) { return document.getElementById(id); };
+  var els = {
+    ramBody: $("ramBody"),
+    narrate: $("narrate"),
+    predictQ: $("predictQ"),
+    predInput: $("predInput"),
+    predHint: $("predHint"),
+    checkBtn: $("checkBtn"),
+    startBtn: $("startBtn"),
+    stepBtn: $("stepBtn"),
+    resetBtn: $("resetBtn"),
+    feedback: $("feedback"),
+    score: $("score"),
+    stages: $("stages")
+  };
+
+  function regEl(name) { return document.getElementById("reg-" + name); }
+  function regVal(name) { return regEl(name).querySelector(".val"); }
+
+  function ramRow(addr) { return RAM[addr]; }
+  function ramValue(addr) {
+    // numeric data cells return a number; instruction cells return the text
+    var r = ramRow(addr);
+    return r ? r.instr : "";
+  }
+
+  // ---- Rendering ----
+  function renderRAM() {
+    els.ramBody.innerHTML = "";
+    RAM.forEach(function (row) {
+      var tr = document.createElement("tr");
+      tr.id = "ram-" + row.addr;
+      if (row.addr === state.PC && !state.halted) tr.className = "pc-here";
+      tr.innerHTML =
+        '<td class="addr">' + row.addr + '</td>' +
+        '<td class="instr">' + row.instr + '</td>' +
+        '<td class="desc">' + row.desc + '</td>';
+      els.ramBody.appendChild(tr);
+    });
+  }
+
+  function renderRegs(flashName) {
+    ["PC", "MAR", "MDR", "CIR", "ACC"].forEach(function (n) {
+      var v = state[n];
+      regVal(n).textContent = (v === "" || v === null || v === undefined) ? "-" : String(v);
+      regEl(n).classList.remove("flash");
+    });
+    if (flashName) {
+      regEl(flashName).classList.add("flash");
+    }
+  }
+
+  function renderStages() {
+    var order = ["fetch", "decode", "execute"];
+    var pills = els.stages.querySelectorAll(".stage-pill");
+    pills.forEach(function (p) {
+      var s = p.getAttribute("data-stage");
+      p.classList.remove("active", "done");
+      if (state.stage === null) return;
+      var cur = order.indexOf(state.stage);
+      var idx = order.indexOf(s);
+      if (idx < cur) p.classList.add("done");
+      else if (idx === cur) p.classList.add("active");
+    });
+  }
+
+  function renderScore() {
+    els.score.innerHTML = "Predictions correct: <b>" + correct + "</b> of <b>" + asked + "</b>";
+  }
+
+  // ---- Build the micro-step queue for a full program run ----
+  // We model each instruction as: fetch (4 sub-steps) -> decode (1) -> execute (1).
+  function buildQueue() {
+    queue = [];
+    var pc = 0;
+    var acc = 0;
+    var guard = 0;
+
+    while (guard++ < 50) {
+      var row = ramRow(pc);
+      if (!row) break;
+      var instr = row.instr;
+      var mnemonic = instr.split(" ")[0];
+      var operand = instr.indexOf(" ") > -1 ? parseInt(instr.split(" ")[1], 10) : null;
+
+      // ---- FETCH ----
+      // 1. PC value copied into MAR
+      queue.push({
+        stage: "fetch", reg: "MAR", full: "Memory Address Register",
+        prompt: "Fetch step 1: the PC holds " + pc + ". What value is copied into the <b>MAR</b>?",
+        answer: pc, kind: "num",
+        apply: function (p) { return function (s) { s.stage = "fetch"; s.MAR = p; }; }(pc)
+      });
+      // 2. RAM at MAR returns the instruction into MDR
+      queue.push({
+        stage: "fetch", reg: "MDR", full: "Memory Data Register",
+        prompt: "Fetch step 2: RAM is read at the address in the MAR (" + pc + "). What lands in the <b>MDR</b>?",
+        answer: instr, kind: "text",
+        apply: function (ins) { return function (s) { s.MDR = ins; }; }(instr)
+      });
+      // 3. MDR copied to CIR
+      queue.push({
+        stage: "fetch", reg: "CIR", full: "Current Instruction Register",
+        prompt: "Fetch step 3: the fetched instruction is copied from the MDR into the <b>CIR</b>. What is in the CIR now?",
+        answer: instr, kind: "text",
+        apply: function (ins) { return function (s) { s.CIR = ins; }; }(instr)
+      });
+      // 4. PC increments
+      var nextPC = pc + 1;
+      queue.push({
+        stage: "fetch", reg: "PC", full: "Program Counter",
+        prompt: "Fetch step 4: the PC is incremented ready for the next instruction. What is the new <b>PC</b> value?",
+        answer: nextPC, kind: "num",
+        apply: function (np) { return function (s) { s.PC = np; }; }(nextPC)
+      });
+
+      // ---- DECODE ----
+      queue.push({
+        stage: "decode", reg: "CIR", full: "Current Instruction Register",
+        prompt: "Decode: the control unit reads the CIR. Type the <b>mnemonic</b> (operation) it has decoded.",
+        answer: mnemonic, kind: "mnemonic",
+        apply: function () { return function (s) { s.stage = "decode"; }; }()
+      });
+
+      // ---- EXECUTE ----
+      if (mnemonic === "LDA") {
+        var loaded = parseInt(ramValue(operand), 10);
+        acc = loaded;
+        queue.push({
+          stage: "execute", reg: "ACC", full: "Accumulator",
+          prompt: "Execute LDA " + operand + ": load the value at address " + operand + " into the <b>ACC</b>. What value?",
+          answer: loaded, kind: "num", reads: operand,
+          apply: function (v, op) { return function (s) { s.stage = "execute"; s.ACC = v; s.MAR = op; s.MDR = String(v); }; }(loaded, operand)
+        });
+      } else if (mnemonic === "ADD") {
+        var added = parseInt(ramValue(operand), 10);
+        acc = acc + added;
+        queue.push({
+          stage: "execute", reg: "ACC", full: "Accumulator",
+          prompt: "Execute ADD " + operand + ": add the value at address " + operand + " (" + added + ") to the ACC. What is the new <b>ACC</b>?",
+          answer: acc, kind: "num", reads: operand,
+          apply: function (v, op, src) { return function (s) { s.stage = "execute"; s.ACC = v; s.MAR = op; s.MDR = String(src); }; }(acc, operand, added)
+        });
+      } else if (mnemonic === "STA") {
+        var stored = acc;
+        queue.push({
+          stage: "execute", reg: "MDR", full: "Memory Data Register",
+          prompt: "Execute STA " + operand + ": store the ACC (" + acc + ") into address " + operand + ". What writes out via the <b>MDR</b>?",
+          answer: stored, kind: "num", writes: operand,
+          apply: function (v, op) { return function (s) { s.stage = "execute"; s.MAR = op; s.MDR = String(v); }; }(stored, operand)
+        });
+      } else if (mnemonic === "HLT") {
+        queue.push({
+          stage: "execute", reg: "CIR", full: "Halt",
+          prompt: "Execute HLT: the program halts. Type <b>STOP</b> to end the run.",
+          answer: "STOP", kind: "text",
+          apply: function () { return function (s) { s.stage = "execute"; s.halted = true; }; }()
+        });
+      }
+
+      if (mnemonic === "HLT") break;
+      pc = nextPC;
+    }
+  }
+
+  // ---- Answer checking ----
+  function normalise(s) { return String(s).trim().toUpperCase(); }
+
+  function isCorrect(step, raw) {
+    var v = normalise(raw);
+    if (v === "") return false;
+    if (step.kind === "num") {
+      var n = parseInt(v, 10);
+      return !isNaN(n) && n === step.answer;
+    }
+    if (step.kind === "mnemonic" || step.kind === "text") {
+      return v === normalise(step.answer);
+    }
+    return false;
+  }
+
+  // ---- Flow control ----
+  function currentStep() { return queue[qIndex]; }
+
+  function showPrompt() {
+    var step = currentStep();
+    if (!step) return;
+    els.predictQ.innerHTML = "<b>" + step.stage.toUpperCase() + ":</b> " + step.prompt;
+    els.predInput.value = "";
+    els.predInput.disabled = false;
+    els.checkBtn.disabled = false;
+    els.stepBtn.disabled = false;
+    // tailored hint
+    if (step.kind === "num") {
+      els.predHint.textContent = "Type a whole number in decimal.";
+      els.predInput.setAttribute("inputmode", "numeric");
+    } else if (step.kind === "mnemonic") {
+      els.predHint.textContent = "Type the operation only, for example LDA, ADD, STA or HLT.";
+      els.predInput.setAttribute("inputmode", "text");
+    } else {
+      els.predHint.textContent = "Type the value or instruction text exactly, for example LDA 5.";
+      els.predInput.setAttribute("inputmode", "text");
+    }
+    els.predInput.focus();
+  }
+
+  function setFeedback(kind, title, body) {
+    els.feedback.className = "feedback " + kind;
+    els.feedback.innerHTML = "<b>" + title + "</b>" + body;
+  }
+
+  function applyStep(step) {
+    step.apply(state);
+    renderRegs(step.reg);
+    renderRAM();
+    renderStages();
+  }
+
+  function narrate(text) { els.narrate.innerHTML = text; }
+
+  // Check the typed prediction without advancing.
+  function check() {
+    var step = currentStep();
+    if (!step || step.checked) return;
+    var raw = els.predInput.value;
+    if (normalise(raw) === "") {
+      setFeedback("info", "Type a prediction first", " Enter the value you think the " + step.reg + " will hold, then press Check.");
+      return;
+    }
+    asked++;
+    step.checked = true;
+    var ok = isCorrect(step, raw);
+    if (ok) {
+      correct++;
+      setFeedback("good", "Correct (&#x2713;)", " The " + step.full + " becomes <b>" + step.answer + "</b>. Press Reveal &amp; step to move on.");
+    } else {
+      setFeedback("bad", "Not quite", " You typed <b>" + normalise(raw) + "</b>. The " + step.full + " will become <b>" + step.answer + "</b>. Press Reveal &amp; step to see it move.");
+    }
+    renderScore();
+    els.checkBtn.disabled = true;
+  }
+
+  // Reveal the value (apply to machine) and advance to next pending prediction.
+  function step() {
+    var s = currentStep();
+    if (!s) return;
+    // If the class did not press Check, count it as asked-but-skipped (no mark either way).
+    applyStep(s);
+
+    // narration of what just happened
+    var verb;
+    if (s.stage === "fetch") verb = "Fetch in progress: ";
+    else if (s.stage === "decode") verb = "Decoded: ";
+    else verb = "Executed: ";
+    narrate(verb + "the <b>" + s.reg + "</b> now holds <b>" + (state[s.reg]) + "</b>.");
+
+    qIndex++;
+    if (qIndex >= queue.length) {
+      finish();
+      return;
+    }
+    if (!s.checked) {
+      // not checked: leave neutral feedback if nothing graded yet
+      if (!els.feedback.classList.contains("good") && !els.feedback.classList.contains("bad")) {
+        setFeedback("info", "Revealed", " Predict the next value before revealing to earn a tick.");
+      }
+    }
+    showPrompt();
+  }
+
+  function finish() {
+    running = false;
+    state.stage = "execute";
+    renderStages();
+    els.predInput.disabled = true;
+    els.checkBtn.disabled = true;
+    els.stepBtn.disabled = true;
+    els.startBtn.disabled = false;
+    els.predictQ.innerHTML = "<b>Run complete.</b> The accumulator finished at <b>" + state.ACC + "</b> and address 4 now holds the result.";
+    var pct = asked ? Math.round((correct / asked) * 100) : 0;
+    setFeedback(correct === asked && asked > 0 ? "good" : "info",
+      "Cycle finished",
+      " You predicted <b>" + correct + "</b> of <b>" + asked + "</b> graded values correctly (" + pct + "%). Press Reset machine to run again, perhaps with a different pupil predicting each step.");
+    narrate("Program halted. RAM is volatile: switching off would clear all of this. The stored result would only survive in secondary storage.");
+  }
+
+  function start() {
+    state = freshState();
+    buildQueue();
+    qIndex = 0;
+    correct = 0; asked = 0;
+    running = true;
+    queue.forEach(function (q) { q.checked = false; });
+    renderRAM();
+    renderRegs(null);
+    renderStages();
+    renderScore();
+    els.startBtn.disabled = true;
+    narrate("Cycle started. The CPU is about to <b>fetch</b> the instruction at address 0.");
+    setFeedback("info", "Make a prediction", " A pupil predicts the next value, types it, then presses Check.");
+    showPrompt();
+  }
+
+  function reset() {
+    running = false;
+    state = freshState();
+    queue = []; qIndex = -1;
+    correct = 0; asked = 0;
+    renderRAM();
+    renderRegs(null);
+    renderStages();
+    renderScore();
+    els.predInput.value = "";
+    els.predInput.disabled = true;
+    els.checkBtn.disabled = true;
+    els.stepBtn.disabled = true;
+    els.startBtn.disabled = false;
+    els.predictQ.innerHTML = "Press <b>Start cycle</b> to begin. The first prediction appears here.";
+    els.predHint.textContent = "Numbers may be typed in decimal. For the CIR, type the mnemonic such as LDA or ADD.";
+    setFeedback("info", "Ready", " Predict each value before you reveal it. You earn a tick for every value you call correctly.");
+    narrate("Press <b>Start cycle</b> to load the first instruction from RAM.");
+  }
+
+  // ---- Events ----
+  els.startBtn.addEventListener("click", start);
+  els.resetBtn.addEventListener("click", reset);
+  els.checkBtn.addEventListener("click", check);
+  els.stepBtn.addEventListener("click", step);
+  els.predInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      var s = currentStep();
+      if (s && !s.checked) check();
+      else step();
+    }
+  });
+
+  // init
+  reset();
+})();
+</script>
+</body>
+</html>

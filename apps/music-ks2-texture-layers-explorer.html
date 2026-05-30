@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Texture Layers Explorer</title>
+<style>
+  :root {
+    --ink: #14233b;
+    --muted: #5a6b82;
+    --paper: #f4f6fb;
+    --card: #ffffff;
+    --line: #d8e0ec;
+    --accent: #2d6cdf;
+    --accent-dk: #1c4ea8;
+    --warm: #e8702a;
+    --good: #1f8a4c;
+    --bad: #c0392b;
+    --shadow: 0 6px 22px rgba(20,35,59,0.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app { margin-bottom: 14px; }
+  .eyebrow {
+    display: inline-block;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-dk);
+    font-weight: 700;
+    background: #e7eefc;
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+  h1 { font-size: 1.85rem; margin: 10px 0 4px; line-height: 1.15; }
+  .aim {
+    font-size: 0.98rem;
+    color: var(--muted);
+    border-left: 4px solid var(--warm);
+    padding: 6px 0 6px 12px;
+    margin: 8px 0 2px;
+    max-width: 70ch;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 18px;
+    margin: 16px 0;
+  }
+  h2 { font-size: 1.15rem; margin: 0 0 4px; }
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px; height: 26px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-right: 8px;
+  }
+  .sub { color: var(--muted); font-size: 0.92rem; margin: 2px 0 14px; }
+
+  /* Transport */
+  .transport {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin-bottom: 8px;
+  }
+  button.btn {
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--accent-dk);
+    background: var(--accent);
+    color: #fff;
+    padding: 11px 18px;
+    border-radius: 10px;
+    min-height: 46px;
+    transition: transform .05s ease, background .15s ease;
+  }
+  button.btn:hover { background: var(--accent-dk); }
+  button.btn:active { transform: translateY(1px); }
+  button.btn.ghost {
+    background: #fff; color: var(--accent-dk); border-color: var(--line);
+  }
+  button.btn.ghost:hover { background: #eef3fd; }
+  button.btn:focus-visible, .layer:focus-visible, .opt:focus-visible {
+    outline: 3px solid #ffb454; outline-offset: 2px;
+  }
+  .now-playing {
+    font-size: 0.92rem; color: var(--muted);
+    margin-left: auto; min-width: 140px;
+  }
+  .now-playing b { color: var(--ink); }
+
+  /* Texture meter */
+  .meter-row { display:flex; align-items:center; gap:12px; margin: 14px 0 4px; flex-wrap: wrap; }
+  .meter-label { font-weight: 700; min-width: 110px; }
+  .meter {
+    flex: 1 1 220px;
+    height: 22px;
+    background: linear-gradient(90deg,#eaf0fb,#cfe0fa,#9bbef4,#5d92ea);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    position: relative;
+    overflow: hidden;
+    min-width: 200px;
+  }
+  .meter-fill {
+    position:absolute; top:0; left:0; bottom:0;
+    width: 0%;
+    background: linear-gradient(90deg, rgba(45,108,223,.18), rgba(45,108,223,.55));
+    transition: width .35s ease;
+  }
+  .meter-ticks { display:flex; justify-content:space-between; font-size:0.78rem; color:var(--muted); }
+  .texture-word {
+    font-weight: 800; font-size: 1.05rem; color: var(--accent-dk);
+  }
+
+  /* Layers */
+  .layers { display: grid; gap: 10px; }
+  .layer {
+    display: flex; align-items: center; gap: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: #fbfcff;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    font: inherit;
+    color: var(--ink);
+    transition: border-color .15s, background .15s, box-shadow .15s;
+  }
+  .layer[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: #eef4ff;
+    box-shadow: inset 0 0 0 2px rgba(45,108,223,.25);
+  }
+  .layer .icon {
+    font-size: 1.5rem; width: 40px; text-align:center; flex: 0 0 auto;
+  }
+  .layer .info { flex: 1 1 auto; min-width: 0; }
+  .layer .info .name { font-weight: 700; }
+  .layer .info .timbre { font-size: 0.85rem; color: var(--muted); }
+  .layer .state {
+    flex: 0 0 auto; font-weight: 700; font-size: 0.85rem;
+    padding: 5px 12px; border-radius: 999px;
+    background: #e7ecf4; color: var(--muted);
+    min-width: 64px; text-align: center;
+  }
+  .layer[aria-pressed="true"] .state { background: var(--good); color: #fff; }
+  /* tiny animated equaliser when on */
+  .eq { display:none; gap:2px; align-items:flex-end; height:18px; width:22px; }
+  .layer[aria-pressed="true"] .eq { display: inline-flex; }
+  .eq span {
+    width:4px; background: var(--accent); border-radius:2px;
+    animation: bounce 0.8s infinite ease-in-out;
+  }
+  .eq span:nth-child(2){ animation-delay:.15s; }
+  .eq span:nth-child(3){ animation-delay:.3s; }
+  @keyframes bounce { 0%,100%{height:5px;} 50%{height:17px;} }
+  .paused .eq span { animation-play-state: paused; }
+
+  .preset-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .preset-row .btn { padding: 9px 14px; min-height: 42px; font-size:0.9rem; }
+
+  /* Form mapper */
+  .form-strip { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+  .section-chip {
+    flex: 1 1 90px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 8px;
+    text-align:center;
+    background:#fff;
+    cursor:pointer;
+    font-weight:700;
+    transition: all .15s;
+  }
+  .section-chip:hover { border-color: var(--accent); }
+  .section-chip[aria-current="true"] {
+    background: var(--accent); color:#fff; border-color: var(--accent-dk);
+  }
+  .section-chip small { display:block; font-weight:500; font-size:0.78rem; opacity:.85; }
+
+  /* Quiz */
+  .opts { display:grid; gap:10px; grid-template-columns: 1fr 1fr; margin-top:10px; }
+  @media (max-width:560px){ .opts { grid-template-columns: 1fr; } }
+  .opt {
+    font: inherit; cursor:pointer; text-align:left;
+    border:1px solid var(--line); border-radius:10px;
+    background:#fff; padding:12px 14px; min-height:48px;
+    transition: all .12s;
+  }
+  .opt:hover { border-color: var(--accent); background:#f4f8ff; }
+  .opt.correct { border-color: var(--good); background:#e7f6ec; }
+  .opt.wrong { border-color: var(--bad); background:#fbeceb; }
+  .opt:disabled { cursor: default; }
+  .feedback {
+    margin-top:12px; padding:12px 14px; border-radius:10px;
+    font-size:0.95rem; display:none;
+  }
+  .feedback.show { display:block; }
+  .feedback.ok { background:#e7f6ec; border:1px solid #b8e3c6; color:#13602f; }
+  .feedback.no { background:#fbeceb; border:1px solid #f0c2bd; color:#8e2018; }
+  .feedback.tip { background:#fff6e9; border:1px solid #f3d9ad; color:#7a4c10; }
+  .qmeta { font-size:0.85rem; color:var(--muted); margin-top:8px; }
+
+  .vocab { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .vocab span {
+    background:#eef3fd; border:1px solid #d4e1f9; color:var(--accent-dk);
+    border-radius:999px; padding:5px 12px; font-size:0.85rem; font-weight:600;
+  }
+  .live-region { position:absolute; left:-9999px; }
+  footer.note { color:var(--muted); font-size:0.82rem; text-align:center; margin-top:24px; }
+  .hint { font-size:0.85rem; color:var(--muted); margin-top:8px; }
+  .kbd { font-family:monospace; background:#eef1f6; border:1px solid var(--line); border-radius:5px; padding:1px 6px; font-size:0.82rem; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <span class="eyebrow">Music &middot; KS2 &middot; Listening &amp; Appraising</span>
+    <h1>Texture Layers Explorer</h1>
+    <p class="aim"><strong>Teacher aim:</strong> pupils strip out and add back instrumental layers of a track, then use the words thin and thick (texture), along with tempo, dynamics and timbre, to describe what they hear.</p>
+  </header>
+
+  <!-- STEP 1: MIXING DESK -->
+  <section class="card" aria-labelledby="h-mix">
+    <h2 id="h-mix"><span class="step-num">1</span>The mixing desk</h2>
+    <p class="sub">Tap each layer to switch it on or off. Listen: fewer layers sound <em>thin</em>, more layers sound <em>thick</em>. Then check the texture meter.</p>
+
+    <div class="transport">
+      <button class="btn" id="playBtn" aria-pressed="false">&#x25B6;&#xFE0F; Play</button>
+      <button class="btn ghost" id="stopBtn">&#x23F9;&#xFE0F; Stop</button>
+      <div class="now-playing" aria-live="polite" id="nowPlaying">Press Play to start the track.</div>
+    </div>
+
+    <div class="layers" id="layers" role="group" aria-label="Instrument layers"></div>
+
+    <div class="preset-row" aria-label="Quick texture presets">
+      <button class="btn ghost" data-preset="solo">Solo (1 layer)</button>
+      <button class="btn ghost" data-preset="duet">Duet (2 layers)</button>
+      <button class="btn ghost" data-preset="full">Full band (all)</button>
+    </div>
+
+    <div class="meter-row">
+      <span class="meter-label">Texture meter</span>
+      <div class="meter" role="img" aria-label="Texture meter" id="meterImg">
+        <div class="meter-fill" id="meterFill"></div>
+      </div>
+    </div>
+    <div class="meter-ticks"><span>Thin</span><span>Medium</span><span>Thick</span></div>
+    <p style="margin:10px 0 0;">Right now the texture is <span class="texture-word" id="textureWord">silent</span> <span id="textureCount" class="sub" style="display:inline;"></span></p>
+    <p class="hint"><strong>Keyboard:</strong> use <span class="kbd">Tab</span> to reach a layer, then <span class="kbd">Space</span> or <span class="kbd">Enter</span> to switch it on or off.</p>
+  </section>
+
+  <!-- STEP 2: FORM MAPPER -->
+  <section class="card" aria-labelledby="h-form">
+    <h2 id="h-form"><span class="step-num">2</span>Form mapper</h2>
+    <p class="sub">Songs are built from sections. Tap a section to jump the band there. Notice how the texture changes: the chorus is thicker than the verse.</p>
+    <div class="form-strip" id="formStrip" role="group" aria-label="Song sections"></div>
+    <p class="sub" id="formDesc" aria-live="polite" style="margin-top:12px;"></p>
+  </section>
+
+  <!-- STEP 3: LISTENING CHALLENGE -->
+  <section class="card" aria-labelledby="h-quiz">
+    <h2 id="h-quiz"><span class="step-num">3</span>Listening challenge</h2>
+    <p class="sub">Set the layers as the question asks, listen carefully, then choose the best answer. The app tells you exactly why.</p>
+    <div id="quizArea"></div>
+    <div class="qmeta" id="quizScore" aria-live="polite">Score: 0 of 0</div>
+  </section>
+
+  <!-- VOCAB -->
+  <section class="card" aria-labelledby="h-vocab">
+    <h2 id="h-vocab">Listening words to use</h2>
+    <div class="vocab">
+      <span>Texture: thin / thick</span>
+      <span>Timbre: the sound quality</span>
+      <span>Tempo: speed</span>
+      <span>Dynamics: loud / quiet</span>
+      <span>Layer</span>
+      <span>Structure / form</span>
+      <span>Verse / chorus</span>
+    </div>
+  </section>
+
+  <footer class="note">Texture Layers Explorer &middot; sounds are generated live in your browser, so the demo works fully offline. No real pupils are shown.</footer>
+
+  <div class="live-region" aria-live="assertive" id="srLive"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Audio engine (Web Audio API, no external files) ----------
+  var AC = window.AudioContext || window.webkitAudioContext;
+  var ctx = null;
+  var master = null;
+  var isPlaying = false;
+  var stepTimer = null;
+  var stepIndex = 0;
+  var currentSection = "intro";
+
+  // Each layer: a small synth voice scheduled on a 16-step loop.
+  // type: 'bass' | 'chords' | 'melody' | 'drums'
+  var LAYERS = [
+    { id:"drums",  name:"Drums",        timbre:"percussive, sharp attack", icon:"\u{1F941}", on:true,  type:"drums"  },
+    { id:"bass",   name:"Bass guitar",  timbre:"low, warm, smooth",        icon:"\u{1F3B8}", on:true,  type:"bass"   },
+    { id:"chords", name:"Keyboard",     timbre:"full, mellow chords",      icon:"\u{1F3B9}", on:true,  type:"chords" },
+    { id:"melody", name:"Flute",        timbre:"high, bright, clear",      icon:"\u{1FA88}", on:true,  type:"melody" }
+  ];
+
+  // note frequencies
+  function f(n){ return 440 * Math.pow(2,(n-69)/12); }
+  // C major-ish pentatonic friendly patterns per 16 steps
+  var BASS_PAT   = [48,0,48,0, 53,0,53,0, 45,0,45,0, 50,0,50,0]; // C F A D (midi)
+  var MEL_PAT    = [72,0,76,0, 79,0,76,72, 74,0,77,0, 81,0,79,0];
+  var CHORD_ROOT = [48,48,48,48, 53,53,53,53, 45,45,45,45, 50,50,50,50];
+  var DRUM_PAT   = ["k",0,"h","s", 0,"h","k","s", "k",0,"h","s", 0,"h","s","s"];
+
+  // Section settings drive tempo, dynamics and which patterns feel busier
+  var SECTIONS = {
+    intro:  { tempo:96,  gain:0.45, density:"sparse", label:"Intro",  desc:"Gentle start. Slower feel and quieter dynamics. Often a thinner texture." },
+    verse:  { tempo:108, gain:0.6,  density:"medium", label:"Verse",  desc:"Steady groove. Medium dynamics. The texture is usually thinner than the chorus." },
+    chorus: { tempo:120, gain:0.85, density:"busy",   label:"Chorus", desc:"The big moment. Faster tempo, louder dynamics and more layers, so a thick texture." },
+    outro:  { tempo:90,  gain:0.4,  density:"sparse", label:"Outro",  desc:"Winding down. Slower and quieter, fading to a thin texture." }
+  };
+  var SECTION_ORDER = ["intro","verse","chorus","outro"];
+
+  function ensureCtx(){
+    if(!ctx){
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = 0.5;
+      master.connect(ctx.destination);
+    }
+    if(ctx.state === "suspended"){ ctx.resume(); }
+  }
+
+  function tone(midi, when, dur, kind, vol){
+    if(!midi) return;
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    var t = ctx.currentTime + when;
+    osc.frequency.value = f(midi);
+    if(kind === "bass"){ osc.type = "triangle"; }
+    else if(kind === "chords"){ osc.type = "sine"; }
+    else { osc.type = "sawtooth"; } // melody brighter timbre
+    var lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = kind === "melody" ? 4200 : (kind === "bass" ? 600 : 1800);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(lp); lp.connect(g); g.connect(master);
+    osc.start(t); osc.stop(t + dur + 0.05);
+  }
+
+  function chord(root, when, dur, vol){
+    // simple major triad
+    tone(root, when, dur, "chords", vol);
+    tone(root+4, when, dur, "chords", vol*0.85);
+    tone(root+7, when, dur, "chords", vol*0.85);
+  }
+
+  function drumHit(kindLetter, when, vol){
+    var t = ctx.currentTime + when;
+    if(kindLetter === "k"){ // kick
+      var o = ctx.createOscillator(); var g = ctx.createGain();
+      o.type="sine"; o.frequency.setValueAtTime(140,t); o.frequency.exponentialRampToValueAtTime(45,t+0.12);
+      g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.18);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t+0.2);
+    } else { // snare or hat via noise
+      var len = kindLetter === "s" ? 0.16 : 0.05;
+      var buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate*len), ctx.sampleRate);
+      var d = buf.getChannelData(0);
+      for(var i=0;i<d.length;i++){ d[i] = (Math.random()*2-1) * (1 - i/d.length); }
+      var src = ctx.createBufferSource(); src.buffer = buf;
+      var hp = ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value = kindLetter==="s"?1200:6000;
+      var g = ctx.createGain(); g.gain.value = vol * (kindLetter==="s"?0.7:0.35);
+      src.connect(hp); hp.connect(g); g.connect(master);
+      src.start(t);
+    }
+  }
+
+  function stepDur(){
+    var sec = SECTIONS[currentSection];
+    // 16th-note duration from tempo (4 steps per beat)
+    return 60 / sec.tempo / 4;
+  }
+
+  function playStep(){
+    var sec = SECTIONS[currentSection];
+    var d = stepDur();
+    var on = {};
+    LAYERS.forEach(function(l){ on[l.type] = l.on; });
+    var dynamic = sec.gain;
+    var i = stepIndex % 16;
+
+    // density thins out patterns in sparse sections
+    var sparse = sec.density === "sparse";
+    var busy = sec.density === "busy";
+
+    if(on.drums){
+      var dh = DRUM_PAT[i];
+      if(dh && !(sparse && dh === "s")){ drumHit(dh, 0, 0.5*dynamic); }
+    }
+    if(on.bass){
+      var bn = BASS_PAT[i];
+      if(bn){ tone(bn, 0, d*1.6, "bass", 0.5*dynamic); }
+    }
+    if(on.chords){
+      // chords on beats; busier sections add an offbeat stab
+      if(i % 4 === 0){ chord(CHORD_ROOT[i], 0, d*3.0, 0.16*dynamic); }
+      else if(busy && i % 4 === 2){ chord(CHORD_ROOT[i], 0, d*1.2, 0.10*dynamic); }
+    }
+    if(on.melody){
+      var mn = MEL_PAT[i];
+      if(mn && !sparse){ tone(mn, 0, d*1.8, "melody", 0.32*dynamic); }
+      else if(mn && sparse && i % 4 === 0){ tone(mn, 0, d*2.2, "melody", 0.28*dynamic); }
+    }
+
+    stepIndex++;
+    stepTimer = setTimeout(playStep, d*1000);
+  }
+
+  function startPlay(){
+    ensureCtx();
+    if(isPlaying) return;
+    isPlaying = true;
+    stepIndex = 0;
+    playStep();
+    setPlayUI(true);
+  }
+  function stopPlay(){
+    isPlaying = false;
+    if(stepTimer){ clearTimeout(stepTimer); stepTimer = null; }
+    setPlayUI(false);
+  }
+  function setPlayUI(playing){
+    var b = document.getElementById("playBtn");
+    b.setAttribute("aria-pressed", playing ? "true":"false");
+    b.innerHTML = playing ? "\u{23F8}\u{FE0F} Pause" : "\u{25B6}\u{FE0F} Play";
+    document.getElementById("layers").classList.toggle("paused", !playing);
+    updateNowPlaying();
+  }
+
+  function activeCount(){ return LAYERS.filter(function(l){return l.on;}).length; }
+
+  function textureLabel(n){
+    if(n === 0) return "silent";
+    if(n === 1) return "very thin";
+    if(n === 2) return "thin";
+    if(n === 3) return "medium";
+    return "thick";
+  }
+
+  function updateNowPlaying(){
+    var np = document.getElementById("nowPlaying");
+    var sec = SECTIONS[currentSection];
+    if(!isPlaying){ np.innerHTML = "Press Play to start the track."; return; }
+    np.innerHTML = "Now playing: <b>" + sec.label + "</b> at " + sec.tempo + " BPM";
+  }
+
+  // ---------- UI: layers ----------
+  var layersEl = document.getElementById("layers");
+  function renderLayers(){
+    layersEl.innerHTML = "";
+    LAYERS.forEach(function(l){
+      var btn = document.createElement("button");
+      btn.className = "layer";
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", l.on ? "true":"false");
+      btn.setAttribute("aria-label", l.name + ", " + l.timbre + ", currently " + (l.on?"on":"off"));
+      btn.dataset.id = l.id;
+      btn.innerHTML =
+        '<span class="icon" aria-hidden="true">'+l.icon+'</span>' +
+        '<span class="info"><span class="name">'+l.name+'</span>' +
+        '<span class="timbre">Timbre: '+l.timbre+'</span></span>' +
+        '<span class="eq" aria-hidden="true"><span></span><span></span><span></span></span>' +
+        '<span class="state">'+(l.on?"ON":"OFF")+'</span>';
+      btn.addEventListener("click", function(){ toggleLayer(l.id); });
+      layersEl.appendChild(btn);
+    });
+  }
+
+  function toggleLayer(id){
+    var l = LAYERS.find(function(x){return x.id===id;});
+    if(!l) return;
+    l.on = !l.on;
+    ensureCtx();
+    refreshLayerUI();
+    announce(l.name + " " + (l.on?"on":"off") + ". Texture is now " + textureLabel(activeCount()) + ".");
+  }
+
+  function refreshLayerUI(){
+    Array.prototype.forEach.call(layersEl.children, function(btn){
+      var l = LAYERS.find(function(x){return x.id===btn.dataset.id;});
+      btn.setAttribute("aria-pressed", l.on?"true":"false");
+      btn.setAttribute("aria-label", l.name + ", " + l.timbre + ", currently " + (l.on?"on":"off"));
+      btn.querySelector(".state").textContent = l.on?"ON":"OFF";
+    });
+    updateMeter();
+  }
+
+  function updateMeter(){
+    var n = activeCount();
+    var pct = (n/4)*100;
+    document.getElementById("meterFill").style.width = pct + "%";
+    document.getElementById("meterImg").setAttribute("aria-label",
+      "Texture meter: " + n + " of 4 layers, " + textureLabel(n) + " texture.");
+    var word = textureLabel(n);
+    document.getElementById("textureWord").textContent = word;
+    document.getElementById("textureCount").textContent =
+      "(" + n + " layer" + (n===1?"":"s") + " playing)";
+  }
+
+  // presets
+  function applyPreset(kind){
+    ensureCtx();
+    var want = { solo:["drums"], duet:["drums","chords"], full:["drums","bass","chords","melody"] };
+    var keep = want[kind] || [];
+    LAYERS.forEach(function(l){ l.on = keep.indexOf(l.id) !== -1; });
+    refreshLayerUI();
+    if(!isPlaying){ startPlay(); }
+    announce("Preset " + kind + " set. Texture is " + textureLabel(activeCount()) + ".");
+  }
+
+  // ---------- Form mapper ----------
+  var formStrip = document.getElementById("formStrip");
+  function renderForm(){
+    formStrip.innerHTML = "";
+    SECTION_ORDER.forEach(function(key){
+      var s = SECTIONS[key];
+      var c = document.createElement("button");
+      c.className = "section-chip";
+      c.type = "button";
+      c.dataset.key = key;
+      c.setAttribute("aria-current", key===currentSection ? "true":"false");
+      c.setAttribute("aria-label", s.label + ", tempo " + s.tempo + " BPM, " + s.density + " texture");
+      c.innerHTML = s.label + "<small>" + s.tempo + " BPM</small>";
+      c.addEventListener("click", function(){ setSection(key); });
+      formStrip.appendChild(c);
+    });
+    updateFormDesc();
+  }
+  function setSection(key){
+    currentSection = key;
+    ensureCtx();
+    Array.prototype.forEach.call(formStrip.children, function(c){
+      c.setAttribute("aria-current", c.dataset.key===key ? "true":"false");
+    });
+    updateFormDesc();
+    updateNowPlaying();
+    if(!isPlaying){ startPlay(); }
+    announce("Section " + SECTIONS[key].label + ". " + SECTIONS[key].desc);
+  }
+  function updateFormDesc(){
+    var s = SECTIONS[currentSection];
+    document.getElementById("formDesc").innerHTML =
+      "<strong>" + s.label + ":</strong> " + s.desc;
+  }
+
+  // ---------- Listening challenge ----------
+  // Each question may ask pupils to set layers a certain way first, then answer.
+  var QUESTIONS = [
+    {
+      setup: function(){ applyPreset("full"); },
+      task: "All four layers are on. Listen, then choose the best texture word.",
+      prompt: "With every layer playing, the texture is best described as:",
+      opts: ["Thin","Thick"],
+      answer: 1,
+      ok: "Correct. When many layers play together the texture is thick. You can hear drums, bass, keyboard and flute all at once.",
+      no: "Not quite. With all four layers sounding at once there is a lot going on, so the texture is thick, not thin."
+    },
+    {
+      setup: function(){ applyPreset("solo"); },
+      task: "Only the drums are left on. Listen to how empty it sounds.",
+      prompt: "With just one layer playing, the texture is:",
+      opts: ["Thin","Thick"],
+      answer: 0,
+      ok: "Correct. One layer on its own gives a thin texture. There is space around the sound.",
+      no: "Listen again. A single layer leaves lots of space, so this is a thin texture."
+    },
+    {
+      setup: function(){ LAYERS.forEach(function(l){ l.on = (l.id==="bass"); }); refreshLayerUI(); if(!isPlaying) startPlay(); },
+      task: "Only the bass guitar is on. Focus on its sound quality (timbre).",
+      prompt: "Which words best describe the bass guitar's timbre?",
+      opts: ["Low and warm","High and bright"],
+      answer: 0,
+      ok: "Correct. The bass guitar has a low, warm, smooth timbre. Timbre means the kind of sound an instrument makes.",
+      no: "The bass plays the lowest, warmest sounds. High and bright describes the flute instead."
+    },
+    {
+      setup: function(){ setSection("chorus"); applyPreset("full"); },
+      task: "You are in the chorus with all layers on.",
+      prompt: "Compared with the verse, the chorus here is:",
+      opts: ["Faster, louder and thicker","Slower, quieter and thinner"],
+      answer: 0,
+      ok: "Correct. This chorus has a faster tempo, louder dynamics and more layers, so a thicker texture. That is how a chorus often lifts a song.",
+      no: "Compare the BPM and the layers. The chorus is faster (120 BPM), louder and has more layers, so it is thicker than the verse."
+    },
+    {
+      setup: function(){ LAYERS.forEach(function(l){ l.on = (l.id==="melody"); }); refreshLayerUI(); if(!isPlaying) startPlay(); },
+      task: "Only the flute is on. Listen to its timbre and pitch.",
+      prompt: "The flute's timbre is best described as:",
+      opts: ["High, bright and clear","Low and rumbling"],
+      answer: 0,
+      ok: "Correct. The flute is high, bright and clear. That bright timbre is easy to pick out even inside a thick texture.",
+      no: "The flute sits high and sounds bright and clear. Low and rumbling fits the bass, not the flute."
+    }
+  ];
+
+  var qIndex = 0, score = 0, answered = 0;
+  var quizArea = document.getElementById("quizArea");
+
+  function renderQuestion(){
+    var q = QUESTIONS[qIndex];
+    quizArea.innerHTML = "";
+    var wrap = document.createElement("div");
+
+    var task = document.createElement("p");
+    task.className = "sub";
+    task.style.marginBottom = "6px";
+    task.innerHTML = "<strong>Question " + (qIndex+1) + " of " + QUESTIONS.length + ".</strong> " + q.task;
+    wrap.appendChild(task);
+
+    var setBtn = document.createElement("button");
+    setBtn.className = "btn";
+    setBtn.type = "button";
+    setBtn.textContent = "Set up and play this";
+    setBtn.addEventListener("click", function(){ q.setup(); announce("Layers set for the question. Listen, then answer."); });
+    wrap.appendChild(setBtn);
+
+    var prompt = document.createElement("p");
+    prompt.style.fontWeight = "700";
+    prompt.style.margin = "14px 0 0";
+    prompt.textContent = q.prompt;
+    wrap.appendChild(prompt);
+
+    var opts = document.createElement("div");
+    opts.className = "opts";
+    q.opts.forEach(function(text, i){
+      var b = document.createElement("button");
+      b.className = "opt";
+      b.type = "button";
+      b.textContent = text;
+      b.addEventListener("click", function(){ chooseAnswer(i, opts, fb); });
+      opts.appendChild(b);
+    });
+    wrap.appendChild(opts);
+
+    var fb = document.createElement("div");
+    fb.className = "feedback";
+    fb.setAttribute("role","status");
+    wrap.appendChild(fb);
+
+    quizArea.appendChild(wrap);
+    // auto set up so the right sound is ready
+    q.setup();
+  }
+
+  function chooseAnswer(choice, optsEl, fb){
+    var q = QUESTIONS[qIndex];
+    var buttons = optsEl.querySelectorAll(".opt");
+    buttons.forEach(function(b){ b.disabled = true; });
+    answered++;
+    if(choice === q.answer){
+      score++;
+      buttons[choice].classList.add("correct");
+      fb.className = "feedback ok show";
+      fb.textContent = q.ok;
+    } else {
+      buttons[choice].classList.add("wrong");
+      buttons[q.answer].classList.add("correct");
+      fb.className = "feedback no show";
+      fb.textContent = q.no;
+    }
+    announce(fb.textContent);
+    updateScore();
+
+    var next = document.createElement("button");
+    next.className = "btn";
+    next.style.marginTop = "12px";
+    next.type = "button";
+    if(qIndex < QUESTIONS.length - 1){
+      next.textContent = "Next question \u{2192}";
+      next.addEventListener("click", function(){ qIndex++; renderQuestion(); });
+    } else {
+      next.textContent = "Start again \u{21BB}";
+      next.addEventListener("click", function(){ qIndex=0; score=0; answered=0; updateScore(); renderQuestion(); });
+      var summary = document.createElement("p");
+      summary.className = "feedback tip show";
+      summary.style.marginTop = "10px";
+      summary.textContent = "Well listened. You scored " + score + " out of " + QUESTIONS.length + ". Try changing the layers yourself and describe the texture to a partner.";
+      fb.parentNode.appendChild(summary);
+    }
+    fb.parentNode.appendChild(next);
+  }
+
+  function updateScore(){
+    document.getElementById("quizScore").textContent =
+      "Score: " + score + " of " + answered;
+  }
+
+  // ---------- shared ----------
+  function announce(msg){
+    document.getElementById("srLive").textContent = msg;
+  }
+
+  // ---------- wire up ----------
+  document.getElementById("playBtn").addEventListener("click", function(){
+    if(isPlaying){ stopPlay(); } else { startPlay(); }
+  });
+  document.getElementById("stopBtn").addEventListener("click", function(){
+    stopPlay();
+    announce("Stopped.");
+  });
+  document.querySelectorAll("[data-preset]").forEach(function(b){
+    b.addEventListener("click", function(){ applyPreset(b.dataset.preset); });
+  });
+
+  renderLayers();
+  renderForm();
+  updateMeter();
+  renderQuestion();
+  updateScore();
+
+})();
+</script>
+</body>
+</html>

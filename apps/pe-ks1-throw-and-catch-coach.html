@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Throw and Catch Coach</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1f2937;
+    --muted: #586174;
+    --bg: #f4f7fb;
+    --card: #ffffff;
+    --brand: #1565c0;
+    --brand-deep: #0d47a1;
+    --accent: #ef6c00;
+    --green: #2e7d32;
+    --amber: #f9a825;
+    --red: #c62828;
+    --line: #d9e2ef;
+  }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    line-height: 1.4;
+    -webkit-text-size-adjust: 100%;
+  }
+  header.app-head {
+    background: linear-gradient(135deg, var(--brand-deep), var(--brand));
+    color: #fff;
+    padding: 18px 20px 20px;
+    text-align: center;
+  }
+  header.app-head h1 { font-size: clamp(24px, 5vw, 34px); font-weight: 800; letter-spacing: .2px; }
+  header.app-head p.aim {
+    margin-top: 6px; font-size: clamp(14px, 2.6vw, 16px);
+    font-weight: 500; color: #dbe9ff; max-width: 760px; margin-left: auto; margin-right: auto;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 18px 14px 60px; }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab {
+    flex: 1 1 180px; min-width: 150px;
+    background: var(--card); border: 2px solid var(--line); color: var(--muted);
+    border-radius: 12px; padding: 12px 14px; font-size: 16px; font-weight: 700;
+    cursor: pointer; text-align: center; transition: .15s;
+  }
+  .tab[aria-selected="true"] { background: var(--brand); border-color: var(--brand); color: #fff; box-shadow: 0 4px 12px rgba(21,101,192,.25); }
+  .tab:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: 0 2px 10px rgba(20,40,80,.05); }
+  .panel h2 { font-size: 20px; margin-bottom: 6px; color: var(--brand-deep); }
+  .panel .lede { color: var(--muted); font-size: 15px; margin-bottom: 14px; }
+  [hidden] { display: none !important; }
+
+  /* Coach / animation area */
+  .stage-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 760px) { .stage-grid { grid-template-columns: 1.3fr 1fr; } }
+
+  .stage {
+    position: relative; background: #eaf2fb; border: 2px solid var(--line);
+    border-radius: 14px; overflow: hidden; touch-action: none;
+  }
+  .stage svg { display: block; width: 100%; height: auto; }
+  .skill-pills { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .pill {
+    background: #fff; border: 2px solid var(--line); border-radius: 999px;
+    padding: 8px 16px; font-weight: 700; font-size: 15px; cursor: pointer; color: var(--muted);
+  }
+  .pill[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pill:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+
+  .controls { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .btn {
+    background: var(--brand); color: #fff; border: none; border-radius: 10px;
+    padding: 12px 18px; font-size: 16px; font-weight: 700; cursor: pointer;
+  }
+  .btn.secondary { background: #fff; color: var(--brand); border: 2px solid var(--brand); }
+  .btn.big { font-size: 18px; padding: 14px 22px; }
+  .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .btn:active { transform: translateY(1px); }
+
+  .scrubber { flex: 1 1 200px; display: flex; align-items: center; gap: 10px; min-width: 200px; }
+  .scrubber input[type=range] { flex: 1; height: 30px; }
+  .stepwrap { color: var(--muted); font-weight: 700; font-size: 14px; }
+
+  .coach-card {
+    background: #fff7ee; border: 2px solid #ffd9a8; border-radius: 14px; padding: 16px;
+  }
+  .coach-card .step-num {
+    display: inline-block; background: var(--accent); color: #fff; font-weight: 800;
+    border-radius: 8px; padding: 2px 12px; font-size: 14px; margin-bottom: 8px;
+  }
+  .coach-card h3 { font-size: 19px; color: var(--ink); margin-bottom: 6px; }
+  .coach-card p.cue { font-size: 16px; color: var(--ink); }
+  .coach-card .checkpoint {
+    margin-top: 12px; padding: 10px 12px; background: #fff; border-radius: 10px;
+    border: 1px dashed #ffb866; font-size: 15px; font-weight: 600; color: var(--accent);
+  }
+
+  .dotrow { display: flex; gap: 6px; margin-top: 10px; justify-content: center; flex-wrap: wrap; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: #cdd9ea; }
+  .dot.on { background: var(--accent); }
+
+  /* Spinner */
+  .spin-wrap { text-align: center; }
+  .spin-stage { position: relative; width: min(320px, 80vw); margin: 0 auto; }
+  .spin-stage svg { width: 100%; height: auto; touch-action: manipulation; }
+  .spin-needle { font-size: 30px; line-height: 1; }
+  .spin-result {
+    margin-top: 14px; background: #eef6ff; border: 2px solid #bcd9ff; border-radius: 14px;
+    padding: 16px; font-size: 17px; min-height: 64px; font-weight: 600;
+  }
+  .spin-result strong { color: var(--brand-deep); }
+
+  /* Thumbs grid */
+  table.thumbs { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  table.thumbs th, table.thumbs td { border: 1px solid var(--line); padding: 8px; text-align: center; }
+  table.thumbs th { background: #eef3fb; font-size: 14px; color: var(--brand-deep); }
+  table.thumbs td.name { text-align: left; font-weight: 700; white-space: nowrap; }
+  .thumb-btn {
+    border: 2px solid var(--line); background: #fff; border-radius: 10px;
+    width: 46px; height: 42px; font-size: 20px; cursor: pointer; line-height: 1;
+  }
+  .thumb-btn:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+  .thumb-btn.sel-up { background: #e7f6e8; border-color: var(--green); }
+  .thumb-btn.sel-side { background: #fff7e0; border-color: var(--amber); }
+  .thumb-btn.sel-down { background: #fdeaea; border-color: var(--red); }
+
+  .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+  .stat { background: #fff; border: 2px solid var(--line); border-radius: 12px; padding: 12px; text-align: center; }
+  .stat .big { font-size: 28px; font-weight: 800; }
+  .stat.up .big { color: var(--green); } .stat.side .big { color: var(--amber); } .stat.down .big { color: var(--red); }
+  .stat .lbl { font-size: 13px; color: var(--muted); font-weight: 600; }
+
+  .focus-note {
+    margin-top: 16px; background: #eef6ff; border-left: 5px solid var(--brand);
+    border-radius: 8px; padding: 12px 14px; font-size: 15px; font-weight: 500;
+  }
+  .focus-note strong { color: var(--brand-deep); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  footer.note { text-align: center; color: var(--muted); font-size: 13px; margin-top: 22px; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="app-head">
+  <h1>Throw and Catch Coach</h1>
+  <p class="aim">Teacher aim: model and assess KS1 fundamental movement skills (run, jump, throw, catch). Pause the slow-motion action to break down the technique, then capture the class self-assessment thumbs.</p>
+</header>
+
+<div class="wrap">
+  <div class="tabs" role="tablist" aria-label="Coach sections">
+    <button class="tab" role="tab" id="tab-coach" aria-controls="p-coach" aria-selected="true">&#x1F3C3; Technique Coach</button>
+    <button class="tab" role="tab" id="tab-spin" aria-controls="p-spin" aria-selected="false" tabindex="-1">&#x1F300; Skill Spinner</button>
+    <button class="tab" role="tab" id="tab-thumbs" aria-controls="p-thumbs" aria-selected="false" tabindex="-1">&#x1F44D; Thumbs Check</button>
+  </div>
+
+  <!-- ============ COACH ============ -->
+  <section class="panel" id="p-coach" role="tabpanel" aria-labelledby="tab-coach">
+    <h2>Slow-motion technique breakdown</h2>
+    <p class="lede">Choose a skill, then play the slow-motion action. Tap Pause (or use the slider) on any step to read the coaching cue and the thing to look for.</p>
+
+    <div class="skill-pills" role="group" aria-label="Choose a skill to coach">
+      <button class="pill" data-skill="throw" aria-pressed="true">&#x1F3D0; Throw</button>
+      <button class="pill" data-skill="catch" aria-pressed="false">&#x1F64C; Catch</button>
+      <button class="pill" data-skill="jump" aria-pressed="false">&#x2B50; Jump</button>
+      <button class="pill" data-skill="run" aria-pressed="false">&#x1F3C3; Run</button>
+    </div>
+
+    <div class="stage-grid">
+      <div>
+        <div class="stage" id="stage" aria-hidden="false">
+          <svg viewBox="0 0 360 260" id="figSvg" role="img" aria-label="Slow-motion stick-figure showing the action">
+            <!-- ground -->
+            <line x1="20" y1="232" x2="340" y2="232" stroke="#9fb6d4" stroke-width="3"/>
+            <!-- target / hoop hint -->
+            <circle id="ballTarget" cx="305" cy="120" r="14" fill="#ef6c00" opacity="0.25"/>
+            <!-- figure group, redrawn by JS -->
+            <g id="figure" stroke="#0d47a1" stroke-width="7" stroke-linecap="round" fill="none"></g>
+            <!-- ball -->
+            <circle id="ball" cx="120" cy="150" r="11" fill="#ef6c00" stroke="#b35200" stroke-width="2"/>
+          </svg>
+        </div>
+
+        <div class="controls">
+          <button class="btn big" id="playBtn">&#x25B6; Play</button>
+          <div class="scrubber">
+            <span class="stepwrap" id="stepLabel">Step 1 of 4</span>
+            <input type="range" id="scrub" min="0" max="3" step="1" value="0" aria-label="Scrub through the action steps">
+          </div>
+        </div>
+        <div class="dotrow" id="dots" aria-hidden="true"></div>
+        <p class="hint">Tip: on a whiteboard, tap Play then tap Pause when you want the class to study one step. Arrow keys move the slider.</p>
+      </div>
+
+      <div class="coach-card" aria-live="polite" id="coachCard">
+        <span class="step-num" id="cStepNum">Step 1</span>
+        <h3 id="cTitle">Get ready</h3>
+        <p class="cue" id="cCue">Cue text appears here.</p>
+        <div class="checkpoint" id="cCheck">Look for: checkpoint here.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SPINNER ============ -->
+  <section class="panel" id="p-spin" role="tabpanel" aria-labelledby="tab-spin" hidden>
+    <h2>Skill Spinner</h2>
+    <p class="lede">Spin to pick a fundamental movement skill for the next practice, then jump to the coach to model it.</p>
+    <div class="spin-wrap">
+      <div class="spin-stage">
+        <div class="spin-needle" aria-hidden="true">&#x1F53B;</div>
+        <svg viewBox="0 0 200 200" id="spinSvg" role="img" aria-label="Spinner with four skills: run, jump, throw, catch"></svg>
+      </div>
+      <div class="controls" style="justify-content:center">
+        <button class="btn big" id="spinBtn">Spin the wheel</button>
+      </div>
+      <div class="spin-result" id="spinResult" aria-live="polite">Press spin to choose a skill for the class to practise.</div>
+    </div>
+  </section>
+
+  <!-- ============ THUMBS ============ -->
+  <section class="panel" id="p-thumbs" role="tabpanel" aria-labelledby="tab-thumbs" hidden>
+    <h2>Class self-assessment: thumbs check</h2>
+    <p class="lede">After practising the chosen skill, tap a thumb for each pupil. Thumbs up: I can do it well. Thumbs sideways: getting there. Thumbs down: I need more help. The class summary updates live.</p>
+
+    <div class="controls" style="margin:0 0 12px">
+      <label for="skillSel" style="font-weight:700;color:var(--muted)">Skill being assessed:</label>
+      <select id="skillSel" style="padding:10px;border:2px solid var(--line);border-radius:10px;font-size:15px;font-weight:700">
+        <option value="Throwing">Throwing</option>
+        <option value="Catching">Catching</option>
+        <option value="Jumping">Jumping</option>
+        <option value="Running">Running</option>
+      </select>
+      <button class="btn secondary" id="resetThumbs">Reset all</button>
+    </div>
+
+    <div style="overflow-x:auto">
+      <table class="thumbs" id="thumbTable">
+        <thead>
+          <tr><th scope="col">Pupil (Robins class, demo)</th><th scope="col">&#x1F44D; Well</th><th scope="col">&#x270B; Getting there</th><th scope="col">&#x1F44E; Needs help</th></tr>
+        </thead>
+        <tbody id="thumbBody"></tbody>
+      </table>
+    </div>
+
+    <div class="summary-grid" aria-live="polite" id="summaryGrid">
+      <div class="stat up"><div class="big" id="cntUp">0</div><div class="lbl">Thumbs up</div></div>
+      <div class="stat side"><div class="big" id="cntSide">0</div><div class="lbl">Getting there</div></div>
+      <div class="stat down"><div class="big" id="cntDown">0</div><div class="lbl">Needs help</div></div>
+    </div>
+    <div class="focus-note" id="focusNote">Tap thumbs to build a live picture of the class.</div>
+  </section>
+
+  <footer class="note">Demonstration tool for KS1 Physical Education. All pupil names are fictional.</footer>
+</div>
+
+<script>
+"use strict";
+
+/* ---------------- Tabs ---------------- */
+const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+const panels = { 'tab-coach':'p-coach','tab-spin':'p-spin','tab-thumbs':'p-thumbs' };
+function selectTab(tab){
+  tabs.forEach(t=>{
+    const on = t===tab;
+    t.setAttribute('aria-selected', on?'true':'false');
+    t.tabIndex = on?0:-1;
+    document.getElementById(panels[t.id]).hidden = !on;
+  });
+  tab.focus();
+}
+tabs.forEach((tab,i)=>{
+  tab.addEventListener('click',()=>selectTab(tab));
+  tab.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+      e.preventDefault();
+      const dir = e.key==='ArrowRight'?1:-1;
+      selectTab(tabs[(i+dir+tabs.length)%tabs.length]);
+    }
+  });
+});
+
+/* ---------------- Coach data ---------------- */
+// Each skill: 4 steps. Each step has figure pose, ball position, title, cue, checkpoint.
+// Pose = list of polyline strings drawn for the stick figure.
+function pose(parts){ return parts; }
+
+const SKILLS = {
+  throw: {
+    label: 'Throwing',
+    target: {show:true, x:305, y:120},
+    steps: [
+      { title:'Stand side on',
+        cue:'Turn your side towards the target. Hold the ball back behind your head, opposite foot forward.',
+        check:'Look for: feet apart and the throwing side turned away from the target.',
+        ball:{x:90,y:70}, fig:figStand({lean:0, armBack:true}) },
+      { title:'Point and wind up',
+        cue:'Point your other hand at the target. Take the ball back to load the throw.',
+        check:'Look for: front arm pointing at the target like an arrow.',
+        ball:{x:78,y:64}, fig:figPoint() },
+      { title:'Step and throw',
+        cue:'Step towards the target and swing your arm forward fast, past your ear.',
+        check:'Look for: a big step onto the front foot as the arm comes through.',
+        ball:{x:200,y:96}, fig:figRelease() },
+      { title:'Follow through',
+        cue:'Let your arm finish low across your body. Watch where the ball lands.',
+        check:'Look for: the throwing hand finishing near the opposite hip.',
+        ball:{x:300,y:122}, fig:figFollow() },
+    ]
+  },
+  catch: {
+    label: 'Catching',
+    target: {show:false},
+    steps: [
+      { title:'Watch the ball',
+        cue:'Keep your eyes on the ball the whole time. Get your body behind it.',
+        check:'Look for: eyes tracking the ball, not looking away.',
+        ball:{x:300,y:60}, fig:figReady() },
+      { title:'Make a ready basket',
+        cue:'Hands out in front, fingers spread, like making a little basket or window.',
+        check:'Look for: hands together with thumbs close, fingers spread.',
+        ball:{x:230,y:95}, fig:figReachOut() },
+      { title:'Give with the ball',
+        cue:'As the ball arrives, bring your hands in softly to cushion it.',
+        check:'Look for: hands moving towards the chest, not stiff and flat.',
+        ball:{x:150,y:120}, fig:figCushion() },
+      { title:'Hug it safe',
+        cue:'Pull the ball into your chest so it does not bounce out.',
+        check:'Look for: the ball held close and secure against the body.',
+        ball:{x:128,y:128}, fig:figHug() },
+    ]
+  },
+  jump: {
+    label: 'Jumping',
+    target: {show:false},
+    steps: [
+      { title:'Bend and load',
+        cue:'Bend your knees and swing both arms back behind you.',
+        check:'Look for: knees bent and arms reaching back, ready like a spring.',
+        ball:null, fig:figCrouch() },
+      { title:'Drive up',
+        cue:'Push hard through your feet and swing your arms up fast.',
+        check:'Look for: arms swinging forward and up to lift the body.',
+        ball:null, fig:figDriveUp() },
+      { title:'Fly',
+        cue:'Stretch tall in the air with both feet off the ground.',
+        check:'Look for: a tall, stretched body at the top of the jump.',
+        ball:null, fig:figFly() },
+      { title:'Soft landing',
+        cue:'Land on two feet and bend your knees to land quietly.',
+        check:'Look for: bent knees and a balanced, quiet two-foot landing.',
+        ball:null, fig:figLand() },
+    ]
+  },
+  run: {
+    label: 'Running',
+    target: {show:false},
+    steps: [
+      { title:'Tall start',
+        cue:'Stand tall and look forward, ready to go.',
+        check:'Look for: a tall, balanced body looking ahead.',
+        ball:null, fig:figRunTall() },
+      { title:'Knees up',
+        cue:'Lift your front knee up high as you push off the back foot.',
+        check:'Look for: a high front knee and a long push behind.',
+        ball:null, fig:figRunKnee() },
+      { title:'Pump your arms',
+        cue:'Bend your elbows and swing your arms forward and back, not side to side.',
+        check:'Look for: bent elbows swinging straight, opposite arm to leg.',
+        ball:null, fig:figRunArms() },
+      { title:'Light feet',
+        cue:'Run on the balls of your feet, quick and light, eyes forward.',
+        check:'Look for: light, quick steps on the toes, not flat and heavy.',
+        ball:null, fig:figRunLight() },
+    ]
+  }
+};
+
+/* --- Stick figure pose builders. Each returns array of {type, attrs} primitives. --- */
+function L(x1,y1,x2,y2){ return {t:'line', x1,y1,x2,y2}; }
+function C(cx,cy,r){ return {t:'circle', cx,cy,r}; }
+// Base body around hip ~ (110,150)
+function figStand(){ return [
+  C(112,52,14), L(112,66,112,128), L(112,128,96,180), L(112,128,128,180),
+  L(112,80,150,72), L(112,80,92,56) ]; }
+function figPoint(){ return [
+  C(112,52,14), L(112,66,112,128), L(112,128,96,180), L(112,128,128,180),
+  L(112,82,158,70), L(112,82,86,54) ]; }
+function figRelease(){ return [
+  C(124,50,14), L(124,64,118,128), L(118,128,100,180), L(118,128,138,176),
+  L(120,80,170,66), L(120,80,150,52) ]; }
+function figFollow(){ return [
+  C(128,52,14), L(128,66,124,130), L(124,130,108,180), L(124,130,146,176),
+  L(126,84,160,108), L(126,84,98,96) ]; }
+function figReady(){ return [
+  C(112,52,14), L(112,66,112,128), L(112,128,96,182), L(112,128,128,182),
+  L(112,82,138,72), L(112,82,86,72) ]; }
+function figReachOut(){ return [
+  C(112,50,14), L(112,64,112,128), L(112,128,96,182), L(112,128,128,182),
+  L(112,80,170,86), L(112,80,156,98) ]; }
+function figCushion(){ return [
+  C(112,52,14), L(112,66,112,128), L(112,128,96,182), L(112,128,128,182),
+  L(112,82,138,104), L(112,82,90,104) ]; }
+function figHug(){ return [
+  C(112,52,14), L(112,66,112,128), L(112,128,96,182), L(112,128,128,182),
+  L(112,82,128,118), L(112,82,98,118) ]; }
+function figCrouch(){ return [
+  C(110,70,14), L(110,84,110,134), L(110,134,90,160), L(90,160,96,184),
+  L(110,134,130,160), L(130,160,124,184), L(110,96,84,118), L(110,96,84,108) ]; }
+function figDriveUp(){ return [
+  C(110,46,14), L(110,60,110,120), L(110,120,98,164), L(110,120,122,164),
+  L(110,74,138,40), L(110,74,82,40) ]; }
+function figFly(){ return [
+  C(110,30,14), L(110,44,110,96), L(110,96,100,140), L(110,96,120,140),
+  L(110,58,140,28), L(110,58,80,28) ]; }
+function figLand(){ return [
+  C(110,66,14), L(110,80,110,130), L(110,130,92,158), L(92,158,98,184),
+  L(110,130,128,158), L(128,158,122,184), L(110,92,86,116), L(110,92,134,116) ]; }
+function figRunTall(){ return [
+  C(112,50,14), L(112,64,112,128), L(112,128,100,182), L(112,128,124,182),
+  L(112,80,134,98), L(112,80,90,98) ]; }
+function figRunKnee(){ return [
+  C(120,48,14), L(120,62,116,126), L(116,126,150,140), L(150,140,162,176),
+  L(116,126,96,170), L(118,78,142,60), L(118,78,96,98) ]; }
+function figRunArms(){ return [
+  C(118,48,14), L(118,62,116,126), L(116,126,140,166), L(116,126,98,166),
+  L(118,80,142,62), L(118,80,96,104) ]; }
+function figRunLight(){ return [
+  C(122,48,14), L(122,62,118,126), L(118,126,150,150), L(150,150,158,176),
+  L(118,126,100,174), L(120,80,146,64), L(120,80,98,100) ]; }
+
+/* ---------------- Coach engine ---------------- */
+let curSkill = 'throw';
+let curStep = 0;
+let playTimer = null;
+
+const figureEl = document.getElementById('figure');
+const ballEl = document.getElementById('ball');
+const targetEl = document.getElementById('ballTarget');
+const scrub = document.getElementById('scrub');
+const playBtn = document.getElementById('playBtn');
+const stepLabel = document.getElementById('stepLabel');
+const dots = document.getElementById('dots');
+const stageEl = document.getElementById('stage');
+
+function drawFigure(prims){
+  let s = '';
+  for(const p of prims){
+    if(p.t==='line') s += `<line x1="${p.x1}" y1="${p.y1}" x2="${p.x2}" y2="${p.y2}"/>`;
+    else if(p.t==='circle') s += `<circle cx="${p.cx}" cy="${p.cy}" r="${p.r}"/>`;
+  }
+  figureEl.innerHTML = s;
+}
+
+function renderStep(){
+  const sk = SKILLS[curSkill];
+  const st = sk.steps[curStep];
+  drawFigure(st.fig);
+  // ball
+  if(st.ball){ ballEl.style.display=''; ballEl.setAttribute('cx',st.ball.x); ballEl.setAttribute('cy',st.ball.y); }
+  else { ballEl.style.display='none'; }
+  // target
+  targetEl.style.display = sk.target.show ? '' : 'none';
+  // coach card
+  document.getElementById('cStepNum').textContent = 'Step ' + (curStep+1);
+  document.getElementById('cTitle').textContent = st.title;
+  document.getElementById('cCue').textContent = st.cue;
+  document.getElementById('cCheck').textContent = st.check;
+  // controls
+  stepLabel.textContent = `Step ${curStep+1} of ${sk.steps.length}`;
+  scrub.max = sk.steps.length-1;
+  scrub.value = curStep;
+  // dots
+  dots.innerHTML = sk.steps.map((_,i)=>`<span class="dot ${i===curStep?'on':''}"></span>`).join('');
+  // figure aria
+  document.getElementById('figSvg').setAttribute('aria-label',
+    `${sk.label}, step ${curStep+1} of ${sk.steps.length}: ${st.title}. ${st.cue}`);
+}
+
+function setStep(i){
+  const n = SKILLS[curSkill].steps.length;
+  curStep = (i+n)%n;
+  renderStep();
+}
+
+function stopPlay(){
+  if(playTimer){ clearInterval(playTimer); playTimer=null; }
+  playBtn.innerHTML = '▶ Play';
+  playBtn.setAttribute('aria-label','Play the slow-motion action');
+}
+function startPlay(){
+  stopPlay();
+  playBtn.innerHTML = '⏸ Pause';
+  playBtn.setAttribute('aria-label','Pause the action to study this step');
+  playTimer = setInterval(()=>{
+    if(curStep >= SKILLS[curSkill].steps.length-1){ stopPlay(); return; }
+    setStep(curStep+1);
+  }, 1300);
+}
+playBtn.addEventListener('click',()=>{
+  if(playTimer) stopPlay();
+  else { if(curStep===SKILLS[curSkill].steps.length-1) setStep(0); startPlay(); }
+});
+
+scrub.addEventListener('input',()=>{ stopPlay(); setStep(parseInt(scrub.value,10)); });
+
+// Skill pills
+document.querySelectorAll('.pill').forEach(pill=>{
+  pill.addEventListener('click',()=>{
+    document.querySelectorAll('.pill').forEach(p=>p.setAttribute('aria-pressed','false'));
+    pill.setAttribute('aria-pressed','true');
+    curSkill = pill.dataset.skill;
+    stopPlay(); setStep(0);
+  });
+});
+
+// Tap on the stage advances a step (whiteboard-friendly)
+stageEl.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  stopPlay();
+  setStep(curStep+1);
+});
+
+renderStep();
+
+/* ---------------- Skill Spinner ---------------- */
+const spinSvg = document.getElementById('spinSvg');
+const spinResult = document.getElementById('spinResult');
+const spinBtn = document.getElementById('spinBtn');
+const WEDGES = [
+  {label:'Run',  emoji:'\u{1F3C3}', colour:'#1565c0', skill:'run',   tip:'Lift those knees and run on light, quick feet.'},
+  {label:'Jump', emoji:'⭐',    colour:'#2e7d32', skill:'jump',  tip:'Bend, swing your arms, and land softly on two feet.'},
+  {label:'Throw',emoji:'\u{1F3D0}', colour:'#ef6c00', skill:'throw', tip:'Stand side on, point, then step and throw.'},
+  {label:'Catch',emoji:'\u{1F64C}', colour:'#6a1b9a', skill:'catch', tip:'Watch the ball and make a soft basket with your hands.'}
+];
+function buildSpinner(){
+  const cx=100, cy=100, r=92;
+  let s='';
+  for(let i=0;i<4;i++){
+    const a0 = (i*90-90) * Math.PI/180;
+    const a1 = ((i+1)*90-90) * Math.PI/180;
+    const x0=cx+r*Math.cos(a0), y0=cy+r*Math.sin(a0);
+    const x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1);
+    s += `<path d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 0 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${WEDGES[i].colour}"/>`;
+    const am = (a0+a1)/2;
+    const tx = cx + (r*0.6)*Math.cos(am), ty = cy + (r*0.6)*Math.sin(am);
+    s += `<text x="${tx.toFixed(1)}" y="${(ty+5).toFixed(1)}" fill="#fff" font-size="13" font-weight="700" text-anchor="middle">${WEDGES[i].label}</text>`;
+  }
+  s += `<circle cx="${cx}" cy="${cy}" r="14" fill="#fff" stroke="#0d47a1" stroke-width="3"/>`;
+  spinSvg.innerHTML = s;
+}
+buildSpinner();
+let spinAngle = 0, spinning=false;
+spinBtn.addEventListener('click',()=>{
+  if(spinning) return;
+  spinning = true;
+  const pick = Math.floor(Math.random()*4);
+  // wheel needle points up (top). wedge i centre currently at angle = (i*90) from top after offset.
+  const turns = 4;
+  const targetCentre = pick*90 + 45; // centre of chosen wedge measured from top, clockwise
+  const finalAngle = turns*360 + (360 - targetCentre);
+  spinSvg.style.transition = 'transform 2.2s cubic-bezier(.17,.67,.32,1.3)';
+  spinSvg.style.transform = `rotate(${finalAngle}deg)`;
+  spinResult.textContent = 'Spinning...';
+  setTimeout(()=>{
+    spinning=false;
+    spinAngle = finalAngle % 360;
+    const w = WEDGES[pick];
+    spinResult.innerHTML = `${w.emoji} Practise: <strong>${w.label}</strong>. ${w.tip}`;
+  }, 2300);
+});
+
+/* ---------------- Thumbs grid ---------------- */
+const PUPILS = ['Amara','Bilal','Cassie','Dmitri','Esme','Femi','Gracie','Harvey','Ivy','Jonah','Kira','Leon'];
+const thumbBody = document.getElementById('thumbBody');
+const state = {}; // name -> 'up'|'side'|'down'|null
+PUPILS.forEach(n=>state[n]=null);
+
+const EMO = { up:'\u{1F44D}', side:'✋', down:'\u{1F44E}' };
+
+function buildThumbs(){
+  thumbBody.innerHTML = '';
+  PUPILS.forEach(name=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="name">${name}</td>`;
+    ['up','side','down'].forEach(val=>{
+      const td = document.createElement('td');
+      const b = document.createElement('button');
+      b.className = 'thumb-btn';
+      b.type = 'button';
+      b.textContent = EMO[val];
+      const labelMap = {up:'thumbs up, can do it well', side:'thumbs sideways, getting there', down:'thumbs down, needs help'};
+      b.setAttribute('aria-label', `${name}: ${labelMap[val]}`);
+      b.setAttribute('aria-pressed','false');
+      b.addEventListener('click',()=>{
+        state[name] = (state[name]===val)? null : val;
+        refreshRow(tr, name);
+        updateSummary();
+      });
+      td.appendChild(b);
+      tr.appendChild(td);
+    });
+    thumbBody.appendChild(tr);
+  });
+}
+function refreshRow(tr, name){
+  const btns = tr.querySelectorAll('.thumb-btn');
+  const vals = ['up','side','down'];
+  btns.forEach((b,i)=>{
+    const on = state[name]===vals[i];
+    b.classList.toggle('sel-'+vals[i], on);
+    b.setAttribute('aria-pressed', on?'true':'false');
+  });
+}
+function updateSummary(){
+  let up=0, side=0, down=0;
+  Object.values(state).forEach(v=>{ if(v==='up')up++; else if(v==='side')side++; else if(v==='down')down++; });
+  document.getElementById('cntUp').textContent = up;
+  document.getElementById('cntSide').textContent = side;
+  document.getElementById('cntDown').textContent = down;
+  const skill = document.getElementById('skillSel').value;
+  const done = up+side+down;
+  const note = document.getElementById('focusNote');
+  if(done===0){ note.innerHTML='Tap thumbs to build a live picture of the class.'; return; }
+  if(down>=side && down>=up && down>0){
+    note.innerHTML = `<strong>Teaching focus:</strong> ${down} pupils need more help with ${skill.toLowerCase()}. Plan a small-group station with extra modelling next lesson.`;
+  } else if(side>=up){
+    note.innerHTML = `<strong>Teaching focus:</strong> most pupils are getting there with ${skill.toLowerCase()}. Recap the key checkpoint, then give more practice repetitions.`;
+  } else {
+    note.innerHTML = `<strong>Well done class:</strong> the majority can do ${skill.toLowerCase()} well. Stretch them by adding distance, speed, or a moving target.`;
+  }
+}
+document.getElementById('skillSel').addEventListener('change', updateSummary);
+document.getElementById('resetThumbs').addEventListener('click',()=>{
+  PUPILS.forEach(n=>state[n]=null);
+  buildThumbs(); updateSummary();
+});
+buildThumbs();
+updateSummary();
+</script>
+</body>
+</html>

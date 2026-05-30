@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anthropometrics Explorer</title>
+<style>
+  :root {
+    --ink: #1d2430;
+    --ink-soft: #4a5462;
+    --line: #d9dee6;
+    --paper: #f5f7fa;
+    --card: #ffffff;
+    --accent: #6d28d9;
+    --accent-dark: #5421ab;
+    --accent-soft: #efe9fb;
+    --good: #1b7f4b;
+    --good-bg: #e6f4ec;
+    --warn: #b06d00;
+    --warn-bg: #fbf0db;
+    --bad: #b3261e;
+    --bad-bg: #fbe6e5;
+    --band: #cdb9f3;
+    --shadow: 0 1px 3px rgba(20,30,50,.08), 0 6px 18px rgba(20,30,50,.06);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 18px 16px 70px; }
+  header.app { margin-bottom: 14px; }
+  .eyebrow {
+    display: inline-block; font-size: .72rem; letter-spacing: .09em;
+    text-transform: uppercase; font-weight: 700; color: var(--accent);
+    background: var(--accent-soft); padding: 4px 10px; border-radius: 999px;
+  }
+  h1 { font-size: clamp(1.5rem, 3.4vw, 2.15rem); margin: 10px 0 4px; line-height: 1.15; }
+  .lede { color: var(--ink-soft); margin: 0 0 2px; max-width: 70ch; }
+  .aim {
+    background: var(--accent-soft); border-left: 4px solid var(--accent);
+    padding: 10px 14px; border-radius: 0 10px 10px 0; color: var(--ink-soft);
+    font-size: .95rem; margin: 12px 0 0;
+  }
+  .aim strong { color: var(--ink); }
+  .grid {
+    display: grid; gap: 16px; margin-top: 18px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 920px) {
+    .grid { grid-template-columns: 1.05fr 1fr; align-items: start; }
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px;
+  }
+  .card h2 {
+    font-size: 1.05rem; margin: 0 0 8px; display: flex; align-items: center; gap: 8px;
+  }
+  .card h2 .ico { font-size: 1.15rem; }
+  .sub { color: var(--ink-soft); font-size: .9rem; margin: -2px 0 12px; }
+
+  label.field { display: block; margin: 14px 0 0; }
+  .field-label { font-weight: 600; font-size: .9rem; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .field-label .hint { font-weight: 400; color: var(--ink-soft); font-size: .82rem; }
+  select, .seg {
+    width: 100%; margin-top: 6px; font: inherit; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 9px 10px;
+  }
+  select:focus, button:focus-visible, input:focus-visible { outline: 3px solid #c4b3ef; outline-offset: 2px; }
+
+  .seg { display: flex; gap: 6px; padding: 4px; background: var(--paper); }
+  .seg button {
+    flex: 1; border: 1px solid transparent; background: transparent; border-radius: 7px;
+    padding: 8px 6px; font: inherit; cursor: pointer; color: var(--ink-soft); font-weight: 600;
+  }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--accent-dark); border-color: var(--line); box-shadow: var(--shadow); }
+
+  .range-row { margin-top: 8px; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; }
+  .pct-readout { display: flex; justify-content: space-between; font-size: .85rem; color: var(--ink-soft); margin-top: 2px; }
+
+  /* Percentile band picker (dual slider feel) */
+  .bandbox { margin-top: 6px; }
+  .bandtrack {
+    position: relative; height: 46px; margin: 6px 4px 0;
+  }
+  .bandtrack .rail {
+    position: absolute; top: 21px; left: 0; right: 0; height: 6px; border-radius: 6px;
+    background: linear-gradient(90deg,#f3d9d9,#f6ecd2,#dff0e6,#f6ecd2,#f3d9d9);
+  }
+  .bandtrack .fill {
+    position: absolute; top: 21px; height: 6px; border-radius: 6px; background: var(--accent);
+  }
+  .bandtrack input[type="range"] {
+    position: absolute; top: 8px; left: 0; width: 100%; margin: 0; background: none;
+    pointer-events: none; -webkit-appearance: none; appearance: none; height: 30px;
+  }
+  .bandtrack input[type="range"]::-webkit-slider-thumb {
+    pointer-events: auto; -webkit-appearance: none; appearance: none;
+    width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid var(--accent);
+    box-shadow: var(--shadow); cursor: pointer;
+  }
+  .bandtrack input[type="range"]::-moz-range-thumb {
+    pointer-events: auto; width: 20px; height: 20px; border-radius: 50%; background: #fff;
+    border: 3px solid var(--accent); box-shadow: var(--shadow); cursor: pointer;
+  }
+  .bandtrack input[type="range"]::-moz-range-track { background: transparent; }
+  .band-readout { text-align: center; font-weight: 700; color: var(--accent-dark); margin-top: 2px; }
+  .band-readout span { font-variant-numeric: tabular-nums; }
+
+  .dimblock { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .dimhead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .dimhead .name { font-weight: 700; }
+  .dimhead .val { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent-dark); }
+  .dimhead .crit { font-size: .8rem; color: var(--ink-soft); font-weight: 400; }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button.btn {
+    font: inherit; font-weight: 600; cursor: pointer; border-radius: 10px; padding: 10px 14px;
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+  }
+  button.btn.ghost { background: #fff; color: var(--accent-dark); }
+  button.btn:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+  button.btn.ghost:hover { background: var(--accent-soft); }
+
+  /* Visualisation */
+  .viz-wrap { position: relative; }
+  svg.curve { width: 100%; height: auto; display: block; border-radius: 10px; background: #fbfbfe; border: 1px solid var(--line); }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: .82rem; color: var(--ink-soft); margin-top: 8px; }
+  .legend i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+
+  .verdict { margin-top: 14px; border-radius: 12px; padding: 12px 14px; border: 1px solid var(--line); }
+  .verdict h3 { margin: 0 0 4px; font-size: 1rem; }
+  .verdict.good { background: var(--good-bg); border-color: #bfe2cd; }
+  .verdict.good h3 { color: var(--good); }
+  .verdict.warn { background: var(--warn-bg); border-color: #ecd8a8; }
+  .verdict.warn h3 { color: var(--warn); }
+  .verdict.bad { background: var(--bad-bg); border-color: #f0c4c1; }
+  .verdict.bad h3 { color: var(--bad); }
+  .verdict p { margin: 6px 0 0; font-size: .92rem; }
+  .verdict ul { margin: 8px 0 0; padding-left: 20px; font-size: .9rem; }
+  .verdict li { margin: 3px 0; }
+
+  .statgrid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 14px; }
+  .stat { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; text-align: center; }
+  .stat .n { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .stat .l { font-size: .72rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .04em; }
+
+  .clearance-note { font-size: .82rem; color: var(--ink-soft); margin-top: 10px; padding: 8px 10px; background: var(--paper); border-radius: 8px; border: 1px solid var(--line); }
+
+  .data-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: .85rem; }
+  .data-table th, .data-table td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .data-table th:first-child, .data-table td:first-child { text-align: left; }
+  .data-table th { color: var(--ink-soft); font-weight: 600; font-size: .78rem; }
+
+  details.note { margin-top: 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+  details.note > summary { cursor: pointer; padding: 12px 14px; font-weight: 600; }
+  details.note .body { padding: 0 14px 14px; color: var(--ink-soft); font-size: .9rem; }
+  details.note .body p { margin: 6px 0; }
+
+  .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  footer.foot { margin-top: 22px; color: var(--ink-soft); font-size: .82rem; text-align: center; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <span class="eyebrow">Design &amp; Technology &middot; KS5</span>
+    <h1>Anthropometrics Explorer</h1>
+    <p class="lede">Set a target percentile range, choose a product, then tune its dimensions and watch how many real users are accommodated. Inclusive design, tested against anthropometric data.</p>
+    <p class="aim"><strong>Teacher aim:</strong> Pupils apply anthropometric data and percentiles to size a product for a defined user range, then justify inclusive design decisions (clearance, reach and adjustability) against a target population.</p>
+  </header>
+
+  <div class="grid">
+    <!-- CONTROLS -->
+    <section class="card" aria-labelledby="ctrl-h">
+      <h2 id="ctrl-h"><span class="ico" aria-hidden="true">&#x1F4D0;</span> Design controls</h2>
+      <p class="sub">All data are UK adult anthropometric estimates (18 to 65), shown in millimetres. Demonstration figures for teaching.</p>
+
+      <label class="field">
+        <span class="field-label">Product to design
+          <span class="hint">drives which dimensions matter</span>
+        </span>
+        <select id="product" aria-describedby="prod-desc"></select>
+      </label>
+      <p id="prod-desc" class="sub" style="margin-top:6px"></p>
+
+      <fieldset style="border:0;padding:0;margin:14px 0 0">
+        <legend class="field-label" style="padding:0">User population</legend>
+        <div class="seg" id="popseg" role="group" aria-label="Choose user population">
+          <button type="button" data-pop="combined" aria-pressed="true">Combined adults</button>
+          <button type="button" data-pop="women" aria-pressed="false">Women</button>
+          <button type="button" data-pop="men" aria-pressed="false">Men</button>
+        </div>
+      </fieldset>
+
+      <div class="field" style="margin-top:16px">
+        <span class="field-label">Target percentile range
+          <span class="hint" id="bandhint">design to accommodate</span>
+        </span>
+        <div class="bandbox">
+          <div class="bandtrack" id="bandtrack">
+            <div class="rail"></div>
+            <div class="fill" id="bandfill"></div>
+            <input type="range" id="pLow" min="1" max="99" step="1" value="5"
+                   aria-label="Lower target percentile" aria-valuetext="5th percentile">
+            <input type="range" id="pHigh" min="1" max="99" step="1" value="95"
+                   aria-label="Upper target percentile" aria-valuetext="95th percentile">
+          </div>
+          <div class="band-readout">Target: <span id="bandtext">5th to 95th percentile</span></div>
+        </div>
+      </div>
+
+      <div id="dims"></div>
+
+      <div class="actions">
+        <button type="button" class="btn ghost" id="autofit">&#x2728; Auto-fit to target</button>
+        <button type="button" class="btn ghost" id="reset">Reset</button>
+      </div>
+
+      <details class="note">
+        <summary>What is a percentile? (quick recall)</summary>
+        <div class="body">
+          <p>A percentile tells you what proportion of a population sits at or below a measurement. The 5th percentile woman is small: only 5% of women are shorter. The 95th percentile man is large: only 5% of men are taller.</p>
+          <p>Designers usually size for a range (often 5th to 95th, covering 90% of users) and use <strong>adjustability</strong> to reach the extremes. Some safety-critical dimensions use a single boundary: clearance is sized for the largest user (95th), reach is sized for the smallest user (5th).</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="card" aria-labelledby="res-h">
+      <h2 id="res-h"><span class="ico" aria-hidden="true">&#x1F4CA;</span> Population fit</h2>
+      <p class="sub" id="curvecaption">Distribution of the leading dimension across the chosen population.</p>
+
+      <div class="viz-wrap">
+        <svg class="curve" id="curve" viewBox="0 0 600 240" role="img"
+             aria-labelledby="curve-title" aria-describedby="curve-desc">
+          <title id="curve-title">Normal distribution with the accommodated band shaded</title>
+          <desc id="curve-desc">A bell curve. The shaded region shows the proportion of users whose body measurement is served by the current product dimension.</desc>
+        </svg>
+        <div class="legend">
+          <span><i style="background:var(--band)"></i>Accommodated users</span>
+          <span><i style="background:#f3d9d9"></i>Excluded (too small or too large)</span>
+          <span><i style="background:var(--accent)"></i>Target boundary</span>
+        </div>
+      </div>
+
+      <div class="statgrid">
+        <div class="stat"><div class="n" id="statFit">90%</div><div class="l">Accommodated</div></div>
+        <div class="stat"><div class="n" id="statTarget">90%</div><div class="l">Target</div></div>
+        <div class="stat"><div class="n" id="statExcl">0</div><div class="l">Excluded / 1000</div></div>
+      </div>
+
+      <div id="verdict" class="verdict warn" role="status" aria-live="polite">
+        <h3 id="verdictTitle">Adjust a dimension to begin</h3>
+        <p id="verdictBody">Move the dimension sliders, or press Auto-fit, to size the product for your target percentile range.</p>
+      </div>
+
+      <div class="clearance-note" id="clearNote"></div>
+
+      <details class="note">
+        <summary>Underlying anthropometric data (mm)</summary>
+        <div class="body" id="dataNote"></div>
+      </details>
+    </section>
+  </div>
+
+  <p class="visually-hidden" id="srlive" aria-live="polite"></p>
+
+  <footer class="foot">
+    Anthropometrics Explorer &middot; WeST Design &amp; Technology &middot; figures are illustrative teaching estimates, not a design standard.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------------------------------------------------------
+     Anthropometric data (illustrative UK adult estimates, mm).
+     Each measure: mean + standard deviation, by sex.
+     Combined is computed by pooling at runtime.
+  ---------------------------------------------------------------- */
+  var DATA = {
+    statureMm:        { women: { m: 1610, sd: 62 }, men: { m: 1740, sd: 70 } },
+    sittingHeightMm:  { women: { m: 850,  sd: 35 }, men: { m: 910,  sd: 36 } },
+    eyeHeightSitMm:   { women: { m: 740,  sd: 33 }, men: { m: 790,  sd: 35 } },
+    popHeightMm:      { women: { m: 400,  sd: 30 }, men: { m: 440,  sd: 31 } }, // popliteal (seat height)
+    buttockPoplitMm:  { women: { m: 480,  sd: 28 }, men: { m: 500,  sd: 30 } }, // seat depth
+    hipBreadthMm:     { women: { m: 370,  sd: 30 }, men: { m: 360,  sd: 28 } }, // seated hip width
+    shoulderBreadthMm:{ women: { m: 400,  sd: 22 }, men: { m: 460,  sd: 25 } },
+    forwardReachMm:   { women: { m: 690,  sd: 38 }, men: { m: 750,  sd: 42 } },
+    gripReachUpMm:    { women: { m: 1880, sd: 80 }, men: { m: 2030, sd: 88 } } // vertical grip reach standing
+  };
+
+  // Pool two normals (assume equal group sizes) into a single normal-ish estimate.
+  function pooled(measure) {
+    var w = DATA[measure].women, m = DATA[measure].men;
+    var mean = (w.m + m.m) / 2;
+    // variance of a 50/50 mixture = avg(var) + avg((mean_i - grand)^2)
+    var v = (w.sd*w.sd + m.sd*m.sd) / 2 + (Math.pow(w.m-mean,2) + Math.pow(m.m-mean,2)) / 2;
+    return { m: mean, sd: Math.sqrt(v) };
+  }
+  function stats(measure, pop) {
+    if (pop === "combined") return pooled(measure);
+    return DATA[measure][pop];
+  }
+
+  /* ---- Normal distribution maths ---- */
+  function erf(x) {
+    // Abramowitz & Stegun 7.1.26
+    var s = x < 0 ? -1 : 1; x = Math.abs(x);
+    var t = 1 / (1 + 0.3275911 * x);
+    var y = 1 - (((((1.061405429*t - 1.453152027)*t) + 1.421413741)*t - 0.284496736)*t + 0.254829592)*t*Math.exp(-x*x);
+    return s * y;
+  }
+  function cdf(x, mean, sd) { return 0.5 * (1 + erf((x - mean) / (sd * Math.SQRT2))); }
+  function quantile(p, mean, sd) { // p in 0..1, inverse via rational approx (Acklam)
+    if (p <= 0) return -Infinity; if (p >= 1) return Infinity;
+    var a=[-3.969683028665376e+01,2.209460984245205e+02,-2.759285104469687e+02,1.383577518672690e+02,-3.066479806614716e+01,2.506628277459239e+00];
+    var b=[-5.447609879822406e+01,1.615858368580409e+02,-1.556989798598866e+02,6.680131188771972e+01,-1.328068155288572e+01];
+    var c=[-7.784894002430293e-03,-3.223964580411365e-01,-2.400758277161838e+00,-2.549732539343734e+00,4.374664141464968e+00,2.938163982698783e+00];
+    var d=[7.784695709041462e-03,3.224671290700398e-01,2.445134137142996e+00,3.754408661907416e+00];
+    var pl=0.02425, ph=1-pl, q, r, z;
+    if (p < pl) { q=Math.sqrt(-2*Math.log(p)); z=(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+    else if (p <= ph) { q=p-0.5; r=q*q; z=(((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1); }
+    else { q=Math.sqrt(-2*Math.log(1-p)); z=-(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+    return mean + z * sd;
+  }
+
+  /* ---------------------------------------------------------------
+     Products. Each has dimensions tied to a body measure.
+     fitType: how the dimension serves users.
+       "max"  -> dimension is a clearance/upper limit: serves everyone whose
+                 body measure is <= dimension (e.g. seat width, doorway, legroom).
+       "min"  -> dimension is a reach/lower target: serves everyone whose body
+                 measure is >= dimension is WRONG; for reach, smaller users are the
+                 constraint, so a control at height = dimension serves everyone whose
+                 reach is >= dimension. We treat reach with "reach" semantics below.
+     To keep the model clear for KS5 we use two semantics:
+       "accommodateBelow": good when body measure <= dimension (clearance/space).
+       "accommodateAbove": good when body measure >= dimension (reach: user must
+                            be able to reach the dimension).
+  ---------------------------------------------------------------- */
+  var PRODUCTS = {
+    chair: {
+      label: "Adjustable task chair",
+      desc: "A workplace chair. Seat height should suit short and tall users; seat width must not pinch the widest hips.",
+      caption: "Leading dimension: seat (popliteal) height fit across the population.",
+      dims: [
+        { key:"seatHeight", name:"Seat height", measure:"popHeightMm", crit:"feet flat on floor", semantics:"accommodateBelow", min:330, max:520, step:5, lead:true,
+          adjustable:true, adjRange:[380,460], help:"Seat must be low enough for the shortest user's feet to reach the floor: serves users whose popliteal height is at least the seat height." },
+        { key:"seatDepth", name:"Seat depth", measure:"buttockPoplitMm", crit:"no pressure behind knee", semantics:"accommodateBelow", min:380, max:560, step:5,
+          help:"Seat depth should be no greater than the buttock to popliteal length of the smallest users, else the seat edge presses behind the knee." },
+        { key:"seatWidth", name:"Seat width", measure:"hipBreadthMm", crit:"fits widest hips", semantics:"accommodateAbove", min:360, max:560, step:5,
+          help:"Seat width must be at least the hip breadth of the widest users." }
+      ]
+    },
+    desk: {
+      label: "Standing workbench",
+      desc: "A workshop bench. Surface height suits standing work; underside clearance must accept the tallest seated knees if a stool is used.",
+      caption: "Leading dimension: bench height versus standing elbow comfort.",
+      dims: [
+        { key:"benchHeight", name:"Bench height", measure:"statureMm", crit:"elbow-height working", semantics:"accommodateBelow", min:850, max:1150, step:10, lead:true,
+          adjustable:true, adjRange:[950,1100],
+          help:"Comfortable bench height is roughly elbow height; for this model the bench should not exceed a fraction of stature so shorter users are not over-reaching." },
+        { key:"toeClear", name:"Toe recess depth", measure:"forwardReachMm", crit:"reach the work", semantics:"accommodateAbove", min:600, max:820, step:10,
+          help:"The recess sets how far a user must reach to the work surface: it must be within the forward reach of the smallest users." }
+      ]
+    },
+    shelf: {
+      label: "Storage shelf height",
+      desc: "A shelf in a shared store. Set it within vertical reach of the shortest users without being uncomfortably low for the tallest.",
+      caption: "Leading dimension: shelf height versus standing grip reach.",
+      dims: [
+        { key:"shelfHeight", name:"Top shelf height", measure:"gripReachUpMm", crit:"reachable when standing", semantics:"accommodateAbove", min:1550, max:2050, step:10, lead:true,
+          help:"A shelf is only reachable by users whose grip reach is at least the shelf height. Lowering it includes more short users." }
+      ]
+    },
+    panel: {
+      label: "Seated control panel",
+      desc: "A seated operator console. The control row must be within forward reach and at a comfortable eye line.",
+      caption: "Leading dimension: control distance versus seated forward reach.",
+      dims: [
+        { key:"reachDist", name:"Control distance", measure:"forwardReachMm", crit:"within forward reach", semantics:"accommodateAbove", min:550, max:820, step:5, lead:true,
+          help:"Controls must sit within the forward reach of the smallest users; reducing the distance includes more people." },
+        { key:"displayHt", name:"Display height", measure:"eyeHeightSitMm", crit:"near seated eye line", semantics:"accommodateBelow", min:650, max:900, step:5,
+          help:"The display should sit near or below seated eye height so users do not crane upward; serves users whose seated eye height is at least the display height." }
+      ]
+    }
+  };
+
+  /* ---------------------------------------------------------------
+     State
+  ---------------------------------------------------------------- */
+  var state = {
+    product: "chair",
+    pop: "combined",
+    pLow: 5,
+    pHigh: 95,
+    values: {} // key -> mm
+  };
+
+  function el(id){ return document.getElementById(id); }
+
+  // Build product dropdown
+  (function initProducts(){
+    var sel = el("product");
+    Object.keys(PRODUCTS).forEach(function(k){
+      var o = document.createElement("option");
+      o.value = k; o.textContent = PRODUCTS[k].label; sel.appendChild(o);
+    });
+    sel.value = state.product;
+  })();
+
+  /* Compute the proportion of the population accommodated by one dimension. */
+  function fitFor(dim, pop) {
+    var s = stats(dim.measure, pop);
+    var v = state.values[dim.key];
+    var prop;
+    if (dim.semantics === "accommodateBelow") {
+      // good when body measure <= dimension  => CDF at dimension
+      prop = cdf(v, s.m, s.sd);
+    } else {
+      // accommodateAbove: good when body measure >= dimension => 1 - CDF
+      prop = 1 - cdf(v, s.m, s.sd);
+    }
+    return Math.max(0, Math.min(1, prop));
+  }
+
+  /* The "leading" dimension's distribution drives the curve & headline. */
+  function leadDim(){ var d=PRODUCTS[state.product].dims; for (var i=0;i<d.length;i++) if (d[i].lead) return d[i]; return d[0]; }
+
+  /* ---------------------------------------------------------------
+     Render dimension sliders
+  ---------------------------------------------------------------- */
+  function renderDims(){
+    var p = PRODUCTS[state.product];
+    var host = el("dims");
+    host.innerHTML = "";
+    p.dims.forEach(function(dim){
+      if (state.values[dim.key] === undefined) {
+        state.values[dim.key] = Math.round((dim.min + dim.max) / 2 / dim.step) * dim.step;
+      }
+      var block = document.createElement("div");
+      block.className = "dimblock";
+
+      var head = document.createElement("div");
+      head.className = "dimhead";
+      head.innerHTML = '<span class="name">' + dim.name +
+        ' <span class="crit">(' + dim.crit + ')</span></span>' +
+        '<span class="val" id="val-' + dim.key + '">' + state.values[dim.key] + ' mm</span>';
+      block.appendChild(head);
+
+      var row = document.createElement("div");
+      row.className = "range-row";
+      var inp = document.createElement("input");
+      inp.type = "range"; inp.min = dim.min; inp.max = dim.max; inp.step = dim.step;
+      inp.value = state.values[dim.key];
+      inp.id = "rng-" + dim.key;
+      inp.setAttribute("aria-label", dim.name + " in millimetres");
+      inp.setAttribute("aria-describedby", "help-" + dim.key);
+      inp.style.touchAction = "none";
+      inp.addEventListener("input", function(){
+        state.values[dim.key] = parseInt(inp.value, 10);
+        update();
+      });
+      row.appendChild(inp);
+      block.appendChild(row);
+
+      var readout = document.createElement("div");
+      readout.className = "pct-readout";
+      readout.innerHTML = '<span>' + dim.min + ' mm</span><span id="fit-' + dim.key + '"></span><span>' + dim.max + ' mm</span>';
+      block.appendChild(readout);
+
+      var help = document.createElement("p");
+      help.id = "help-" + dim.key; help.className = "sub";
+      help.style.margin = "6px 0 0"; help.textContent = dim.help;
+      block.appendChild(help);
+
+      host.appendChild(block);
+    });
+  }
+
+  /* ---------------------------------------------------------------
+     SVG bell curve with shaded accommodated region
+  ---------------------------------------------------------------- */
+  function drawCurve(dim, pop) {
+    var svg = el("curve");
+    var s = stats(dim.measure, pop);
+    var W = 600, H = 240, padX = 36, padB = 34, padT = 18;
+    var loX = s.m - 3.4*s.sd, hiX = s.m + 3.4*s.sd;
+    function sx(x){ return padX + (x - loX)/(hiX - loX) * (W - padX*2); }
+    var N = 120, pts = [], maxY = 0, ys = [];
+    for (var i=0;i<=N;i++){
+      var x = loX + (hiX-loX)*i/N;
+      var y = Math.exp(-0.5*Math.pow((x-s.m)/s.sd,2));
+      ys.push({x:x,y:y}); if (y>maxY) maxY=y;
+    }
+    var baseY = H - padB;
+    function sy(y){ return baseY - (y/maxY) * (H - padB - padT); }
+
+    var v = state.values[dim.key];
+    var below = dim.semantics === "accommodateBelow";
+
+    // Build the full curve path
+    var line = "";
+    ys.forEach(function(p,i){ line += (i?"L":"M") + sx(p.x).toFixed(1) + " " + sy(p.y).toFixed(1) + " "; });
+
+    // Shaded accommodated polygon
+    var shade = "";
+    var startX = below ? loX : v, endX = below ? v : hiX;
+    shade += "M" + sx(startX).toFixed(1) + " " + baseY + " ";
+    ys.forEach(function(p){
+      if (p.x >= startX - 1e-6 && p.x <= endX + 1e-6) {
+        shade += "L" + sx(p.x).toFixed(1) + " " + sy(p.y).toFixed(1) + " ";
+      }
+    });
+    shade += "L" + sx(endX).toFixed(1) + " " + baseY + " Z";
+
+    // Target boundary lines (percentile positions)
+    var tLow = quantile(state.pLow/100, s.m, s.sd);
+    var tHigh = quantile(state.pHigh/100, s.m, s.sd);
+
+    function gtext(x,label){ return '<text x="'+sx(x).toFixed(1)+'" y="'+(baseY+18)+'" text-anchor="middle" font-size="11" fill="#4a5462">'+label+'</text>'; }
+
+    var dimColor = "#6d28d9";
+    var html = "";
+    // axis baseline
+    html += '<line x1="'+padX+'" y1="'+baseY+'" x2="'+(W-padX)+'" y2="'+baseY+'" stroke="#d9dee6" stroke-width="1"/>';
+    // shaded region
+    html += '<path d="'+shade+'" fill="#cdb9f3" opacity="0.55"/>';
+    // curve
+    html += '<path d="'+line+'" fill="none" stroke="#5421ab" stroke-width="2"/>';
+    // target boundaries
+    [{x:tLow,l:state.pLow+"th"},{x:tHigh,l:state.pHigh+"th"}].forEach(function(t){
+      html += '<line x1="'+sx(t.x).toFixed(1)+'" y1="'+padT+'" x2="'+sx(t.x).toFixed(1)+'" y2="'+baseY+'" stroke="#9b8ad6" stroke-width="1" stroke-dasharray="4 3"/>';
+      html += '<text x="'+sx(t.x).toFixed(1)+'" y="'+(padT+2)+'" text-anchor="middle" font-size="10" fill="#7c6bbf">'+t.l+'</text>';
+    });
+    // dimension line (the chosen product value)
+    html += '<line x1="'+sx(v).toFixed(1)+'" y1="'+padT+'" x2="'+sx(v).toFixed(1)+'" y2="'+baseY+'" stroke="'+dimColor+'" stroke-width="2.5"/>';
+    html += '<text x="'+sx(v).toFixed(1)+'" y="'+(baseY-4)+'" text-anchor="middle" font-size="10" font-weight="700" fill="'+dimColor+'">'+v+' mm</text>';
+    // mean tick
+    html += gtext(loX, Math.round(loX)+"mm");
+    html += gtext(s.m, "mean "+Math.round(s.m));
+    html += gtext(hiX, Math.round(hiX)+"mm");
+
+    // keep title/desc
+    var keep = '<title id="curve-title">Distribution of '+dim.name.toLowerCase()+'</title>' +
+      '<desc id="curve-desc">A bell curve for '+dim.measure+'. The shaded region shows users accommodated by a '+dim.name.toLowerCase()+' of '+v+' millimetres.</desc>';
+    svg.innerHTML = keep + html;
+  }
+
+  /* ---------------------------------------------------------------
+     Verdict logic
+  ---------------------------------------------------------------- */
+  function fmtPct(x){ return (x*100).toFixed(x*100>=99.5||x*100<=0.5 ? 1 : 0) + "%"; }
+
+  function update(){
+    var p = PRODUCTS[state.product];
+    var pop = state.pop;
+
+    // update slider readouts + per-dim fit text
+    p.dims.forEach(function(dim){
+      var vEl = el("val-"+dim.key); if (vEl) vEl.textContent = state.values[dim.key] + " mm";
+      var f = fitFor(dim, pop);
+      var fEl = el("fit-"+dim.key);
+      if (fEl) fEl.innerHTML = '<strong>' + fmtPct(f) + ' fit</strong>';
+    });
+
+    var ld = leadDim();
+    drawCurve(ld, pop);
+
+    // Overall fit = the worst-served dimension (a product only works if every
+    // dimension works for a user). This is the inclusive-design crunch point.
+    var worst = 1, worstDim = p.dims[0], fits = [];
+    p.dims.forEach(function(dim){
+      var f = fitFor(dim, pop);
+      fits.push({dim:dim, f:f});
+      if (f < worst){ worst = f; worstDim = dim; }
+    });
+
+    var targetCover = (state.pHigh - state.pLow) / 100;
+
+    // headline stats
+    el("statFit").textContent = fmtPct(worst);
+    el("statTarget").textContent = Math.round(targetCover*100) + "%";
+    el("statExcl").textContent = Math.round((1 - worst) * 1000);
+
+    // Verdict band
+    var v = el("verdict"), title = el("verdictTitle"), body = el("verdictBody");
+    var gap = worst - targetCover;
+    var cls, t, lines = [];
+
+    if (worst >= targetCover - 0.005) {
+      cls = "good";
+      t = "Meets the target: " + fmtPct(worst) + " of " + popLabel(pop).toLowerCase() + " accommodated";
+      lines.push("Every dimension serves at least your target range. The limiting dimension is " + worstDim.name.toLowerCase() + " at " + fmtPct(worst) + ".");
+      if (worst - targetCover > 0.04) {
+        lines.push("You have headroom: you could tighten material use or cost without dropping below target.");
+      }
+    } else if (gap > -0.12) {
+      cls = "warn";
+      t = "Close, but below target by " + Math.round((targetCover-worst)*100) + " points";
+      lines.push("The weak link is " + worstDim.name.toLowerCase() + ": only " + fmtPct(worst) + " are accommodated, against a " + Math.round(targetCover*100) + "% target.");
+      lines.push(adviceFor(worstDim, pop));
+    } else {
+      cls = "bad";
+      t = "Excludes too many users (" + fmtPct(worst) + " fit)";
+      lines.push(worstDim.name + " excludes " + Math.round((1-worst)*1000) + " in every 1000 " + popLabel(pop).toLowerCase() + ".");
+      lines.push(adviceFor(worstDim, pop));
+    }
+
+    // Adjustability nudge
+    var adj = p.dims.filter(function(d){return d.adjustable;});
+    if (adj.length && cls !== "good") {
+      lines.push("Remember " + adj[0].name.toLowerCase() + " on this product is adjustable: a range from " + adj[0].adjRange[0] + " to " + adj[0].adjRange[1] + " mm could serve the extremes that a single fixed value cannot.");
+    }
+
+    v.className = "verdict " + cls;
+    title.textContent = t;
+    body.innerHTML = "<ul><li>" + lines.join("</li><li>") + "</li></ul>";
+
+    // clearance vs reach teaching note (single-boundary)
+    el("clearNote").innerHTML = clearanceNote(worstDim, pop);
+
+    // screen-reader live summary
+    el("srlive").textContent = popLabel(pop) + ". Overall fit " + fmtPct(worst) + " against a " + Math.round(targetCover*100) + " percent target. Limiting dimension " + worstDim.name + ".";
+
+    // band readout + fill
+    el("bandtext").textContent = ordinal(state.pLow) + " to " + ordinal(state.pHigh) + " percentile";
+    el("bandfill").style.left = ((state.pLow-1)/98*100) + "%";
+    el("bandfill").style.right = (100 - (state.pHigh-1)/98*100) + "%";
+
+    // product desc + caption
+    el("prod-desc").textContent = p.desc;
+    el("curvecaption").textContent = p.caption;
+
+    // data table
+    el("dataNote").innerHTML = dataTable(pop);
+  }
+
+  function popLabel(pop){ return pop==="women"?"Women":pop==="men"?"Men":"Combined adults"; }
+  function ordinal(n){ var s=["th","st","nd","rd"], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); }
+
+  function adviceFor(dim, pop){
+    var s = stats(dim.measure, pop);
+    var v = state.values[dim.key];
+    if (dim.semantics === "accommodateBelow") {
+      // to include more, raise the dimension toward the high percentile
+      var target = Math.ceil(quantile(state.pHigh/100, s.m, s.sd)/dim.step)*dim.step;
+      if (target > v) return "Raise " + dim.name.toLowerCase() + " toward about " + target + " mm to reach the " + ordinal(state.pHigh) + " percentile user.";
+      return "This dimension already clears the largest users; the limit may be a different dimension.";
+    } else {
+      // accommodateAbove: to include more, lower the dimension toward the low percentile
+      var t2 = Math.floor(quantile(state.pLow/100, s.m, s.sd)/dim.step)*dim.step;
+      if (t2 < v) return "Lower " + dim.name.toLowerCase() + " toward about " + t2 + " mm so the " + ordinal(state.pLow) + " percentile (smallest) user is served.";
+      return "This dimension already serves the smallest users; the limit may be a different dimension.";
+    }
+  }
+
+  function clearanceNote(dim, pop){
+    if (dim.semantics === "accommodateBelow") {
+      return "<strong>Design rule applied here:</strong> this is a <em>clearance or space</em> dimension. Size it for the <strong>large</strong> user (high percentile) and smaller users are automatically accommodated.";
+    }
+    return "<strong>Design rule applied here:</strong> this is a <em>reach</em> dimension. Size it for the <strong>small</strong> user (low percentile) and larger users can still reach it.";
+  }
+
+  function dataTable(pop){
+    var rows = "";
+    var measures = {
+      statureMm:"Stature (standing height)",
+      sittingHeightMm:"Sitting height",
+      eyeHeightSitMm:"Eye height, seated",
+      popHeightMm:"Popliteal height",
+      buttockPoplitMm:"Buttock to popliteal",
+      hipBreadthMm:"Hip breadth, seated",
+      shoulderBreadthMm:"Shoulder breadth",
+      forwardReachMm:"Forward reach",
+      gripReachUpMm:"Vertical grip reach"
+    };
+    Object.keys(measures).forEach(function(k){
+      var s = stats(k, pop);
+      var p5 = Math.round(quantile(0.05, s.m, s.sd));
+      var p50 = Math.round(s.m);
+      var p95 = Math.round(quantile(0.95, s.m, s.sd));
+      rows += "<tr><td>"+measures[k]+"</td><td>"+p5+"</td><td>"+p50+"</td><td>"+p95+"</td><td>"+Math.round(s.sd)+"</td></tr>";
+    });
+    return '<p>'+popLabel(pop)+', illustrative UK adult estimates (mm).</p>' +
+      '<table class="data-table"><thead><tr><th>Measure</th><th>5th</th><th>50th</th><th>95th</th><th>SD</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
+
+  /* ---------------------------------------------------------------
+     Auto-fit: solve each dimension so the limiting case meets target
+  ---------------------------------------------------------------- */
+  function autofit(){
+    var p = PRODUCTS[state.product], pop = state.pop;
+    p.dims.forEach(function(dim){
+      var s = stats(dim.measure, pop);
+      var target;
+      if (dim.semantics === "accommodateBelow") {
+        target = quantile(state.pHigh/100, s.m, s.sd);
+      } else {
+        target = quantile(state.pLow/100, s.m, s.sd);
+      }
+      target = Math.round(target/dim.step)*dim.step;
+      target = Math.max(dim.min, Math.min(dim.max, target));
+      state.values[dim.key] = target;
+      var rng = el("rng-"+dim.key); if (rng) rng.value = target;
+    });
+    update();
+    el("srlive").textContent = "Auto-fitted to the " + ordinal(state.pLow) + " to " + ordinal(state.pHigh) + " percentile target.";
+  }
+
+  function resetAll(){
+    state.values = {};
+    renderDims();
+    update();
+  }
+
+  /* ---------------------------------------------------------------
+     Wiring
+  ---------------------------------------------------------------- */
+  el("product").addEventListener("change", function(e){
+    state.product = e.target.value;
+    state.values = {};
+    renderDims();
+    update();
+  });
+
+  // population segmented control
+  el("popseg").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-pop]"); if (!b) return;
+    state.pop = b.getAttribute("data-pop");
+    Array.prototype.forEach.call(this.querySelectorAll("button"), function(x){
+      x.setAttribute("aria-pressed", x===b ? "true":"false");
+    });
+    update();
+  });
+
+  // percentile band sliders (two-thumb)
+  var pLow = el("pLow"), pHigh = el("pHigh");
+  function syncBand(which){
+    var lo = parseInt(pLow.value,10), hi = parseInt(pHigh.value,10);
+    if (lo > hi - 1) {
+      if (which === "low") { lo = hi - 1; pLow.value = lo; }
+      else { hi = lo + 1; pHigh.value = hi; }
+    }
+    state.pLow = lo; state.pHigh = hi;
+    pLow.setAttribute("aria-valuetext", ordinal(lo) + " percentile");
+    pHigh.setAttribute("aria-valuetext", ordinal(hi) + " percentile");
+    update();
+  }
+  pLow.addEventListener("input", function(){ syncBand("low"); });
+  pHigh.addEventListener("input", function(){ syncBand("high"); });
+  pLow.style.touchAction = "none"; pHigh.style.touchAction = "none";
+
+  el("autofit").addEventListener("click", autofit);
+  el("reset").addEventListener("click", resetAll);
+
+  // init
+  renderDims();
+  update();
+})();
+</script>
+</body>
+</html>

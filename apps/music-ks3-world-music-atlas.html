@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World Music Atlas</title>
+<style>
+  :root {
+    --ink: #1d2433;
+    --muted: #5a6478;
+    --line: #d9dee8;
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --accent: #2f5d8a;
+    --accent-soft: #e7f0fa;
+    --good: #1f7a4d;
+    --good-soft: #e3f4ec;
+    --warn: #9a4a12;
+    --warn-soft: #fbeee2;
+    --shadow: 0 6px 22px rgba(29, 36, 51, 0.08);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.page { margin-bottom: 14px; }
+  .eyebrow {
+    text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.72rem;
+    font-weight: 700; color: var(--accent);
+  }
+  h1 { font-size: 1.7rem; margin: 4px 0 6px; line-height: 1.15; }
+  .aim {
+    background: var(--accent-soft); border: 1px solid #cfe0f1; color: #2a4a6b;
+    border-radius: 10px; padding: 10px 14px; font-size: 0.92rem; margin-top: 8px;
+  }
+  .aim strong { color: var(--accent); }
+  .layout { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 18px; }
+  @media (min-width: 880px) {
+    .layout { grid-template-columns: 1.35fr 1fr; align-items: start; }
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px;
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 4px; }
+  .card .sub { font-size: 0.84rem; color: var(--muted); margin: 0 0 12px; }
+
+  /* Map */
+  .map-frame { position: relative; }
+  svg.atlas { width: 100%; height: auto; display: block; border-radius: 10px; background: #dceaf6; }
+  .ocean { fill: #cfe2f2; }
+  .land { fill: #b7c9a8; stroke: #93a886; stroke-width: 0.6; }
+  .hotspot {
+    cursor: pointer; outline: none;
+    transition: transform 0.12s ease;
+    transform-box: fill-box; transform-origin: center;
+  }
+  .hotspot .pin { fill: #c2410c; stroke: #fff; stroke-width: 1.4; }
+  .hotspot .halo { fill: #c2410c; opacity: 0.18; }
+  .hotspot:hover .pin, .hotspot.active .pin { fill: #2f5d8a; }
+  .hotspot:focus-visible .ring { stroke: #1d2433; stroke-width: 2.4; }
+  .hotspot.active { transform: scale(1.12); }
+  .hotspot.playing .halo { animation: pulse 1.1s ease-out infinite; }
+  @keyframes pulse {
+    0% { transform: scale(0.7); opacity: 0.4; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+  .ring { fill: none; stroke: transparent; stroke-width: 2; }
+  .label-bg { fill: #ffffff; opacity: 0.85; }
+  .label-tx { font-size: 11px; font-weight: 700; fill: #1d2433; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip {
+    border: 1px solid var(--line); background: #fff; border-radius: 999px;
+    padding: 6px 12px; font-size: 0.82rem; cursor: pointer; color: var(--ink);
+    display: inline-flex; align-items: center; gap: 7px; font-weight: 600;
+  }
+  .chip .dot { width: 10px; height: 10px; border-radius: 50%; background: #c2410c; }
+  .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .chip:focus-visible { outline: 3px solid #1d2433; outline-offset: 2px; }
+
+  /* Detail panel */
+  .detail .flag { font-size: 1.5rem; }
+  .detail .tradition-name { font-size: 1.2rem; font-weight: 800; margin: 2px 0; }
+  .detail .place { font-size: 0.85rem; color: var(--muted); }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  button.btn {
+    font: inherit; font-weight: 700; border: 1px solid var(--accent);
+    background: var(--accent); color: #fff; border-radius: 10px; padding: 9px 14px;
+    cursor: pointer; min-height: 44px;
+  }
+  button.btn.ghost { background: #fff; color: var(--accent); }
+  button.btn.stop { background: #fff; color: var(--warn); border-color: var(--warn); }
+  button.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.btn:focus-visible { outline: 3px solid #1d2433; outline-offset: 2px; }
+
+  .features { list-style: none; padding: 0; margin: 12px 0 0; }
+  .features li {
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+    margin-bottom: 8px; background: #fbfcfe;
+  }
+  .features li b { color: var(--accent); }
+  .empty { color: var(--muted); font-size: 0.9rem; padding: 8px 0; }
+
+  /* Quiz */
+  .quiz { margin-top: 18px; }
+  .quiz .q { font-weight: 700; margin-bottom: 10px; }
+  .quiz .audio-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 520px) { .options { grid-template-columns: 1fr; } }
+  .opt {
+    font: inherit; text-align: left; border: 1px solid var(--line); background: #fff;
+    border-radius: 10px; padding: 10px 12px; cursor: pointer; min-height: 44px; color: var(--ink);
+  }
+  .opt:hover { border-color: var(--accent); }
+  .opt:focus-visible { outline: 3px solid #1d2433; outline-offset: 2px; }
+  .opt.correct { background: var(--good-soft); border-color: var(--good); color: var(--good); font-weight: 700; }
+  .opt.wrong { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+  .opt:disabled { cursor: default; }
+  .feedback {
+    margin-top: 12px; padding: 11px 13px; border-radius: 10px; font-size: 0.9rem;
+    display: none;
+  }
+  .feedback.show { display: block; }
+  .feedback.ok { background: var(--good-soft); border: 1px solid var(--good); color: #134a30; }
+  .feedback.no { background: var(--warn-soft); border: 1px solid var(--warn); color: #6e3409; }
+  .score { font-size: 0.85rem; color: var(--muted); margin-top: 10px; }
+  .progress-track { height: 8px; background: var(--line); border-radius: 999px; margin-top: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--good); width: 0%; transition: width 0.3s ease; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  footer.note { margin-top: 24px; font-size: 0.78rem; color: var(--muted); text-align: center; }
+  .tag {
+    display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 2px 8px;
+    border-radius: 999px; background: var(--accent-soft); color: var(--accent); margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="page">
+    <div class="eyebrow">Music &middot; Key Stage 3</div>
+    <h1>World Music Atlas &#x1F30D;</h1>
+    <p class="aim"><strong>Teacher aim:</strong> Pupils explore how musical traditions developed across cultures and continents. They listen to gamelan, samba, raga and West African drumming, identify the features that define each, then prove their listening in a sound-quiz. Covers the KS3 strand "music history, traditions and world musics".</p>
+  </header>
+
+  <div class="layout">
+    <!-- MAP CARD -->
+    <section class="card map-frame" aria-labelledby="maptitle">
+      <h2 id="maptitle">1. Tap a place to listen</h2>
+      <p class="sub">Each marker plays a short, synthesised flavour of that tradition. Use the markers, the buttons, or your keyboard (Tab then Enter).</p>
+      <div class="map-frame">
+        <svg class="atlas" viewBox="0 0 1000 480" role="group" aria-label="Simplified world map with four music traditions marked">
+          <rect class="ocean" x="0" y="0" width="1000" height="480"/>
+          <!-- Stylised continents (decorative, simplified) -->
+          <path class="land" d="M120,90 L300,70 L360,140 L300,220 L180,260 L120,200 Z"/>
+          <path class="land" d="M250,270 L330,250 L370,340 L320,430 L260,420 L240,340 Z"/>
+          <path class="land" d="M430,80 L560,70 L600,150 L540,180 L470,160 Z"/>
+          <path class="land" d="M470,200 L560,190 L600,300 L540,400 L500,360 L480,280 Z"/>
+          <path class="land" d="M600,90 L820,70 L900,170 L820,260 L680,250 L620,170 Z"/>
+          <path class="land" d="M780,300 L880,290 L910,360 L850,400 L800,360 Z"/>
+          <!-- Hotspots injected by JS -->
+          <g id="hotspots"></g>
+        </svg>
+      </div>
+      <div class="legend" id="legend" role="group" aria-label="Quick select a tradition"></div>
+    </section>
+
+    <!-- DETAIL CARD -->
+    <section class="card detail" aria-labelledby="dtitle" aria-live="polite">
+      <h2 id="dtitle">2. What makes it special</h2>
+      <p class="sub" id="dsub">Select a tradition on the map to see its defining features.</p>
+      <div id="detailBody">
+        <p class="empty">Nothing selected yet. Tap a marker, for example the one over Indonesia, to hear gamelan.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- QUIZ CARD -->
+  <section class="card quiz" aria-labelledby="qtitle">
+    <h2 id="qtitle">3. Listening challenge <span class="tag">prove it</span></h2>
+    <p class="sub">Press play, listen, then choose the tradition. The app tells you exactly which clue gave it away.</p>
+    <div class="audio-row">
+      <button class="btn" id="quizPlay" type="button">&#x25B6; Play mystery clip</button>
+      <button class="btn stop" id="quizStop" type="button" disabled>&#x25A0; Stop</button>
+      <span class="score" id="qclipstate" aria-live="polite"></span>
+    </div>
+    <p class="q" id="quizQ">Which tradition is this?</p>
+    <div class="options" id="quizOptions" role="group" aria-label="Answer choices"></div>
+    <div class="feedback" id="quizFeedback" role="status" aria-live="assertive"></div>
+    <div class="score" id="quizScore">Score: 0 correct &middot; 0 attempted</div>
+    <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="quizProgress"></div></div>
+  </section>
+
+  <footer class="note">
+    World Music Atlas &middot; All sounds are synthesised in your browser, no audio files or internet needed. Names and examples are illustrative only.
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   DATA: four world music traditions
+   ============================================================ */
+const TRADITIONS = {
+  gamelan: {
+    name: "Gamelan",
+    place: "Indonesia (Java and Bali)",
+    flag: "\u{1F1EE}\u{1F1E9}",
+    xy: [780, 300],
+    blurb: "An ensemble of tuned metal gongs, metallophones and drums dating back over a thousand years.",
+    features: [
+      ["Layered metal sounds", "Bronze gongs and metallophones ring and shimmer over each other in interlocking layers."],
+      ["Cyclic structure", "Music repeats in cycles marked by a big gong, rather than building to a single climax."],
+      ["Slendro and pelog tuning", "Uses scales that differ from Western major and minor, so it sounds otherworldly to many ears."],
+      ["Group interdependence", "No conductor: players lock into one another, mirroring community life."]
+    ]
+  },
+  samba: {
+    name: "Samba",
+    place: "Brazil (Rio de Janeiro)",
+    flag: "\u{1F1E7}\u{1F1F7}",
+    xy: [330, 360],
+    blurb: "A driving, festive percussion tradition rooted in African rhythms brought to Brazil, central to Carnival.",
+    features: [
+      ["Syncopation", "Accents land off the main beat, creating the irresistible push and pull that makes you want to move."],
+      ["Bateria (drum section)", "Surdo, caixa, tamborim and agogo bells layer into one huge groove."],
+      ["Fast 2/4 pulse", "A quick two-beat feel keeps the energy high for street parades."],
+      ["Call and response", "A leader cues breaks and the whole bateria answers together."]
+    ]
+  },
+  raga: {
+    name: "Indian Raga",
+    place: "India (Hindustani tradition)",
+    flag: "\u{1F1EE}\u{1F1F3}",
+    xy: [690, 250],
+    blurb: "A classical tradition built on melodic frameworks (ragas) and rhythmic cycles (talas), often improvised.",
+    features: [
+      ["Drone", "A constant tanpura drone underpins everything, grounding the listener in the home note."],
+      ["Melodic improvisation", "The performer explores a raga's notes and moods rather than reading a fixed tune."],
+      ["Tala (rhythmic cycle)", "Tabla drums keep a repeating cycle of beats that the music returns to."],
+      ["Microtonal ornament", "Notes slide and bend between pitches (meend) for great expressive detail."]
+    ]
+  },
+  westafrican: {
+    name: "West African Drumming",
+    place: "West Africa (e.g. Mali, Guinea)",
+    flag: "\u{1F1F2}\u{1F1F1}",
+    xy: [470, 240],
+    blurb: "Community drumming traditions, such as djembe ensembles, used for celebration, story and communication.",
+    features: [
+      ["Polyrhythm", "Several different rhythms are played at once and interlock into one rich texture."],
+      ["Djembe and dunun", "A high, sharp djembe rides over deep dunun bass drums."],
+      ["Call and response", "The lead drummer signals; the ensemble and dancers answer."],
+      ["Oral tradition", "Patterns are learned by ear and passed down through generations, not written notation."]
+    ]
+  }
+};
+const ORDER = ["gamelan", "samba", "raga", "westafrican"];
+
+/* ============================================================
+   AUDIO ENGINE: Web Audio API, all synthesised
+   ============================================================ */
+let actx = null;
+let masterGain = null;
+let activeStop = null;          // function to stop whatever is playing
+const scheduled = [];           // pending timeouts
+
+function ensureCtx() {
+  if (!actx) {
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = actx.createGain();
+    masterGain.gain.value = 0.9;
+    masterGain.connect(actx.destination);
+  }
+  if (actx.state === "suspended") actx.resume();
+  return actx;
+}
+
+function clearScheduled() {
+  while (scheduled.length) clearTimeout(scheduled.pop());
+}
+
+function stopAll() {
+  clearScheduled();
+  if (activeStop) { try { activeStop(); } catch (e) {} activeStop = null; }
+  // visual reset
+  document.querySelectorAll(".hotspot").forEach(h => h.classList.remove("playing"));
+  setQuizClipState("");
+}
+
+/* --- tone helpers --- */
+function tone(freq, t, dur, opts) {
+  opts = opts || {};
+  const o = actx.createOscillator();
+  const g = actx.createGain();
+  o.type = opts.type || "sine";
+  o.frequency.value = freq;
+  const peak = opts.gain == null ? 0.3 : opts.gain;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(masterGain);
+  o.start(t); o.stop(t + dur + 0.05);
+  return o;
+}
+
+// metallic gong-ish hit: a few inharmonic partials
+function metalHit(base, t, dur, gain) {
+  const partials = [1, 2.41, 3.86, 5.2];
+  partials.forEach((p, i) => {
+    tone(base * p, t, dur * (1 - i * 0.12), { type: "sine", gain: (gain || 0.25) / (i + 1) });
+  });
+}
+
+// noise burst for drum/percussion
+function noiseHit(t, dur, filterFreq, gain) {
+  const len = Math.max(1, Math.floor(actx.sampleRate * dur));
+  const buf = actx.createBuffer(1, len, actx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = actx.createBufferSource(); src.buffer = buf;
+  const bp = actx.createBiquadFilter();
+  bp.type = "bandpass"; bp.frequency.value = filterFreq || 400; bp.Q.value = 0.8;
+  const g = actx.createGain(); g.gain.value = gain == null ? 0.5 : gain;
+  src.connect(bp); bp.connect(g); g.connect(masterGain);
+  src.start(t); src.stop(t + dur + 0.02);
+}
+
+// pitched membrane drum (sine thump + click)
+function drum(freq, t, dur, gain) {
+  const o = actx.createOscillator();
+  const g = actx.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(freq * 1.6, t);
+  o.frequency.exponentialRampToValueAtTime(freq, t + dur * 0.5);
+  g.gain.setValueAtTime(gain == null ? 0.6 : gain, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(masterGain);
+  o.start(t); o.stop(t + dur + 0.05);
+  noiseHit(t, 0.03, 1800, 0.18);
+}
+
+/* --- pattern players: each returns a stop function --- */
+
+function playGamelan() {
+  const t0 = actx.currentTime + 0.05;
+  // slendro-ish pentatonic-ish set (illustrative)
+  const scale = [262, 294, 330, 392, 440];
+  const beat = 0.34;
+  let stopped = false;
+  // big gong every 8 beats
+  for (let cycle = 0; cycle < 2; cycle++) {
+    const ct = t0 + cycle * beat * 8;
+    metalHit(98, ct, 3.2, 0.4);            // low gong marks the cycle
+    for (let b = 0; b < 8; b++) {
+      const tb = ct + b * beat;
+      // interlocking metallophone parts
+      metalHit(scale[(b) % scale.length] , tb, 0.9, 0.18);
+      metalHit(scale[(b + 2) % scale.length] * 2, tb + beat / 2, 0.7, 0.12);
+    }
+  }
+  return () => { stopped = true; };
+}
+
+function playSamba() {
+  const t0 = actx.currentTime + 0.05;
+  const beat = 0.26;            // brisk
+  for (let bar = 0; bar < 4; bar++) {
+    const bt = t0 + bar * beat * 4;
+    // surdo (deep) on beats 2 and 4 feel
+    drum(70, bt + beat * 1, 0.45, 0.7);
+    drum(70, bt + beat * 3, 0.45, 0.7);
+    // syncopated tamborim / caixa pattern (off-beats)
+    const hits = [0, 0.5, 1.25, 1.75, 2.5, 3, 3.5];
+    hits.forEach(h => noiseHit(bt + h * beat, 0.05, 2600, 0.32));
+    // agogo bell accents off the beat
+    tone(880, bt + beat * 0.75, 0.12, { type: "square", gain: 0.12 });
+    tone(660, bt + beat * 2.25, 0.12, { type: "square", gain: 0.12 });
+  }
+  return () => {};
+}
+
+function playRaga() {
+  const t0 = actx.currentTime + 0.05;
+  // continuous drone (tanpura): tonic + fifth
+  const droneNodes = [];
+  [146.8, 220].forEach(f => {
+    const o = actx.createOscillator(); const g = actx.createGain();
+    o.type = "sawtooth"; o.frequency.value = f;
+    const lp = actx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 700;
+    g.gain.value = 0.07;
+    o.connect(lp); lp.connect(g); g.connect(masterGain);
+    o.start(t0); droneNodes.push(o);
+  });
+  // melodic improvisation over a raga-ish scale, with slides
+  const raga = [293.7, 311.1, 349.2, 392.0, 440.0, 466.2, 523.3];
+  const seq = [0, 1, 2, 3, 2, 4, 3, 5, 4, 6, 5, 3, 1, 0];
+  let t = t0 + 0.2;
+  seq.forEach((idx, i) => {
+    const dur = 0.34 + (i % 3 === 0 ? 0.2 : 0);
+    const o = actx.createOscillator(); const g = actx.createGain();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(raga[Math.max(0, idx - (i % 4 === 0 ? 1 : 0))], t);
+    o.frequency.linearRampToValueAtTime(raga[idx], t + dur * 0.4);  // meend slide
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.22, t + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(masterGain);
+    o.start(t); o.stop(t + dur + 0.05);
+    // tabla cycle underneath
+    if (i % 2 === 0) drum(160, t, 0.18, 0.3);
+    if (i % 4 === 1) noiseHit(t, 0.04, 2400, 0.2);
+    t += dur;
+  });
+  const endAt = t + 0.2;
+  droneNodes.forEach(o => o.stop(endAt));
+  return () => { droneNodes.forEach(o => { try { o.stop(); } catch (e) {} }); };
+}
+
+function playWestAfrican() {
+  const t0 = actx.currentTime + 0.05;
+  const beat = 0.2;
+  for (let cyc = 0; cyc < 4; cyc++) {
+    const ct = t0 + cyc * beat * 6;
+    // dunun bass line (steady, deep)
+    drum(60, ct + 0, 0.4, 0.7);
+    drum(60, ct + beat * 3, 0.4, 0.7);
+    // djembe pattern A (one rhythm)
+    [0, 1, 2.5, 4, 5].forEach(h => noiseHit(ct + h * beat, 0.06, 900, 0.4));
+    // djembe pattern B, offset, to create polyrhythm
+    [0.5, 1.5, 3, 4.5].forEach(h => noiseHit(ct + h * beat, 0.05, 1600, 0.3));
+    // high slap accent
+    noiseHit(ct + beat * 5.5, 0.04, 3200, 0.35);
+  }
+  return () => {};
+}
+
+const PLAYERS = {
+  gamelan: playGamelan,
+  samba: playSamba,
+  raga: playRaga,
+  westafrican: playWestAfrican
+};
+
+const APPROX_DURATION = { gamelan: 5.6, samba: 4.3, raga: 5.2, westafrican: 4.9 };
+
+function playTradition(key, onEnd) {
+  ensureCtx();
+  stopAll();
+  const stopFn = PLAYERS[key]();
+  activeStop = stopFn;
+  const dur = APPROX_DURATION[key] || 5;
+  const id = setTimeout(() => {
+    if (activeStop === stopFn) { activeStop = null; }
+    document.querySelectorAll(".hotspot").forEach(h => h.classList.remove("playing"));
+    if (typeof onEnd === "function") onEnd();
+  }, dur * 1000);
+  scheduled.push(id);
+  return dur;
+}
+
+/* ============================================================
+   MAP UI
+   ============================================================ */
+const hotspotsG = document.getElementById("hotspots");
+const SVGNS = "http://www.w3.org/2000/svg";
+
+function buildHotspots() {
+  ORDER.forEach((key, i) => {
+    const t = TRADITIONS[key];
+    const [x, y] = t.xy;
+    const g = document.createElementNS(SVGNS, "g");
+    g.setAttribute("class", "hotspot");
+    g.setAttribute("tabindex", "0");
+    g.setAttribute("role", "button");
+    g.setAttribute("data-key", key);
+    g.setAttribute("aria-label", "Play " + t.name + " from " + t.place);
+
+    const halo = document.createElementNS(SVGNS, "circle");
+    halo.setAttribute("class", "halo"); halo.setAttribute("cx", x); halo.setAttribute("cy", y); halo.setAttribute("r", 16);
+
+    const ring = document.createElementNS(SVGNS, "circle");
+    ring.setAttribute("class", "ring"); ring.setAttribute("cx", x); ring.setAttribute("cy", y); ring.setAttribute("r", 16);
+
+    const pin = document.createElementNS(SVGNS, "circle");
+    pin.setAttribute("class", "pin"); pin.setAttribute("cx", x); pin.setAttribute("cy", y); pin.setAttribute("r", 9);
+
+    // label
+    const lbgW = t.name.length * 6.6 + 12;
+    const lbg = document.createElementNS(SVGNS, "rect");
+    lbg.setAttribute("class", "label-bg");
+    lbg.setAttribute("x", x - lbgW / 2); lbg.setAttribute("y", y + 14);
+    lbg.setAttribute("width", lbgW); lbg.setAttribute("height", 16); lbg.setAttribute("rx", 6);
+    const ltx = document.createElementNS(SVGNS, "text");
+    ltx.setAttribute("class", "label-tx"); ltx.setAttribute("x", x); ltx.setAttribute("y", y + 26);
+    ltx.setAttribute("text-anchor", "middle"); ltx.textContent = t.name;
+
+    g.appendChild(halo); g.appendChild(ring); g.appendChild(pin);
+    g.appendChild(lbg); g.appendChild(ltx);
+    hotspotsG.appendChild(g);
+
+    g.addEventListener("pointerdown", (e) => { e.preventDefault(); selectTradition(key); });
+    g.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTradition(key); }
+    });
+  });
+}
+
+function buildLegend() {
+  const legend = document.getElementById("legend");
+  ORDER.forEach(key => {
+    const t = TRADITIONS[key];
+    const b = document.createElement("button");
+    b.className = "chip"; b.type = "button"; b.setAttribute("aria-pressed", "false");
+    b.dataset.key = key;
+    b.innerHTML = '<span class="dot"></span>' + t.name;
+    b.addEventListener("click", () => selectTradition(key));
+    legend.appendChild(b);
+  });
+}
+
+let currentKey = null;
+
+function selectTradition(key) {
+  currentKey = key;
+  // map visuals
+  document.querySelectorAll(".hotspot").forEach(h => {
+    h.classList.toggle("active", h.dataset.key === key);
+    h.classList.remove("playing");
+  });
+  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.key === key ? "true" : "false"));
+  const hs = document.querySelector('.hotspot[data-key="' + key + '"]');
+  if (hs) hs.classList.add("playing");
+  renderDetail(key);
+  playTradition(key);
+}
+
+function renderDetail(key) {
+  const t = TRADITIONS[key];
+  document.getElementById("dsub").textContent = "Now exploring a tradition from " + t.place + ".";
+  let html = '';
+  html += '<div><span class="flag">' + t.flag + '</span> <span class="tradition-name">' + t.name + '</span></div>';
+  html += '<div class="place">' + t.place + '</div>';
+  html += '<p style="margin:8px 0; font-size:0.92rem;">' + t.blurb + '</p>';
+  html += '<div class="controls">';
+  html += '<button class="btn" type="button" id="dPlay">&#x25B6; Play again</button>';
+  html += '<button class="btn stop" type="button" id="dStop">&#x25A0; Stop</button>';
+  html += '</div>';
+  html += '<p class="sub" style="margin:0 0 6px;">Defining features to listen for:</p>';
+  html += '<ul class="features">';
+  t.features.forEach(f => { html += '<li><b>' + f[0] + ':</b> ' + f[1] + '</li>'; });
+  html += '</ul>';
+  document.getElementById("detailBody").innerHTML = html;
+  document.getElementById("dPlay").addEventListener("click", () => {
+    const hs = document.querySelector('.hotspot[data-key="' + key + '"]');
+    if (hs) hs.classList.add("playing");
+    playTradition(key, () => { if (hs) hs.classList.remove("playing"); });
+  });
+  document.getElementById("dStop").addEventListener("click", stopAll);
+}
+
+/* ============================================================
+   QUIZ
+   ============================================================ */
+const quizPlayBtn = document.getElementById("quizPlay");
+const quizStopBtn = document.getElementById("quizStop");
+const quizOptionsEl = document.getElementById("quizOptions");
+const quizFeedback = document.getElementById("quizFeedback");
+const quizScoreEl = document.getElementById("quizScore");
+const quizProgress = document.getElementById("quizProgress");
+const qclipstate = document.getElementById("qclipstate");
+
+let quizAnswer = null;
+let answered = false;
+let correctCount = 0;
+let attempted = 0;
+const TOTAL_TARGET = 8;
+
+// the "telltale" clue used in feedback, per tradition
+const CLUE = {
+  gamelan: "the shimmering layers of tuned metal gongs and that deep cyclic gong stroke",
+  samba: "the fast off-beat syncopation and deep surdo drum hits",
+  raga: "the constant drone underneath a sliding, improvised melody",
+  westafrican: "the interlocking polyrhythms of high djembe over deep dunun drums"
+};
+
+function setQuizClipState(txt) { qclipstate.textContent = txt; }
+
+function newQuizRound() {
+  answered = false;
+  quizAnswer = ORDER[Math.floor(Math.random() * ORDER.length)];
+  quizFeedback.className = "feedback";
+  quizFeedback.textContent = "";
+  setQuizClipState("");
+  // build shuffled options
+  const opts = ORDER.slice();
+  for (let i = opts.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [opts[i], opts[j]] = [opts[j], opts[i]];
+  }
+  quizOptionsEl.innerHTML = "";
+  opts.forEach(key => {
+    const b = document.createElement("button");
+    b.className = "opt"; b.type = "button"; b.dataset.key = key;
+    b.textContent = TRADITIONS[key].name;
+    b.addEventListener("click", () => answerQuiz(key, b));
+    quizOptionsEl.appendChild(b);
+  });
+  quizPlayBtn.innerHTML = "&#x25B6; Play mystery clip";
+}
+
+function answerQuiz(key, btn) {
+  if (answered) return;
+  answered = true;
+  attempted++;
+  const buttons = quizOptionsEl.querySelectorAll(".opt");
+  buttons.forEach(b => {
+    b.disabled = true;
+    if (b.dataset.key === quizAnswer) b.classList.add("correct");
+  });
+  if (key === quizAnswer) {
+    correctCount++;
+    quizFeedback.className = "feedback ok show";
+    quizFeedback.innerHTML = "&#x2714; Correct, that was <b>" + TRADITIONS[quizAnswer].name +
+      "</b>. You spotted " + CLUE[quizAnswer] + ".";
+  } else {
+    btn.classList.add("wrong");
+    quizFeedback.className = "feedback no show";
+    quizFeedback.innerHTML = "&#x2716; That was actually <b>" + TRADITIONS[quizAnswer].name +
+      "</b>. The giveaway is " + CLUE[quizAnswer] + ". You picked " + TRADITIONS[key].name +
+      ", which is known for " + CLUE[key] + ".";
+  }
+  updateScore();
+  // queue next round
+  const nextBtn = document.createElement("button");
+  nextBtn.className = "btn ghost"; nextBtn.type = "button";
+  nextBtn.style.marginTop = "10px";
+  nextBtn.textContent = attempted >= TOTAL_TARGET ? "Play again from the start" : "Next clip →";
+  nextBtn.addEventListener("click", () => {
+    if (attempted >= TOTAL_TARGET) { correctCount = 0; attempted = 0; updateScore(); }
+    newQuizRound();
+  });
+  quizFeedback.appendChild(document.createElement("br"));
+  quizFeedback.appendChild(nextBtn);
+}
+
+function updateScore() {
+  quizScoreEl.textContent = "Score: " + correctCount + " correct · " + attempted + " attempted" +
+    (attempted >= TOTAL_TARGET ? " · round complete!" : "");
+  const pct = Math.min(100, (attempted / TOTAL_TARGET) * 100);
+  quizProgress.style.width = pct + "%";
+}
+
+quizPlayBtn.addEventListener("click", () => {
+  ensureCtx();
+  quizStopBtn.disabled = false;
+  setQuizClipState("Playing… listen carefully.");
+  const dur = playTradition(quizAnswer, () => {
+    quizStopBtn.disabled = true;
+    setQuizClipState("Clip finished. Make your choice.");
+  });
+  quizPlayBtn.innerHTML = "&#x25B6; Replay clip";
+});
+
+quizStopBtn.addEventListener("click", () => {
+  stopAll();
+  quizStopBtn.disabled = true;
+  setQuizClipState("Stopped.");
+});
+
+document.getElementById("quizStop").disabled = true;
+
+/* ============================================================
+   INIT
+   ============================================================ */
+buildHotspots();
+buildLegend();
+newQuizRound();
+updateScore();
+
+// stop audio if tab hidden
+document.addEventListener("visibilitychange", () => { if (document.hidden) stopAll(); });
+</script>
+</body>
+</html>

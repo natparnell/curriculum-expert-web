@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Float or Sink Tank</title>
+<style>
+  :root {
+    --water: #4fa8d8;
+    --water-deep: #2b7fb0;
+    --sky: #eaf6fc;
+    --ink: #173a4f;
+    --float-hoop: #2e8b57;
+    --sink-hoop: #c45a2c;
+    --panel: #ffffff;
+    --line: #cfe3ee;
+    --warm: #f6c453;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(180deg, #f3fafd 0%, #e3f2fb 100%);
+    color: var(--ink);
+    -webkit-text-size-adjust: 100%;
+  }
+  header {
+    padding: 16px 18px 10px;
+    text-align: center;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(1.5rem, 4vw, 2.4rem);
+    letter-spacing: 0.5px;
+  }
+  .aim {
+    margin: 6px auto 0;
+    max-width: 720px;
+    font-size: clamp(0.85rem, 2.2vw, 1rem);
+    color: #3c6075;
+    line-height: 1.4;
+  }
+  .wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 14px 40px;
+  }
+  .stage {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  @media (min-width: 820px) {
+    .stage { grid-template-columns: 220px 1fr; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 2px solid var(--line);
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: 0 4px 14px rgba(23,58,79,0.06);
+  }
+  .panel h2 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    color: var(--water-deep);
+  }
+  /* Tray of objects */
+  .tray {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+  }
+  @media (min-width: 820px) {
+    .tray { flex-direction: column; align-items: center; }
+  }
+  .object {
+    width: 76px;
+    height: 76px;
+    border-radius: 14px;
+    background: #fffdf5;
+    border: 2px solid #e3d9bd;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    font-size: 1.9rem;
+    line-height: 1;
+    position: relative;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .object:focus-visible {
+    outline: 4px solid var(--warm);
+    outline-offset: 2px;
+  }
+  .object .lab {
+    font-size: 0.62rem;
+    margin-top: 4px;
+    color: #6a5a2e;
+    font-weight: 600;
+    text-align: center;
+  }
+  .object.dragging {
+    cursor: grabbing;
+    transform: scale(1.12);
+    box-shadow: 0 8px 18px rgba(23,58,79,0.25);
+    z-index: 50;
+  }
+  .object.done {
+    opacity: 0.35;
+    filter: grayscale(0.6);
+  }
+  /* The water tank */
+  .tankwrap { position: relative; }
+  .tank {
+    position: relative;
+    width: 100%;
+    height: 320px;
+    border-radius: 0 0 18px 18px;
+    border: 4px solid #b7d8e8;
+    border-top: none;
+    overflow: hidden;
+    background: linear-gradient(180deg, var(--sky) 0%, var(--sky) 28%, var(--water) 28%, var(--water-deep) 100%);
+  }
+  .waterline {
+    position: absolute;
+    top: 28%;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(255,255,255,0.6);
+    pointer-events: none;
+  }
+  .tank.over {
+    box-shadow: inset 0 0 0 4px var(--warm);
+  }
+  .ripple {
+    position: absolute;
+    border: 3px solid rgba(255,255,255,0.7);
+    border-radius: 50%;
+    pointer-events: none;
+    animation: ring 0.7s ease-out forwards;
+  }
+  @keyframes ring {
+    from { width: 8px; height: 8px; opacity: 0.9; transform: translate(-50%, -50%); }
+    to { width: 90px; height: 90px; opacity: 0; transform: translate(-50%, -50%); }
+  }
+  .dropped {
+    position: absolute;
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    background: rgba(255,255,255,0.85);
+    border: 2px solid rgba(255,255,255,0.9);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .float-anim { animation: bob 2.2s ease-in-out infinite; }
+  @keyframes bob {
+    0%,100% { margin-top: 0; }
+    50% { margin-top: -8px; }
+  }
+  /* Prediction sorting hoops */
+  .hoops {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .hoop {
+    border-radius: 16px;
+    padding: 10px;
+    min-height: 92px;
+    border: 4px dashed;
+    text-align: center;
+    transition: background 0.15s ease;
+  }
+  .hoop.float { border-color: var(--float-hoop); background: #eef8f1; }
+  .hoop.sink { border-color: var(--sink-hoop); background: #fbeee7; }
+  .hoop.over { background: var(--warm); }
+  .hoop h3 { margin: 0 0 6px; font-size: 0.95rem; }
+  .hoop.float h3 { color: var(--float-hoop); }
+  .hoop.sink h3 { color: var(--sink-hoop); }
+  .hoop .bin {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    min-height: 40px;
+  }
+  .chip {
+    width: 40px;
+    height: 40px;
+    border-radius: 9px;
+    background: #fff;
+    border: 2px solid #d7e4ec;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+  }
+  .chip.right { border-color: var(--float-hoop); box-shadow: 0 0 0 2px #cfe9d8; }
+  .chip.wrong { border-color: var(--sink-hoop); box-shadow: 0 0 0 2px #f3d3c4; }
+  /* Feedback bubble */
+  .feedback {
+    margin-top: 14px;
+    min-height: 64px;
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: clamp(0.95rem, 2.6vw, 1.15rem);
+    font-weight: 600;
+    line-height: 1.4;
+    background: #fff7e3;
+    border: 2px solid var(--warm);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .feedback .big { font-size: 1.8rem; line-height: 1; }
+  .feedback.good { background: #eef8f1; border-color: var(--float-hoop); }
+  .feedback.think { background: #fbeee7; border-color: var(--sink-hoop); }
+  /* Controls */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .btn {
+    border: none;
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    background: var(--water-deep);
+    color: #fff;
+    transition: transform 0.1s ease, background 0.15s ease;
+  }
+  .btn:hover { background: #1f6b97; }
+  .btn:active { transform: scale(0.96); }
+  .btn:focus-visible { outline: 4px solid var(--warm); outline-offset: 2px; }
+  .btn.ghost { background: #fff; color: var(--water-deep); border: 2px solid var(--water-deep); }
+  .btn.ice { background: #7c4fd8; }
+  .btn.ice:hover { background: #6a3dc4; }
+  .score {
+    font-weight: 700;
+    color: var(--water-deep);
+    font-size: 1rem;
+  }
+  .hint {
+    font-size: 0.82rem;
+    color: #5a7787;
+    margin-top: 8px;
+    line-height: 1.4;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+  /* Keyboard placement menu */
+  .kbmenu {
+    position: fixed;
+    inset: 0;
+    background: rgba(23,58,79,0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 16px;
+  }
+  .kbmenu.show { display: flex; }
+  .kbcard {
+    background: #fff;
+    border-radius: 16px;
+    padding: 18px;
+    max-width: 360px;
+    width: 100%;
+    text-align: center;
+  }
+  .kbcard h3 { margin: 0 0 12px; }
+  .kbcard .row { display: flex; flex-direction: column; gap: 8px; }
+  /* Melt overlay for ice */
+  .melting {
+    animation: melt 4s linear forwards;
+  }
+  @keyframes melt {
+    from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    to { opacity: 0; transform: translate(-50%, 40%) scale(0.4); }
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header>
+  <h1>&#x1F4A7; Float or Sink Tank</h1>
+  <p class="aim"><strong>Teacher aim:</strong> children explore everyday materials by dropping them into water, watch what floats or sinks, and predict by sorting objects into two hoops. (EYFS: Understanding the World, materials and physical processes.)</p>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+
+    <!-- Object tray -->
+    <section class="panel" aria-label="Objects to test">
+      <h2>Pick an object</h2>
+      <div class="tray" id="tray"></div>
+      <p class="hint">Drag an object into the tank, or tap an object and press Enter to choose where it goes.</p>
+    </section>
+
+    <!-- Tank + hoops -->
+    <section class="panel" aria-label="Water tank and sorting hoops">
+      <h2>Drop it in the tank</h2>
+      <div class="tankwrap">
+        <div class="tank" id="tank" role="button" tabindex="0"
+             aria-label="Water tank. Drop an object here to see if it floats or sinks.">
+          <div class="waterline" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <span class="score" id="score">Tested: 0 of 8</span>
+        <div>
+          <button class="btn ice" id="iceBtn" type="button">&#x2744;&#xFE0F; Add an ice cube</button>
+          <button class="btn ghost" id="resetBtn" type="button">Start again</button>
+        </div>
+      </div>
+
+      <div class="feedback" id="feedback" aria-hidden="true">
+        <span class="big">&#x1F440;</span>
+        <span id="fbText">Choose an object and drop it in the water to find out what happens.</span>
+      </div>
+
+      <h2 style="margin-top:16px;">Make a prediction: where will it go?</h2>
+      <div class="hoops">
+        <div class="hoop float" id="hoopFloat" role="group" aria-label="Floaters hoop. Drop objects you think will float.">
+          <h3>&#x2B06;&#xFE0F; Floaters</h3>
+          <div class="bin" id="binFloat"></div>
+        </div>
+        <div class="hoop sink" id="hoopSink" role="group" aria-label="Sinkers hoop. Drop objects you think will sink.">
+          <h3>&#x2B07;&#xFE0F; Sinkers</h3>
+          <div class="bin" id="binSink"></div>
+        </div>
+      </div>
+      <p class="hint">Sort objects into a hoop to guess first. The hoop turns green if your guess matches the tank.</p>
+    </section>
+  </div>
+
+  <!-- Live region for screen readers -->
+  <div class="sr-only" id="live" aria-live="assertive" role="status"></div>
+</div>
+
+<!-- Keyboard placement menu -->
+<div class="kbmenu" id="kbmenu" role="dialog" aria-modal="true" aria-labelledby="kbtitle">
+  <div class="kbcard">
+    <h3 id="kbtitle">Where do you want to put it?</h3>
+    <div class="row">
+      <button class="btn" data-place="tank" type="button">&#x1F4A7; Drop in the tank</button>
+      <button class="btn" data-place="float" type="button">&#x2B06;&#xFE0F; Guess: Floaters hoop</button>
+      <button class="btn" data-place="sink" type="button">&#x2B07;&#xFE0F; Guess: Sinkers hoop</button>
+      <button class="btn ghost" data-place="cancel" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Object data. "floats: true" is the real outcome. why = child-friendly reason.
+  var OBJECTS = [
+    { id: "cork",   emoji: "\u{1FAB5}", name: "Cork",        floats: true,  why: "Cork is full of tiny air pockets, so it is very light and rides on top." },
+    { id: "apple",  emoji: "\u{1F34E}", name: "Apple",       floats: true,  why: "An apple has air inside it, so it bobs on the surface." },
+    { id: "boat",   emoji: "\u{26F5}",  name: "Toy boat",    floats: true,  why: "A boat is hollow and full of air, so it floats." },
+    { id: "duck",   emoji: "\u{1F986}", name: "Rubber duck", floats: true,  why: "The rubber duck is light and full of air, so it floats and bobs." },
+    { id: "rock",   emoji: "\u{1FAA8}", name: "Rock",        floats: false, why: "A rock is heavy and packed solid, so it drops to the bottom." },
+    { id: "spoon",  emoji: "\u{1F944}", name: "Metal spoon", floats: false, why: "The metal spoon is dense and heavy, so it sinks." },
+    { id: "key",    emoji: "\u{1F511}", name: "Key",         floats: false, why: "A metal key is small but heavy for its size, so it sinks." },
+    { id: "coin",   emoji: "\u{1FA99}", name: "Coin",        floats: false, why: "A coin is solid metal and heavy, so it sinks straight down." }
+  ];
+
+  var tray = document.getElementById("tray");
+  var tank = document.getElementById("tank");
+  var binFloat = document.getElementById("binFloat");
+  var binSink = document.getElementById("binSink");
+  var hoopFloat = document.getElementById("hoopFloat");
+  var hoopSink = document.getElementById("hoopSink");
+  var feedback = document.getElementById("feedback");
+  var fbText = document.getElementById("fbText");
+  var fbBig = feedback.querySelector(".big");
+  var scoreEl = document.getElementById("score");
+  var live = document.getElementById("live");
+  var kbmenu = document.getElementById("kbmenu");
+  var kbtitle = document.getElementById("kbtitle");
+  var resetBtn = document.getElementById("resetBtn");
+  var iceBtn = document.getElementById("iceBtn");
+
+  var tested = {};       // id -> true once dropped in tank
+  var predictions = {};  // id -> "float" | "sink"
+  var iceCount = 0;
+
+  function say(msg) { live.textContent = ""; setTimeout(function () { live.textContent = msg; }, 30); }
+
+  function buildTray() {
+    tray.innerHTML = "";
+    OBJECTS.forEach(function (o) {
+      var el = document.createElement("div");
+      el.className = "object";
+      el.setAttribute("tabindex", "0");
+      el.setAttribute("role", "button");
+      el.setAttribute("data-id", o.id);
+      el.setAttribute("aria-label", o.name + ". Drag to the tank or a hoop, or press Enter to choose.");
+      el.innerHTML = '<span aria-hidden="true">' + o.emoji + '</span><span class="lab">' + o.name + '</span>';
+      tray.appendChild(el);
+      attachDrag(el, o);
+      el.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openKbMenu(o);
+        }
+      });
+    });
+  }
+
+  function getObj(id) {
+    for (var i = 0; i < OBJECTS.length; i++) { if (OBJECTS[i].id === id) return OBJECTS[i]; }
+    return null;
+  }
+
+  // ---------- Pointer drag ----------
+  var drag = null;
+
+  function attachDrag(el, o) {
+    el.addEventListener("pointerdown", function (e) {
+      if (el.classList.contains("done")) return;
+      e.preventDefault();
+      var rect = el.getBoundingClientRect();
+      drag = {
+        el: el, obj: o,
+        offsetX: e.clientX - rect.left - rect.width / 2,
+        offsetY: e.clientY - rect.top - rect.height / 2,
+        startLeft: rect.left, startTop: rect.top
+      };
+      el.classList.add("dragging");
+      el.style.position = "fixed";
+      el.style.left = rect.left + "px";
+      el.style.top = rect.top + "px";
+      el.style.margin = "0";
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    el.addEventListener("pointermove", function (e) {
+      if (!drag || drag.el !== el) return;
+      e.preventDefault();
+      el.style.left = (e.clientX - el.offsetWidth / 2) + "px";
+      el.style.top = (e.clientY - el.offsetHeight / 2) + "px";
+      highlightTargets(e.clientX, e.clientY);
+    });
+
+    function endDrag(e) {
+      if (!drag || drag.el !== el) return;
+      var x = e.clientX, y = e.clientY;
+      clearHighlights();
+      el.classList.remove("dragging");
+      el.style.position = "";
+      el.style.left = "";
+      el.style.top = "";
+      el.style.margin = "";
+      var target = whichTarget(x, y);
+      var theObj = drag.obj;
+      drag = null;
+      if (target === "tank") dropInTank(theObj, x, y);
+      else if (target === "float") predictInto(theObj, "float");
+      else if (target === "sink") predictInto(theObj, "sink");
+    }
+    el.addEventListener("pointerup", endDrag);
+    el.addEventListener("pointercancel", endDrag);
+  }
+
+  function rectOf(el) { return el.getBoundingClientRect(); }
+  function inside(r, x, y) { return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; }
+
+  function whichTarget(x, y) {
+    if (inside(rectOf(tank), x, y)) return "tank";
+    if (inside(rectOf(hoopFloat), x, y)) return "float";
+    if (inside(rectOf(hoopSink), x, y)) return "sink";
+    return null;
+  }
+
+  function highlightTargets(x, y) {
+    clearHighlights();
+    var t = whichTarget(x, y);
+    if (t === "tank") tank.classList.add("over");
+    else if (t === "float") hoopFloat.classList.add("over");
+    else if (t === "sink") hoopSink.classList.add("over");
+  }
+  function clearHighlights() {
+    tank.classList.remove("over");
+    hoopFloat.classList.remove("over");
+    hoopSink.classList.remove("over");
+  }
+
+  // ---------- Drop in tank ----------
+  function dropInTank(o, clientX, clientY) {
+    var r = rectOf(tank);
+    var localX = clientX ? (clientX - r.left) : (r.width * (0.3 + Math.random() * 0.4));
+    localX = Math.max(40, Math.min(r.width - 40, localX));
+
+    // ripple at waterline
+    var ripple = document.createElement("div");
+    ripple.className = "ripple";
+    ripple.style.left = localX + "px";
+    ripple.style.top = (r.height * 0.28) + "px";
+    tank.appendChild(ripple);
+    setTimeout(function () { if (ripple.parentNode) ripple.parentNode.removeChild(ripple); }, 700);
+
+    // dropped object
+    var d = document.createElement("div");
+    d.className = "dropped";
+    d.setAttribute("aria-hidden", "true");
+    d.textContent = o.emoji;
+    d.style.left = localX + "px";
+    d.style.top = (r.height * 0.20) + "px";
+    tank.appendChild(d);
+
+    var startTop = r.height * 0.20;
+    var floatTop = r.height * 0.24;        // sits just at the surface
+    var sinkTop = r.height - 36;           // bottom of tank
+    var endTop = o.floats ? floatTop : sinkTop;
+    var t0 = null;
+    var dur = o.floats ? 600 : 1100;
+
+    function step(ts) {
+      if (!t0) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur);
+      var ease = o.floats ? (1 - Math.pow(1 - p, 2)) : (p * p);
+      d.style.top = (startTop + (endTop - startTop) * ease) + "px";
+      if (p < 1) requestAnimationFrame(step);
+      else if (o.floats) d.classList.add("float-anim");
+    }
+    requestAnimationFrame(step);
+
+    markTested(o);
+    giveFeedback(o);
+    checkPrediction(o);
+  }
+
+  function markTested(o) {
+    tested[o.id] = true;
+    var trayEl = tray.querySelector('[data-id="' + o.id + '"]');
+    if (trayEl) {
+      trayEl.classList.add("done");
+      trayEl.setAttribute("aria-label", o.name + ", already tested. It " + (o.floats ? "floats." : "sinks."));
+    }
+    updateScore();
+  }
+
+  function updateScore() {
+    var n = Object.keys(tested).length;
+    scoreEl.textContent = "Tested: " + n + " of " + OBJECTS.length;
+    if (n === OBJECTS.length) {
+      setFeedback("good", "\u{1F389}", "Well done! You tested every object. Some floated and some sank. Heavy, solid things sink. Light things full of air float.");
+      say("All objects tested. Well done.");
+    }
+  }
+
+  function giveFeedback(o) {
+    if (o.floats) {
+      setFeedback("good", "\u{2B06}\u{FE0F}", o.name + " FLOATS! " + o.why);
+      say(o.name + " floats. " + o.why);
+    } else {
+      setFeedback("think", "\u{2B07}\u{FE0F}", o.name + " SINKS! " + o.why);
+      say(o.name + " sinks. " + o.why);
+    }
+  }
+
+  function setFeedback(kind, emoji, text) {
+    feedback.className = "feedback" + (kind ? " " + kind : "");
+    fbBig.textContent = emoji;
+    fbText.textContent = text;
+  }
+
+  // ---------- Predictions ----------
+  function predictInto(o, where) {
+    predictions[o.id] = where;
+    renderPredictions();
+    var word = where === "float" ? "floaters" : "sinkers";
+    if (tested[o.id]) {
+      // already know answer
+      var correct = (where === "float") === o.floats;
+      say("You put " + o.name + " in " + word + ". " + (correct ? "That matches the tank. Good guess." : "The tank showed something different. Try the tank again to check."));
+      flashChip(o.id, correct);
+    } else {
+      setFeedback("", "\u{1F914}", "You guessed " + o.name + " is a " + (where === "float" ? "floater" : "sinker") + ". Now drop it in the tank to check.");
+      say("You guessed " + o.name + " will be a " + word + ". Drop it in the tank to check.");
+    }
+  }
+
+  function renderPredictions() {
+    binFloat.innerHTML = "";
+    binSink.innerHTML = "";
+    Object.keys(predictions).forEach(function (id) {
+      var o = getObj(id);
+      var chip = document.createElement("div");
+      chip.className = "chip";
+      chip.setAttribute("data-id", id);
+      chip.setAttribute("title", o.name);
+      chip.setAttribute("aria-label", o.name + " predicted to " + (predictions[id] === "float" ? "float" : "sink"));
+      chip.textContent = o.emoji;
+      if (tested[id]) {
+        var correct = (predictions[id] === "float") === o.floats;
+        chip.classList.add(correct ? "right" : "wrong");
+      }
+      (predictions[id] === "float" ? binFloat : binSink).appendChild(chip);
+    });
+  }
+
+  function flashChip(id, correct) {
+    var chip = binFloat.querySelector('[data-id="' + id + '"]') || binSink.querySelector('[data-id="' + id + '"]');
+    if (chip) {
+      chip.classList.remove("right", "wrong");
+      chip.classList.add(correct ? "right" : "wrong");
+    }
+  }
+
+  // When an object is tested, update any existing prediction chip colour and praise.
+  function checkPrediction(o) {
+    if (predictions[o.id]) {
+      var correct = (predictions[o.id] === "float") === o.floats;
+      flashChip(o.id, correct);
+      var extra = correct
+        ? " Your guess in the hoop was right!"
+        : " Your guess in the hoop was different. Now you know.";
+      fbText.textContent = fbText.textContent + extra;
+      say((correct ? "Your prediction was correct. " : "Your prediction was different. ") + extra);
+    }
+  }
+
+  // ---------- Ice cube (Ice and Melt Lab) ----------
+  iceBtn.addEventListener("click", function () {
+    iceCount++;
+    var r = rectOf(tank);
+    var localX = r.width * (0.25 + Math.random() * 0.5);
+
+    var ripple = document.createElement("div");
+    ripple.className = "ripple";
+    ripple.style.left = localX + "px";
+    ripple.style.top = (r.height * 0.28) + "px";
+    tank.appendChild(ripple);
+    setTimeout(function () { if (ripple.parentNode) ripple.parentNode.removeChild(ripple); }, 700);
+
+    var d = document.createElement("div");
+    d.className = "dropped float-anim";
+    d.setAttribute("aria-hidden", "true");
+    d.textContent = "\u{1F9CA}";
+    d.style.left = localX + "px";
+    d.style.top = (r.height * 0.24) + "px";
+    tank.appendChild(d);
+
+    setFeedback("good", "\u{2744}\u{FE0F}", "The ice cube FLOATS because frozen water is lighter than liquid water. Watch: it slowly melts and turns back into water.");
+    say("The ice cube floats. It is melting back into water.");
+
+    // melt away after a few seconds
+    setTimeout(function () {
+      d.classList.remove("float-anim");
+      d.classList.add("melting");
+      setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 4000);
+      setFeedback("good", "\u{1F4A7}", "The ice melted! Solid ice turned into liquid water. That is called melting.");
+      say("The ice melted into water. That is called melting.");
+    }, 2600);
+  });
+
+  // ---------- Keyboard placement menu ----------
+  var kbObj = null;
+  function openKbMenu(o) {
+    kbObj = o;
+    kbtitle.textContent = "Where do you want to put the " + o.name + "?";
+    kbmenu.classList.add("show");
+    var first = kbmenu.querySelector("button");
+    if (first) first.focus();
+  }
+  function closeKbMenu() {
+    kbmenu.classList.remove("show");
+    var trayEl = kbObj ? tray.querySelector('[data-id="' + kbObj.id + '"]') : null;
+    if (trayEl && !trayEl.classList.contains("done")) trayEl.focus();
+    else if (trayEl) {
+      var next = trayEl.nextElementSibling;
+      if (next) next.focus();
+    }
+  }
+  kbmenu.addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-place]");
+    if (!b) return;
+    var place = b.getAttribute("data-place");
+    var o = kbObj;
+    if (place === "tank") { closeKbMenu(); dropInTank(o); }
+    else if (place === "float") { closeKbMenu(); predictInto(o, "float"); }
+    else if (place === "sink") { closeKbMenu(); predictInto(o, "sink"); }
+    else { closeKbMenu(); }
+  });
+  kbmenu.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { e.preventDefault(); closeKbMenu(); }
+  });
+
+  // Tank as keyboard drop target: pressing Enter when focused does nothing alone,
+  // but supports clicking to test a random remaining object for quick demo.
+  tank.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      var remaining = OBJECTS.filter(function (o) { return !tested[o.id]; });
+      if (remaining.length) dropInTank(remaining[0]);
+    }
+  });
+
+  // ---------- Reset ----------
+  resetBtn.addEventListener("click", function () {
+    tested = {};
+    predictions = {};
+    iceCount = 0;
+    // remove dropped items
+    var drops = tank.querySelectorAll(".dropped, .ripple");
+    drops.forEach(function (n) { if (n.parentNode) n.parentNode.removeChild(n); });
+    binFloat.innerHTML = "";
+    binSink.innerHTML = "";
+    buildTray();
+    updateScore();
+    setFeedback("", "\u{1F440}", "Choose an object and drop it in the water to find out what happens.");
+    say("Cleared. Ready to start again.");
+  });
+
+  // init
+  buildTray();
+  updateScore();
+})();
+</script>
+</body>
+</html>

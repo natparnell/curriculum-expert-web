@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Protocol Stack Builder | KS4 Computing</title>
+<style>
+  :root{
+    --app:#0b3d5c; --app-light:#11587f; --accent:#0f9d8c; --accent-dark:#0a7064;
+    --warn:#b8480f; --ok:#1f7a3d; --bg:#f4f7f9; --card:#ffffff; --ink:#16242e;
+    --muted:#5a6c78; --line:#d7e0e6;
+    --L4:#1d6fa5; --L3:#7a4fb8; --L2:#c2702a; --L1:#3c8c50;
+    --shadow:0 2px 10px rgba(11,61,92,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.45;
+    -webkit-text-size-adjust:100%;
+  }
+  header.app{
+    background:linear-gradient(135deg,var(--app),var(--app-light));
+    color:#fff; padding:18px 20px;
+  }
+  header.app h1{margin:0; font-size:1.45rem; letter-spacing:.2px}
+  header.app .sub{margin:4px 0 0; font-size:.92rem; opacity:.92}
+  .aim{
+    background:#eaf4f3; border-left:5px solid var(--accent);
+    padding:10px 16px; font-size:.9rem; color:#0a4a44;
+  }
+  .aim strong{color:var(--accent-dark)}
+  main{max-width:1080px; margin:0 auto; padding:16px}
+  .panel{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    box-shadow:var(--shadow); padding:16px; margin-bottom:16px;
+  }
+  .panel h2{margin:0 0 6px; font-size:1.08rem; color:var(--app)}
+  .panel p.lead{margin:0 0 12px; color:var(--muted); font-size:.9rem}
+
+  /* Mode + direction controls */
+  .controls{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:8px}
+  .seg{display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden}
+  .seg button{
+    border:0; background:#fff; color:var(--app); padding:9px 14px; font-size:.88rem;
+    cursor:pointer; font-weight:600;
+  }
+  .seg button[aria-pressed="true"]{background:var(--app); color:#fff}
+  .seg button:focus-visible{outline:3px solid var(--accent); outline-offset:-3px}
+  .msg-pick{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:6px 0}
+  .msg-pick label{font-size:.85rem; color:var(--muted); font-weight:600}
+  select.app-select{
+    font-size:.9rem; padding:8px 10px; border:1px solid var(--line); border-radius:8px;
+    background:#fff; color:var(--ink); min-width:200px;
+  }
+
+  /* Stage: layers and the travelling packet */
+  .stage{
+    display:grid; grid-template-columns:1fr; gap:12px;
+  }
+  @media(min-width:760px){ .stage{grid-template-columns:1.15fr .85fr} }
+
+  .layers{display:flex; flex-direction:column; gap:8px; position:relative}
+  .layer{
+    border:2px dashed var(--line); border-radius:10px; padding:10px 12px;
+    background:#fbfdfe; transition:background .15s,border-color .15s,transform .1s;
+    position:relative;
+  }
+  .layer .lhead{display:flex; align-items:center; gap:8px; justify-content:space-between}
+  .layer .ltitle{font-weight:700; font-size:.95rem; display:flex; align-items:center; gap:8px}
+  .chip{
+    display:inline-block; width:14px; height:14px; border-radius:4px; flex:none;
+  }
+  .layer[data-layer="application"] .chip{background:var(--L4)}
+  .layer[data-layer="transport"]   .chip{background:var(--L3)}
+  .layer[data-layer="network"]     .chip{background:var(--L2)}
+  .layer[data-layer="link"]        .chip{background:var(--L1)}
+  .layer .lproto{font-size:.78rem; color:var(--muted)}
+  .layer.dropok{border-color:var(--accent); background:#eafaf7}
+  .layer.dropok::after{
+    content:'\2193 drop here'; position:absolute; right:12px; top:10px;
+    font-size:.74rem; color:var(--accent-dark); font-weight:700;
+  }
+  .layer.done{border-style:solid; border-color:var(--ok); background:#f0faf2}
+  .layer.done .ltitle::after{content:'\2713'; color:var(--ok); margin-left:6px; font-weight:900}
+  .layer .laction{font-size:.78rem; color:var(--muted); margin-top:4px}
+
+  /* Draggable packet */
+  .packet-tray{
+    margin-top:6px; min-height:64px; display:flex; align-items:center; justify-content:center;
+    border:1px dashed var(--line); border-radius:10px; padding:8px; background:#fff;
+  }
+  .packet{
+    touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none;
+    display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center;
+    padding:6px; border-radius:10px; background:#fff; border:1px solid var(--line);
+    box-shadow:var(--shadow); max-width:100%;
+  }
+  .packet:active{cursor:grabbing}
+  .packet.dragging{opacity:.92; box-shadow:0 8px 22px rgba(11,61,92,.28); z-index:50}
+  .packet:focus-visible{outline:3px solid var(--accent); outline-offset:3px}
+  .seg-box{
+    font-size:.72rem; padding:5px 7px; border-radius:6px; color:#fff; font-weight:700;
+    white-space:nowrap; line-height:1.1;
+  }
+  .seg-box small{display:block; font-weight:500; font-size:.62rem; opacity:.92}
+  .hdr-app{background:var(--L4)} .hdr-tr{background:var(--L3)}
+  .hdr-net{background:var(--L2)} .hdr-link{background:var(--L1)}
+  .hdr-data{background:#36505e}
+  .seg-box.added{animation:pop .35s ease}
+  @keyframes pop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+
+  /* Side: inspector + feedback */
+  .inspector h3{margin:0 0 6px; font-size:.95rem; color:var(--app)}
+  .feedback{
+    border-radius:10px; padding:10px 12px; font-size:.88rem; margin-bottom:10px;
+    border:1px solid var(--line); background:#f7fafb; min-height:48px;
+  }
+  .feedback.good{background:#eef9f1; border-color:#bfe3c9; color:#155f2c}
+  .feedback.bad{background:#fdf1ea; border-color:#f0c9b2; color:#8a3408}
+  .feedback.info{background:#eef5fa; border-color:#bcd7ea; color:#0b4368}
+  .feedback strong{display:block; margin-bottom:2px}
+  .keyhint{font-size:.78rem; color:var(--muted); margin-top:8px}
+  .progress{font-size:.82rem; color:var(--muted); margin:6px 0}
+  .bar{height:8px; background:#e6edf1; border-radius:6px; overflow:hidden; margin-top:4px}
+  .bar > span{display:block; height:100%; width:0; background:var(--accent); transition:width .3s}
+
+  .btn{
+    border:0; border-radius:9px; padding:10px 14px; font-size:.9rem; font-weight:700;
+    cursor:pointer; background:var(--accent); color:#fff;
+  }
+  .btn:hover{background:var(--accent-dark)}
+  .btn.ghost{background:#fff; color:var(--app); border:1px solid var(--line)}
+  .btn:focus-visible{outline:3px solid var(--app); outline-offset:2px}
+  .btnrow{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+
+  /* Glossary / reference */
+  .ref-grid{display:grid; grid-template-columns:1fr; gap:8px}
+  @media(min-width:620px){ .ref-grid{grid-template-columns:1fr 1fr} }
+  .ref{border:1px solid var(--line); border-radius:9px; padding:9px 11px; background:#fbfdfe}
+  .ref b{color:var(--app)}
+  .ref span{display:block; font-size:.83rem; color:var(--muted)}
+  details.quiz{border:1px solid var(--line); border-radius:9px; padding:8px 12px; margin-top:8px; background:#fbfdfe}
+  details.quiz summary{cursor:pointer; font-weight:600; color:var(--app)}
+  .qopt{display:block; margin:6px 0; font-size:.88rem; cursor:pointer}
+  .qfeed{font-size:.84rem; margin-top:6px; min-height:18px}
+  footer{padding:14px 20px; font-size:.78rem; color:var(--muted); text-align:center}
+  .visually-hidden{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .legend{display:flex; flex-wrap:wrap; gap:10px; font-size:.78rem; color:var(--muted); margin-top:6px}
+  .legend span{display:inline-flex; align-items:center; gap:5px}
+  .legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="app">
+  <h1>Protocol Stack Builder</h1>
+  <p class="sub">Encapsulation and de-encapsulation across the four-layer TCP/IP model</p>
+</header>
+<p class="aim"><strong>Teacher aim:</strong> Pupils model how data is wrapped with protocol headers as it moves down the TCP/IP stack at the sender, and unwrapped at the receiver, linking each layer to its protocols, addresses and job. Maps to GCSE Computer Science: networks, topologies, protocols and the internet.</p>
+
+<main>
+  <section class="panel">
+    <h2>1. Set up the transmission</h2>
+    <p class="lead">Choose a message, then a direction. Sending wraps headers on (encapsulation); receiving strips them off (de-encapsulation).</p>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Direction">
+        <button id="dirSend" aria-pressed="true">Sender: wrap down &#x2193;</button>
+        <button id="dirRecv" aria-pressed="false">Receiver: strip up &#x2191;</button>
+      </div>
+      <div class="msg-pick">
+        <label for="msgSel">Payload:</label>
+        <select id="msgSel" class="app-select" aria-label="Choose the message to send">
+          <option value="0">Web page request (HTTP) to school site</option>
+          <option value="1">Email to teacher (SMTP)</option>
+          <option value="2">File download from server (FTP)</option>
+        </select>
+      </div>
+    </div>
+    <div class="legend" aria-hidden="true">
+      <span><i style="background:var(--L4)"></i>Application</span>
+      <span><i style="background:var(--L3)"></i>Transport</span>
+      <span><i style="background:var(--L2)"></i>Internet</span>
+      <span><i style="background:var(--L1)"></i>Link</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 id="stageTitle">2. Move the data through the stack</h2>
+    <p class="lead" id="stageLead">Drag the data block onto the correct next layer. Keyboard: focus the block, press Enter or Space to move it to the highlighted layer.</p>
+    <div class="stage">
+      <div class="layers" id="layers" aria-label="TCP/IP layers">
+        <div class="layer" data-layer="application" data-idx="0">
+          <div class="lhead">
+            <span class="ltitle"><span class="chip"></span>Application layer</span>
+            <span class="lproto">HTTP &middot; HTTPS &middot; SMTP &middot; IMAP &middot; FTP &middot; DNS</span>
+          </div>
+          <div class="laction">Creates the message in a format the app understands.</div>
+        </div>
+        <div class="layer" data-layer="transport" data-idx="1">
+          <div class="lhead">
+            <span class="ltitle"><span class="chip"></span>Transport layer</span>
+            <span class="lproto">TCP &middot; UDP</span>
+          </div>
+          <div class="laction">Splits into segments, adds port numbers, sequence numbers.</div>
+        </div>
+        <div class="layer" data-layer="network" data-idx="2">
+          <div class="lhead">
+            <span class="ltitle"><span class="chip"></span>Internet (Network) layer</span>
+            <span class="lproto">IP &middot; ICMP</span>
+          </div>
+          <div class="laction">Adds source and destination IP addresses; routes the packet.</div>
+        </div>
+        <div class="layer" data-layer="link" data-idx="3">
+          <div class="lhead">
+            <span class="ltitle"><span class="chip"></span>Link (Network access) layer</span>
+            <span class="lproto">Ethernet &middot; Wi-Fi &middot; MAC</span>
+          </div>
+          <div class="laction">Adds MAC addresses; turns it into a frame of bits on the wire.</div>
+        </div>
+
+        <div class="packet-tray" id="tray">
+          <div class="packet" id="packet" tabindex="0" role="button"
+               aria-describedby="pktDesc"
+               aria-label="Data block. Drag to a layer or press Enter to move to the highlighted layer.">
+            <span class="seg-box hdr-data" id="payloadBox">Data<small>payload</small></span>
+          </div>
+        </div>
+        <p class="visually-hidden" id="pktDesc">The data block. Move it down through Transport, Internet, then Link when sending; or up when receiving.</p>
+      </div>
+
+      <div class="inspector" aria-live="polite">
+        <h3>Inspector</h3>
+        <div class="feedback info" id="feedback" role="status">
+          <strong>Ready.</strong> Sending mode: move the data block onto the Transport layer first.
+        </div>
+        <div class="progress">
+          <span id="progLabel">Step 0 of 3</span>
+          <div class="bar"><span id="progBar"></span></div>
+        </div>
+        <div class="keyhint">Tip: drop on the wrong layer and the app tells you exactly which protocol should act next.</div>
+        <div class="btnrow">
+          <button class="btn ghost" id="resetBtn">Reset transmission</button>
+          <button class="btn" id="autoBtn">Show next step</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>3. Layer reference</h2>
+    <p class="lead">What gets added (or removed) at each TCP/IP layer.</p>
+    <div class="ref-grid">
+      <div class="ref"><b>Application</b><span>HTTP, SMTP, FTP, DNS. The data the user actually wants. DNS turns curriculumexpert.co.uk into an IP address before sending.</span></div>
+      <div class="ref"><b>Transport (TCP)</b><span>Breaks data into segments, numbers them so they can be reassembled in order, adds source and destination port numbers (e.g. port 80 for HTTP).</span></div>
+      <div class="ref"><b>Internet (IP)</b><span>Adds source and destination IP addresses, making a packet. Routers use the destination IP to forward it hop by hop.</span></div>
+      <div class="ref"><b>Link (Ethernet/Wi-Fi)</b><span>Adds source and destination MAC addresses, making a frame, then transmits it as signals. MAC changes at every hop; IP stays the same end to end.</span></div>
+    </div>
+
+    <details class="quiz">
+      <summary>Quick check: packet switching and routing</summary>
+      <p style="font-size:.88rem">Why does each packet of one message sometimes take a different route across the internet?</p>
+      <label class="qopt"><input type="radio" name="q1" value="a"> Because the IP address changes for each packet.</label>
+      <label class="qopt"><input type="radio" name="q1" value="b"> Because routers choose the best available path at that moment, so packets are switched independently.</label>
+      <label class="qopt"><input type="radio" name="q1" value="c"> Because MAC addresses stay the same from end to end.</label>
+      <p class="qfeed" id="q1feed" role="status"></p>
+    </details>
+  </section>
+</main>
+
+<footer>Protocol Stack Builder &middot; KS4 Computing &middot; WeST classroom demo. Fictional, illustrative data only.</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---- Message scenarios (demonstration data only) ----
+  var messages = [
+    {
+      payload:"GET /timetable HTTP/1.1",
+      app:{proto:"HTTP", note:"port 80 destination"},
+      transport:{proto:"TCP", port:"src 49231 → dst 80", note:"reliable, ordered"},
+      network:{src:"192.168.1.24", dst:"172.16.4.9"},
+      link:{srcmac:"AA:BB:CC:00:11:22", dstmac:"DE:AD:BE:EF:00:01"}
+    },
+    {
+      payload:"To: mr.okafor@school MAIL FROM",
+      app:{proto:"SMTP", note:"port 25 destination"},
+      transport:{proto:"TCP", port:"src 50112 → dst 25", note:"reliable, ordered"},
+      network:{src:"192.168.1.24", dst:"172.16.4.20"},
+      link:{srcmac:"AA:BB:CC:00:11:22", dstmac:"DE:AD:BE:EF:00:0A"}
+    },
+    {
+      payload:"RETR coursework.zip",
+      app:{proto:"FTP", note:"port 21 control"},
+      transport:{proto:"TCP", port:"src 51777 → dst 21", note:"reliable, ordered"},
+      network:{src:"192.168.1.24", dst:"172.16.4.55"},
+      link:{srcmac:"AA:BB:CC:00:11:22", dstmac:"DE:AD:BE:EF:00:1F"}
+    }
+  ];
+
+  // Layer order top-to-bottom (sending goes app->transport->network->link)
+  var ORDER = ["application","transport","network","link"];
+  var LAYER_IDX = {application:0, transport:1, network:2, link:3};
+
+  var state = {
+    dir:"send",      // "send" or "recv"
+    msg:0,
+    progress:0       // number of completed wrap/strip steps (0..3)
+  };
+
+  // DOM refs
+  var packet = document.getElementById("packet");
+  var tray = document.getElementById("tray");
+  var feedback = document.getElementById("feedback");
+  var progLabel = document.getElementById("progLabel");
+  var progBar = document.getElementById("progBar");
+  var msgSel = document.getElementById("msgSel");
+  var dirSend = document.getElementById("dirSend");
+  var dirRecv = document.getElementById("dirRecv");
+  var resetBtn = document.getElementById("resetBtn");
+  var autoBtn = document.getElementById("autoBtn");
+  var stageTitle = document.getElementById("stageTitle");
+  var stageLead = document.getElementById("stageLead");
+  var layerEls = Array.prototype.slice.call(document.querySelectorAll(".layer"));
+
+  // For sending: order of layers that must each add a header, after the payload exists at application.
+  // Steps target transport(1), network(2), link(3).
+  // For receiving: order is link(3) strips, network(2) strips, transport(1) strips -> deliver to application(0).
+  function sendSequence(){ return [1,2,3]; }       // layer idx to act next, in order
+  function recvSequence(){ return [3,2,1,0]; }     // strip link, network, transport, deliver app
+
+  function currentSequence(){ return state.dir==="send" ? sendSequence() : recvSequence(); }
+
+  function targetIdx(){
+    var seq = currentSequence();
+    if(state.progress >= seq.length) return -1;
+    return seq[state.progress];
+  }
+
+  // Build the visual data block contents based on progress
+  function renderPacket(){
+    var m = messages[state.msg];
+    packet.innerHTML = "";
+
+    function box(cls, label, sub){
+      var s = document.createElement("span");
+      s.className = "seg-box "+cls;
+      s.innerHTML = label + (sub ? '<small>'+sub+'</small>' : '');
+      return s;
+    }
+
+    if(state.dir === "send"){
+      // headers added so far, outermost on the LEFT (link), payload on right
+      var hasTransport = state.progress >= 1;
+      var hasNetwork   = state.progress >= 2;
+      var hasLink      = state.progress >= 3;
+      if(hasLink)      packet.appendChild(box("hdr-link","ETH","MAC frame"));
+      if(hasNetwork)   packet.appendChild(box("hdr-net","IP","→ "+m.network.dst));
+      if(hasTransport) packet.appendChild(box("hdr-tr","TCP",m.transport.port));
+      packet.appendChild(box("hdr-app",m.app.proto, "data"));
+      var pl = box("hdr-data","Payload", m.payload);
+      packet.appendChild(pl);
+      // animate the most recently added header
+      var newest = packet.querySelector(".seg-box");
+      if(newest && state.progress>0) newest.classList.add("added");
+    } else {
+      // receiving: start fully wrapped (frame), strip from outside in
+      var stripped = state.progress; // how many removed: link, then net, then tr
+      var showLink = stripped < 1;
+      var showNet  = stripped < 2;
+      var showTr   = stripped < 3;
+      if(showLink) packet.appendChild(box("hdr-link","ETH","MAC frame"));
+      if(showNet)  packet.appendChild(box("hdr-net","IP","→ "+m.network.dst));
+      if(showTr)   packet.appendChild(box("hdr-tr","TCP",m.transport.port));
+      packet.appendChild(box("hdr-app",m.app.proto,"data"));
+      packet.appendChild(box("hdr-data","Payload", m.payload));
+    }
+    // reposition packet visually under the relevant layer for sender; keep in tray for simplicity
+  }
+
+  function layerName(idx){
+    return ["Application","Transport","Internet","Link"][idx];
+  }
+
+  function expectedActionText(idx){
+    var m = messages[state.msg];
+    if(state.dir==="send"){
+      if(idx===1) return "Transport (TCP) adds ports "+m.transport.port+" and segments the data.";
+      if(idx===2) return "Internet (IP) adds source "+m.network.src+" and destination "+m.network.dst+".";
+      if(idx===3) return "Link (Ethernet) adds MAC "+m.link.srcmac+" → "+m.link.dstmac+" and frames it.";
+    } else {
+      if(idx===3) return "Link strips the Ethernet frame and checks the destination MAC.";
+      if(idx===2) return "Internet (IP) strips the IP header after confirming the destination IP.";
+      if(idx===1) return "Transport (TCP) strips ports and reassembles segments in order.";
+      if(idx===0) return "Application ("+m.app.proto+") receives the original payload: "+m.payload;
+    }
+    return "";
+  }
+
+  function setFeedback(kind, title, body){
+    feedback.className = "feedback "+kind;
+    feedback.innerHTML = "<strong>"+title+"</strong>"+body;
+  }
+
+  function updateProgress(){
+    var total = currentSequence().length;
+    progLabel.textContent = "Step "+state.progress+" of "+total;
+    progBar.style.width = (state.progress/total*100)+"%";
+    highlightTarget();
+  }
+
+  function highlightTarget(){
+    layerEls.forEach(function(el){ el.classList.remove("dropok"); });
+    var t = targetIdx();
+    if(t>=0){
+      layerEls[t].classList.add("dropok");
+    }
+  }
+
+  function markDone(){
+    // colour layers that have acted
+    layerEls.forEach(function(el){ el.classList.remove("done"); });
+    var seq = currentSequence();
+    for(var i=0;i<state.progress;i++){
+      layerEls[seq[i]].classList.add("done");
+    }
+  }
+
+  // Apply a step if the chosen layer is correct
+  function tryStep(chosenIdx){
+    var t = targetIdx();
+    if(t === -1){
+      setFeedback("good","Complete.","The transmission has finished. Reset to try another message or the other direction.");
+      return;
+    }
+    var m = messages[state.msg];
+    if(chosenIdx === t){
+      state.progress++;
+      renderPacket();
+      markDone();
+      updateProgress();
+      if(state.dir==="send"){
+        var actNow = expectedActionText(t);
+        if(state.progress >= currentSequence().length){
+          setFeedback("good","Encapsulation complete.","All headers added. The frame is now bits on the wire: "+
+            "Payload wrapped by "+m.app.proto+", then TCP, then IP, then Ethernet. Switch to Receiver to strip them off.");
+        } else {
+          setFeedback("good","Header added at "+layerName(t)+".", actNow+" Now move it to the "+layerName(targetIdx())+" layer.");
+        }
+      } else {
+        var actR = expectedActionText(t);
+        if(state.progress >= currentSequence().length){
+          setFeedback("good","De-encapsulation complete.", actR+" The headers have all been removed in reverse order: Ethernet, then IP, then TCP. The application has the original data.");
+        } else {
+          setFeedback("good","Header removed at "+layerName(t)+".", actR+" Now move it to the "+layerName(targetIdx())+" layer.");
+        }
+      }
+    } else {
+      // wrong layer: targeted feedback
+      var why;
+      if(state.dir==="send"){
+        if(chosenIdx < t){
+          why = layerName(chosenIdx)+" has already done its job, or has not started yet. Sending wraps top to bottom: next the data needs the "+layerName(t)+" layer.";
+        } else {
+          why = "You skipped a layer. Headers are added in order going down. The "+layerName(t)+" layer must act before "+layerName(chosenIdx)+", because "+expectedActionText(t).toLowerCase();
+        }
+      } else {
+        if(chosenIdx > t){
+          why = "That layer's header is already removed. Receiving strips bottom to top: the "+layerName(t)+" layer acts next.";
+        } else {
+          why = "You jumped ahead. The outer headers must come off first. The "+layerName(t)+" layer must strip its header before "+layerName(chosenIdx)+" can read anything.";
+        }
+      }
+      setFeedback("bad","Not "+layerName(chosenIdx)+" yet.", why);
+      // nudge animation on the actual target
+      layerEls[t].style.transform = "translateX(3px)";
+      setTimeout(function(){ layerEls[t].style.transform=""; },120);
+    }
+  }
+
+  // ---- Pointer drag handling ----
+  var drag = null;
+  function onPointerDown(e){
+    if(targetIdx()===-1) return;
+    drag = {
+      startX:e.clientX, startY:e.clientY,
+      origLeft:packet.getBoundingClientRect().left,
+      origTop:packet.getBoundingClientRect().top
+    };
+    packet.setPointerCapture(e.pointerId);
+    packet.classList.add("dragging");
+    packet.style.position = "relative";
+    e.preventDefault();
+  }
+  function onPointerMove(e){
+    if(!drag) return;
+    var dx = e.clientX - drag.startX;
+    var dy = e.clientY - drag.startY;
+    packet.style.left = dx+"px";
+    packet.style.top = dy+"px";
+    // hover highlight
+    var hovered = layerUnderPoint(e.clientX, e.clientY);
+    layerEls.forEach(function(el){ el.classList.toggle("hovering", el===hovered); });
+  }
+  function onPointerUp(e){
+    if(!drag) return;
+    packet.classList.remove("dragging");
+    var dropped = layerUnderPoint(e.clientX, e.clientY);
+    // reset position
+    packet.style.left="0"; packet.style.top="0";
+    layerEls.forEach(function(el){ el.classList.remove("hovering"); });
+    drag = null;
+    if(dropped){
+      var idx = parseInt(dropped.getAttribute("data-idx"),10);
+      tryStep(idx);
+    } else {
+      setFeedback("info","Dropped outside a layer.","Drag the data block directly onto a layer box.");
+    }
+  }
+  function layerUnderPoint(x,y){
+    for(var i=0;i<layerEls.length;i++){
+      var r = layerEls[i].getBoundingClientRect();
+      if(x>=r.left && x<=r.right && y>=r.top && y<=r.bottom) return layerEls[i];
+    }
+    return null;
+  }
+  packet.addEventListener("pointerdown", onPointerDown);
+  packet.addEventListener("pointermove", onPointerMove);
+  packet.addEventListener("pointerup", onPointerUp);
+  packet.addEventListener("pointercancel", function(){
+    if(drag){ packet.classList.remove("dragging"); packet.style.left="0"; packet.style.top="0"; drag=null; }
+  });
+
+  // ---- Keyboard operation ----
+  packet.addEventListener("keydown", function(e){
+    if(e.key==="Enter" || e.key===" "){
+      e.preventDefault();
+      var t = targetIdx();
+      if(t>=0) tryStep(t);
+    }
+  });
+  // Allow clicking a highlighted layer too (accessibility / IWB)
+  layerEls.forEach(function(el){
+    el.addEventListener("click", function(){
+      var idx = parseInt(el.getAttribute("data-idx"),10);
+      tryStep(idx);
+    });
+  });
+
+  // ---- Controls ----
+  function setDirection(dir){
+    state.dir = dir;
+    state.progress = 0;
+    dirSend.setAttribute("aria-pressed", dir==="send" ? "true":"false");
+    dirRecv.setAttribute("aria-pressed", dir==="recv" ? "true":"false");
+    if(dir==="send"){
+      stageTitle.textContent = "2. Send: wrap the data going down the stack";
+      stageLead.textContent = "Drag the data block onto each layer in turn to add its header. Keyboard: focus the block, press Enter to add the next header.";
+    } else {
+      stageTitle.textContent = "2. Receive: strip the headers going up the stack";
+      stageLead.textContent = "The frame arrives fully wrapped. Drag it onto each layer to strip a header in reverse order. Keyboard: press Enter to strip the next header.";
+    }
+    renderPacket();
+    markDone();
+    updateProgress();
+    var firstT = targetIdx();
+    if(dir==="send"){
+      setFeedback("info","Sender mode.","The application has created the payload. Move the block to the "+layerName(firstT)+" layer to add the first header.");
+    } else {
+      setFeedback("info","Receiver mode.","A complete frame has arrived. Move it to the "+layerName(firstT)+" layer to strip the outermost header first.");
+    }
+  }
+
+  function reset(){
+    state.progress = 0;
+    renderPacket();
+    markDone();
+    updateProgress();
+    setDirection(state.dir);
+  }
+
+  dirSend.addEventListener("click", function(){ setDirection("send"); });
+  dirRecv.addEventListener("click", function(){ setDirection("recv"); });
+  resetBtn.addEventListener("click", function(){ state.progress=0; setDirection(state.dir); });
+  autoBtn.addEventListener("click", function(){
+    var t = targetIdx();
+    if(t>=0){ tryStep(t); } else {
+      setFeedback("info","Nothing left to do.","This transmission is complete. Reset or switch direction.");
+    }
+  });
+  msgSel.addEventListener("change", function(){
+    state.msg = parseInt(msgSel.value,10);
+    state.progress = 0;
+    setDirection(state.dir);
+  });
+
+  // ---- Quiz ----
+  var q1feed = document.getElementById("q1feed");
+  document.querySelectorAll('input[name="q1"]').forEach(function(r){
+    r.addEventListener("change", function(){
+      if(r.value==="b"){
+        q1feed.textContent = "Correct. In packet switching each packet is routed independently, so they can take different paths and be reassembled at the destination.";
+        q1feed.style.color = "var(--ok)";
+      } else if(r.value==="a"){
+        q1feed.textContent = "Not quite. The destination IP stays the same for every packet of the message; that is what lets routers send them to the same place.";
+        q1feed.style.color = "var(--warn)";
+      } else {
+        q1feed.textContent = "Not quite. MAC addresses actually change at each hop; that is not why routes differ. Think about how routers pick the best path.";
+        q1feed.style.color = "var(--warn)";
+      }
+    });
+  });
+
+  // init
+  renderPacket();
+  setDirection("send");
+})();
+</script>
+</body>
+</html>

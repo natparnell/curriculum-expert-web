@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Power Map of Britain</title>
+<style>
+  :root{
+    --ink:#1d2433;
+    --muted:#5a6678;
+    --paper:#f4f6fb;
+    --card:#ffffff;
+    --line:#d8dee9;
+    --crown:#7a5cc0;
+    --parl:#0f7a6b;
+    --gov:#b5482f;
+    --courts:#2b5fa6;
+    --people:#9a7d12;
+    --good:#1f7a44;
+    --bad:#b32d2d;
+    --warn:#9a6b12;
+    --focus:#ffb000;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.45;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:18px 16px 60px;}
+  header.app{
+    border-bottom:3px solid var(--ink);
+    padding-bottom:12px;margin-bottom:16px;
+  }
+  .eyebrow{
+    font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--muted);font-weight:700;margin:0 0 4px;
+  }
+  h1{font-size:clamp(24px,4vw,38px);margin:0 0 6px;line-height:1.08;}
+  .aim{
+    font-size:15px;color:var(--muted);margin:0;max-width:760px;
+  }
+  .aim strong{color:var(--ink);}
+  .layout{display:grid;grid-template-columns:1fr;gap:16px;}
+  @media(min-width:960px){
+    .layout{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);align-items:start;}
+  }
+  .panel{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:14px;box-shadow:0 1px 2px rgba(20,30,50,.04);
+  }
+  .panel h2{
+    font-size:13px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 10px;font-weight:800;
+  }
+  /* SVG map */
+  .mapwrap{position:relative;}
+  svg.map{width:100%;height:auto;display:block;touch-action:none;}
+  .node-rect{cursor:pointer;transition:filter .12s ease;}
+  .node-rect:focus{outline:none;}
+  .node-g:focus{outline:none;}
+  .node-g.focusable:focus .node-rect{
+    stroke:var(--focus);stroke-width:4;
+    filter:drop-shadow(0 0 4px rgba(255,176,0,.7));
+  }
+  .node-title{font-weight:800;font-size:15px;fill:#fff;pointer-events:none;}
+  .node-sub{font-size:11px;fill:rgba(255,255,255,.92);pointer-events:none;}
+  .node-g.dim{opacity:.28;}
+  .node-g.active .node-rect{filter:drop-shadow(0 0 6px rgba(0,0,0,.35));}
+  .flow{stroke-width:3.5;fill:none;marker-end:url(#arrow);transition:opacity .15s ease,stroke-width .15s ease;}
+  .flow.check{stroke-dasharray:7 5;marker-end:url(#arrowCheck);}
+  .flow.dim{opacity:.12;}
+  .flow.hot{stroke-width:6;}
+  .legendrow{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:10px;font-size:12.5px;}
+  .legendrow span{display:inline-flex;align-items:center;gap:6px;color:var(--muted);}
+  .swatch{width:14px;height:14px;border-radius:3px;display:inline-block;}
+  .lineflow{width:26px;height:0;border-top:3.5px solid var(--ink);display:inline-block;}
+  .linecheck{width:26px;height:0;border-top:3.5px dashed var(--gov);display:inline-block;}
+  /* info readout */
+  .readout{min-height:120px;}
+  .readout .placeholder{color:var(--muted);font-size:14px;}
+  .pill{
+    display:inline-block;font-size:11px;font-weight:800;letter-spacing:.05em;
+    text-transform:uppercase;padding:3px 9px;border-radius:999px;color:#fff;margin-bottom:8px;
+  }
+  .readout h3{margin:2px 0 6px;font-size:19px;}
+  .readout p{margin:0 0 8px;font-size:14.5px;}
+  .factlist{margin:6px 0 0;padding-left:18px;font-size:13.5px;color:var(--ink);}
+  .factlist li{margin-bottom:4px;}
+  .checks-on{font-size:13px;color:var(--muted);margin-top:8px;}
+  .checks-on b{color:var(--ink);}
+  /* scenario lab */
+  .scenario-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .sccount{font-size:12px;color:var(--muted);font-weight:700;}
+  .scenario-text{
+    font-size:15px;background:#fbfcfe;border:1px solid var(--line);
+    border-left:4px solid var(--crown);border-radius:8px;padding:11px 12px;margin:10px 0 12px;
+  }
+  .qprompt{font-weight:700;font-size:14px;margin:0 0 8px;}
+  .choices{display:grid;gap:8px;}
+  .choice{
+    text-align:left;font:inherit;font-size:14px;cursor:pointer;
+    background:#fff;border:1.5px solid var(--line);border-radius:9px;
+    padding:10px 12px;color:var(--ink);transition:border-color .12s,background .12s;
+  }
+  .choice:hover{border-color:var(--ink);}
+  .choice:focus-visible{outline:3px solid var(--focus);outline-offset:2px;}
+  .choice.correct{border-color:var(--good);background:#eafaf0;}
+  .choice.wrong{border-color:var(--bad);background:#fdeeee;}
+  .choice .tag{font-weight:800;margin-right:6px;}
+  .feedback{
+    margin-top:12px;font-size:14px;border-radius:9px;padding:11px 12px;display:none;
+  }
+  .feedback.show{display:block;}
+  .feedback.ok{background:#eafaf0;border:1px solid #bfe6cc;}
+  .feedback.no{background:#fdeeee;border:1px solid #f0cccc;}
+  .feedback strong{display:block;margin-bottom:3px;}
+  .feedback .trace{font-size:13px;color:var(--muted);margin-top:7px;}
+  .feedback .trace b{color:var(--ink);}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+  button.act{
+    font:inherit;font-weight:700;font-size:14px;cursor:pointer;border-radius:9px;
+    border:1.5px solid var(--ink);background:var(--ink);color:#fff;padding:9px 16px;
+  }
+  button.act.ghost{background:#fff;color:var(--ink);}
+  button.act:disabled{opacity:.4;cursor:not-allowed;}
+  button.act:focus-visible{outline:3px solid var(--focus);outline-offset:2px;}
+  .score{
+    font-size:13px;color:var(--muted);margin-top:10px;
+  }
+  .score b{color:var(--ink);}
+  .done-banner{
+    display:none;margin-top:12px;background:#eef4ff;border:1px solid #c9dbf7;
+    border-radius:9px;padding:12px;font-size:14px;
+  }
+  .done-banner.show{display:block;}
+  .hint{
+    font-size:12.5px;color:var(--muted);margin:10px 0 0;
+  }
+  .sr-only{
+    position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0,0,0,0);white-space:nowrap;border:0;
+  }
+  .tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+  .tab{
+    font:inherit;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid var(--line);
+    background:#fff;color:var(--muted);border-radius:999px;padding:6px 14px;
+  }
+  .tab[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .tab:focus-visible{outline:3px solid var(--focus);outline-offset:2px;}
+  footer.note{margin-top:22px;font-size:12px;color:var(--muted);text-align:center;}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <p class="eyebrow">Citizenship &middot; Key Stage 4 &middot; Parliamentary democracy</p>
+    <h1>Power Map of Britain</h1>
+    <p class="aim"><strong>Teaching aim:</strong> trace how power flows and is held in check between the Crown, Parliament, the government and the courts, then stress-test the constitution against real scenarios. Tap or use the keyboard to explore each institution; the Scenario Lab puts the checks and balances to work.</p>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: interactive map -->
+    <section class="panel mapwrap" aria-labelledby="maph">
+      <h2 id="maph">The constitution: who holds what power</h2>
+      <div role="application" aria-label="Interactive constitution diagram. Five institutions connected by power-flow and check arrows. Use Tab to move between institutions and Enter or Space to inspect one.">
+        <svg class="map" viewBox="0 0 600 470" id="map" aria-hidden="false">
+          <defs>
+            <marker id="arrow" markerWidth="9" markerHeight="9" refX="7.5" refY="4" orient="auto">
+              <path d="M0,0 L9,4 L0,8 Z" fill="#46506a"></path>
+            </marker>
+            <marker id="arrowCheck" markerWidth="9" markerHeight="9" refX="7.5" refY="4" orient="auto">
+              <path d="M0,0 L9,4 L0,8 Z" fill="#b5482f"></path>
+            </marker>
+          </defs>
+
+          <!-- FLOW LINES (drawn first, behind nodes) -->
+          <!-- People -> Parliament (elect MPs) -->
+          <path class="flow" data-flow="people-parl" d="M120,415 C150,360 200,320 250,278"></path>
+          <!-- Crown -> Parliament (royal assent / open & dissolve) -->
+          <path class="flow" data-flow="crown-parl" d="M300,92 C300,140 300,180 300,222"></path>
+          <!-- Parliament -> Government (largest party forms govt) -->
+          <path class="flow" data-flow="parl-gov" d="M352,255 C430,255 470,255 472,235"></path>
+          <!-- Crown -> Government (appoints PM) -->
+          <path class="flow" data-flow="crown-gov" d="M352,70 C440,90 478,140 478,182"></path>
+          <!-- Government -> Parliament (proposes laws) check direction back -->
+          <path class="flow check" data-flow="gov-parl" d="M455,210 C400,235 360,245 352,250"></path>
+          <!-- Parliament -> Government (scrutiny / confidence) CHECK -->
+          <path class="flow check" data-flow="parl-gov-check" d="M340,278 C400,300 445,280 460,245"></path>
+          <!-- Courts -> Government (judicial review) CHECK -->
+          <path class="flow check" data-flow="courts-gov" d="M455,400 C460,340 470,300 478,238"></path>
+          <!-- Courts -> Parliament (interpret statute) -->
+          <path class="flow" data-flow="courts-parl" d="M420,405 C370,350 320,310 300,278"></path>
+          <!-- Parliament -> Courts (makes the law courts apply) -->
+          <path class="flow" data-flow="parl-courts" d="M280,278 C300,330 360,380 415,408"></path>
+
+          <!-- NODES -->
+          <!-- Crown -->
+          <g class="node-g focusable" data-node="crown" tabindex="0" role="button" aria-label="The Crown. Press Enter to inspect.">
+            <rect class="node-rect" x="210" y="24" width="180" height="60" rx="11" fill="var(--crown)"></rect>
+            <text class="node-title" x="300" y="50" text-anchor="middle">The Crown</text>
+            <text class="node-sub" x="300" y="68" text-anchor="middle">Head of state &middot; ceremonial</text>
+          </g>
+          <!-- Parliament -->
+          <g class="node-g focusable" data-node="parliament" tabindex="0" role="button" aria-label="Parliament. Press Enter to inspect.">
+            <rect class="node-rect" x="210" y="224" width="142" height="60" rx="11" fill="var(--parl)"></rect>
+            <text class="node-title" x="281" y="250" text-anchor="middle">Parliament</text>
+            <text class="node-sub" x="281" y="268" text-anchor="middle">Legislature &middot; makes law</text>
+          </g>
+          <!-- Government -->
+          <g class="node-g focusable" data-node="government" tabindex="0" role="button" aria-label="Government. Press Enter to inspect.">
+            <rect class="node-rect" x="408" y="182" width="150" height="58" rx="11" fill="var(--gov)"></rect>
+            <text class="node-title" x="483" y="207" text-anchor="middle">Government</text>
+            <text class="node-sub" x="483" y="225" text-anchor="middle">Executive &middot; runs the country</text>
+          </g>
+          <!-- Courts -->
+          <g class="node-g focusable" data-node="courts" tabindex="0" role="button" aria-label="The courts. Press Enter to inspect.">
+            <rect class="node-rect" x="386" y="406" width="150" height="58" rx="11" fill="var(--courts)"></rect>
+            <text class="node-title" x="461" y="431" text-anchor="middle">The courts</text>
+            <text class="node-sub" x="461" y="449" text-anchor="middle">Judiciary &middot; applies law</text>
+          </g>
+          <!-- People -->
+          <g class="node-g focusable" data-node="people" tabindex="0" role="button" aria-label="The people, voters. Press Enter to inspect.">
+            <rect class="node-rect" x="42" y="406" width="150" height="58" rx="11" fill="var(--people)"></rect>
+            <text class="node-title" x="117" y="431" text-anchor="middle">The people</text>
+            <text class="node-sub" x="117" y="449" text-anchor="middle">Voters &middot; the electorate</text>
+          </g>
+        </svg>
+      </div>
+      <div class="legendrow" aria-hidden="true">
+        <span><span class="lineflow"></span> Power flows to</span>
+        <span><span class="linecheck"></span> Checks or limits</span>
+      </div>
+      <p class="hint">Tip: select an institution to light up the powers it gives and the checks placed on it. Selecting a second one shows the link between the two.</p>
+    </section>
+
+    <!-- RIGHT: readout + scenario lab -->
+    <section class="panel">
+      <div class="tabs" role="tablist" aria-label="Panels">
+        <button class="tab" id="tab-info" role="tab" aria-selected="true" aria-controls="pane-info">Institution</button>
+        <button class="tab" id="tab-lab" role="tab" aria-selected="false" aria-controls="pane-lab">Scenario Lab</button>
+      </div>
+
+      <!-- INFO PANE -->
+      <div id="pane-info" role="tabpanel" aria-labelledby="tab-info">
+        <div class="readout" id="readout" aria-live="polite">
+          <p class="placeholder">Select an institution on the map to see what power it holds, where that power comes from, and who can check it.</p>
+        </div>
+      </div>
+
+      <!-- SCENARIO LAB PANE -->
+      <div id="pane-lab" role="tabpanel" aria-labelledby="tab-lab" hidden>
+        <div class="scenario-head">
+          <h2 style="margin:0;">Stress-test the constitution</h2>
+          <span class="scount" id="scount"></span>
+        </div>
+        <div class="scenario-text" id="scenarioText" aria-live="polite"></div>
+        <p class="qprompt" id="qprompt"></p>
+        <div class="choices" id="choices" role="group" aria-label="Answer choices"></div>
+        <div class="feedback" id="feedback" role="status" aria-live="polite"></div>
+        <div class="btnrow">
+          <button class="act ghost" id="prevBtn" type="button">Previous</button>
+          <button class="act" id="nextBtn" type="button" disabled>Next scenario</button>
+        </div>
+        <p class="score" id="score">Score: <b>0</b> of <b>0</b> answered</p>
+        <div class="done-banner" id="doneBanner"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="note">Power Map of Britain &middot; WeST Citizenship &middot; All names and scenarios are fictional and for teaching only.</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- Institution data ---------- */
+  var INSTS = {
+    crown: {
+      colour: "#7a5cc0",
+      name: "The Crown",
+      role: "Head of state",
+      blurb: "The monarch is the head of state but holds almost no real political power. Most royal powers (the royal prerogative) are now exercised on the advice of ministers. The Crown is a symbol of continuity and gives formal authority to the actions of others.",
+      facts: [
+        "Gives Royal Assent so a Bill becomes an Act (the last refusal was in 1708).",
+        "Formally appoints the Prime Minister (by convention, the person who can command the Commons).",
+        "Opens and dissolves Parliament on ministers' advice.",
+        "Acts on advice: powers are real on paper but used as ministers direct."
+      ],
+      checkedBy: ["parliament"],
+      checkNote: "Parliament and constitutional convention limit the Crown: the monarch acts on ministerial advice, not personal choice."
+    },
+    parliament: {
+      colour: "#0f7a6b",
+      name: "Parliament (the legislature)",
+      role: "Makes the law",
+      blurb: "Parliament is the supreme law-making body: the House of Commons (elected), the House of Lords (appointed) and the Crown. Parliamentary sovereignty means Parliament can make or unmake any law. It also scrutinises the government and controls public money.",
+      facts: [
+        "Passes Acts of Parliament; can amend or repeal any earlier law.",
+        "Holds the government to account: questions, select committees, votes.",
+        "Can remove a government with a vote of no confidence.",
+        "Approves taxation and government spending."
+      ],
+      checkedBy: ["people", "courts", "crown"],
+      checkNote: "Voters can replace MPs at an election; courts interpret statutes and can quash unlawful subordinate decisions; the Crown gives Assent."
+    },
+    government: {
+      colour: "#b5482f",
+      name: "The government (the executive)",
+      role: "Runs the country day to day",
+      blurb: "The government is formed from the political party (or coalition) that can command a majority in the House of Commons. The Prime Minister and Cabinet set policy, run departments and propose most new laws. The executive is drawn from, and answerable to, Parliament: it is a fusion, not a strict separation.",
+      facts: [
+        "Proposes most legislation and sets the political agenda.",
+        "Ministers run departments (Health, Education, Treasury and so on).",
+        "Must keep the confidence of the House of Commons to stay in office.",
+        "Its decisions can be challenged in court through judicial review."
+      ],
+      checkedBy: ["parliament", "courts"],
+      checkNote: "Parliament scrutinises and can dismiss the government; the courts can rule government action unlawful through judicial review."
+    },
+    courts: {
+      colour: "#2b5fa6",
+      name: "The courts (the judiciary)",
+      role: "Applies and interprets the law",
+      blurb: "An independent judiciary applies the law to cases, interprets what Parliament's words mean, and through judicial review checks whether the government has acted within its legal powers. UK judges cannot strike down an Act of Parliament, but they can quash unlawful government decisions and issue declarations of incompatibility under the Human Rights Act.",
+      facts: [
+        "Interprets statutes and develops the common law.",
+        "Judicial review: can rule a minister's action unlawful.",
+        "Independent of government; security of tenure protects judges.",
+        "Cannot overturn a valid Act of Parliament (parliamentary sovereignty)."
+      ],
+      checkedBy: ["parliament"],
+      checkNote: "Parliament makes the law the courts must apply, and can change the law if it disagrees with a ruling."
+    },
+    people: {
+      colour: "#9a7d12",
+      name: "The people (the electorate)",
+      role: "The source of democratic authority",
+      blurb: "In a parliamentary democracy, legitimate power flows from the people. Citizens aged 18 and over elect the 650 Members of Parliament who sit in the House of Commons, usually at least every five years. Between elections, people can petition, campaign, lobby MPs and stand for office.",
+      facts: [
+        "Elect MPs to the House of Commons (first-past-the-post).",
+        "A general election is held at least every five years.",
+        "Can petition Parliament, join parties and campaign for change.",
+        "Give democratic legitimacy to the whole system."
+      ],
+      checkedBy: [],
+      checkNote: "The electorate is the ultimate source of authority; its main check is the ballot box."
+    }
+  };
+
+  /* edges: from -> to, type flow|check, label */
+  var EDGES = {
+    "people-parl":      {from:"people", to:"parliament", type:"flow",  label:"Voters elect MPs to the House of Commons."},
+    "crown-parl":       {from:"crown", to:"parliament", type:"flow",   label:"The Crown gives Royal Assent and opens or dissolves Parliament."},
+    "parl-gov":         {from:"parliament", to:"government", type:"flow", label:"The party that can command the Commons forms the government."},
+    "crown-gov":        {from:"crown", to:"government", type:"flow",    label:"The Crown formally appoints the Prime Minister."},
+    "gov-parl":         {from:"government", to:"parliament", type:"check", label:"The government proposes most laws for Parliament to pass."},
+    "parl-gov-check":   {from:"parliament", to:"government", type:"check", label:"Parliament scrutinises the government and can remove it by a no-confidence vote."},
+    "courts-gov":       {from:"courts", to:"government", type:"check", label:"Courts can rule government action unlawful through judicial review."},
+    "courts-parl":      {from:"courts", to:"parliament", type:"flow",  label:"Judges interpret what Parliament's statutes mean."},
+    "parl-courts":      {from:"parliament", to:"courts", type:"flow",  label:"Parliament makes the law the courts must apply."}
+  };
+
+  var svg = document.getElementById("map");
+  var nodes = Array.prototype.slice.call(svg.querySelectorAll(".node-g"));
+  var flows = Array.prototype.slice.call(svg.querySelectorAll(".flow"));
+  var readout = document.getElementById("readout");
+
+  var selected = null;   // first selected node
+  var second = null;     // second selected node (for relationship)
+
+  function flowTouches(flowKey, nodeA, nodeB){
+    var e = EDGES[flowKey];
+    if(!e) return false;
+    if(nodeB){
+      return (e.from===nodeA && e.to===nodeB) || (e.from===nodeB && e.to===nodeA);
+    }
+    return e.from===nodeA || e.to===nodeA;
+  }
+
+  function clearHighlight(){
+    nodes.forEach(function(n){ n.classList.remove("dim","active"); });
+    flows.forEach(function(f){ f.classList.remove("dim","hot"); });
+  }
+
+  function renderInfo(key){
+    var d = INSTS[key];
+    var checks = d.checkedBy.map(function(c){ return INSTS[c].name; });
+    var checkHtml = checks.length
+      ? '<p class="checks-on"><b>Held in check by:</b> ' + checks.join(", ") + '. ' + d.checkNote + '</p>'
+      : '<p class="checks-on">' + d.checkNote + '</p>';
+    readout.innerHTML =
+      '<span class="pill" style="background:' + d.colour + '">' + d.role + '</span>' +
+      '<h3>' + d.name + '</h3>' +
+      '<p>' + d.blurb + '</p>' +
+      '<ul class="factlist">' + d.facts.map(function(f){return '<li>'+f+'</li>';}).join("") + '</ul>' +
+      checkHtml;
+  }
+
+  function renderRelationship(a, b){
+    // find the edge(s) between a and b
+    var found = [];
+    Object.keys(EDGES).forEach(function(k){
+      if(flowTouches(k, a, b)) found.push(EDGES[k]);
+    });
+    var na = INSTS[a].name, nb = INSTS[b].name;
+    if(found.length===0){
+      readout.innerHTML =
+        '<span class="pill" style="background:#5a6678">No direct link</span>' +
+        '<h3>' + na + ' and ' + nb + '</h3>' +
+        '<p>There is no single direct arrow between these two on the map. In the constitution they usually interact through a third institution. Try selecting each one on its own to see its powers, or look for a shared neighbour such as Parliament.</p>';
+      return;
+    }
+    var items = found.map(function(e){
+      var dir = INSTS[e.from].name + " &rarr; " + INSTS[e.to].name;
+      var kind = e.type==="check" ? "Check / limit" : "Power flows";
+      return '<li><b>' + kind + ' (' + dir + '):</b> ' + e.label + '</li>';
+    }).join("");
+    readout.innerHTML =
+      '<span class="pill" style="background:#1d2433">Relationship</span>' +
+      '<h3>' + na + ' &harr; ' + nb + '</h3>' +
+      '<ul class="factlist">' + items + '</ul>' +
+      '<p class="checks-on">Solid arrows show power being granted or exercised; dashed arrows show one body limiting another. A healthy democracy needs both.</p>';
+  }
+
+  function selectNode(key){
+    // toggle logic: if no selection, set selected.
+    // if same as selected, clear. if different, set as second & show relationship.
+    if(selected===null){
+      selected = key; second = null;
+    } else if(selected===key && second===null){
+      // deselect
+      selected = null; second = null;
+      clearHighlight();
+      readout.innerHTML = '<p class="placeholder">Select an institution on the map to see what power it holds, where that power comes from, and who can check it.</p>';
+      switchTab("info");
+      return;
+    } else if(second===null){
+      second = key;
+    } else {
+      // restart with this as the single selection
+      selected = key; second = null;
+    }
+
+    clearHighlight();
+    if(second===null){
+      nodes.forEach(function(n){
+        if(n.getAttribute("data-node")===selected){ n.classList.add("active"); }
+        else { n.classList.add("dim"); }
+      });
+      flows.forEach(function(f){
+        if(flowTouches(f.getAttribute("data-flow"), selected, null)){ f.classList.add("hot"); }
+        else { f.classList.add("dim"); }
+      });
+      renderInfo(selected);
+    } else {
+      nodes.forEach(function(n){
+        var nm = n.getAttribute("data-node");
+        if(nm===selected || nm===second){ n.classList.add("active"); }
+        else { n.classList.add("dim"); }
+      });
+      flows.forEach(function(f){
+        if(flowTouches(f.getAttribute("data-flow"), selected, second)){ f.classList.add("hot"); }
+        else { f.classList.add("dim"); }
+      });
+      renderRelationship(selected, second);
+    }
+    switchTab("info");
+  }
+
+  nodes.forEach(function(n){
+    var key = n.getAttribute("data-node");
+    // Pointer (covers mouse + touch + pen)
+    n.addEventListener("pointerup", function(ev){
+      ev.preventDefault();
+      selectNode(key);
+    });
+    // Keyboard
+    n.addEventListener("keydown", function(ev){
+      if(ev.key==="Enter" || ev.key===" " || ev.key==="Spacebar"){
+        ev.preventDefault();
+        selectNode(key);
+      }
+    });
+  });
+
+  /* ---------- Tabs ---------- */
+  var tabInfo = document.getElementById("tab-info");
+  var tabLab = document.getElementById("tab-lab");
+  var paneInfo = document.getElementById("pane-info");
+  var paneLab = document.getElementById("pane-lab");
+
+  function switchTab(which){
+    var infoSel = which==="info";
+    tabInfo.setAttribute("aria-selected", infoSel ? "true" : "false");
+    tabLab.setAttribute("aria-selected", infoSel ? "false" : "true");
+    paneInfo.hidden = !infoSel;
+    paneLab.hidden = infoSel;
+  }
+  tabInfo.addEventListener("click", function(){ switchTab("info"); });
+  tabLab.addEventListener("click", function(){ switchTab("lab"); renderScenario(); });
+
+  /* ---------- Scenario Lab ---------- */
+  var SCENARIOS = [
+    {
+      text: "The government wants a new Online Safety law. The Home Secretary drafts a Bill. For it to become an Act of Parliament that the police can enforce, what has to happen next?",
+      q: "Which body must agree before the Bill becomes law?",
+      choices: [
+        {t:"The Prime Minister signs it into law alone.", correct:false,
+         why:"The PM heads the government but cannot make law alone. The executive proposes; it does not enact."},
+        {t:"Parliament must debate and pass it, then the Crown gives Royal Assent.", correct:true,
+         why:"Correct. The government proposes laws, but only Parliament (Commons and Lords) can pass an Act, and the Crown gives Royal Assent as a formality."},
+        {t:"The Supreme Court must approve the new law first.", correct:false,
+         why:"Courts apply and interpret law; they do not approve Bills before they are passed."},
+        {t:"Voters must approve it in a national referendum.", correct:false,
+         why:"Most laws are not put to a referendum. They go through Parliament."}
+      ],
+      trace: "Power trace: Government (proposes) &rarr; Parliament (passes) &rarr; Crown (Royal Assent).",
+      lit: ["government","parliament","crown"]
+    },
+    {
+      text: "Campaigner Priya Okafor believes a minister refused her charity a grant by ignoring rules the minister was legally required to follow. She thinks the decision was unlawful, not just unpopular.",
+      q: "Where can she challenge the decision, and on what basis?",
+      choices: [
+        {t:"Ask the House of Lords to overturn the minister's decision.", correct:false,
+         why:"The Lords scrutinise and revise legislation; they do not rule on whether a single decision was lawful."},
+        {t:"Bring a judicial review in the courts, arguing the minister acted unlawfully.", correct:true,
+         why:"Correct. Judicial review lets the courts check whether the government acted within its legal powers and followed proper procedure."},
+        {t:"Demand the Crown personally reverse the decision.", correct:false,
+         why:"The Crown acts on ministers' advice and plays no role in individual legal disputes."},
+        {t:"Nothing can be done; ministers' decisions are final.", correct:false,
+         why:"Government decisions are not beyond the law. The courts provide a route to challenge unlawful action."}
+      ],
+      trace: "Check trace: Courts &rarr; Government (judicial review limits the executive).",
+      lit: ["courts","government"]
+    },
+    {
+      text: "A government has a small majority. Several of its own MPs join the opposition to vote against the government on a confidence motion, and the government loses the vote.",
+      q: "Which feature of the constitution is being shown here?",
+      choices: [
+        {t:"Judicial independence.", correct:false,
+         why:"That concerns judges being free from political pressure, not a Commons vote."},
+        {t:"Royal prerogative.", correct:false,
+         why:"That refers to remaining powers of the Crown exercised by ministers, not a confidence vote."},
+        {t:"Parliament holding the executive to account and able to remove it.", correct:true,
+         why:"Correct. The government must keep the confidence of the Commons. Losing a confidence vote can force it from office: a key check by the legislature on the executive."},
+        {t:"Parliamentary sovereignty over the courts.", correct:false,
+         why:"That is about Parliament's law-making supremacy, not the government's survival in a vote."}
+      ],
+      trace: "Check trace: Parliament &rarr; Government (scrutiny and confidence).",
+      lit: ["parliament","government"]
+    },
+    {
+      text: "After a general election, no single party has won a majority of the 650 seats. Party leaders Tomas Reyes and Alice Finch each try to put together enough support to govern.",
+      q: "Who becomes Prime Minister, and how?",
+      choices: [
+        {t:"The Crown chooses whichever leader the monarch personally prefers.", correct:false,
+         why:"The monarch does not pick by preference. By convention the Crown appoints whoever can command the Commons."},
+        {t:"The leader who can command a majority in the Commons; the Crown then formally appoints them.", correct:true,
+         why:"Correct. Democratic legitimacy comes from commanding the elected Commons. The Crown's appointment is a formality that follows that fact."},
+        {t:"The Supreme Court decides who should govern.", correct:false,
+         why:"Courts do not choose governments; this is a political and constitutional convention, not a legal ruling."},
+        {t:"A second election is automatically held the next week.", correct:false,
+         why:"A hung parliament does not trigger an automatic re-run. Leaders first try to form a government."}
+      ],
+      trace: "Power trace: People (elect Commons) &rarr; Parliament (majority) &rarr; Crown (appoints PM) &rarr; Government.",
+      lit: ["people","parliament","crown","government"]
+    },
+    {
+      text: "The Supreme Court rules that the words of a recent Act, as written, force an outcome the government dislikes. Ministers are unhappy and want a different result in future cases.",
+      q: "What can the government lawfully do about it?",
+      choices: [
+        {t:"Order the judges to change their ruling.", correct:false,
+         why:"Judicial independence means ministers cannot instruct judges. That would breach the separation of judiciary from executive."},
+        {t:"Ask Parliament to pass a new or amended Act that changes the law for the future.", correct:true,
+         why:"Correct. Because of parliamentary sovereignty, Parliament can change the law. The courts must then apply the new statute. This is the proper route, not pressuring judges."},
+        {t:"Abolish the Supreme Court by ministerial decree.", correct:false,
+         why:"A minister cannot abolish a court by decree; that would require legislation, and the executive cannot act alone."},
+        {t:"Ignore the ruling and tell officials to do as ministers say.", correct:false,
+         why:"Ignoring a court ruling would itself be unlawful and undermine the rule of law."}
+      ],
+      trace: "Power trace: Courts (interpret statute) and Parliament (can amend the law) interact within the rule of law.",
+      lit: ["courts","parliament","government"]
+    }
+  ];
+
+  var sIndex = 0;
+  var answered = new Array(SCENARIOS.length).fill(false);
+  var gotRight = new Array(SCENARIOS.length).fill(false);
+
+  var scenarioText = document.getElementById("scenarioText");
+  var qprompt = document.getElementById("qprompt");
+  var choicesEl = document.getElementById("choices");
+  var feedbackEl = document.getElementById("feedback");
+  var nextBtn = document.getElementById("nextBtn");
+  var prevBtn = document.getElementById("prevBtn");
+  var scountEl = document.getElementById("scount");
+  var scoreEl = document.getElementById("score");
+  var doneBanner = document.getElementById("doneBanner");
+
+  function lightUpMap(keys){
+    clearHighlight();
+    nodes.forEach(function(n){
+      if(keys.indexOf(n.getAttribute("data-node"))===-1){ n.classList.add("dim"); }
+      else { n.classList.add("active"); }
+    });
+    flows.forEach(function(f){
+      var e = EDGES[f.getAttribute("data-flow")];
+      if(e && keys.indexOf(e.from)!==-1 && keys.indexOf(e.to)!==-1){ f.classList.add("hot"); }
+      else { f.classList.add("dim"); }
+    });
+  }
+
+  function updateScore(){
+    var ansCount = answered.filter(Boolean).length;
+    var rightCount = gotRight.filter(Boolean).length;
+    scoreEl.innerHTML = "Score: <b>" + rightCount + "</b> correct of <b>" + ansCount + "</b> answered (" + SCENARIOS.length + " in total).";
+    if(ansCount===SCENARIOS.length){
+      doneBanner.classList.add("show");
+      doneBanner.innerHTML = "<strong>Lab complete.</strong> You stress-tested all " + SCENARIOS.length + " scenarios and scored " + rightCount + " out of " + SCENARIOS.length + ". Notice the pattern: no single institution holds unchecked power. Each one is granted authority and also limited by another. That is what is meant by checks and balances.";
+    }
+  }
+
+  function renderScenario(){
+    var sc = SCENARIOS[sIndex];
+    scountEl.textContent = "Scenario " + (sIndex+1) + " / " + SCENARIOS.length;
+    scenarioText.textContent = sc.text;
+    qprompt.textContent = sc.q;
+    feedbackEl.className = "feedback";
+    feedbackEl.innerHTML = "";
+    choicesEl.innerHTML = "";
+    var letters = ["A","B","C","D","E"];
+    sc.choices.forEach(function(ch, i){
+      var b = document.createElement("button");
+      b.className = "choice";
+      b.type = "button";
+      b.setAttribute("data-i", i);
+      b.innerHTML = '<span class="tag">' + letters[i] + '</span>' + ch.t;
+      b.addEventListener("click", function(){ answer(i); });
+      choicesEl.appendChild(b);
+    });
+    nextBtn.disabled = !answered[sIndex];
+    prevBtn.disabled = sIndex===0;
+    // re-show prior answer if revisiting
+    if(answered[sIndex]){ reshow(); }
+    // light the relevant part of the map
+    lightUpMap(sc.lit);
+    switchTab("lab");
+  }
+
+  function lockChoices(){
+    Array.prototype.forEach.call(choicesEl.children, function(c){
+      c.disabled = true;
+    });
+  }
+
+  function reshow(){
+    var sc = SCENARIOS[sIndex];
+    var kids = choicesEl.children;
+    for(var i=0;i<sc.choices.length;i++){
+      if(sc.choices[i].correct){ kids[i].classList.add("correct"); }
+    }
+    lockChoices();
+  }
+
+  function answer(i){
+    if(answered[sIndex]) return;
+    var sc = SCENARIOS[sIndex];
+    var chosen = sc.choices[i];
+    answered[sIndex] = true;
+    gotRight[sIndex] = !!chosen.correct;
+
+    var kids = choicesEl.children;
+    // mark correct one and chosen one
+    for(var j=0;j<sc.choices.length;j++){
+      if(sc.choices[j].correct){ kids[j].classList.add("correct"); }
+    }
+    if(!chosen.correct){ kids[i].classList.add("wrong"); }
+    lockChoices();
+
+    feedbackEl.className = "feedback show " + (chosen.correct ? "ok" : "no");
+    feedbackEl.innerHTML =
+      "<strong>" + (chosen.correct ? "Correct." : "Not quite.") + "</strong>" +
+      chosen.why +
+      '<div class="trace"><b>' + sc.trace + '</b> The matching arrows are highlighted on the map.</div>';
+
+    nextBtn.disabled = false;
+    updateScore();
+  }
+
+  nextBtn.addEventListener("click", function(){
+    if(sIndex < SCENARIOS.length-1){ sIndex++; renderScenario(); }
+  });
+  prevBtn.addEventListener("click", function(){
+    if(sIndex > 0){ sIndex--; renderScenario(); }
+  });
+
+  // initialise score line
+  updateScore();
+})();
+</script>
+</body>
+</html>

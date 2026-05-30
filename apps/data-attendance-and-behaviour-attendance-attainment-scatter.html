@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance-Attainment Scatter</title>
+<style>
+  :root {
+    --ink: #1d2433;
+    --muted: #5a6678;
+    --line: #d9dee8;
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --accent: #2a5db0;
+    --green: #1f8a4c;
+    --amber: #c47d12;
+    --red: #c0392b;
+    --persistent: #8b1a1a;
+    --shadow: 0 2px 10px rgba(24,38,71,0.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app-head {
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+  }
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  h1 { font-size: 1.7rem; margin: 4px 0 6px; line-height: 1.15; }
+  .aim {
+    background: #eef3fb;
+    border-left: 4px solid var(--accent);
+    padding: 8px 12px;
+    font-size: 0.92rem;
+    color: var(--muted);
+    border-radius: 0 6px 6px 0;
+  }
+  .aim strong { color: var(--ink); }
+  .layout { display: grid; grid-template-columns: 1fr; gap: 18px; }
+  @media (min-width: 880px) { .layout { grid-template-columns: 1.35fr 1fr; align-items: start; } }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  figure.plot { margin: 0; }
+  svg { width: 100%; height: auto; display: block; touch-action: none; }
+  .axis-label { font-size: 11px; fill: var(--muted); font-weight: 600; }
+  .tick-label { font-size: 10px; fill: var(--muted); }
+  .grid-line { stroke: #eceff5; stroke-width: 1; }
+  .axis-line { stroke: #aeb7c7; stroke-width: 1.5; }
+  .band-rect { opacity: 0.10; }
+  .dot { cursor: pointer; transition: r 0.12s ease; }
+  .dot:hover, .dot.active { stroke: #1d2433; stroke-width: 2.5px; }
+  .dot:focus { outline: 3px solid #2a5db0; outline-offset: 2px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 10px; font-size: 0.8rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  .swatch { width: 13px; height: 13px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,0.15); }
+  .controls { margin-top: 14px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+  label.field { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
+  input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); height: 28px; }
+  .pill {
+    display: inline-block; background: #eef3fb; color: var(--accent);
+    border-radius: 999px; padding: 2px 10px; font-weight: 700; font-size: 0.85rem;
+  }
+  button {
+    font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--accent);
+    background: var(--accent); color: #fff; padding: 8px 14px; font-weight: 600;
+  }
+  button.ghost { background: #fff; color: var(--accent); }
+  button:focus-visible { outline: 3px solid #1d2433; outline-offset: 2px; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
+  .stat {
+    background: #f7f9fd; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  }
+  .stat .k { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 700; }
+  .stat .v { font-size: 1.35rem; font-weight: 800; line-height: 1.1; }
+  .feedback {
+    margin-top: 12px; border-radius: 10px; padding: 12px 14px; font-size: 0.9rem;
+    border: 1px solid var(--line); background: #fbfcff; min-height: 64px;
+  }
+  .feedback.good { border-color: #bfe6cd; background: #f1faf4; }
+  .feedback.warn { border-color: #f1ddb0; background: #fdf8ec; }
+  .feedback.info { border-color: #c8d8f2; background: #f1f6fd; }
+  .feedback strong { display: block; margin-bottom: 4px; }
+  .pupil-card {
+    margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+    background: #fff;
+  }
+  .pupil-card .name { font-weight: 800; font-size: 1.05rem; }
+  .pupil-card .meta { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; color: #fff; }
+  .challenge { margin-top: 14px; }
+  .challenge .q { font-weight: 700; margin-bottom: 8px; }
+  .opts { display: grid; gap: 8px; }
+  .opt {
+    text-align: left; background: #fff; color: var(--ink); border: 1px solid var(--line);
+    padding: 10px 12px; border-radius: 8px; font-weight: 500;
+  }
+  .opt:hover { border-color: var(--accent); }
+  .opt.correct { background: #eafaf0; border-color: var(--green); color: #14622f; font-weight: 700; }
+  .opt.wrong { background: #fdeeec; border-color: var(--red); color: #8a2018; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); border: 0;
+  }
+  .note { font-size: 0.78rem; color: var(--muted); margin-top: 14px; }
+  .trendline { stroke: #2a5db0; stroke-width: 2.5; stroke-dasharray: 6 5; }
+  .crosshair { stroke: #c0392b; stroke-width: 1; stroke-dasharray: 3 3; opacity: 0; }
+  .footer-strip { font-size: 0.78rem; color: var(--muted); margin-top: 22px; text-align: center; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <div class="eyebrow">Data &amp; Analytics &middot; Attendance and Behaviour</div>
+    <h1>Attendance-Attainment Scatter</h1>
+    <p class="aim"><strong>Teacher aim:</strong> Use a scatter plot to investigate how each pupil's attendance relates to Progress 8, then quantify the cost of absence on progress. Every dot is a fictional pupil. Drag the absence-threshold line to see who falls below.</p>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: the plot -->
+    <section class="card" aria-labelledby="plot-h">
+      <h2 id="plot-h">Year 11 cohort: attendance against Progress 8</h2>
+      <figure class="plot">
+        <svg id="scatter" viewBox="0 0 560 420" role="application"
+             aria-label="Scatter plot. Horizontal axis is attendance percentage from 80 to 100. Vertical axis is Progress 8 score from minus 1.5 to plus 1.5. Use arrow keys to move between pupils. Press T to toggle the trend line.">
+          <!-- band backgrounds, gridlines, axes, dots injected by JS -->
+        </svg>
+      </figure>
+      <div class="legend" aria-hidden="false">
+        <span><i class="swatch" style="background:#1f8a4c"></i> 96%+ attendance</span>
+        <span><i class="swatch" style="background:#c47d12"></i> 90 to 95.9%</span>
+        <span><i class="swatch" style="background:#c0392b"></i> Persistent absence (&lt;90%)</span>
+        <span><i class="swatch" style="background:#8b1a1a"></i> Severe absence (&lt;50%)</span>
+      </div>
+
+      <div class="controls">
+        <div class="row">
+          <label class="field" for="thresh">Absence threshold line:
+            <span class="pill" id="threshVal">90.0%</span></label>
+        </div>
+        <div class="row">
+          <input type="range" id="thresh" min="80" max="100" step="0.5" value="90"
+                 aria-valuetext="90.0 percent attendance threshold">
+          <button class="ghost" id="toggleTrend" aria-pressed="true">Hide trend line</button>
+        </div>
+      </div>
+
+      <div class="feedback info" id="threshFeedback" role="status" aria-live="polite">
+        <strong>Pupils below the line</strong>
+        Move the slider to set an attendance threshold. The app will tell you how many pupils fall below it and what their average Progress 8 looks like.
+      </div>
+      <p class="note">Demonstration data only. All 24 pupils are fictional; no real child is represented. Persistent absence in England is defined as attendance below 90% of available sessions.</p>
+    </section>
+
+    <!-- RIGHT: stats, pupil inspector, challenge -->
+    <aside>
+      <section class="card" aria-labelledby="stats-h">
+        <h2 id="stats-h">What the data shows</h2>
+        <div class="stat-grid">
+          <div class="stat"><div class="k">Cohort mean P8</div><div class="v" id="meanP8">+0.00</div></div>
+          <div class="stat"><div class="k">Correlation r</div><div class="v" id="corr">0.00</div></div>
+          <div class="stat"><div class="k">Mean P8 at 96%+</div><div class="v" id="hiBand">+0.00</div></div>
+          <div class="stat"><div class="k">Mean P8 if &lt;90%</div><div class="v" id="loBand">+0.00</div></div>
+        </div>
+        <div class="feedback info" id="costBox" role="status" aria-live="polite">
+          <strong>The cost of absence</strong>
+          <span id="costText">Calculating the gap in Progress 8 between high and low attenders...</span>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:18px" aria-labelledby="pupil-h">
+        <h2 id="pupil-h">Pupil inspector</h2>
+        <div class="pupil-card" id="pupilCard">
+          <div class="name" id="pName">Tap or arrow-key to a dot</div>
+          <div class="meta" id="pMeta">Select any pupil on the scatter to read their attendance, Progress 8 and absence band.</div>
+        </div>
+      </section>
+
+      <section class="card challenge" style="margin-top:18px" aria-labelledby="ch-h">
+        <h2 id="ch-h">Quick check</h2>
+        <div class="q" id="chQ">Based on this cohort, which statement is best supported by the scatter?</div>
+        <div class="opts" id="chOpts" role="group" aria-label="Answer options"></div>
+        <div class="feedback" id="chFeedback" role="status" aria-live="polite" style="display:none"></div>
+      </section>
+    </aside>
+  </div>
+
+  <p class="footer-strip">Westcountry Schools Trust &middot; Data &amp; Analytics teaching app &middot; UK demonstration data</p>
+</div>
+
+<script>
+"use strict";
+
+// ---- Fictional cohort: attendance %, Progress 8. Built to show a clear positive trend with scatter. ----
+const PUPILS = [
+  { n: "Aisha Bowden",    a: 99.1, p: 1.18 },
+  { n: "Marcus Tregella", a: 98.4, p: 0.74 },
+  { n: "Priya Sundaram",  a: 98.0, p: 1.02 },
+  { n: "Leo Hawkins",     a: 97.2, p: 0.41 },
+  { n: "Niamh Carter",    a: 96.8, p: 0.88 },
+  { n: "Daniel Osei",     a: 96.3, p: 0.22 },
+  { n: "Sofia Marenko",   a: 96.0, p: 0.63 },
+  { n: "Tomos Pengelly",  a: 95.4, p: 0.55 },
+  { n: "Ella Whitford",   a: 94.7, p: 0.09 },
+  { n: "Kayden Roberts",  a: 94.1, p: 0.34 },
+  { n: "Harriet Vance",   a: 93.5, p: -0.12 },
+  { n: "Jacob Stenner",   a: 92.8, p: 0.21 },
+  { n: "Amara Diallo",    a: 92.0, p: -0.05 },
+  { n: "Finlay Crews",    a: 91.3, p: -0.28 },
+  { n: "Rosa Delgado",    a: 90.6, p: 0.12 },
+  { n: "Owen Trebilcock", a: 89.7, p: -0.41 },
+  { n: "Maya Frost",      a: 88.9, p: -0.16 },
+  { n: "Callum Reeve",    a: 87.5, p: -0.58 },
+  { n: "Sienna Lockyer",  a: 86.2, p: -0.39 },
+  { n: "Reuben Achebe",   a: 84.0, p: -0.71 },
+  { n: "Tia Hammett",     a: 82.6, p: -0.92 },
+  { n: "Jordan Pascoe",   a: 81.1, p: -0.66 },
+  { n: "Esme Trelawny",   a: 48.3, p: -1.21 },
+  { n: "Bryn Caddick",    a: 44.9, p: -1.38 }
+];
+
+// ---- Plot geometry ----
+const VW = 560, VH = 420;
+const M = { l: 52, r: 18, t: 16, b: 46 };
+const PW = VW - M.l - M.r, PH = VH - M.t - M.b;
+const AX_MIN = 40, AX_MAX = 100;          // attendance axis (covers severe absence)
+const PY_MIN = -1.5, PY_MAX = 1.5;        // P8 axis
+
+function xPos(a) { return M.l + (a - AX_MIN) / (AX_MAX - AX_MIN) * PW; }
+function yPos(p) { return M.t + (PY_MAX - p) / (PY_MAX - PY_MIN) * PH; }
+
+function bandColour(a) {
+  if (a < 50) return "#8b1a1a";
+  if (a < 90) return "#c0392b";
+  if (a < 96) return "#c47d12";
+  return "#1f8a4c";
+}
+function bandName(a) {
+  if (a < 50) return "Severe absence";
+  if (a < 90) return "Persistent absence";
+  if (a < 96) return "Below 96% target";
+  return "Strong attendance (96%+)";
+}
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const svg = document.getElementById("scatter");
+
+function el(tag, attrs) {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+// ---- Build static layers ----
+function drawAxes() {
+  // attendance band shading
+  const bands = [
+    { from: 40, to: 50, c: "#8b1a1a" },
+    { from: 50, to: 90, c: "#c0392b" },
+    { from: 90, to: 96, c: "#c47d12" },
+    { from: 96, to: 100, c: "#1f8a4c" }
+  ];
+  bands.forEach(b => {
+    svg.appendChild(el("rect", {
+      x: xPos(b.from), y: M.t, width: xPos(b.to) - xPos(b.from), height: PH,
+      class: "band-rect", fill: b.c
+    }));
+  });
+
+  // horizontal gridlines + Y ticks (P8)
+  for (let p = -1.5; p <= 1.5001; p += 0.5) {
+    const y = yPos(p);
+    svg.appendChild(el("line", { x1: M.l, y1: y, x2: M.l + PW, y2: y, class: "grid-line" }));
+    const t = el("text", { x: M.l - 8, y: y + 3, "text-anchor": "end", class: "tick-label" });
+    t.textContent = (p > 0 ? "+" : "") + p.toFixed(1);
+    svg.appendChild(t);
+  }
+  // emphasise P8 = 0 line
+  svg.appendChild(el("line", { x1: M.l, y1: yPos(0), x2: M.l + PW, y2: yPos(0),
+    stroke: "#9aa6ba", "stroke-width": 1.5 }));
+
+  // X ticks (attendance)
+  [40,50,60,70,80,90,96,100].forEach(a => {
+    const x = xPos(a);
+    svg.appendChild(el("line", { x1: x, y1: M.t + PH, x2: x, y2: M.t + PH + 5, class: "axis-line" }));
+    const t = el("text", { x: x, y: M.t + PH + 18, "text-anchor": "middle", class: "tick-label" });
+    t.textContent = a + "%";
+    svg.appendChild(t);
+  });
+
+  // axis lines
+  svg.appendChild(el("line", { x1: M.l, y1: M.t, x2: M.l, y2: M.t + PH, class: "axis-line" }));
+  svg.appendChild(el("line", { x1: M.l, y1: M.t + PH, x2: M.l + PW, y2: M.t + PH, class: "axis-line" }));
+
+  // axis labels
+  const xl = el("text", { x: M.l + PW / 2, y: VH - 6, "text-anchor": "middle", class: "axis-label" });
+  xl.textContent = "Attendance (% of sessions)";
+  svg.appendChild(xl);
+  const yl = el("text", { x: 14, y: M.t + PH / 2, "text-anchor": "middle", class: "axis-label",
+    transform: "rotate(-90 14 " + (M.t + PH / 2) + ")" });
+  yl.textContent = "Progress 8 score";
+  svg.appendChild(yl);
+}
+
+// ---- Linear regression (least squares) over all pupils ----
+function regression(pts) {
+  const n = pts.length;
+  let sx=0, sy=0, sxy=0, sxx=0, syy=0;
+  pts.forEach(p => { sx+=p.a; sy+=p.p; sxy+=p.a*p.p; sxx+=p.a*p.a; syy+=p.p*p.p; });
+  const slope = (n*sxy - sx*sy) / (n*sxx - sx*sx);
+  const intercept = (sy - slope*sx) / n;
+  const r = (n*sxy - sx*sy) / Math.sqrt((n*sxx - sx*sx) * (n*syy - sy*sy));
+  return { slope, intercept, r };
+}
+const reg = regression(PUPILS);
+
+let trendVisible = true;
+let trendEls = [];
+function drawTrend() {
+  trendEls.forEach(e => e.remove());
+  trendEls = [];
+  if (!trendVisible) return;
+  const x1 = AX_MIN, x2 = 100;
+  const ln = el("line", {
+    x1: xPos(x1), y1: yPos(Math.max(PY_MIN, Math.min(PY_MAX, reg.slope*x1 + reg.intercept))),
+    x2: xPos(x2), y2: yPos(Math.max(PY_MIN, Math.min(PY_MAX, reg.slope*x2 + reg.intercept))),
+    class: "trendline"
+  });
+  svg.appendChild(ln);
+  trendEls.push(ln);
+}
+
+// ---- Threshold line ----
+let threshEl, threshLabel;
+function drawThresholdLine(v) {
+  if (threshEl) threshEl.remove();
+  if (threshLabel) threshLabel.remove();
+  const x = xPos(v);
+  threshEl = el("line", { x1: x, y1: M.t, x2: x, y2: M.t + PH, stroke: "#1d2433",
+    "stroke-width": 2, "stroke-dasharray": "5 4" });
+  svg.appendChild(threshEl);
+  threshLabel = el("text", { x: x, y: M.t + 12, "text-anchor": "middle",
+    "font-size": 10, "font-weight": 700, fill: "#1d2433" });
+  threshLabel.textContent = v.toFixed(0) + "%";
+  svg.appendChild(threshLabel);
+}
+
+// ---- Dots ----
+let dots = [];
+let activeIdx = -1;
+function drawDots() {
+  PUPILS.forEach((p, i) => {
+    const c = el("circle", {
+      cx: xPos(p.a), cy: yPos(p.p), r: 6.5, class: "dot",
+      fill: bandColour(p.a), "fill-opacity": 0.85, stroke: "#fff", "stroke-width": 1.5,
+      tabindex: 0, role: "img",
+      "aria-label": p.n + ", attendance " + p.a.toFixed(1) + " percent, Progress 8 "
+        + (p.p>0?"plus ":"minus ") + Math.abs(p.p).toFixed(2) + ", " + bandName(p.a)
+    });
+    c.dataset.i = i;
+    c.addEventListener("click", () => selectPupil(i));
+    c.addEventListener("focus", () => selectPupil(i, true));
+    c.addEventListener("keydown", onDotKey);
+    svg.appendChild(c);
+    dots.push(c);
+  });
+}
+
+function onDotKey(e) {
+  let i = parseInt(e.currentTarget.dataset.i, 10);
+  if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+    e.preventDefault(); i = (i + 1) % PUPILS.length; dots[i].focus();
+  } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+    e.preventDefault(); i = (i - 1 + PUPILS.length) % PUPILS.length; dots[i].focus();
+  } else if (e.key.toLowerCase() === "t") {
+    e.preventDefault(); toggleTrend();
+  }
+}
+
+function selectPupil(i, fromFocus) {
+  activeIdx = i;
+  dots.forEach((d, j) => d.classList.toggle("active", j === i));
+  dots.forEach((d, j) => d.setAttribute("r", j === i ? 9 : 6.5));
+  const p = PUPILS[i];
+  document.getElementById("pName").textContent = p.n;
+  const predicted = reg.slope * p.a + reg.intercept;
+  const resid = p.p - predicted;
+  const above = resid >= 0;
+  const col = bandColour(p.a);
+  document.getElementById("pMeta").innerHTML =
+    '<span class="tag" style="background:' + col + '">' + bandName(p.a) + '</span><br><br>'
+    + "Attendance: <strong>" + p.a.toFixed(1) + "%</strong><br>"
+    + "Progress 8: <strong>" + (p.p>0?"+":"") + p.p.toFixed(2) + "</strong><br>"
+    + "Trend predicts: <strong>" + (predicted>0?"+":"") + predicted.toFixed(2) + "</strong><br>"
+    + "This pupil is <strong>" + Math.abs(resid).toFixed(2) + "</strong> " + (above ? "above" : "below")
+    + " the trend line, so they are doing " + (above ? "better" : "worse")
+    + " than attendance alone would predict.";
+}
+
+// ---- Threshold interaction ----
+const threshInput = document.getElementById("thresh");
+const threshVal = document.getElementById("threshVal");
+const threshFeedback = document.getElementById("threshFeedback");
+
+function meanP8(arr) {
+  if (!arr.length) return null;
+  return arr.reduce((s, p) => s + p.p, 0) / arr.length;
+}
+
+function updateThreshold() {
+  const v = parseFloat(threshInput.value);
+  threshVal.textContent = v.toFixed(1) + "%";
+  threshInput.setAttribute("aria-valuetext", v.toFixed(1) + " percent attendance threshold");
+  drawThresholdLine(v);
+
+  const below = PUPILS.filter(p => p.a < v);
+  const above = PUPILS.filter(p => p.a >= v);
+  const mBelow = meanP8(below), mAbove = meanP8(above);
+
+  let cls = "info", body = "";
+  if (below.length === 0) {
+    cls = "good";
+    body = "<strong>No pupils below " + v.toFixed(1) + "%</strong>"
+      + "Every pupil in this cohort attends at or above this level. Slide the line right to find the absence threshold where pupils begin to drop out.";
+  } else {
+    const gap = (mAbove - mBelow);
+    cls = gap > 0.3 ? "warn" : "info";
+    body = "<strong>" + below.length + " of " + PUPILS.length + " pupils fall below " + v.toFixed(1) + "%</strong>"
+      + "Their mean Progress 8 is <strong>" + (mBelow>0?"+":"") + mBelow.toFixed(2) + "</strong>. "
+      + "Pupils at or above the line average <strong>" + (mAbove>0?"+":"") + mAbove.toFixed(2) + "</strong>. "
+      + "That is a Progress 8 gap of <strong>" + gap.toFixed(2) + "</strong> linked to crossing this attendance line.";
+    if (Math.abs(v - 90) < 0.26) {
+      body += " At exactly 90% you have isolated the persistently absent group, the national flag for concern.";
+    }
+  }
+  threshFeedback.className = "feedback " + cls;
+  threshFeedback.innerHTML = body;
+}
+
+// Pointer drag on the SVG to move the threshold line
+function svgXtoAttendance(clientX) {
+  const rect = svg.getBoundingClientRect();
+  const scale = VW / rect.width;
+  const svgX = (clientX - rect.left) * scale;
+  let a = AX_MIN + (svgX - M.l) / PW * (AX_MAX - AX_MIN);
+  a = Math.max(80, Math.min(100, a)); // slider range
+  return Math.round(a * 2) / 2;
+}
+let dragging = false;
+svg.addEventListener("pointerdown", (e) => {
+  if (e.target.classList && e.target.classList.contains("dot")) return; // let dots handle
+  dragging = true;
+  svg.setPointerCapture(e.pointerId);
+  const a = svgXtoAttendance(e.clientX);
+  threshInput.value = a; updateThreshold();
+});
+svg.addEventListener("pointermove", (e) => {
+  if (!dragging) return;
+  const a = svgXtoAttendance(e.clientX);
+  threshInput.value = a; updateThreshold();
+});
+svg.addEventListener("pointerup", (e) => {
+  dragging = false;
+  try { svg.releasePointerCapture(e.pointerId); } catch (err) {}
+});
+threshInput.addEventListener("input", updateThreshold);
+
+// ---- Trend toggle ----
+const toggleBtn = document.getElementById("toggleTrend");
+function toggleTrend() {
+  trendVisible = !trendVisible;
+  toggleBtn.textContent = trendVisible ? "Hide trend line" : "Show trend line";
+  toggleBtn.setAttribute("aria-pressed", String(trendVisible));
+  drawTrend();
+  // keep threshold + dots on top
+  if (threshEl) { svg.appendChild(threshEl); svg.appendChild(threshLabel); }
+}
+toggleBtn.addEventListener("click", toggleTrend);
+
+// ---- Summary stats ----
+function fmt(x) { return (x>0?"+":"") + x.toFixed(2); }
+function fillStats() {
+  const all = meanP8(PUPILS);
+  const hi = meanP8(PUPILS.filter(p => p.a >= 96));
+  const lo = meanP8(PUPILS.filter(p => p.a < 90));
+  document.getElementById("meanP8").textContent = fmt(all);
+  document.getElementById("corr").textContent = reg.r.toFixed(2);
+  document.getElementById("hiBand").textContent = fmt(hi);
+  document.getElementById("loBand").textContent = fmt(lo);
+  const gap = hi - lo;
+  document.getElementById("costText").innerHTML =
+    "Pupils with 96%+ attendance average <strong>" + fmt(hi) + "</strong> Progress 8. "
+    + "Persistently absent pupils (below 90%) average <strong>" + fmt(lo) + "</strong>. "
+    + "The cost of that absence is a Progress 8 gap of <strong>" + gap.toFixed(2)
+    + "</strong>, roughly " + Math.round(gap * 10) / 10
+    + " of a grade per subject. The correlation r of <strong>" + reg.r.toFixed(2)
+    + "</strong> shows a strong positive link: as attendance rises, so does progress.";
+}
+
+// ---- Quick check (interactive, targeted feedback) ----
+const OPTIONS = [
+  { t: "Higher attendance tends to go with higher Progress 8, a strong positive correlation.",
+    ok: true,
+    fb: "Correct. The dots slope upward from bottom-left to top-right, and r is about " ,
+    fbTail: ". Absence is associated with lower progress." },
+  { t: "Attendance and Progress 8 have no relationship in this cohort.",
+    ok: false,
+    fb: "Not supported. A flat cloud of dots would show no relationship, but here r is about ",
+    fbTail: ", a clear positive trend." },
+  { t: "Low attendance causes high Progress 8.",
+    ok: false,
+    fb: "No. The trend runs the other way, and remember correlation is not proof of cause, but the low attenders sit at the bottom of the chart.",
+    fbTail: "" },
+  { t: "Every pupil below 90% has exactly the same Progress 8.",
+    ok: false,
+    fb: "No. Below-90% pupils scatter from about minus 0.16 down to minus 1.38, so there is spread within the band.",
+    fbTail: "" }
+];
+const chOpts = document.getElementById("chOpts");
+const chFeedback = document.getElementById("chFeedback");
+let answered = false;
+OPTIONS.forEach((o, idx) => {
+  const b = document.createElement("button");
+  b.className = "opt";
+  b.type = "button";
+  b.textContent = o.t;
+  b.addEventListener("click", () => {
+    if (answered) return;
+    answered = true;
+    b.classList.add(o.ok ? "correct" : "wrong");
+    if (!o.ok) {
+      // also highlight the correct one
+      const correctBtn = chOpts.children[0];
+      correctBtn.classList.add("correct");
+    }
+    chFeedback.style.display = "block";
+    chFeedback.className = "feedback " + (o.ok ? "good" : "warn");
+    chFeedback.innerHTML = "<strong>" + (o.ok ? "Well reasoned." : "Have another look.") + "</strong>"
+      + o.fb + (o.fb.indexOf("about") > -1 ? reg.r.toFixed(2) : "") + o.fbTail;
+    Array.from(chOpts.children).forEach(c => c.disabled = true);
+  });
+  chOpts.appendChild(b);
+});
+
+// ---- Init ----
+drawAxes();
+drawTrend();
+drawDots();
+fillStats();
+updateThreshold();
+drawTrend(); // ensure trend under threshold/dots order is fine; redraw keeps it consistent
+</script>
+</body>
+</html>

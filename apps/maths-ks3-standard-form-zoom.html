@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Standard Form Zoom</title>
+<style>
+  :root{
+    --ink:#1a2233; --muted:#5a6b85; --line:#d8e0ee; --bg:#f3f6fc;
+    --card:#ffffff; --accent:#1c5dd9; --accent-soft:#e8f0ff;
+    --good:#0f8a4f; --good-soft:#e3f6ec; --bad:#c0392b; --bad-soft:#fbe9e7;
+    --pow:#b5179e; --warm:#f0a500; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+    color:var(--ink); background:var(--bg); line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:18px 16px 60px}
+  header.app{margin-bottom:14px}
+  .kicker{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  h1{font-size:1.7rem;margin:.15em 0 .1em;line-height:1.15}
+  .aim{background:var(--accent-soft);border:1px solid #cfe0ff;border-radius:var(--radius);
+    padding:10px 14px;font-size:.92rem;color:#234;margin:10px 0 6px}
+  .aim strong{color:var(--accent)}
+
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+  .tab{flex:1 1 160px;border:1px solid var(--line);background:var(--card);color:var(--muted);
+    padding:11px 12px;border-radius:12px;font-size:.95rem;font-weight:600;cursor:pointer;
+    text-align:center}
+  .tab[aria-selected="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .tab:focus-visible{outline:3px solid #9cc0ff;outline-offset:2px}
+
+  .panel{display:none}
+  .panel.active{display:block}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(20,40,80,.04)}
+
+  /* Zoom display */
+  .stage{text-align:center;padding:8px 4px 0}
+  .scene{font-size:4.6rem;line-height:1;margin:6px 0 2px}
+  .objname{font-size:1.15rem;font-weight:700}
+  .objdesc{color:var(--muted);font-size:.9rem;min-height:1.3em}
+
+  .numbers{display:grid;grid-template-columns:1fr;gap:10px;margin:14px 0 4px}
+  @media(min-width:620px){.numbers{grid-template-columns:1fr 1fr}}
+  .numbox{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:#fbfdff}
+  .numbox h3{margin:0 0 4px;font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .ordinary{font-size:1.25rem;font-weight:700;word-break:break-word;font-variant-numeric:tabular-nums}
+  .sf{font-size:1.45rem;font-weight:800;letter-spacing:.01em}
+  .sf .coef{color:var(--ink)}
+  .sf .base{color:var(--muted)}
+  .pow{color:var(--pow)}
+  sup{font-size:.62em}
+  .unit{color:var(--muted);font-weight:600;font-size:.9rem}
+
+  .sliderwrap{margin:18px 2px 4px}
+  .sliderwrap label{display:block;font-weight:600;font-size:.9rem;margin-bottom:6px}
+  input[type=range]{width:100%;height:34px;cursor:pointer}
+  .scaleticks{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:2px}
+
+  .help{font-size:.86rem;color:var(--muted);margin-top:10px}
+
+  /* Compare challenge */
+  .q{font-size:1.05rem;font-weight:600;margin:2px 0 12px}
+  .q .hl{color:var(--accent)}
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(min-width:540px){.opts{grid-template-columns:repeat(4,1fr)}}
+  .opt{border:1px solid var(--line);background:#fbfdff;border-radius:12px;padding:14px 6px;
+    font-size:1.2rem;font-weight:800;cursor:pointer;text-align:center;font-variant-numeric:tabular-nums}
+  .opt:hover{border-color:var(--accent)}
+  .opt:focus-visible{outline:3px solid #9cc0ff;outline-offset:2px}
+  .opt.correct{background:var(--good-soft);border-color:var(--good);color:var(--good)}
+  .opt.wrong{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
+  .opt:disabled{cursor:default}
+  .feedback{margin-top:14px;padding:12px 14px;border-radius:12px;font-size:.95rem;display:none}
+  .feedback.show{display:block}
+  .feedback.ok{background:var(--good-soft);border:1px solid var(--good);color:#0a5e36}
+  .feedback.no{background:var(--bad-soft);border:1px solid var(--bad);color:#8a261b}
+  .feedback b{font-weight:800}
+
+  .scorebar{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:12px;font-size:.9rem}
+  .pill{background:var(--accent-soft);border:1px solid #cfe0ff;border-radius:999px;padding:5px 12px;font-weight:700;color:var(--accent)}
+  .pill.streak{background:#fff4e0;border-color:#ffdfa0;color:#9a6b00}
+
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;
+    padding:11px 18px;font-size:.95rem;font-weight:700;cursor:pointer}
+  .btn:hover{filter:brightness(1.05)}
+  .btn:focus-visible{outline:3px solid #9cc0ff;outline-offset:2px}
+  .btn.ghost{background:#fff;color:var(--accent);border:1px solid var(--accent)}
+
+  /* Multiplier machine */
+  .machine{display:grid;grid-template-columns:1fr;gap:12px}
+  @media(min-width:640px){.machine{grid-template-columns:1.1fr 1fr}}
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}
+  .field label{font-weight:600;font-size:.88rem}
+  .field input[type=number]{padding:10px;border:1px solid var(--line);border-radius:10px;font-size:1.05rem}
+  .field input:focus-visible{outline:3px solid #9cc0ff;outline-offset:1px;border-color:var(--accent)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{border:1px solid var(--line);background:#fbfdff;border-radius:999px;padding:6px 12px;
+    font-size:.85rem;font-weight:600;cursor:pointer}
+  .chip[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .result{background:#fbfdff;border:1px dashed var(--line);border-radius:12px;padding:14px}
+  .result .big{font-size:1.6rem;font-weight:800;color:var(--accent)}
+  .result .multiline{font-size:1.05rem;margin-top:6px}
+  .mult{color:var(--pow);font-weight:800}
+  .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  footer.note{font-size:.8rem;color:var(--muted);text-align:center;margin-top:18px}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <div class="kicker">KS3 Mathematics &middot; Number</div>
+    <h1>Standard Form Zoom</h1>
+    <div class="aim"><strong>Teacher aim:</strong> pupils read very large and very small numbers in ordinary and standard form, link the power of ten to the size of a number, and use index laws to compare scales and apply percentage multipliers.</div>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Choose an activity">
+    <button class="tab" id="tab-zoom" role="tab" aria-selected="true" aria-controls="panel-zoom">Zoom the universe</button>
+    <button class="tab" id="tab-compare" role="tab" aria-selected="false" aria-controls="panel-compare" tabindex="-1">Compare scales</button>
+    <button class="tab" id="tab-mult" role="tab" aria-selected="false" aria-controls="panel-mult" tabindex="-1">Percentage multiplier</button>
+  </div>
+
+  <!-- ZOOM -->
+  <section class="panel active" id="panel-zoom" role="tabpanel" aria-labelledby="tab-zoom">
+    <div class="card">
+      <div class="stage">
+        <div class="scene" id="scene" aria-hidden="true">&#x1F30D;</div>
+        <div class="objname" id="objname">Earth (diameter)</div>
+        <div class="objdesc" id="objdesc">Drag the slider to travel from the tiniest atoms to the largest galaxies.</div>
+      </div>
+
+      <div class="numbers" aria-live="polite">
+        <div class="numbox">
+          <h3>Ordinary form</h3>
+          <div class="ordinary" id="ordinary">12 700 000 m</div>
+        </div>
+        <div class="numbox">
+          <h3>Standard form</h3>
+          <div class="sf" id="sf"></div>
+        </div>
+      </div>
+
+      <div class="sliderwrap">
+        <label for="zoom">Zoom level (each step changes the power of ten)</label>
+        <input type="range" id="zoom" min="0" max="0" step="1" value="0"
+               aria-describedby="zoomhelp" aria-valuetext="">
+        <div class="scaleticks"><span>Atoms (smallest)</span><span>Galaxies (largest)</span></div>
+      </div>
+      <p class="help" id="zoomhelp">Watch the power of ten in the standard form. A bigger power means a much bigger object. A negative power means a tiny object, smaller than 1 metre.</p>
+    </div>
+  </section>
+
+  <!-- COMPARE -->
+  <section class="panel" id="panel-compare" role="tabpanel" aria-labelledby="tab-compare">
+    <div class="card">
+      <p class="q" id="cmpq">How many times wider is the larger object?</p>
+      <div class="opts" id="cmpopts"></div>
+      <div class="feedback" id="cmpfb" role="status" aria-live="polite"></div>
+      <div class="scorebar">
+        <span class="pill" id="cmpscore">Correct: 0 of 0</span>
+        <span class="pill streak" id="cmpstreak">Streak: 0</span>
+        <button class="btn ghost" id="cmpnext" style="margin-left:auto" disabled>Next question</button>
+      </div>
+      <p class="help">Tip: to divide powers of ten, subtract the indices. 10<sup>9</sup> &divide; 10<sup>3</sup> = 10<sup>9&minus;3</sup> = 10<sup>6</sup>.</p>
+    </div>
+  </section>
+
+  <!-- MULTIPLIER -->
+  <section class="panel" id="panel-mult" role="tabpanel" aria-labelledby="tab-mult">
+    <div class="card">
+      <div class="machine">
+        <div>
+          <div class="field">
+            <label for="startval">Starting amount</label>
+            <input type="number" id="startval" value="240" min="0" step="any" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="pctval">Percentage change</label>
+            <input type="number" id="pctval" value="15" step="any" inputmode="decimal">
+          </div>
+          <div class="field" role="group" aria-label="Direction of change">
+            <label>Direction</label>
+            <div class="chips">
+              <button class="chip" id="dir-up" aria-pressed="true">Increase</button>
+              <button class="chip" id="dir-down" aria-pressed="false">Decrease</button>
+            </div>
+          </div>
+        </div>
+        <div class="result" aria-live="polite">
+          <div>Single multiplier</div>
+          <div class="big" id="multiplier">&times; 1.15</div>
+          <div class="multiline" id="multline"></div>
+          <div class="multiline" id="multanswer"></div>
+        </div>
+      </div>
+      <p class="help">A percentage change is just one multiplication. To increase by 15%, multiply by 1 + 0.15 = <span class="mult">1.15</span>. To decrease by 15%, multiply by 1 &minus; 0.15 = <span class="mult">0.85</span>.</p>
+    </div>
+  </section>
+
+  <footer class="note">WeST &middot; Westcountry Schools Trust. Classroom demonstration tool.</footer>
+</div>
+
+<script>
+"use strict";
+
+/* ---------------- ZOOM DATA ----------------
+   Ordered smallest to largest. value is in metres.
+   Each entry teaches a distinct power of ten. */
+const SCALES = [
+  {emoji:"⚛️", name:"Hydrogen atom (width)", val:1e-10, desc:"About one ten-billionth of a metre across."},
+  {emoji:"🧬", name:"DNA strand (width)", val:2.5e-9, desc:"The width of the double helix that stores genes."},
+  {emoji:"🦠", name:"Virus particle", val:1.2e-7, desc:"Far too small to see without a powerful microscope."},
+  {emoji:"🦠", name:"Bacterium", val:2e-6, desc:"A single living cell, about two millionths of a metre."},
+  {emoji:"🩸", name:"Red blood cell", val:8e-6, desc:"Carries oxygen around your body."},
+  {emoji:"💧", name:"Grain of sand", val:5e-4, desc:"Half a millimetre wide."},
+  {emoji:"🐜", name:"Ant", val:6e-3, desc:"A few millimetres long."},
+  {emoji:"🧍", name:"Person (height)", val:1.7e0, desc:"A familiar everyday scale: a little under two metres."},
+  {emoji:"🏙️", name:"Football pitch (length)", val:1.05e2, desc:"Just over one hundred metres."},
+  {emoji:"🏔️", name:"Mount Everest (height)", val:8.85e3, desc:"Nearly nine thousand metres above sea level."},
+  {emoji:"🌍", name:"Earth (diameter)", val:1.27e7, desc:"Just under thirteen million metres across."},
+  {emoji:"☀️", name:"The Sun (diameter)", val:1.39e9, desc:"More than one hundred Earths would fit across it."},
+  {emoji:"🌌", name:"Earth to the Sun", val:1.5e11, desc:"This distance is called one astronomical unit."},
+  {emoji:"🌟", name:"Light-year", val:9.46e15, desc:"How far light travels in one year."},
+  {emoji:"🌌", name:"The Milky Way (width)", val:9.5e20, desc:"Our home galaxy, billions of times wider than the Sun."}
+];
+
+/* Build standard form parts from a number. Returns {coef, exp}. */
+function toStandard(x){
+  if(x===0) return {coef:0, exp:0};
+  const exp = Math.floor(Math.log10(Math.abs(x)));
+  let coef = x / Math.pow(10, exp);
+  coef = Math.round(coef*100)/100;
+  // guard rounding pushing coef to 10
+  if(Math.abs(coef) >= 10){ coef = coef/10; return {coef:Math.round(coef*100)/100, exp:exp+1}; }
+  return {coef, exp};
+}
+
+/* Pretty ordinary-form string with thin-space grouping for large ints,
+   and decimal expansion for small numbers. */
+function ordinaryString(x){
+  if(x>=1){
+    // round sensibly to keep it readable
+    let s;
+    if(x>=1e15){
+      // too big to write fully in a friendly way: still expand with grouping
+      s = bigIntGroups(x);
+    } else {
+      const rounded = Math.round(x);
+      s = rounded.toLocaleString("en-GB");
+    }
+    return s;
+  } else {
+    // small number: show decimal with enough places
+    const {exp} = toStandard(x);
+    const places = Math.min(12, Math.abs(exp)+2);
+    let s = x.toFixed(places);
+    // trim trailing zeros but keep at least the leading detail
+    s = s.replace(/0+$/,"").replace(/\.$/,"");
+    return s;
+  }
+}
+function bigIntGroups(x){
+  // expand a large number into grouped digits (approximate, sig figs from coef)
+  const {coef, exp} = toStandard(x);
+  let digits = String(Math.round(coef*100)).replace(/0+$/,"");
+  if(digits==="") digits="0";
+  // coef*100 gives up to 3 sig figs; reconstruct
+  let sig = digits;
+  const totalLen = exp+1;
+  while(sig.length < totalLen) sig += "0";
+  // group in threes from right
+  return sig.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+const sceneEl = document.getElementById("scene");
+const objnameEl = document.getElementById("objname");
+const objdescEl = document.getElementById("objdesc");
+const ordinaryEl = document.getElementById("ordinary");
+const sfEl = document.getElementById("sf");
+const zoom = document.getElementById("zoom");
+
+zoom.max = SCALES.length-1;
+let startIndex = SCALES.findIndex(s=>s.name.startsWith("Earth (diameter)"));
+zoom.value = startIndex;
+
+function renderZoom(){
+  const s = SCALES[+zoom.value];
+  sceneEl.textContent = s.emoji;
+  objnameEl.textContent = s.name;
+  objdescEl.textContent = s.desc;
+  ordinaryEl.innerHTML = ordinaryString(s.val) + ' <span class="unit">m</span>';
+  const {coef, exp} = toStandard(s.val);
+  sfEl.innerHTML =
+    '<span class="coef">'+coef+'</span> <span class="base">&times; 10</span>'+
+    '<sup class="pow">'+exp+'</sup> <span class="unit">m</span>';
+  const spoken = coef+" times ten to the power "+exp+", which is "+s.name;
+  zoom.setAttribute("aria-valuetext", spoken);
+}
+zoom.addEventListener("input", renderZoom);
+renderZoom();
+
+/* ---------------- TABS ---------------- */
+const tabs = [...document.querySelectorAll('.tab')];
+const panels = {
+  "tab-zoom":"panel-zoom",
+  "tab-compare":"panel-compare",
+  "tab-mult":"panel-mult"
+};
+function selectTab(tab){
+  tabs.forEach(t=>{
+    const on = t===tab;
+    t.setAttribute("aria-selected", on?"true":"false");
+    t.tabIndex = on?0:-1;
+    document.getElementById(panels[t.id]).classList.toggle("active", on);
+  });
+  if(tab.id==="tab-compare" && !cmpCurrent) newCompare();
+}
+tabs.forEach((t,i)=>{
+  t.addEventListener("click", ()=>selectTab(t));
+  t.addEventListener("keydown", e=>{
+    if(e.key==="ArrowRight"||e.key==="ArrowLeft"){
+      e.preventDefault();
+      const dir = e.key==="ArrowRight"?1:-1;
+      const next = tabs[(i+dir+tabs.length)%tabs.length];
+      next.focus(); selectTab(next);
+    }
+  });
+});
+
+/* ---------------- COMPARE SCALES ----------------
+   Pick two scales whose exponents differ by an integer number of powers.
+   Ask: how many times wider is the larger one (to nearest power of ten)?
+   This drills dividing powers of ten = subtracting indices. */
+const cmpqEl = document.getElementById("cmpq");
+const cmpoptsEl = document.getElementById("cmpopts");
+const cmpfbEl = document.getElementById("cmpfb");
+const cmpscoreEl = document.getElementById("cmpscore");
+const cmpstreakEl = document.getElementById("cmpstreak");
+const cmpnextBtn = document.getElementById("cmpnext");
+let cmpTotal=0, cmpRight=0, cmpStreak=0, cmpCurrent=null;
+
+function expOf(s){ return toStandard(s.val).exp; }
+
+function newCompare(){
+  cmpfbEl.className="feedback";
+  cmpnextBtn.disabled = true;
+  // choose two distinct scales with different exponents
+  let a,b,ea,eb,guard=0;
+  do{
+    a = SCALES[Math.floor(Math.random()*SCALES.length)];
+    b = SCALES[Math.floor(Math.random()*SCALES.length)];
+    ea = expOf(a); eb = expOf(b);
+    guard++;
+  } while((ea===eb || Math.abs(ea-eb)>11) && guard<200);
+  // ensure big = larger exponent
+  let big=a, small=b, ebig=ea, esmall=eb;
+  if(eb>ea){ big=b; small=a; ebig=eb; esmall=ea; }
+  const diff = ebig - esmall; // correct power-of-ten ratio
+  cmpCurrent = {big, small, diff};
+
+  cmpqEl.innerHTML =
+    'Roughly how many times wider is <span class="hl">'+big.name+'</span> than <span class="hl">'+small.name+'</span>?'+
+    '<br><span style="font-size:.85em;color:var(--muted)">'+
+      sfShort(big.val)+' compared with '+sfShort(small.val)+'</span>';
+
+  // build options: correct power and three distractors
+  const opts = new Set([diff]);
+  // common error: forgetting to subtract / adding indices
+  const distractors = [diff+1, diff-1, ebig+esmall, Math.max(1,diff+2)];
+  for(const d of distractors){ if(d>=0 && d<=24) opts.add(d); if(opts.size>=4) break; }
+  while(opts.size<4){ opts.add(Math.max(1, diff + (Math.floor(Math.random()*5)-2))); }
+  const arr = [...opts].slice(0,4).sort(()=>Math.random()-0.5);
+
+  cmpoptsEl.innerHTML="";
+  arr.forEach(p=>{
+    const btn=document.createElement("button");
+    btn.className="opt";
+    btn.type="button";
+    btn.innerHTML = '10<sup>'+p+'</sup>';
+    btn.setAttribute("aria-label","ten to the power "+p);
+    btn.addEventListener("click", ()=>answerCompare(btn, p));
+    cmpoptsEl.appendChild(btn);
+  });
+}
+function sfShort(x){
+  const {coef, exp} = toStandard(x);
+  return coef+' &times; 10<sup>'+exp+'</sup> m';
+}
+function answerCompare(btn, picked){
+  if(cmpnextBtn.disabled===false) return; // already answered
+  cmpTotal++;
+  const c = cmpCurrent;
+  const correct = picked===c.diff;
+  [...cmpoptsEl.children].forEach(b=>b.disabled=true);
+  if(correct){
+    btn.classList.add("correct");
+    cmpRight++; cmpStreak++;
+    cmpfbEl.className="feedback ok show";
+    cmpfbEl.innerHTML = '<b>Correct.</b> Divide the powers of ten by subtracting the indices: '+
+      '10<sup>'+expOf(c.big)+'</sup> &divide; 10<sup>'+expOf(c.small)+'</sup> = 10<sup>'+
+      expOf(c.big)+'&minus;'+expOf(c.small)+'</sup> = <b>10<sup>'+c.diff+'</sup></b>.';
+  } else {
+    btn.classList.add("wrong");
+    cmpStreak=0;
+    [...cmpoptsEl.children].forEach(b=>{
+      if(b.getAttribute("aria-label")==="ten to the power "+c.diff) b.classList.add("correct");
+    });
+    cmpfbEl.className="feedback no show";
+    cmpfbEl.innerHTML = '<b>Not quite.</b> To compare the sizes you divide, and dividing powers of ten means '+
+      '<b>subtracting</b> the indices: 10<sup>'+expOf(c.big)+'</sup> &divide; 10<sup>'+expOf(c.small)+
+      '</sup> = 10<sup>'+expOf(c.big)+'&minus;'+expOf(c.small)+'</sup> = <b>10<sup>'+c.diff+'</sup></b>.';
+  }
+  cmpscoreEl.textContent = "Correct: "+cmpRight+" of "+cmpTotal;
+  cmpstreakEl.textContent = "Streak: "+cmpStreak;
+  cmpnextBtn.disabled=false;
+  cmpnextBtn.focus();
+}
+cmpnextBtn.addEventListener("click", newCompare);
+
+/* ---------------- PERCENTAGE MULTIPLIER ---------------- */
+const startval = document.getElementById("startval");
+const pctval = document.getElementById("pctval");
+const dirUp = document.getElementById("dir-up");
+const dirDown = document.getElementById("dir-down");
+const multiplierEl = document.getElementById("multiplier");
+const multlineEl = document.getElementById("multline");
+const multanswerEl = document.getElementById("multanswer");
+let direction = "up";
+
+function setDir(d){
+  direction=d;
+  dirUp.setAttribute("aria-pressed", d==="up"?"true":"false");
+  dirDown.setAttribute("aria-pressed", d==="down"?"true":"false");
+  renderMult();
+}
+dirUp.addEventListener("click", ()=>setDir("up"));
+dirDown.addEventListener("click", ()=>setDir("down"));
+
+function fmt(n){
+  if(!isFinite(n)) return "—";
+  const r = Math.round(n*100)/100;
+  return r.toLocaleString("en-GB",{maximumFractionDigits:2});
+}
+function renderMult(){
+  let p = parseFloat(pctval.value);
+  let s = parseFloat(startval.value);
+  if(isNaN(p)) p=0;
+  const frac = p/100;
+  const mult = direction==="up" ? 1+frac : 1-frac;
+  const sign = direction==="up" ? "+" : "−";
+  multiplierEl.innerHTML = "&times; "+fmt(mult);
+  multlineEl.innerHTML =
+    (direction==="up"?"1 + ":"1 &minus; ")+fmt(Math.abs(frac))+
+    " = <span class='mult'>"+fmt(mult)+"</span>";
+  if(isNaN(s)){
+    multanswerEl.innerHTML = "Enter a starting amount to see the result.";
+  } else {
+    const out = s*mult;
+    multanswerEl.innerHTML =
+      fmt(s)+" &times; "+fmt(mult)+" = <b>"+fmt(out)+"</b> ("+sign+" "+fmt(Math.abs(p))+"%)";
+  }
+}
+[startval, pctval].forEach(el=>el.addEventListener("input", renderMult));
+renderMult();
+</script>
+</body>
+</html>

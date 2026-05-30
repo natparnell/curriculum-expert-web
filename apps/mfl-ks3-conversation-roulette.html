@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conversation Roulette</title>
+<style>
+:root{
+  --bg:#f3f0fb;--card:#ffffff;--ink:#241a3d;--ink2:#5b4b7a;
+  --accent:#6d28d9;--accent2:#9333ea;--accent-bg:#ede9fe;--border:#d8cdf0;
+  --shadow:0 6px 22px rgba(45,20,90,.12);--radius:16px;
+  --green:#15803d;--green-bg:#dcfce7;--amber:#b45309;--amber-bg:#fef3c7;
+  --red:#b91c1c;--red-bg:#fee2e2;--blue:#1d4ed8;--blue-bg:#dbeafe;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--ink);line-height:1.55;min-height:100vh}
+.header{background:linear-gradient(135deg,#6d28d9,#a855f7);color:#fff;padding:18px 20px;text-align:center}
+.header h1{font-size:1.55rem;font-weight:800;letter-spacing:-.01em}
+.header .aim{font-size:.82rem;opacity:.95;font-weight:600;margin-top:4px;max-width:680px;margin-left:auto;margin-right:auto}
+.main{max-width:760px;margin:0 auto;padding:18px 16px 60px}
+
+/* controls bar */
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:16px}
+.seg{display:flex;border:2px solid var(--border);border-radius:12px;overflow:hidden;background:var(--card)}
+.seg button{border:none;background:transparent;font:inherit;font-size:.78rem;font-weight:700;
+  color:var(--ink2);padding:8px 12px;cursor:pointer;transition:background .15s,color .15s}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.seg .lbl{font-size:.66rem;font-weight:700;color:var(--ink2);padding:8px 10px 8px 12px;
+  display:flex;align-items:center;letter-spacing:.04em;text-transform:uppercase}
+
+.level-wrap{display:flex;flex-direction:column;gap:4px;flex:1;min-width:220px}
+.level-row{display:flex;align-items:center;gap:10px}
+.level-row label{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2)}
+input[type=range]{flex:1;accent-color:var(--accent);height:22px}
+.level-name{font-size:.78rem;font-weight:800;color:var(--accent);min-width:118px;text-align:right}
+.level-desc{font-size:.72rem;color:var(--ink2);min-height:1.1em}
+
+/* wheel */
+.wheel-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:18px 16px;text-align:center;margin-bottom:16px;border:1px solid var(--border)}
+.wheel-stage{position:relative;width:280px;height:280px;margin:6px auto 12px;max-width:84vw}
+.wheel-stage.spinning{cursor:progress}
+.pointer{position:absolute;top:-2px;left:50%;transform:translateX(-50%);
+  width:0;height:0;border-left:15px solid transparent;border-right:15px solid transparent;
+  border-top:26px solid var(--accent);z-index:5;filter:drop-shadow(0 2px 2px rgba(0,0,0,.25))}
+svg.wheel{width:100%;height:100%;transition:transform 4.2s cubic-bezier(.17,.67,.16,1);
+  border-radius:50%;box-shadow:inset 0 0 0 6px #fff,0 0 0 4px var(--accent)}
+.hub{position:absolute;top:50%;left:50%;width:54px;height:54px;transform:translate(-50%,-50%);
+  border-radius:50%;background:#fff;border:4px solid var(--accent);z-index:4;
+  display:flex;align-items:center;justify-content:center;font-size:1.5rem}
+.spin-btn{font:inherit;font-weight:800;font-size:1rem;color:#fff;background:var(--accent);
+  border:none;border-radius:12px;padding:12px 26px;cursor:pointer;transition:transform .1s,background .15s;
+  box-shadow:0 4px 0 #4c1d95;touch-action:manipulation}
+.spin-btn:hover{background:var(--accent2)}
+.spin-btn:active{transform:translateY(3px);box-shadow:0 1px 0 #4c1d95}
+.spin-btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:0 4px 0 #4c1d95}
+
+/* prompt card */
+.prompt-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:0;margin-bottom:16px;overflow:hidden;border:1px solid var(--border)}
+.prompt-card[hidden]{display:none}
+.topic-strip{background:var(--accent-bg);color:var(--accent);font-weight:800;font-size:.74rem;
+  letter-spacing:.05em;text-transform:uppercase;padding:8px 16px;display:flex;align-items:center;gap:8px}
+.q-block{padding:16px}
+.q-label{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2);margin-bottom:3px}
+.q-text{font-size:1.32rem;font-weight:700;line-height:1.3;color:var(--ink)}
+.q-en{font-size:.85rem;color:var(--ink2);font-style:italic;margin-top:3px}
+.curveball{margin-top:14px;padding:14px;border-radius:12px;background:var(--amber-bg);border:1px solid #f6d27a}
+.curveball.hot{background:var(--red-bg);border-color:#f4a9a9}
+.curveball .cb-tag{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--amber);display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.curveball.hot .cb-tag{color:var(--red)}
+.cb-text{font-size:1.1rem;font-weight:700;color:var(--ink)}
+.cb-en{font-size:.82rem;color:var(--ink2);font-style:italic;margin-top:3px}
+
+/* scaffold */
+.scaffold{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:16px;margin-bottom:16px;border:1px solid var(--border)}
+.scaffold h2{font-size:.92rem;font-weight:800;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.scaffold .hint{font-size:.74rem;color:var(--ink2);margin-bottom:12px}
+.chip-grid{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:inherit;font-size:.82rem;font-weight:600;background:var(--blue-bg);color:var(--blue);
+  border:1.5px solid #bfd3fb;border-radius:999px;padding:7px 13px;cursor:pointer;transition:all .12s;
+  touch-action:manipulation}
+.chip:hover{background:#c7ddff}
+.chip[aria-pressed="true"]{background:var(--blue);color:#fff;border-color:var(--blue)}
+.chip.cat-conn{background:var(--green-bg);color:var(--green);border-color:#b7e4c2}
+.chip.cat-conn[aria-pressed="true"]{background:var(--green);color:#fff;border-color:var(--green)}
+.chip.cat-opin{background:#fef3c7;color:var(--amber);border-color:#f6d27a}
+.chip.cat-opin[aria-pressed="true"]{background:var(--amber);color:#fff;border-color:var(--amber)}
+.cat-head{font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--ink2);margin:12px 0 6px}
+.cat-head:first-of-type{margin-top:0}
+
+/* builder + feedback */
+.builder{margin-top:14px;border-top:1px dashed var(--border);padding-top:14px}
+.builder-line{min-height:48px;background:var(--accent-bg);border-radius:12px;padding:10px 12px;
+  font-size:1rem;font-weight:600;color:var(--ink);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.builder-line .placeholder{color:var(--ink2);font-style:italic;font-weight:500}
+.tok{background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:3px 9px;font-size:.86rem;
+  font-weight:600;cursor:pointer}
+.tok:hover{border-color:var(--red);color:var(--red)}
+.builder-actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.btn{font:inherit;font-weight:700;font-size:.84rem;border-radius:10px;padding:9px 16px;cursor:pointer;
+  border:2px solid var(--accent);background:var(--accent);color:#fff;touch-action:manipulation}
+.btn.ghost{background:#fff;color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.feedback{margin-top:14px;border-radius:12px;padding:13px 15px;font-size:.9rem;font-weight:600;display:none}
+.feedback.show{display:block}
+.feedback.good{background:var(--green-bg);color:var(--green);border:1px solid #b7e4c2}
+.feedback.ok{background:var(--amber-bg);color:var(--amber);border:1px solid #f6d27a}
+.feedback.work{background:var(--blue-bg);color:var(--blue);border:1px solid #bfd3fb}
+.feedback ul{margin:8px 0 0 18px;font-weight:500}
+.feedback li{margin-bottom:3px}
+
+/* score */
+.score-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.stat{flex:1;min-width:120px;background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:10px 14px;text-align:center;box-shadow:var(--shadow)}
+.stat .n{font-size:1.5rem;font-weight:800;color:var(--accent);line-height:1}
+.stat .l{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);margin-top:3px}
+
+.teacher{background:#241a3d;color:#e9e3f7;border-radius:var(--radius);padding:16px 18px;font-size:.82rem;margin-top:6px}
+.teacher h2{font-size:.9rem;font-weight:800;margin-bottom:8px;color:#fff}
+.teacher ul{margin-left:18px}
+.teacher li{margin-bottom:5px}
+.teacher strong{color:#d8b4fe}
+
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0,0,0,0);white-space:nowrap;border:0}
+:focus-visible{outline:3px solid #c084fc;outline-offset:2px}
+@media (max-width:560px){
+  .q-text{font-size:1.15rem}.level-name{min-width:96px;font-size:.72rem}
+  .bar{flex-direction:column;align-items:stretch}
+}
+@media (prefers-reduced-motion:reduce){svg.wheel{transition:transform .5s linear}}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="header">
+  <h1>&#x1F3AF; Conversation Roulette</h1>
+  <p class="aim">Teacher aim: pupils initiate and develop a spoken conversation with increasing spontaneity, coping with an unexpected follow-up using connectives and social conventions.</p>
+</header>
+
+<main class="main">
+
+  <!-- language + level controls -->
+  <div class="bar">
+    <div class="seg" role="group" aria-label="Choose language">
+      <span class="lbl">Language</span>
+      <button type="button" data-lang="fr" aria-pressed="true">French</button>
+      <button type="button" data-lang="es" aria-pressed="false">Spanish</button>
+      <button type="button" data-lang="de" aria-pressed="false">German</button>
+    </div>
+    <div class="level-wrap">
+      <div class="level-row">
+        <label for="level">Spontaneity</label>
+        <input type="range" id="level" min="1" max="3" step="1" value="1"
+          aria-describedby="levelDesc" aria-valuetext="Warm up">
+        <span class="level-name" id="levelName">Warm up</span>
+      </div>
+      <div class="level-desc" id="levelDesc">A friendly opener with time to think. Curveball is gentle.</div>
+    </div>
+  </div>
+
+  <!-- score -->
+  <div class="score-row" aria-live="off">
+    <div class="stat"><div class="n" id="statSpins">0</div><div class="l">Turns taken</div></div>
+    <div class="stat"><div class="n" id="statConn">0</div><div class="l">Connectives used</div></div>
+    <div class="stat"><div class="n" id="statStreak">0</div><div class="l">Best response streak</div></div>
+  </div>
+
+  <!-- wheel -->
+  <div class="wheel-card">
+    <div class="wheel-stage" id="stage">
+      <div class="pointer" aria-hidden="true"></div>
+      <svg class="wheel" id="wheel" viewBox="0 0 200 200" role="img" aria-label="Topic roulette wheel"></svg>
+      <div class="hub" aria-hidden="true">&#x1F4AC;</div>
+    </div>
+    <button type="button" class="spin-btn" id="spinBtn">Spin the wheel</button>
+    <p class="sr-only" id="spinSr" aria-live="polite"></p>
+  </div>
+
+  <!-- prompt -->
+  <section class="prompt-card" id="promptCard" hidden aria-live="polite">
+    <div class="topic-strip" id="topicStrip"><span id="topicIcon">&#x1F3AF;</span><span id="topicName">Topic</span></div>
+    <div class="q-block">
+      <div class="q-label">Your partner asks</div>
+      <div class="q-text" id="qText" lang="fr"></div>
+      <div class="q-en" id="qEn"></div>
+      <div class="curveball" id="curveball" hidden>
+        <div class="cb-tag"><span id="cbIcon">&#x26A1;</span><span id="cbTagText">Curveball: they did not expect that answer</span></div>
+        <div class="cb-text" id="cbText" lang="fr"></div>
+        <div class="cb-en" id="cbEn"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- scaffold + builder -->
+  <section class="scaffold" id="scaffold" hidden>
+    <h2>&#x1F9F1; Build your spoken reply</h2>
+    <p class="hint" id="scaffoldHint">Tap phrases to plan what you will say out loud. Aim for at least one connective so your answer keeps going.</p>
+
+    <div id="chipArea"></div>
+
+    <div class="builder">
+      <div class="builder-line" id="builderLine" aria-live="polite">
+        <span class="placeholder">Tap phrases above to draft your spoken reply.</span>
+      </div>
+      <div class="builder-actions">
+        <button type="button" class="btn" id="checkBtn" disabled>Check my reply</button>
+        <button type="button" class="btn ghost" id="clearBtn">Clear</button>
+        <button type="button" class="btn ghost" id="speakBtn">I said it out loud &#x2705;</button>
+      </div>
+      <div class="feedback" id="feedback" role="status" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <div class="teacher">
+    <h2>&#x1F3EB; How to run it</h2>
+    <ul>
+      <li><strong>Warm up:</strong> learners draft a reply with the chips, read it aloud, then bin the chips and say it again from memory.</li>
+      <li><strong>Real talk:</strong> the curveball pushes pupils to recover politely. Insist on a connective so the conversation develops, not just one-word answers.</li>
+      <li><strong>Off the cuff:</strong> hide the chips, spin, and give five seconds of thinking time only. Spontaneity is the goal here.</li>
+      <li>Pair pupils: one spins and plays the partner, the other responds, then swap. The curveball is theirs to deliver with a straight face.</li>
+    </ul>
+  </div>
+
+</main>
+
+<script>
+"use strict";
+
+/* ---------- data: fictional, demo-only, three languages ---------- */
+const TOPICS = [
+  {id:"family", icon:"\u{1F46A}", color:"#6d28d9",
+   name:{fr:"La famille",es:"La familia",de:"Die Familie"}},
+  {id:"freetime", icon:"\u{26BD}", color:"#9333ea",
+   name:{fr:"Le temps libre",es:"El tiempo libre",de:"Die Freizeit"}},
+  {id:"school", icon:"\u{1F4DA}", color:"#7c3aed",
+   name:{fr:"Le collège",es:"El instituto",de:"Die Schule"}},
+  {id:"food", icon:"\u{1F37D}", color:"#a855f7",
+   name:{fr:"La nourriture",es:"La comida",de:"Das Essen"}},
+  {id:"home", icon:"\u{1F3E0}", color:"#8b5cf6",
+   name:{fr:"Chez moi",es:"En casa",de:"Zu Hause"}},
+  {id:"holidays", icon:"\u{2708}", color:"#7e22ce",
+   name:{fr:"Les vacances",es:"Las vacaciones",de:"Die Ferien"}}
+];
+
+/* questions[topic][lang] = {q, en} ; curveballs[topic][lang] = [{cb,en}] */
+const Q = {
+  family:{
+    fr:{q:"Tu as des frères ou des sœurs ?",en:"Do you have brothers or sisters?"},
+    es:{q:"¿Tienes hermanos o hermanas?",en:"Do you have brothers or sisters?"},
+    de:{q:"Hast du Geschwister?",en:"Do you have any siblings?"}},
+  freetime:{
+    fr:{q:"Qu'est-ce que tu fais le week-end ?",en:"What do you do at the weekend?"},
+    es:{q:"¿Qué haces los fines de semana?",en:"What do you do at weekends?"},
+    de:{q:"Was machst du am Wochenende?",en:"What do you do at the weekend?"}},
+  school:{
+    fr:{q:"Quelle est ta matière préférée ?",en:"What is your favourite subject?"},
+    es:{q:"¿Cuál es tu asignatura favorita?",en:"What is your favourite subject?"},
+    de:{q:"Was ist dein Lieblingsfach?",en:"What is your favourite subject?"}},
+  food:{
+    fr:{q:"Qu'est-ce que tu manges au petit-déjeuner ?",en:"What do you eat for breakfast?"},
+    es:{q:"¿Qué desayunas normalmente?",en:"What do you usually have for breakfast?"},
+    de:{q:"Was isst du zum Frühstück?",en:"What do you eat for breakfast?"}},
+  home:{
+    fr:{q:"Tu habites dans une maison ou un appartement ?",en:"Do you live in a house or a flat?"},
+    es:{q:"¿Vives en una casa o en un piso?",en:"Do you live in a house or a flat?"},
+    de:{q:"Wohnst du in einem Haus oder einer Wohnung?",en:"Do you live in a house or a flat?"}},
+  holidays:{
+    fr:{q:"Où vas-tu en vacances d'habitude ?",en:"Where do you usually go on holiday?"},
+    es:{q:"¿Adónde vas de vacaciones normalmente?",en:"Where do you usually go on holiday?"},
+    de:{q:"Wohin fährst du normalerweise in den Ferien?",en:"Where do you normally go on holiday?"}}
+};
+
+/* curveball difficulty: index roughly maps to level (0 gentle .. 2 hot) */
+const CB = {
+  family:{
+    fr:[{cb:"Ah bon ? Et tu t'entends bien avec eux ?",en:"Oh really? And do you get on well with them?"},
+        {cb:"Vraiment ? Pourquoi tu dis ça ?",en:"Really? Why do you say that?"},
+        {cb:"Attends, tu plaisantes ? Raconte !",en:"Wait, are you joking? Tell me more!"}],
+    es:[{cb:"¿En serio? ¿Y te llevas bien con ellos?",en:"Really? And do you get on with them?"},
+        {cb:"¿De verdad? ¿Por qué dices eso?",en:"Really? Why do you say that?"},
+        {cb:"Espera, ¿en serio? ¡Cuéntame!",en:"Wait, seriously? Tell me!"}],
+    de:[{cb:"Echt? Und verstehst du dich gut mit ihnen?",en:"Really? And do you get on well with them?"},
+        {cb:"Wirklich? Warum sagst du das?",en:"Really? Why do you say that?"},
+        {cb:"Moment, im Ernst? Erzähl mal!",en:"Wait, seriously? Tell me!"}]},
+  freetime:{
+    fr:[{cb:"Sympa ! C'était comment la dernière fois ?",en:"Nice! What was it like last time?"},
+        {cb:"Ah oui ? Et ça ne t'ennuie jamais ?",en:"Oh yes? And do you never get bored of it?"},
+        {cb:"Désolé, je n'ai pas compris. Tu peux répéter ?",en:"Sorry, I did not catch that. Can you repeat?"}],
+    es:[{cb:"¡Qué bien! ¿Cómo fue la última vez?",en:"Great! How was it last time?"},
+        {cb:"¿Ah sí? ¿Y nunca te aburre?",en:"Oh yes? And does it never bore you?"},
+        {cb:"Perdona, no he entendido. ¿Puedes repetir?",en:"Sorry, I did not understand. Can you repeat?"}],
+    de:[{cb:"Cool! Wie war es letztes Mal?",en:"Cool! How was it last time?"},
+        {cb:"Ach so? Und wird dir das nie langweilig?",en:"Oh? And do you never get bored of it?"},
+        {cb:"Entschuldigung, ich habe das nicht verstanden. Kannst du das wiederholen?",en:"Sorry, I did not understand. Can you repeat?"}]},
+  school:{
+    fr:[{cb:"Intéressant ! Et le prof, il est comment ?",en:"Interesting! And what is the teacher like?"},
+        {cb:"Ah ? Moi je déteste ça. Pourquoi tu l'aimes ?",en:"Oh? I hate that. Why do you like it?"},
+        {cb:"Attends, tu es sûr ? Tu changes souvent d'avis !",en:"Wait, are you sure? You change your mind a lot!"}],
+    es:[{cb:"¡Interesante! ¿Y cómo es el profesor?",en:"Interesting! And what is the teacher like?"},
+        {cb:"¿Ah sí? A mí no me gusta nada. ¿Por qué te gusta?",en:"Oh? I do not like it at all. Why do you like it?"},
+        {cb:"Espera, ¿estás seguro? ¡Cambias mucho de opinión!",en:"Wait, are you sure? You change your mind a lot!"}],
+    de:[{cb:"Interessant! Und wie ist die Lehrerin?",en:"Interesting! And what is the teacher like?"},
+        {cb:"Ach? Ich hasse das. Warum magst du es?",en:"Oh? I hate that. Why do you like it?"},
+        {cb:"Moment, bist du sicher? Du änderst oft deine Meinung!",en:"Wait, are you sure? You often change your mind!"}]},
+  food:{
+    fr:[{cb:"Miam ! Et qu'est-ce que tu bois avec ça ?",en:"Yum! And what do you drink with that?"},
+        {cb:"Beurk, je n'aime pas du tout ça. Vraiment ?",en:"Yuck, I do not like that at all. Really?"},
+        {cb:"Pardon, le serveur arrive. On commande quoi ?",en:"Sorry, the waiter is coming. What shall we order?"}],
+    es:[{cb:"¡Qué rico! ¿Y qué bebes con eso?",en:"Yum! And what do you drink with that?"},
+        {cb:"Puaj, eso no me gusta nada. ¿En serio?",en:"Yuck, I do not like that at all. Really?"},
+        {cb:"Perdona, viene el camarero. ¿Qué pedimos?",en:"Sorry, the waiter is coming. What shall we order?"}],
+    de:[{cb:"Lecker! Und was trinkst du dazu?",en:"Yummy! And what do you drink with it?"},
+        {cb:"Igitt, das mag ich gar nicht. Wirklich?",en:"Yuck, I do not like that at all. Really?"},
+        {cb:"Entschuldigung, der Kellner kommt. Was bestellen wir?",en:"Sorry, the waiter is coming. What shall we order?"}]},
+  home:{
+    fr:[{cb:"Ah oui ? Et c'est près du centre-ville ?",en:"Oh yes? And is it near the town centre?"},
+        {cb:"Vraiment ? Tu voudrais déménager un jour ?",en:"Really? Would you like to move one day?"},
+        {cb:"Désolé, on me dérange. Tu disais quoi déjà ?",en:"Sorry, I got distracted. What were you saying?"}],
+    es:[{cb:"¿Ah sí? ¿Y está cerca del centro?",en:"Oh yes? And is it near the centre?"},
+        {cb:"¿De verdad? ¿Te gustaría mudarte algún día?",en:"Really? Would you like to move one day?"},
+        {cb:"Perdona, me he despistado. ¿Qué decías?",en:"Sorry, I got distracted. What were you saying?"}],
+    de:[{cb:"Ach ja? Und ist das in der Nähe vom Zentrum?",en:"Oh yes? And is it near the centre?"},
+        {cb:"Wirklich? Möchtest du eines Tages umziehen?",en:"Really? Would you like to move one day?"},
+        {cb:"Entschuldigung, ich war abgelenkt. Was hast du gesagt?",en:"Sorry, I was distracted. What did you say?"}]},
+  holidays:{
+    fr:[{cb:"Génial ! Et qu'est-ce que tu fais là-bas ?",en:"Great! And what do you do there?"},
+        {cb:"Ah ? Moi je trouve ça ennuyeux. Pourquoi là ?",en:"Oh? I find that boring. Why there?"},
+        {cb:"Attends, le train part dans deux minutes ! On y va ?",en:"Wait, the train leaves in two minutes! Shall we go?"}],
+    es:[{cb:"¡Genial! ¿Y qué haces allí?",en:"Great! And what do you do there?"},
+        {cb:"¿Ah sí? A mí me parece aburrido. ¿Por qué allí?",en:"Oh? I find that boring. Why there?"},
+        {cb:"¡Espera, el tren sale en dos minutos! ¿Vamos?",en:"Wait, the train leaves in two minutes! Shall we go?"}],
+    de:[{cb:"Toll! Und was machst du dort?",en:"Great! And what do you do there?"},
+        {cb:"Ach? Ich finde das langweilig. Warum dorthin?",en:"Oh? I find that boring. Why there?"},
+        {cb:"Moment, der Zug fährt in zwei Minuten! Gehen wir?",en:"Wait, the train leaves in two minutes! Shall we go?"}]}
+};
+
+/* response-building chips, by language. cat: opener | connective | opinion | filler */
+const CHIPS = {
+  fr:{
+    opener:["Eh bien...","Alors,","Pour moi,","En fait,"],
+    connective:["parce que","mais","et aussi","donc","par contre","cependant"],
+    opinion:["je pense que","à mon avis","je préfère","je trouve que"],
+    filler:["c'est-à-dire","euh, comment dire","attends","disons que"]
+  },
+  es:{
+    opener:["Pues...","Bueno,","Para mí,","La verdad es que"],
+    connective:["porque","pero","y también","así que","en cambio","sin embargo"],
+    opinion:["creo que","en mi opinión","prefiero","me parece que"],
+    filler:["o sea","a ver","espera","digamos que"]
+  },
+  de:{
+    opener:["Also...","Tja,","Für mich","Eigentlich"],
+    connective:["weil","aber","und auch","deshalb","dagegen","jedoch"],
+    opinion:["ich denke, dass","meiner Meinung nach","ich finde","lieber"],
+    filler:["das heißt","äh, wie sagt man","Moment","sagen wir mal"]
+  }
+};
+const CAT_LABEL={opener:"Openers",connective:"Connectives (keep talking)",opinion:"Opinions",filler:"Stalling phrases (buy thinking time)"};
+const CAT_ORDER=["opener","opinion","connective","filler"];
+
+const LEVELS=[
+  {name:"Warm up",desc:"A friendly opener with time to think. Curveball is gentle.",cb:0,minTok:2,wantConn:false},
+  {name:"Real talk",desc:"They react to your answer. You must recover and develop it.",cb:1,minTok:3,wantConn:true},
+  {name:"Off the cuff",desc:"Spontaneous and a bit awkward. Stay polite, keep it flowing.",cb:2,minTok:4,wantConn:true}
+];
+
+/* ---------- state ---------- */
+let lang="fr";
+let level=0;
+let current=null;      // {topic, qObj, cbObj}
+let builder=[];        // array of {text,cat}
+let spinning=false;
+let curRot=0;
+let stats={spins:0,conn:0,streak:0,_run:0};
+
+/* ---------- wheel render (SVG) ---------- */
+const NS="http://www.w3.org/2000/svg";
+const wheel=document.getElementById("wheel");
+function buildWheel(){
+  wheel.innerHTML="";
+  const n=TOPICS.length, cx=100, cy=100, r=100, slice=2*Math.PI/n;
+  for(let i=0;i<n;i++){
+    const a0=i*slice - Math.PI/2 - slice/2; // centre slice 0 at top
+    const a1=a0+slice;
+    const x0=cx+r*Math.cos(a0), y0=cy+r*Math.sin(a0);
+    const x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1);
+    const path=document.createElementNS(NS,"path");
+    path.setAttribute("d",`M${cx},${cy} L${x0.toFixed(2)},${y0.toFixed(2)} A${r},${r} 0 0 1 ${x1.toFixed(2)},${y1.toFixed(2)} Z`);
+    path.setAttribute("fill",TOPICS[i].color);
+    path.setAttribute("stroke","#fff");
+    path.setAttribute("stroke-width","1.5");
+    wheel.appendChild(path);
+    // icon label
+    const am=a0+slice/2, lr=r*0.62;
+    const tx=cx+lr*Math.cos(am), ty=cy+lr*Math.sin(am);
+    const t=document.createElementNS(NS,"text");
+    t.setAttribute("x",tx.toFixed(1));t.setAttribute("y",(ty+5).toFixed(1));
+    t.setAttribute("text-anchor","middle");t.setAttribute("font-size","20");
+    t.textContent=TOPICS[i].icon;
+    wheel.appendChild(t);
+  }
+}
+buildWheel();
+
+/* ---------- helpers ---------- */
+function $(id){return document.getElementById(id);}
+function setStats(){
+  $("statSpins").textContent=stats.spins;
+  $("statConn").textContent=stats.conn;
+  $("statStreak").textContent=stats.streak;
+}
+function reduced(){return window.matchMedia("(prefers-reduced-motion:reduce)").matches;}
+
+/* ---------- spin ---------- */
+function spin(){
+  if(spinning)return;
+  spinning=true;
+  $("spinBtn").disabled=true;
+  $("stage").classList.add("spinning");
+  $("feedback").classList.remove("show");
+  const n=TOPICS.length, slice=360/n;
+  const target=Math.floor(Math.random()*n);
+  const extra=reduced()?1:(4+Math.floor(Math.random()*3)); // full turns
+  // we want slice `target` centre to land at pointer (top). centre of slice i is at i*slice from top.
+  const desired = 360 - (target*slice);
+  curRot = curRot - (curRot % 360) + extra*360 + desired;
+  wheel.style.transform=`rotate(${curRot}deg)`;
+  $("spinSr").textContent="Spinning the wheel.";
+  const wait=reduced()?550:4300;
+  window.setTimeout(()=>onLanded(target),wait);
+}
+function onLanded(idx){
+  spinning=false;
+  $("spinBtn").disabled=false;
+  $("spinBtn").textContent="Spin again";
+  $("stage").classList.remove("spinning");
+  const topic=TOPICS[idx];
+  const qObj=Q[topic.id][lang];
+  const cbList=CB[topic.id][lang];
+  const cbObj=cbList[Math.min(level,cbList.length-1)];
+  current={topic,qObj,cbObj};
+  stats.spins++; setStats();
+  renderPrompt();
+  renderScaffold();
+  $("spinSr").textContent="Landed on "+topic.name[lang]+". "+qObj.en;
+}
+
+/* ---------- render prompt ---------- */
+function renderPrompt(){
+  const {topic,qObj,cbObj}=current;
+  $("promptCard").hidden=false;
+  $("topicIcon").textContent=topic.icon;
+  $("topicName").textContent=topic.name[lang];
+  $("qText").lang=lang; $("qText").textContent=qObj.q;
+  $("qEn").textContent=qObj.en;
+  const cb=$("curveball");
+  cb.hidden=false;
+  cb.classList.toggle("hot",level===2);
+  $("cbText").lang=lang; $("cbText").textContent=cbObj.cb;
+  $("cbEn").textContent=cbObj.en;
+  $("cbTagText").textContent = level===0
+    ? "They reply: keep the chat going"
+    : (level===2 ? "Curveball: unexpected and a bit awkward" : "Curveball: they did not expect that answer");
+}
+
+/* ---------- render scaffold ---------- */
+function renderScaffold(){
+  $("scaffold").hidden=false;
+  const lv=LEVELS[level];
+  $("scaffoldHint").textContent = lv.wantConn
+    ? "Reply to the question AND the follow-up. Use at least one green connective so the conversation keeps developing. Aim for "+lv.minTok+" or more phrases."
+    : "Tap phrases to plan a reply. Try to use a connective so your answer keeps going. Aim for "+lv.minTok+" or more phrases.";
+  const area=$("chipArea"); area.innerHTML="";
+  const data=CHIPS[lang];
+  CAT_ORDER.forEach(cat=>{
+    const h=document.createElement("div");h.className="cat-head";h.textContent=CAT_LABEL[cat];
+    area.appendChild(h);
+    const grid=document.createElement("div");grid.className="chip-grid";
+    data[cat].forEach(txt=>{
+      const b=document.createElement("button");
+      b.type="button";
+      b.className="chip"+(cat==="connective"?" cat-conn":cat==="opinion"?" cat-opin":"");
+      b.textContent=txt;
+      b.setAttribute("aria-pressed","false");
+      b.lang=lang;
+      b.addEventListener("click",()=>addTok(txt,cat,b));
+      grid.appendChild(b);
+    });
+    area.appendChild(grid);
+  });
+  builder=[]; renderBuilder();
+  $("feedback").classList.remove("show");
+}
+
+/* ---------- builder ---------- */
+function addTok(text,cat,btn){
+  builder.push({text,cat});
+  renderBuilder();
+}
+function removeTok(i){builder.splice(i,1);renderBuilder();}
+function renderBuilder(){
+  const line=$("builderLine");
+  line.innerHTML="";
+  if(builder.length===0){
+    const p=document.createElement("span");p.className="placeholder";
+    p.textContent="Tap phrases above to draft your spoken reply.";
+    line.appendChild(p);
+  }else{
+    builder.forEach((t,i)=>{
+      const s=document.createElement("button");
+      s.type="button";s.className="tok";s.lang=lang;
+      s.textContent=t.text;
+      s.setAttribute("aria-label","Remove phrase "+t.text);
+      s.addEventListener("click",()=>removeTok(i));
+      line.appendChild(s);
+    });
+  }
+  $("checkBtn").disabled=builder.length===0;
+}
+
+/* ---------- feedback ---------- */
+function check(){
+  const lv=LEVELS[level];
+  const nTok=builder.length;
+  const nConn=builder.filter(t=>t.cat==="connective").length;
+  const nOpin=builder.filter(t=>t.cat==="opinion").length;
+  const nFiller=builder.filter(t=>t.cat==="filler").length;
+  const hasOpener=builder.some(t=>t.cat==="opener"||t.cat==="filler");
+  const fb=$("feedback");
+  const notes=[];
+  let cls="work";
+
+  // grade logic
+  const longEnough = nTok>=lv.minTok;
+  const connOk = !lv.wantConn || nConn>=1;
+
+  if(longEnough && connOk){
+    cls="good";
+  }else if(nTok>=2){
+    cls="ok";
+  }else{
+    cls="work";
+  }
+
+  let head;
+  if(cls==="good") head="&#x1F31F; Strong, developed reply. Now say it out loud.";
+  else if(cls==="ok") head="&#x1F44D; Good start. A little more would develop the conversation.";
+  else head="&#x1F4AC; Keep going: a one-word answer ends the chat.";
+
+  // specific, targeted notes
+  if(nConn===0){
+    notes.push(lv.wantConn
+      ? "No connective yet. Add a green word like a 'because' or 'but' so you reply to the follow-up, not just the first question."
+      : "Try adding a green connective so your answer keeps going past the first idea.");
+  }else{
+    notes.push("Connective spotted ("+nConn+"). That links your ideas and develops the conversation.");
+  }
+  if(nOpin>0) notes.push("Nice: you gave an opinion. Examiners love a justified opinion.");
+  else notes.push("Could you add an opinion phrase to say what you think?");
+  if(level===2 && nFiller===0) notes.push("Off the cuff tip: a stalling phrase (yellow) buys you thinking time and sounds natural under pressure.");
+  if(level===2 && nFiller>0) notes.push("Good use of a stalling phrase: that is exactly how fluent speakers cope with a curveball.");
+  if(nTok<lv.minTok) notes.push("Aim for at least "+lv.minTok+" phrases at this level (you have "+nTok+").");
+  if(level>=1) notes.push("Remember the social convention: react to their curveball first ('really?', 'oh yes?') before you carry on.");
+
+  // build feedback DOM
+  fb.className="feedback show "+cls;
+  fb.innerHTML="";
+  const h=document.createElement("div");h.innerHTML=head;fb.appendChild(h);
+  const ul=document.createElement("ul");
+  notes.forEach(t=>{const li=document.createElement("li");li.textContent=t;ul.appendChild(li);});
+  fb.appendChild(ul);
+
+  // stats
+  stats.conn+=nConn;
+  if(cls==="good"){stats._run++; if(stats._run>stats.streak)stats.streak=stats._run;}
+  else{stats._run=0;}
+  setStats();
+}
+
+/* "said it out loud" rewards the speaking act */
+function spoke(){
+  if(!current){return;}
+  const fb=$("feedback");
+  fb.className="feedback show good";
+  fb.innerHTML="<div>&#x1F5E3; Brilliant. Saying it aloud is the real skill. Now spin again and try a different topic, or push the spontaneity slider up.</div>";
+}
+
+/* ---------- level + language ---------- */
+function setLevel(v){
+  level=Math.max(0,Math.min(2,v-1));
+  const lv=LEVELS[level];
+  $("levelName").textContent=lv.name;
+  $("levelDesc").textContent=lv.desc;
+  $("level").setAttribute("aria-valuetext",lv.name);
+  if(current){
+    // refresh curveball to new difficulty for the same topic
+    const cbList=CB[current.topic.id][lang];
+    current.cbObj=cbList[Math.min(level,cbList.length-1)];
+    renderPrompt();
+    renderScaffold();
+  }
+}
+function setLang(l,btn){
+  lang=l;
+  document.querySelectorAll("[data-lang]").forEach(b=>b.setAttribute("aria-pressed", b===btn?"true":"false"));
+  if(current){
+    current.qObj=Q[current.topic.id][lang];
+    const cbList=CB[current.topic.id][lang];
+    current.cbObj=cbList[Math.min(level,cbList.length-1)];
+    renderPrompt();
+    renderScaffold();
+  }
+}
+
+/* ---------- wire up ---------- */
+$("spinBtn").addEventListener("click",spin);
+$("checkBtn").addEventListener("click",check);
+$("clearBtn").addEventListener("click",()=>{builder=[];renderBuilder();$("feedback").classList.remove("show");});
+$("speakBtn").addEventListener("click",spoke);
+$("level").addEventListener("input",e=>setLevel(parseInt(e.target.value,10)));
+document.querySelectorAll("[data-lang]").forEach(b=>{
+  b.addEventListener("click",()=>setLang(b.dataset.lang,b));
+});
+setStats();
+</script>
+</body>
+</html>

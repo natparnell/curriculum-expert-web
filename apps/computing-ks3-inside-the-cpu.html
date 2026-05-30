@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inside the CPU</title>
+<style>
+  :root {
+    --ink: #1b2536;
+    --muted: #5a6677;
+    --line: #d9dfe8;
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --accent: #1f6feb;
+    --accent-dark: #1453bd;
+    --fetch: #1f6feb;
+    --decode: #b8860b;
+    --execute: #137a4f;
+    --warn: #b42318;
+    --pc: #6d28d9;
+    --mar: #0e7490;
+    --mdr: #be185d;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20,40,80,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app { margin-bottom: 14px; }
+  h1 { font-size: clamp(1.5rem, 4vw, 2.1rem); margin: 0 0 4px; letter-spacing: -0.01em; }
+  .aim {
+    background: #eef4ff;
+    border: 1px solid #cfe0ff;
+    border-left: 5px solid var(--accent);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.95rem;
+    color: #234;
+  }
+  .aim strong { color: var(--accent-dark); }
+  .subhead { color: var(--muted); font-size: 0.9rem; margin: 6px 0 0; }
+
+  .layout { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 16px; }
+  @media (min-width: 880px) { .layout { grid-template-columns: 1.35fr 1fr; align-items: start; } }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .tag { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+
+  /* Von Neumann diagram */
+  .vn {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .block {
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: #fbfcfe;
+    transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+    position: relative;
+  }
+  .block.cpu { grid-column: 1 / 2; }
+  .block.mem { grid-column: 2 / 3; }
+  .block .blk-title { font-weight: 700; font-size: 0.92rem; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .block.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(31,111,235,0.18); background: #f1f6ff; }
+
+  .reg-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 0.85rem; }
+  .reg-label { width: 46px; font-weight: 700; color: var(--muted); flex-shrink: 0; }
+  .reg-val {
+    flex: 1;
+    background: #0f1626;
+    color: #d7f7ff;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    padding: 5px 8px;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    min-height: 28px;
+    display: flex; align-items: center;
+    transition: background 0.3s, color 0.3s, transform 0.25s;
+    word-break: break-word;
+  }
+  .reg-val.flash { background: #1f6feb; color: #fff; transform: scale(1.03); }
+  .reg-val.pc-c { box-shadow: inset 0 0 0 2px var(--pc); }
+  .reg-val.mar-c { box-shadow: inset 0 0 0 2px var(--mar); }
+  .reg-val.mdr-c { box-shadow: inset 0 0 0 2px var(--mdr); }
+
+  /* Memory list */
+  .mem-list { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
+  .mem-cell {
+    display: grid;
+    grid-template-columns: 38px 1fr;
+    gap: 8px;
+    align-items: center;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.82rem;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 4px 6px;
+    background: #fff;
+    transition: background 0.3s, border-color 0.3s;
+  }
+  .mem-cell .addr { color: var(--mar); font-weight: 700; }
+  .mem-cell .content { color: var(--ink); }
+  .mem-cell.reading { background: #e0f2fe; border-color: var(--mar); }
+  .mem-cell.pc-here { background: #f3e8ff; border-color: var(--pc); }
+  .mem-cell.data { background: #fafafa; }
+
+  /* Controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: 1px solid var(--accent-dark);
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.92rem;
+    min-height: 44px;
+    transition: background 0.15s, transform 0.05s, opacity 0.15s;
+  }
+  button:hover:not(:disabled) { background: var(--accent-dark); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:focus-visible { outline: 3px solid #ffb020; outline-offset: 2px; }
+  button.secondary { background: #fff; color: var(--ink); border-color: var(--line); }
+  button.secondary:hover:not(:disabled) { background: #f0f3f8; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* Stage indicator */
+  .stages { display: flex; gap: 6px; margin: 4px 0 12px; }
+  .stage-pill {
+    flex: 1;
+    text-align: center;
+    padding: 7px 4px;
+    border-radius: 9px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: #eef1f6;
+    color: var(--muted);
+    border: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .stage-pill.fetch.on { background: #e7f0ff; color: var(--fetch); border-color: var(--fetch); }
+  .stage-pill.decode.on { background: #fff5e0; color: var(--decode); border-color: var(--decode); }
+  .stage-pill.execute.on { background: #e3f7ee; color: var(--execute); border-color: var(--execute); }
+
+  /* Narration / feedback */
+  .narrate {
+    background: #0f1626;
+    color: #eaf2ff;
+    border-radius: 12px;
+    padding: 14px 16px;
+    min-height: 96px;
+    font-size: 0.95rem;
+  }
+  .narrate .step-head { font-weight: 700; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .narrate.fetch .step-head { color: #7db1ff; }
+  .narrate.decode .step-head { color: #ffd27d; }
+  .narrate.execute .step-head { color: #7be2b3; }
+  .narrate.idle .step-head { color: #9fb0c8; }
+  .narrate.done .step-head { color: #7be2b3; }
+
+  /* Output strip */
+  .output-strip {
+    margin-top: 12px;
+    background: #06281c;
+    color: #b9f6d4;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.9rem;
+    min-height: 22px;
+  }
+  .output-strip .lbl { color: #5fae87; font-family: var(--font); }
+
+  /* Quiz */
+  .quiz { margin-top: 8px; }
+  .quiz p.q { font-weight: 600; margin: 0 0 10px; }
+  .quiz-opts { display: flex; flex-direction: column; gap: 8px; }
+  .quiz-opt {
+    text-align: left;
+    background: #fff;
+    color: var(--ink);
+    border: 1.5px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-weight: 500;
+    font-size: 0.9rem;
+  }
+  .quiz-opt:hover:not(:disabled) { background: #f3f7ff; border-color: var(--accent); }
+  .quiz-opt.correct { background: #e3f7ee; border-color: var(--execute); color: #0c5a38; }
+  .quiz-opt.wrong { background: #fdecea; border-color: var(--warn); color: #8a1c12; }
+  .quiz-fb { margin-top: 10px; font-size: 0.88rem; min-height: 20px; }
+  .quiz-fb.good { color: #0c5a38; }
+  .quiz-fb.bad { color: #8a1c12; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 10px; font-size: 0.78rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+  .speed-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 0.85rem; flex-wrap: wrap; }
+  .speed-row label { font-weight: 600; }
+  input[type=range] { flex: 1; min-width: 120px; accent-color: var(--accent); height: 24px; }
+
+  .footnote { font-size: 0.78rem; color: var(--muted); margin-top: 18px; text-align: center; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .kbdhint { font-size: 0.78rem; color: var(--muted); margin-top: 8px; }
+  .kbdhint kbd {
+    background: #eef1f6; border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 6px; font-size: 0.75rem; font-family: ui-monospace, monospace;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <h1>Inside the CPU &#x1F9E0;</h1>
+    <p class="subhead">Computing &#xB7; Key Stage 3 &#xB7; Von Neumann architecture and the fetch-decode-execute cycle</p>
+    <div class="aim">
+      <strong>Teacher aim:</strong> Pupils step a real program through the CPU one stage at a time, watching the program counter, registers and memory change so they can explain how the fetch-decode-execute cycle runs instructions.
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: the machine -->
+    <section class="card" aria-labelledby="machine-h">
+      <h2 id="machine-h">The machine <span class="tag">Von Neumann model</span></h2>
+
+      <div class="stages" role="img" aria-label="Current stage of the cycle">
+        <div class="stage-pill fetch" id="pill-fetch">Fetch</div>
+        <div class="stage-pill decode" id="pill-decode">Decode</div>
+        <div class="stage-pill execute" id="pill-execute">Execute</div>
+      </div>
+
+      <div class="vn">
+        <div class="block cpu" id="blk-cpu">
+          <div class="blk-title">&#x1F5A5;&#xFE0F; CPU (processor)</div>
+          <div class="reg-row">
+            <span class="reg-label" title="Program Counter">PC</span>
+            <span class="reg-val pc-c" id="reg-pc">0</span>
+          </div>
+          <div class="reg-row">
+            <span class="reg-label" title="Memory Address Register">MAR</span>
+            <span class="reg-val mar-c" id="reg-mar">&ndash;</span>
+          </div>
+          <div class="reg-row">
+            <span class="reg-label" title="Memory Data Register">MDR</span>
+            <span class="reg-val mdr-c" id="reg-mdr">&ndash;</span>
+          </div>
+          <div class="reg-row">
+            <span class="reg-label" title="Current Instruction Register">CIR</span>
+            <span class="reg-val" id="reg-cir">&ndash;</span>
+          </div>
+          <div class="reg-row">
+            <span class="reg-label" title="Accumulator (working store)">ACC</span>
+            <span class="reg-val" id="reg-acc">0</span>
+          </div>
+        </div>
+
+        <div class="block mem" id="blk-mem">
+          <div class="blk-title">&#x1F4BE; Main memory (RAM)</div>
+          <div class="mem-list" id="mem-list" aria-label="Memory cells, address and contents"></div>
+        </div>
+      </div>
+
+      <div class="output-strip" id="output"><span class="lbl">OUTPUT:</span> <span id="output-text"></span></div>
+
+      <div class="legend" aria-hidden="true">
+        <span><span class="swatch" style="background:#6d28d9"></span> Program counter (next address)</span>
+        <span><span class="swatch" style="background:#0e7490"></span> Address being read (MAR)</span>
+        <span><span class="swatch" style="background:#be185d"></span> Data fetched (MDR)</span>
+      </div>
+    </section>
+
+    <!-- RIGHT: controls + narration + quiz -->
+    <section class="card" aria-labelledby="drive-h">
+      <h2 id="drive-h">Drive the cycle <span class="tag">one click = one stage</span></h2>
+
+      <div class="narrate idle" id="narrate" aria-live="polite" role="status">
+        <div class="step-head" id="narrate-head">Ready</div>
+        <div id="narrate-body">Press <strong>Next stage</strong> to begin. Each click moves the CPU through one part of the fetch-decode-execute cycle. Watch the PC and registers as you go.</div>
+      </div>
+
+      <div class="controls">
+        <button id="btn-next">Next stage &#x25B6;</button>
+        <button id="btn-auto" class="secondary">Auto run</button>
+        <button id="btn-reset" class="secondary">Reset</button>
+      </div>
+
+      <div class="speed-row">
+        <label for="speed">Auto speed</label>
+        <input type="range" id="speed" min="500" max="2600" step="100" value="1500" aria-valuetext="Medium">
+        <span id="speed-label" aria-hidden="true">Medium</span>
+      </div>
+
+      <p class="kbdhint">Keyboard: <kbd>N</kbd> next stage, <kbd>Space</kbd> auto run, <kbd>R</kbd> reset.</p>
+
+      <div class="quiz" aria-labelledby="quiz-h">
+        <h2 id="quiz-h" style="margin-top:18px;">Check your understanding</h2>
+        <p class="q" id="quiz-q"></p>
+        <div class="quiz-opts" id="quiz-opts"></div>
+        <div class="quiz-fb" id="quiz-fb" aria-live="polite"></div>
+        <button id="quiz-next" class="secondary" style="margin-top:10px; display:none;">Next question &#x25B6;</button>
+      </div>
+    </section>
+  </div>
+
+  <p class="footnote">Inside the CPU &#xB7; WeST classroom demonstration &#xB7; All values shown are illustrative.</p>
+</div>
+
+<script>
+"use strict";
+(function () {
+  // ----- The demonstration program -----
+  // A tiny program that loads two numbers, adds them, and outputs the result.
+  // Memory holds instructions (low addresses) then data (high addresses).
+  // Instruction format used here: human-readable mnemonic + operand address.
+  const DATA = {
+    7: 12,   // first number
+    8: 30    // second number
+  };
+
+  // Each instruction: {text, op, arg, explain decode/execute}
+  const PROGRAM = [
+    { text: "LOAD 7",  op: "LOAD",   arg: 7,
+      decode: "The control unit reads the opcode LOAD. It means: copy the value at the operand address into the accumulator.",
+      execute: "The CPU reads memory address 7 (value 12) and stores it in the accumulator (ACC)." },
+    { text: "ADD 8",   op: "ADD",    arg: 8,
+      decode: "The opcode ADD means: add the value at the operand address to whatever is already in the accumulator.",
+      execute: "The ALU adds the value at address 8 (30) to the accumulator (12), giving 42 in ACC." },
+    { text: "OUT",     op: "OUT",    arg: null,
+      decode: "The opcode OUT means: send the value in the accumulator to the output device.",
+      execute: "The accumulator (42) is sent to the output. The program has produced its answer." },
+    { text: "HALT",    op: "HALT",   arg: null,
+      decode: "The opcode HALT means: stop the program. There are no more instructions to run.",
+      execute: "The CPU stops the fetch-decode-execute cycle. The program is finished." }
+  ];
+
+  // Build full memory map (addresses 0..8)
+  function buildMemory() {
+    const mem = {};
+    PROGRAM.forEach((ins, i) => { mem[i] = { kind: "instr", text: ins.text }; });
+    Object.keys(DATA).forEach(a => { mem[a] = { kind: "data", text: String(DATA[a]) }; });
+    return mem;
+  }
+
+  // ----- State -----
+  const state = {
+    pc: 0,
+    mar: "–",
+    mdr: "–",
+    cir: "–",
+    acc: 0,
+    stage: "idle",   // idle | fetch | decode | execute | done
+    currentInstr: null,
+    output: "",
+    finished: false,
+    auto: false,
+    autoTimer: null,
+    readingAddr: null
+  };
+
+  // ----- DOM -----
+  const el = {
+    pc: document.getElementById("reg-pc"),
+    mar: document.getElementById("reg-mar"),
+    mdr: document.getElementById("reg-mdr"),
+    cir: document.getElementById("reg-cir"),
+    acc: document.getElementById("reg-acc"),
+    memList: document.getElementById("mem-list"),
+    output: document.getElementById("output-text"),
+    narrate: document.getElementById("narrate"),
+    narrateHead: document.getElementById("narrate-head"),
+    narrateBody: document.getElementById("narrate-body"),
+    pillFetch: document.getElementById("pill-fetch"),
+    pillDecode: document.getElementById("pill-decode"),
+    pillExecute: document.getElementById("pill-execute"),
+    blkCpu: document.getElementById("blk-cpu"),
+    blkMem: document.getElementById("blk-mem"),
+    btnNext: document.getElementById("btn-next"),
+    btnAuto: document.getElementById("btn-auto"),
+    btnReset: document.getElementById("btn-reset"),
+    speed: document.getElementById("speed"),
+    speedLabel: document.getElementById("speed-label")
+  };
+
+  const memory = buildMemory();
+
+  // ----- Render memory cells -----
+  function renderMemory() {
+    el.memList.innerHTML = "";
+    const maxAddr = Math.max(...Object.keys(memory).map(Number));
+    for (let a = 0; a <= maxAddr; a++) {
+      const cell = memory[a];
+      const div = document.createElement("div");
+      div.className = "mem-cell" + (cell && cell.kind === "data" ? " data" : "");
+      div.id = "mem-" + a;
+      const content = cell ? cell.text : "(empty)";
+      div.innerHTML = '<span class="addr">[' + a + ']</span><span class="content">' + content + '</span>';
+      div.setAttribute("aria-label", "Address " + a + ": " + content);
+      el.memList.appendChild(div);
+    }
+    highlightMemory();
+  }
+
+  function highlightMemory() {
+    document.querySelectorAll(".mem-cell").forEach(c => c.classList.remove("reading", "pc-here"));
+    if (!state.finished) {
+      const pcCell = document.getElementById("mem-" + state.pc);
+      if (pcCell && state.stage !== "execute") pcCell.classList.add("pc-here");
+    }
+    if (state.readingAddr !== null) {
+      const rc = document.getElementById("mem-" + state.readingAddr);
+      if (rc) rc.classList.add("reading");
+    }
+  }
+
+  function flash(node) {
+    node.classList.remove("flash");
+    void node.offsetWidth; // reflow to restart animation
+    node.classList.add("flash");
+    setTimeout(() => node.classList.remove("flash"), 450);
+  }
+
+  function setReg(node, value, doFlash) {
+    if (node.textContent !== String(value)) {
+      node.textContent = value;
+      if (doFlash) flash(node);
+    }
+  }
+
+  function renderRegisters(flashKeys) {
+    flashKeys = flashKeys || [];
+    setReg(el.pc, state.pc, flashKeys.includes("pc"));
+    setReg(el.mar, state.mar, flashKeys.includes("mar"));
+    setReg(el.mdr, state.mdr, flashKeys.includes("mdr"));
+    setReg(el.cir, state.cir, flashKeys.includes("cir"));
+    setReg(el.acc, state.acc, flashKeys.includes("acc"));
+  }
+
+  function setStage(stage) {
+    state.stage = stage;
+    [el.pillFetch, el.pillDecode, el.pillExecute].forEach(p => p.classList.remove("on"));
+    el.blkCpu.classList.remove("active");
+    el.blkMem.classList.remove("active");
+    if (stage === "fetch") { el.pillFetch.classList.add("on"); el.blkMem.classList.add("active"); }
+    else if (stage === "decode") { el.pillDecode.classList.add("on"); el.blkCpu.classList.add("active"); }
+    else if (stage === "execute") { el.pillExecute.classList.add("on"); el.blkCpu.classList.add("active"); }
+  }
+
+  function narrate(cls, head, body) {
+    el.narrate.className = "narrate " + cls;
+    el.narrateHead.textContent = head;
+    el.narrateBody.innerHTML = body;
+  }
+
+  function setOutput() {
+    el.output.textContent = state.output;
+  }
+
+  // ----- The cycle engine -----
+  // We model a clear sequence of "stages" the user clicks through:
+  // fetch (load instruction via MAR/MDR/CIR, increment PC) -> decode -> execute -> next fetch ...
+  function advance() {
+    if (state.finished) return;
+
+    if (state.stage === "idle" || state.stage === "execute") {
+      doFetch();
+    } else if (state.stage === "fetch") {
+      doDecode();
+    } else if (state.stage === "decode") {
+      doExecute();
+    }
+  }
+
+  function doFetch() {
+    const addr = state.pc;
+    const cell = memory[addr];
+    state.readingAddr = addr;
+    // 1. PC value copied to MAR
+    state.mar = addr;
+    // 2. Memory at MAR copied to MDR
+    state.mdr = cell ? cell.text : "(empty)";
+    // 3. MDR copied into CIR (the instruction register)
+    state.cir = cell ? cell.text : "(empty)";
+    // 4. PC incremented to point at the next instruction
+    state.pc = addr + 1;
+    // Identify the instruction object for later stages
+    state.currentInstr = PROGRAM[addr] || null;
+
+    setStage("fetch");
+    renderRegisters(["mar", "mdr", "cir", "pc"]);
+    highlightMemory();
+    narrate("fetch", "Stage 1: Fetch",
+      "The CPU copies the program counter (PC = " + addr + ") into the MAR, then reads memory address " +
+      addr + ". The instruction <strong>" + (cell ? cell.text : "?") +
+      "</strong> travels back through the MDR into the instruction register (CIR). The PC is incremented to <strong>" +
+      state.pc + "</strong>, ready for the next instruction.");
+  }
+
+  function doDecode() {
+    setStage("decode");
+    state.readingAddr = null;
+    highlightMemory();
+    renderRegisters(["cir"]);
+    const ins = state.currentInstr;
+    narrate("decode", "Stage 2: Decode",
+      "The control unit looks at the instruction in the CIR (<strong>" + state.cir +
+      "</strong>) and works out what to do. " + (ins ? ins.decode : "Unknown instruction."));
+  }
+
+  function doExecute() {
+    setStage("execute");
+    const ins = state.currentInstr;
+    let flashKeys = [];
+
+    if (!ins) {
+      narrate("done", "Stopped", "No valid instruction to execute.");
+      state.finished = true;
+      finishUp();
+      return;
+    }
+
+    if (ins.op === "LOAD") {
+      state.readingAddr = ins.arg;
+      state.mar = ins.arg;
+      state.mdr = memory[ins.arg] ? memory[ins.arg].text : "0";
+      state.acc = Number(state.mdr);
+      flashKeys = ["mar", "mdr", "acc"];
+    } else if (ins.op === "ADD") {
+      state.readingAddr = ins.arg;
+      state.mar = ins.arg;
+      state.mdr = memory[ins.arg] ? memory[ins.arg].text : "0";
+      state.acc = state.acc + Number(state.mdr);
+      flashKeys = ["mar", "mdr", "acc"];
+    } else if (ins.op === "OUT") {
+      state.readingAddr = null;
+      state.output = (state.output ? state.output + "  " : "") + state.acc;
+      setOutput();
+      flashKeys = ["acc"];
+    } else if (ins.op === "HALT") {
+      state.readingAddr = null;
+      state.finished = true;
+    }
+
+    renderRegisters(flashKeys);
+    highlightMemory();
+
+    if (ins.op === "HALT") {
+      narrate("done", "Stage 3: Execute (HALT)",
+        "The CPU runs the HALT instruction and stops the cycle. The program is finished. Final accumulator value: <strong>" +
+        state.acc + "</strong>. Press <strong>Reset</strong> to run it again.");
+      finishUp();
+    } else {
+      narrate("execute", "Stage 3: Execute", ins.execute +
+        " The fetch-decode-execute cycle now repeats for the next instruction.");
+    }
+  }
+
+  function finishUp() {
+    stopAuto();
+    el.btnNext.disabled = true;
+    el.btnAuto.disabled = true;
+    document.querySelectorAll(".mem-cell").forEach(c => c.classList.remove("pc-here"));
+  }
+
+  // ----- Auto run -----
+  function startAuto() {
+    if (state.finished) return;
+    state.auto = true;
+    el.btnAuto.textContent = "Pause";
+    el.btnAuto.classList.remove("secondary");
+    tickAuto();
+  }
+  function tickAuto() {
+    if (!state.auto || state.finished) return;
+    advance();
+    if (state.finished) { stopAuto(); return; }
+    state.autoTimer = setTimeout(tickAuto, Number(el.speed.value));
+  }
+  function stopAuto() {
+    state.auto = false;
+    if (state.autoTimer) { clearTimeout(state.autoTimer); state.autoTimer = null; }
+    el.btnAuto.textContent = "Auto run";
+    el.btnAuto.classList.add("secondary");
+  }
+  function toggleAuto() {
+    if (state.finished) return;
+    if (state.auto) stopAuto(); else startAuto();
+  }
+
+  // ----- Reset -----
+  function reset() {
+    stopAuto();
+    state.pc = 0; state.mar = "–"; state.mdr = "–"; state.cir = "–";
+    state.acc = 0; state.stage = "idle"; state.currentInstr = null;
+    state.output = ""; state.finished = false; state.readingAddr = null;
+    el.btnNext.disabled = false;
+    el.btnAuto.disabled = false;
+    setStage("idle");
+    renderRegisters();
+    renderMemory();
+    setOutput();
+    narrate("idle", "Ready",
+      "Press <strong>Next stage</strong> to begin. Each click moves the CPU through one part of the fetch-decode-execute cycle. Watch the PC and registers as you go.");
+  }
+
+  // ----- Speed label -----
+  function updateSpeedLabel() {
+    const v = Number(el.speed.value);
+    let txt = "Medium";
+    if (v <= 800) txt = "Fast";
+    else if (v >= 2100) txt = "Slow";
+    el.speedLabel.textContent = txt;
+    el.speed.setAttribute("aria-valuetext", txt);
+  }
+
+  // ----- Quiz -----
+  const QUESTIONS = [
+    {
+      q: "During the FETCH stage, which register holds the address that the CPU wants to read from memory?",
+      opts: ["The MAR (Memory Address Register)", "The accumulator (ACC)", "The MDR (Memory Data Register)"],
+      correct: 0,
+      fb: ["Correct. The PC value is copied into the MAR, which holds the address being read.",
+           "Not quite. The accumulator stores working values during execution, not the address to read.",
+           "Close: the MDR carries the data back, but the MAR holds the address that is being read."]
+    },
+    {
+      q: "What happens to the program counter (PC) during a normal fetch?",
+      opts: ["It is reset to zero", "It is incremented so it points at the next instruction", "It stores the result of the calculation"],
+      correct: 1,
+      fb: ["No. The PC is only reset when the program restarts, not on every fetch.",
+           "Correct. After fetching, the PC increases so the CPU knows where the next instruction is.",
+           "No. Results are kept in the accumulator, not the program counter."]
+    },
+    {
+      q: "In which stage does the control unit work out what the instruction actually means?",
+      opts: ["Fetch", "Decode", "Execute"],
+      correct: 1,
+      fb: ["No. Fetch only collects the instruction from memory.",
+           "Correct. Decode is where the control unit interprets the opcode.",
+           "No. Execute carries out the action, after it has already been decoded."]
+    },
+    {
+      q: "This design stores both program instructions and data in the same main memory. What is this called?",
+      opts: ["Von Neumann architecture", "Binary addition", "A solid state drive"],
+      correct: 0,
+      fb: ["Correct. The Von Neumann model keeps instructions and data together in one memory.",
+           "No. Binary addition is a calculation, not a way of organising the computer.",
+           "No. An SSD is a type of secondary storage, not the CPU memory model."]
+    }
+  ];
+
+  let quizIndex = 0;
+  const quizQ = document.getElementById("quiz-q");
+  const quizOpts = document.getElementById("quiz-opts");
+  const quizFb = document.getElementById("quiz-fb");
+  const quizNext = document.getElementById("quiz-next");
+
+  function renderQuiz() {
+    const item = QUESTIONS[quizIndex];
+    quizQ.textContent = (quizIndex + 1) + ". " + item.q;
+    quizOpts.innerHTML = "";
+    quizFb.textContent = "";
+    quizFb.className = "quiz-fb";
+    quizNext.style.display = "none";
+    item.opts.forEach((opt, i) => {
+      const b = document.createElement("button");
+      b.className = "quiz-opt";
+      b.type = "button";
+      b.textContent = opt;
+      b.addEventListener("click", () => answerQuiz(i));
+      quizOpts.appendChild(b);
+    });
+  }
+
+  function answerQuiz(choice) {
+    const item = QUESTIONS[quizIndex];
+    const buttons = quizOpts.querySelectorAll(".quiz-opt");
+    buttons.forEach((b, i) => {
+      b.disabled = true;
+      if (i === item.correct) b.classList.add("correct");
+      if (i === choice && choice !== item.correct) b.classList.add("wrong");
+    });
+    const right = choice === item.correct;
+    quizFb.textContent = item.fb[choice];
+    quizFb.className = "quiz-fb " + (right ? "good" : "bad");
+    if (quizIndex < QUESTIONS.length - 1) {
+      quizNext.style.display = "inline-block";
+      quizNext.textContent = "Next question \u{25B6}";
+    } else {
+      quizNext.style.display = "inline-block";
+      quizNext.textContent = "Start again \u{21BA}";
+    }
+  }
+
+  quizNext.addEventListener("click", () => {
+    quizIndex = (quizIndex + 1) % QUESTIONS.length;
+    renderQuiz();
+  });
+
+  // ----- Events -----
+  el.btnNext.addEventListener("click", advance);
+  el.btnAuto.addEventListener("click", toggleAuto);
+  el.btnReset.addEventListener("click", reset);
+  el.speed.addEventListener("input", updateSpeedLabel);
+
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") {
+      // allow space on focused buttons to behave normally
+      if (e.key === " " && e.target.tagName === "BUTTON") return;
+    }
+    const k = e.key.toLowerCase();
+    if (k === "n") { e.preventDefault(); if (!state.finished) advance(); }
+    else if (k === "r") { e.preventDefault(); reset(); }
+    else if (e.key === " " && e.target === document.body) { e.preventDefault(); toggleAuto(); }
+  });
+
+  // ----- Init -----
+  updateSpeedLabel();
+  reset();
+  renderQuiz();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Subject Residual Heatmap</title>
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --panel: #ffffff;
+    --ink: #1c2733;
+    --muted: #5b6b7b;
+    --line: #d9e0e8;
+    --accent: #1f5f8b;
+    --accent-dark: #163f5d;
+    --neg-strong: #b3261e;
+    --neg-mid: #e07a5f;
+    --neg-soft: #f2b8a8;
+    --neutral: #eef2f6;
+    --pos-soft: #bfe3c9;
+    --pos-mid: #6dbd84;
+    --pos-strong: #1b7a3e;
+    --focus: #ffb703;
+    --shadow: 0 2px 10px rgba(18,40,62,.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app {
+    background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+    color: #fff;
+    border-radius: 14px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  header.app h1 { margin: 0 0 4px; font-size: 1.5rem; letter-spacing: .2px; }
+  header.app .sub { font-size: .92rem; opacity: .92; margin: 0; }
+  .aim {
+    margin: 14px 0 0;
+    background: rgba(255,255,255,.12);
+    border-left: 4px solid var(--focus);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: .88rem;
+  }
+  .grid { display: grid; gap: 16px; margin-top: 16px; }
+  @media (min-width: 860px) {
+    .grid.two { grid-template-columns: 1.35fr 1fr; align-items: start; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 16px 18px;
+    box-shadow: var(--shadow);
+  }
+  .panel h2 { margin: 0 0 4px; font-size: 1.06rem; color: var(--accent-dark); }
+  .panel p.lead { margin: 0 0 12px; color: var(--muted); font-size: .88rem; }
+
+  .pupil-bar {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px;
+  }
+  .pupil-bar label { font-weight: 600; font-size: .88rem; }
+  select, button {
+    font-family: inherit; font-size: .9rem;
+  }
+  select {
+    padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: #fff; color: var(--ink); min-height: 40px;
+  }
+  .meanchip {
+    margin-left: auto; background: var(--neutral); border: 1px solid var(--line);
+    border-radius: 999px; padding: 6px 12px; font-size: .85rem; font-weight: 600;
+  }
+  .meanchip strong { color: var(--accent-dark); }
+
+  /* Heatmap */
+  .hm { display: flex; flex-direction: column; gap: 6px; }
+  .hm-row {
+    display: grid;
+    grid-template-columns: 92px 1fr 60px;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .hm-subject {
+    display: flex; align-items: center; font-size: .85rem; font-weight: 600;
+    color: var(--ink); padding-right: 4px;
+  }
+  .hm-cell {
+    position: relative;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    min-height: 46px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: #14242f;
+    font-weight: 700;
+    transition: transform .08s ease, box-shadow .12s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  .hm-cell:hover { transform: translateY(-1px); }
+  .hm-cell:focus-visible {
+    outline: 3px solid var(--focus); outline-offset: 2px;
+  }
+  .hm-cell.selected {
+    border-color: var(--accent-dark);
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--accent);
+  }
+  .hm-cell .grade { font-size: 1.05rem; }
+  .hm-cell .res { font-size: .72rem; font-weight: 700; opacity: .85; margin-left: 6px; }
+  .hm-resid {
+    display: flex; align-items: center; justify-content: flex-end;
+    font-size: .82rem; font-weight: 700; padding-right: 2px;
+  }
+  .hm-head {
+    display: grid; grid-template-columns: 92px 1fr 60px; gap: 8px;
+    font-size: .72rem; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .5px; margin-bottom: 2px;
+  }
+  .hm-head span:nth-child(3) { text-align: right; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px;
+    font-size: .78rem; color: var(--muted); align-items: center;
+  }
+  .legend .sw {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .legend .box { width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(0,0,0,.12); }
+
+  /* Detail / challenge panel */
+  .detail h3 { margin: 0 0 6px; font-size: 1rem; }
+  .calcline {
+    background: var(--neutral); border-radius: 8px; padding: 10px 12px;
+    font-size: .9rem; margin: 8px 0;
+  }
+  .calcline .v { font-weight: 700; color: var(--accent-dark); }
+  .badge {
+    display: inline-block; padding: 4px 10px; border-radius: 999px;
+    font-size: .8rem; font-weight: 700; margin-top: 4px;
+  }
+  .badge.over { background: var(--pos-soft); color: var(--pos-strong); }
+  .badge.under { background: var(--neg-soft); color: var(--neg-strong); }
+  .badge.even { background: var(--neutral); color: var(--muted); }
+
+  .interpret {
+    margin: 12px 0 0; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: #fbfdff; font-size: .9rem;
+  }
+  .interpret.correct { border-color: var(--pos-mid); background: #f1faf3; }
+  .interpret.wrong { border-color: var(--neg-mid); background: #fdf3f0; }
+  .interpret strong { display: block; margin-bottom: 4px; }
+
+  fieldset.choices {
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 14px 0 0;
+  }
+  fieldset.choices legend { font-weight: 700; font-size: .9rem; padding: 0 6px; color: var(--accent-dark); }
+  .choice {
+    display: flex; gap: 10px; align-items: flex-start; padding: 8px 6px; border-radius: 8px; cursor: pointer;
+  }
+  .choice:hover { background: var(--neutral); }
+  .choice input { margin-top: 3px; width: 18px; height: 18px; }
+  .choice span { font-size: .9rem; }
+
+  .btn {
+    border: none; border-radius: 9px; padding: 10px 16px; font-weight: 700;
+    cursor: pointer; min-height: 44px; background: var(--accent); color: #fff;
+  }
+  .btn:hover { background: var(--accent-dark); }
+  .btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .btn.ghost { background: #fff; color: var(--accent-dark); border: 1px solid var(--line); }
+  .btn.ghost:hover { background: var(--neutral); }
+  .btnrow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+
+  .score {
+    display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: .85rem; color: var(--muted);
+  }
+  .score b { color: var(--accent-dark); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  footer.note { margin-top: 20px; font-size: .78rem; color: var(--muted); text-align: center; }
+  .hint { font-size: .82rem; color: var(--muted); margin-top: 8px; }
+  .deptline {
+    font-size: .85rem; margin: 10px 0 0; padding: 10px 12px; border-radius: 8px;
+    background: var(--neutral); border: 1px dashed var(--line);
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <h1>Subject Residual Heatmap</h1>
+    <p class="sub">Cohort Tracking and Flight Paths &middot; Data &amp; Analytics &middot; Residuals against each pupil's own average</p>
+    <p class="aim"><strong>Teacher aim:</strong> pupils learn that a subject grade only tells half the story. By comparing each grade to the pupil's <em>own</em> mean, we expose where a subject is over or under performing for that child, the building block of value-added and departmental review.</p>
+  </header>
+
+  <div class="grid two">
+    <!-- LEFT: heatmap -->
+    <section class="panel" aria-labelledby="hmTitle">
+      <h2 id="hmTitle">The residual heatmap</h2>
+      <p class="lead">Pick a pupil, then select any cell. Colour shows the <em>residual</em>: how far that subject sits above or below the pupil's mean grade.</p>
+
+      <div class="pupil-bar">
+        <label for="pupilSel">Pupil:</label>
+        <select id="pupilSel" aria-label="Choose a pupil to view"></select>
+        <span class="meanchip" id="meanChip" aria-live="polite">Mean grade: <strong id="meanVal">0.0</strong></span>
+      </div>
+
+      <div class="hm-head" aria-hidden="true">
+        <span>Subject</span><span>Grade and residual</span><span>Resid</span>
+      </div>
+      <div class="hm" id="heatmap" role="list" aria-label="Subject residual cells. Use arrow keys to move, Enter to inspect a subject."></div>
+
+      <div class="legend" aria-hidden="true">
+        <span class="sw"><span class="box" style="background:var(--neg-strong)"></span>Well below own mean</span>
+        <span class="sw"><span class="box" style="background:var(--neg-soft)"></span>Below</span>
+        <span class="sw"><span class="box" style="background:var(--neutral)"></span>On the mean</span>
+        <span class="sw"><span class="box" style="background:var(--pos-soft)"></span>Above</span>
+        <span class="sw"><span class="box" style="background:var(--pos-strong)"></span>Well above own mean</span>
+      </div>
+      <p class="hint">Grades use the 9 to 1 scale. Residual = subject grade minus the pupil's mean grade across all subjects shown.</p>
+    </section>
+
+    <!-- RIGHT: detail + challenge -->
+    <section class="panel detail" aria-labelledby="detTitle" aria-live="polite">
+      <h2 id="detTitle">Inspect a subject</h2>
+      <p class="lead" id="detLead">Select a cell on the left to see how its residual is worked out, then answer the question.</p>
+
+      <div id="detailBody" hidden>
+        <h3 id="detSubject">Subject</h3>
+        <div class="calcline">
+          grade <span class="v" id="cGrade">0</span> &minus; pupil mean <span class="v" id="cMean">0.0</span> = residual <span class="v" id="cResid">0.0</span>
+        </div>
+        <span class="badge" id="detBadge">.</span>
+
+        <fieldset class="choices" id="choices">
+          <legend>For this subject, what does the residual tell us?</legend>
+          <label class="choice"><input type="radio" name="q" value="over"><span>This subject is a <strong>relative strength</strong> for this pupil (above their own average).</span></label>
+          <label class="choice"><input type="radio" name="q" value="under"><span>This subject is a <strong>relative concern</strong> for this pupil (below their own average).</span></label>
+          <label class="choice"><input type="radio" name="q" value="even"><span>This subject sits <strong>roughly on</strong> the pupil's average.</span></label>
+        </fieldset>
+
+        <div class="btnrow">
+          <button class="btn" id="checkBtn">Check answer</button>
+          <button class="btn ghost" id="nextBtn">Next subject</button>
+        </div>
+
+        <div class="interpret" id="interpret" hidden></div>
+        <div class="score">
+          <span>Correct: <b id="scCorrect">0</b></span>
+          <span>Attempts: <b id="scTotal">0</b></span>
+        </div>
+      </div>
+
+      <div class="deptline" id="deptLine" hidden></div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="dtTitle" style="margin-top:16px;">
+    <h2 id="dtTitle">Departmental view: where is this subject strong or weak?</h2>
+    <p class="lead">Switch from one pupil to the whole cohort. This averages every pupil's residual <em>for the chosen subject</em>, so a high score means the subject tends to outperform pupils' own averages across the year group: a possible departmental strength.</p>
+    <div class="pupil-bar">
+      <label for="deptSel">Subject:</label>
+      <select id="deptSel" aria-label="Choose a subject to review across the cohort"></select>
+      <span class="meanchip" id="deptChip" aria-live="polite">Mean residual: <strong id="deptVal">0.0</strong></span>
+    </div>
+    <div id="deptVerdict" class="interpret" style="margin-top:0;"></div>
+  </section>
+
+  <footer class="note">Demonstration data only. All names and grades are fictional and do not represent any real pupil. Designed for WeST classroom and CPD use.</footer>
+</div>
+
+<div class="sr-only" id="liveRegion" aria-live="assertive"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- Fictional demonstration cohort (9-1 scale) ----
+  var SUBJECTS = ["English", "Maths", "Science", "History", "Geography", "French", "Art"];
+  var PUPILS = [
+    { name: "Ada Finchley",   grades: [6, 8, 7, 5, 6, 4, 7] },
+    { name: "Bilal Rowe",     grades: [4, 4, 5, 3, 4, 3, 6] },
+    { name: "Cora Pemberton", grades: [8, 6, 7, 9, 8, 7, 5] },
+    { name: "Devon Achebe",   grades: [5, 7, 6, 4, 5, 6, 3] },
+    { name: "Esme Lindqvist", grades: [7, 9, 8, 7, 7, 8, 6] }
+  ];
+
+  // ---- helpers ----
+  function mean(arr) {
+    var s = 0; for (var i = 0; i < arr.length; i++) s += arr[i];
+    return s / arr.length;
+  }
+  function round1(n) { return Math.round(n * 10) / 10; }
+  function fmtSigned(n) { var r = round1(n); return (r > 0 ? "+" : "") + r.toFixed(1); }
+
+  // Map a residual to a heat colour and a contrasting text colour
+  function heatColour(res) {
+    // res typically in range about -3 .. +3
+    var stops;
+    if (res >= 1.5) stops = "#1b7a3e";
+    else if (res >= 0.75) stops = "#6dbd84";
+    else if (res >= 0.25) stops = "#bfe3c9";
+    else if (res > -0.25) stops = "#eef2f6";
+    else if (res > -0.75) stops = "#f2b8a8";
+    else if (res > -1.5) stops = "#e07a5f";
+    else stops = "#b3261e";
+    return stops;
+  }
+  function textOn(res) {
+    return (res >= 1.5 || res <= -1.5) ? "#ffffff" : "#14242f";
+  }
+  function classify(res) {
+    if (res >= 0.25) return "over";
+    if (res <= -0.25) return "under";
+    return "even";
+  }
+
+  // ---- state ----
+  var pupilIdx = 0;
+  var selectedSubj = -1;
+  var answered = false;
+  var score = { correct: 0, total: 0 };
+
+  // ---- elements ----
+  var pupilSel = document.getElementById("pupilSel");
+  var heatmap = document.getElementById("heatmap");
+  var meanVal = document.getElementById("meanVal");
+  var detailBody = document.getElementById("detailBody");
+  var detLead = document.getElementById("detLead");
+  var detSubject = document.getElementById("detSubject");
+  var cGrade = document.getElementById("cGrade");
+  var cMean = document.getElementById("cMean");
+  var cResid = document.getElementById("cResid");
+  var detBadge = document.getElementById("detBadge");
+  var interpret = document.getElementById("interpret");
+  var checkBtn = document.getElementById("checkBtn");
+  var nextBtn = document.getElementById("nextBtn");
+  var scCorrect = document.getElementById("scCorrect");
+  var scTotal = document.getElementById("scTotal");
+  var liveRegion = document.getElementById("liveRegion");
+  var deptSel = document.getElementById("deptSel");
+  var deptVal = document.getElementById("deptVal");
+  var deptVerdict = document.getElementById("deptVerdict");
+  var deptLine = document.getElementById("deptLine");
+
+  // ---- populate selects ----
+  PUPILS.forEach(function (p, i) {
+    var o = document.createElement("option");
+    o.value = i; o.textContent = p.name;
+    pupilSel.appendChild(o);
+  });
+  SUBJECTS.forEach(function (s, i) {
+    var o = document.createElement("option");
+    o.value = i; o.textContent = s;
+    deptSel.appendChild(o);
+  });
+
+  function announce(msg) { liveRegion.textContent = ""; liveRegion.textContent = msg; }
+
+  // ---- render heatmap for current pupil ----
+  function currentMean() { return mean(PUPILS[pupilIdx].grades); }
+
+  function renderHeatmap() {
+    var p = PUPILS[pupilIdx];
+    var m = currentMean();
+    meanVal.textContent = round1(m).toFixed(1);
+    heatmap.innerHTML = "";
+
+    SUBJECTS.forEach(function (subj, i) {
+      var grade = p.grades[i];
+      var res = grade - m;
+
+      var row = document.createElement("div");
+      row.className = "hm-row";
+      row.setAttribute("role", "listitem");
+
+      var label = document.createElement("div");
+      label.className = "hm-subject";
+      label.textContent = subj;
+
+      var cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "hm-cell" + (i === selectedSubj ? " selected" : "");
+      cell.style.background = heatColour(res);
+      cell.style.color = textOn(res);
+      cell.dataset.idx = i;
+      cell.setAttribute("aria-label",
+        subj + ", grade " + grade + ", residual " + fmtSigned(res) +
+        ", " + verdictWord(res) + " this pupil's own average. Activate to inspect.");
+      cell.innerHTML = '<span class="grade">' + grade + '</span>' +
+                       '<span class="res">' + fmtSigned(res) + '</span>';
+
+      var resCol = document.createElement("div");
+      resCol.className = "hm-resid";
+      resCol.style.color = res > 0.1 ? "var(--pos-strong)" : (res < -0.1 ? "var(--neg-strong)" : "var(--muted)");
+      resCol.textContent = fmtSigned(res);
+
+      cell.addEventListener("click", function () { selectSubject(i); });
+      cell.addEventListener("keydown", onCellKey);
+
+      row.appendChild(label);
+      row.appendChild(cell);
+      row.appendChild(resCol);
+      heatmap.appendChild(row);
+    });
+  }
+
+  function verdictWord(res) {
+    if (res >= 0.25) return "above";
+    if (res <= -0.25) return "below";
+    return "on";
+  }
+
+  // keyboard navigation across cells
+  function onCellKey(e) {
+    var cells = Array.prototype.slice.call(heatmap.querySelectorAll(".hm-cell"));
+    var idx = cells.indexOf(e.currentTarget);
+    if (idx === -1) return;
+    var next = null;
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") next = cells[idx + 1];
+    else if (e.key === "ArrowUp" || e.key === "ArrowLeft") next = cells[idx - 1];
+    else if (e.key === "Home") next = cells[0];
+    else if (e.key === "End") next = cells[cells.length - 1];
+    if (next) { e.preventDefault(); next.focus(); }
+  }
+
+  // ---- select a subject => fill detail panel ----
+  function selectSubject(i) {
+    selectedSubj = i;
+    answered = false;
+    var p = PUPILS[pupilIdx];
+    var m = currentMean();
+    var grade = p.grades[i];
+    var res = grade - m;
+
+    // highlight
+    var cells = heatmap.querySelectorAll(".hm-cell");
+    cells.forEach(function (c, ci) { c.classList.toggle("selected", ci === i); });
+
+    detLead.hidden = true;
+    detailBody.hidden = false;
+    detSubject.textContent = SUBJECTS[i] + " for " + p.name;
+    cGrade.textContent = grade;
+    cMean.textContent = round1(m).toFixed(1);
+    cResid.textContent = fmtSigned(res);
+
+    var cls = classify(res);
+    detBadge.className = "badge " + cls;
+    detBadge.textContent = cls === "over" ? "Relative strength" :
+                           cls === "under" ? "Relative concern" : "On the average";
+
+    // reset question
+    var radios = document.querySelectorAll('input[name="q"]');
+    radios.forEach(function (r) { r.checked = false; });
+    interpret.hidden = true;
+    interpret.className = "interpret";
+
+    announce(SUBJECTS[i] + " selected. Grade " + grade + ", residual " + fmtSigned(res) + ".");
+  }
+
+  // ---- check the multiple choice answer ----
+  function checkAnswer() {
+    if (selectedSubj < 0) return;
+    var chosen = document.querySelector('input[name="q"]:checked');
+    if (!chosen) {
+      interpret.hidden = false;
+      interpret.className = "interpret wrong";
+      interpret.innerHTML = "<strong>Choose an option first.</strong> Look at the sign of the residual: positive means above the pupil's own mean, negative means below.";
+      return;
+    }
+    var p = PUPILS[pupilIdx];
+    var m = currentMean();
+    var grade = p.grades[selectedSubj];
+    var res = grade - m;
+    var truth = classify(res);
+    var ok = (chosen.value === truth);
+
+    if (!answered) { score.total++; if (ok) score.correct++; answered = true; }
+    scCorrect.textContent = score.correct;
+    scTotal.textContent = score.total;
+
+    interpret.hidden = false;
+    interpret.className = "interpret " + (ok ? "correct" : "wrong");
+
+    var subj = SUBJECTS[selectedSubj];
+    var msg;
+    if (truth === "over") {
+      msg = subj + " is " + fmtSigned(res) + " above " + p.name.split(" ")[0] +
+            "'s own mean of " + round1(m).toFixed(1) + ". Even if the raw grade is not the highest, it is a relative strength for this pupil.";
+    } else if (truth === "under") {
+      msg = subj + " is " + fmtSigned(res) + " below " + p.name.split(" ")[0] +
+            "'s own mean of " + round1(m).toFixed(1) + ". The grade may look acceptable, but it underperforms what this pupil typically achieves: a relative concern worth a conversation.";
+    } else {
+      msg = subj + " sits within a quarter of a grade of " + p.name.split(" ")[0] +
+            "'s mean (" + round1(m).toFixed(1) + "), so it neither lifts nor drags the profile.";
+    }
+
+    interpret.innerHTML = "<strong>" + (ok ? "Correct." : "Not quite.") + "</strong>" + msg +
+      (ok ? "" : " The residual " + fmtSigned(res) + " makes this a " +
+        (truth === "over" ? "relative strength." : truth === "under" ? "relative concern." : "subject on the average."));
+
+    announce((ok ? "Correct. " : "Not quite. ") + msg);
+  }
+
+  function nextSubject() {
+    var n = SUBJECTS.length;
+    var start = selectedSubj < 0 ? 0 : (selectedSubj + 1) % n;
+    selectSubject(start);
+    var cell = heatmap.querySelectorAll(".hm-cell")[start];
+    if (cell) cell.focus();
+  }
+
+  // ---- departmental view ----
+  function renderDept() {
+    var subjIdx = parseInt(deptSel.value, 10) || 0;
+    var residuals = PUPILS.map(function (p) {
+      return p.grades[subjIdx] - mean(p.grades);
+    });
+    var avgRes = mean(residuals);
+    deptVal.textContent = fmtSigned(avgRes);
+
+    var subj = SUBJECTS[subjIdx];
+    var cls = classify(avgRes);
+    var pos = residuals.filter(function (r) { return r >= 0.25; }).length;
+    var neg = residuals.filter(function (r) { return r <= -0.25; }).length;
+
+    deptVerdict.className = "interpret " + (cls === "over" ? "correct" : cls === "under" ? "wrong" : "");
+    var verdict;
+    if (cls === "over") {
+      verdict = "<strong>" + subj + ": likely departmental strength.</strong>" +
+        "Across the cohort, " + subj + " sits on average " + fmtSigned(avgRes) +
+        " above pupils' own means. " + pos + " of " + PUPILS.length +
+        " pupils outperform their personal average here. The subject is adding value relative to the pupils it teaches.";
+    } else if (cls === "under") {
+      verdict = "<strong>" + subj + ": possible departmental concern.</strong>" +
+        "Across the cohort, " + subj + " sits on average " + fmtSigned(avgRes) +
+        " below pupils' own means. " + neg + " of " + PUPILS.length +
+        " pupils underperform their personal average here. Worth probing in line management: curriculum, assessment, or staffing.";
+    } else {
+      verdict = "<strong>" + subj + ": broadly in line.</strong>" +
+        "The mean residual is " + fmtSigned(avgRes) +
+        ", so on average this subject tracks pupils' own profiles. No systemic over or under performance signalled.";
+    }
+    verdict += "<br><span style=\"font-size:.82rem;color:var(--muted)\">Reminder: residuals are relative to each pupil, so this controls for the cohort having stronger or weaker pupils overall.</span>";
+    deptVerdict.innerHTML = verdict;
+  }
+
+  // ---- wire events ----
+  pupilSel.addEventListener("change", function () {
+    pupilIdx = parseInt(pupilSel.value, 10) || 0;
+    selectedSubj = -1;
+    answered = false;
+    detailBody.hidden = true;
+    detLead.hidden = false;
+    renderHeatmap();
+    showDeptLine();
+    announce("Now viewing " + PUPILS[pupilIdx].name + ", mean grade " + round1(currentMean()).toFixed(1) + ".");
+  });
+  checkBtn.addEventListener("click", checkAnswer);
+  nextBtn.addEventListener("click", nextSubject);
+  deptSel.addEventListener("change", renderDept);
+
+  function showDeptLine() {
+    var p = PUPILS[pupilIdx];
+    var m = currentMean();
+    var best = -99, worst = 99, bi = 0, wi = 0;
+    SUBJECTS.forEach(function (s, i) {
+      var r = p.grades[i] - m;
+      if (r > best) { best = r; bi = i; }
+      if (r < worst) { worst = r; wi = i; }
+    });
+    deptLine.hidden = false;
+    deptLine.innerHTML = "For <strong>" + p.name + "</strong>, the standout relative strength is <strong>" +
+      SUBJECTS[bi] + "</strong> (" + fmtSigned(best) + ") and the standout relative concern is <strong>" +
+      SUBJECTS[wi] + "</strong> (" + fmtSigned(worst) + "). Raw grades alone would hide this.";
+  }
+
+  // ---- init ----
+  renderHeatmap();
+  showDeptLine();
+  renderDept();
+})();
+</script>
+</body>
+</html>

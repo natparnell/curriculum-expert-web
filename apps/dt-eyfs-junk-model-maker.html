@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Junk Model Maker</title>
+<style>
+  :root {
+    --bg: #fef9f0;
+    --panel: #ffffff;
+    --ink: #2b2a33;
+    --muted: #6b6470;
+    --accent: #e0631b;
+    --accent-soft: #ffe7d2;
+    --green: #2e8b57;
+    --green-soft: #dff3e6;
+    --blue: #2f6fb0;
+    --blue-soft: #dceafc;
+    --line: #f0e4d6;
+    --shadow: 0 8px 24px rgba(80,50,20,0.12);
+    --radius: 20px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Trebuchet MS", "Segoe UI", Verdana, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .wrap {
+    max-width: 1140px;
+    margin: 0 auto;
+    padding: 16px 14px 70px;
+  }
+
+  header.app-head { text-align: center; margin-bottom: 12px; }
+  header.app-head h1 {
+    font-size: clamp(1.8rem, 5vw, 2.9rem);
+    margin: 4px 0 2px;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+  }
+  .tagline { color: var(--muted); margin: 0; font-size: 1.02rem; }
+
+  .aim {
+    background: var(--accent-soft);
+    border: 2px dashed #f0b486;
+    border-radius: 14px;
+    padding: 8px 14px;
+    font-size: 0.94rem;
+    color: #8a431a;
+    max-width: 820px;
+    margin: 10px auto 0;
+  }
+  .aim strong { color: var(--accent); }
+
+  /* Class design brief */
+  .brief {
+    background: var(--blue-soft);
+    border: 2px solid #bcd6f5;
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin: 16px auto 6px;
+    max-width: 820px;
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .brief h2 { margin: 0 0 4px; color: var(--blue); font-size: 1.15rem; }
+  .brief p { margin: 0; font-size: 1.05rem; }
+  .brief .target { font-weight: bold; color: var(--blue); }
+
+  /* Layout */
+  .studio {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 16px;
+    margin-top: 14px;
+  }
+  @media (max-width: 820px) {
+    .studio { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px;
+  }
+  .panel h3 {
+    margin: 0 0 10px;
+    font-size: 1.1rem;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Materials box */
+  .materials-box { border: 3px dashed #d9c2a6; background: #fffaf2; }
+  .materials-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .material {
+    border: none;
+    background: var(--accent-soft);
+    border-radius: 16px;
+    padding: 10px 6px;
+    text-align: center;
+    cursor: grab;
+    touch-action: none;
+    font-size: 0.86rem;
+    color: #7a3c14;
+    font-weight: bold;
+    transition: transform 0.08s ease, box-shadow 0.12s ease;
+    user-select: none;
+  }
+  .material:hover, .material:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(224,99,27,0.25);
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .material .pic { font-size: 2.2rem; display: block; line-height: 1.1; }
+  .material.dragging { opacity: 0.45; }
+
+  /* Build area */
+  .build-wrap { display: flex; flex-direction: column; }
+  .build-area {
+    position: relative;
+    min-height: 360px;
+    border: 3px solid var(--line);
+    border-radius: 16px;
+    background:
+      linear-gradient(#fff, #fff),
+      repeating-linear-gradient(0deg, #f6efe4 0 1px, transparent 1px 36px),
+      repeating-linear-gradient(90deg, #f6efe4 0 1px, transparent 1px 36px);
+    background-blend-mode: normal;
+    overflow: hidden;
+    touch-action: none;
+  }
+  .build-area .floor {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 46px;
+    background: linear-gradient(#f3e7d6, #ead9c2);
+    border-top: 2px dashed #d8c3a6;
+  }
+  .build-area .hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #c2ad92;
+    font-size: 1.05rem;
+    padding: 20px;
+    pointer-events: none;
+  }
+  .build-area.has-parts .hint { display: none; }
+
+  .placed {
+    position: absolute;
+    font-size: 3.2rem;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    line-height: 1;
+    filter: drop-shadow(0 3px 3px rgba(0,0,0,0.15));
+  }
+  .placed:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 4px;
+    border-radius: 8px;
+  }
+  .placed.selected { outline: 3px solid var(--green); outline-offset: 4px; border-radius: 8px; }
+  .placed.dragging { opacity: 0.8; cursor: grabbing; }
+  .join-mark {
+    position: absolute;
+    font-size: 1.4rem;
+    pointer-events: none;
+    animation: pop 0.3s ease;
+  }
+  @keyframes pop {
+    0% { transform: scale(0.2); opacity: 0; }
+    60% { transform: scale(1.25); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    align-items: center;
+  }
+  .tool-label { font-size: 0.9rem; color: var(--muted); margin-right: 2px; }
+  .tool-btn {
+    border: 2px solid var(--line);
+    background: #fff;
+    border-radius: 14px;
+    padding: 8px 12px;
+    font-size: 0.95rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ink);
+    transition: all 0.1s ease;
+  }
+  .tool-btn .ti { font-size: 1.3rem; }
+  .tool-btn:hover { border-color: var(--accent); }
+  .tool-btn[aria-pressed="true"] {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .tool-btn.danger { margin-left: auto; }
+  .tool-btn.danger:hover { border-color: #c23b3b; color: #c23b3b; }
+
+  /* Feedback */
+  .feedback {
+    margin-top: 12px;
+    background: var(--green-soft);
+    border: 2px solid #bfe6cd;
+    border-radius: 14px;
+    padding: 10px 14px;
+    min-height: 52px;
+    font-size: 1.02rem;
+    color: #1f5d3c;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .feedback .fb-icon { font-size: 1.6rem; flex: 0 0 auto; }
+  .feedback.think {
+    background: var(--blue-soft);
+    border-color: #bcd6f5;
+    color: #20507e;
+  }
+  .feedback.cheer {
+    background: #fff3d6;
+    border-color: #f3dca0;
+    color: #8a6312;
+  }
+
+  /* Progress chips */
+  .goals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .chip {
+    background: #fff;
+    border: 2px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.88rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+  }
+  .chip.done {
+    background: var(--green-soft);
+    border-color: #9ed8b4;
+    color: #1f5d3c;
+    font-weight: bold;
+  }
+  .chip .tick { font-weight: bold; }
+
+  /* Tool tap mini game */
+  .tooltap {
+    margin-top: 16px;
+    max-width: 820px;
+  }
+  .tooltap h3 { color: var(--accent); }
+  .tap-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .tap-question { font-size: 1.05rem; margin: 6px 0 10px; }
+  .tap-question strong { color: var(--accent); }
+  .tap-opt {
+    border: 2px solid var(--line);
+    background: #fff;
+    border-radius: 14px;
+    padding: 8px 14px;
+    font-size: 0.98rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: bold;
+    color: var(--ink);
+  }
+  .tap-opt .te { font-size: 1.4rem; }
+  .tap-opt:hover, .tap-opt:focus-visible { border-color: var(--accent); outline: none; }
+  .tap-opt.right { background: var(--green-soft); border-color: #9ed8b4; color: #1f5d3c; }
+  .tap-opt.wrong { background: #fde2e2; border-color: #f0b4b4; color: #a23030; }
+
+  .visually-hidden {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0);
+    white-space: nowrap; border: 0;
+  }
+
+  footer.note {
+    text-align: center;
+    margin-top: 26px;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <h1>Junk Model Maker</h1>
+    <p class="tagline">Build, join and shape with our box of recycled bits and bobs.</p>
+    <p class="aim"><strong>Teacher aim:</strong> Children explore creating with materials by joining, shaping and constructing junk materials with simple tools (EYFS: Creating with Materials, Expressive Arts and Design). Use on the whiteboard to design a class model together.</p>
+  </header>
+
+  <section class="brief" aria-label="Our class design">
+    <h2>&#x1F4D8; Our class design today</h2>
+    <p>We are all going to make a <span class="target" id="targetName">rocket</span>. <button id="newBriefBtn" class="tool-btn" style="display:inline-flex;margin-top:8px;">&#x1F500; New idea</button></p>
+  </section>
+
+  <div class="studio">
+    <!-- Materials box -->
+    <aside class="panel materials-box" aria-label="Box of recycled materials">
+      <h3>&#x1F4E6; Our junk box</h3>
+      <p style="margin:0 0 10px;font-size:0.86rem;color:var(--muted)">Drag a piece into the build space, or tap a piece then press Enter.</p>
+      <div class="materials-grid" id="materialsGrid">
+        <!-- materials injected -->
+      </div>
+    </aside>
+
+    <!-- Build area -->
+    <section class="panel build-wrap" aria-label="Building space">
+      <h3>&#x1F6E0;&#xFE0F; Build your model</h3>
+      <div class="build-area" id="buildArea" role="application" aria-label="Building space. Drag pieces here to make your model.">
+        <div class="floor" aria-hidden="true"></div>
+        <p class="hint">Drag boxes, tubes and lids from the junk box to start building.</p>
+      </div>
+
+      <div class="toolbar" role="group" aria-label="Choose how to join your pieces">
+        <span class="tool-label">Join with:</span>
+        <button class="tool-btn" data-tool="tape" aria-pressed="true">
+          <span class="ti" aria-hidden="true">&#x1F9F5;</span> Tape
+        </button>
+        <button class="tool-btn" data-tool="glue" aria-pressed="false">
+          <span class="ti" aria-hidden="true">&#x1F9F4;</span> Glue
+        </button>
+        <button class="tool-btn" data-tool="slot" aria-pressed="false">
+          <span class="ti" aria-hidden="true">&#x2702;&#xFE0F;</span> Slot
+        </button>
+        <button class="tool-btn danger" id="clearBtn">
+          <span class="ti" aria-hidden="true">&#x1F5D1;&#xFE0F;</span> Start again
+        </button>
+      </div>
+
+      <div class="feedback" id="feedback" role="status" aria-live="polite">
+        <span class="fb-icon" aria-hidden="true">&#x1F44B;</span>
+        <span id="feedbackText">Welcome, designer! Drag your first piece into the building space.</span>
+      </div>
+
+      <div class="goals" id="goals" aria-label="Things to try">
+        <div class="chip" data-goal="parts"><span class="tick" aria-hidden="true">&#x2606;</span> Use 3 pieces</div>
+        <div class="chip" data-goal="join"><span class="tick" aria-hidden="true">&#x2606;</span> Join two pieces</div>
+        <div class="chip" data-goal="tools"><span class="tick" aria-hidden="true">&#x2606;</span> Try all 3 joining tools</div>
+        <div class="chip" data-goal="shape"><span class="tick" aria-hidden="true">&#x2606;</span> Shape a piece (rotate)</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Tool Tap mini-game -->
+  <section class="panel tooltap" aria-label="Tool Tap thinking game">
+    <h3>&#x1F44D; Tool Tap: which join is best?</h3>
+    <p class="tap-question" id="tapQuestion">Tap the best way to join these pieces.</p>
+    <div class="tap-row" id="tapOptions"></div>
+    <div class="feedback think" id="tapFeedback" role="status" aria-live="polite" style="margin-top:12px;">
+      <span class="fb-icon" aria-hidden="true">&#x1F914;</span>
+      <span id="tapFeedbackText">Have a think, then tap your answer.</span>
+    </div>
+  </section>
+
+  <footer class="note">A pretend junk box. The names and models are made up for play and learning.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Data ---------- */
+  var MATERIALS = [
+    { id: "bigbox",  name: "Big box",     emoji: "\u{1F4E6}" },
+    { id: "smallbox",name: "Small box",   emoji: "\u{1F381}" },
+    { id: "tube",    name: "Cardboard tube", emoji: "\u{1F9FB}" },
+    { id: "lid",     name: "Round lid",   emoji: "\u{1F535}" },
+    { id: "cup",     name: "Paper cup",   emoji: "\u{1F964}" },
+    { id: "cone",    name: "Party cone",  emoji: "\u{1F38A}" }
+  ];
+
+  var TARGETS = ["rocket", "robot", "tower", "bus", "castle", "boat", "train", "house"];
+
+  var TOOL_INFO = {
+    tape: { word: "tape",  emoji: "\u{1F9F5}", praise: "Tape is great for holding two pieces together fast." },
+    glue: { word: "glue",  emoji: "\u{1F9F4}", praise: "Glue is good for sticking flat pieces, but you must hold and wait." },
+    slot: { word: "slot",  emoji: "✂️", praise: "A slot lets one piece push into another with no mess." }
+  };
+
+  /* ---------- State ---------- */
+  var state = {
+    currentTool: "tape",
+    parts: [],          // { el, id, name, rotation, x, y }
+    toolsUsed: {},      // tool -> true
+    joinsMade: 0,
+    rotatedOnce: false,
+    selectedKeyboardMaterial: null,
+    seq: 0
+  };
+
+  var goalsDone = { parts: false, join: false, tools: false, shape: false };
+
+  /* ---------- DOM ---------- */
+  var grid = document.getElementById("materialsGrid");
+  var buildArea = document.getElementById("buildArea");
+  var feedback = document.getElementById("feedback");
+  var feedbackText = document.getElementById("feedbackText");
+  var fbIcon = feedback.querySelector(".fb-icon");
+  var targetName = document.getElementById("targetName");
+
+  /* ---------- Feedback helper ---------- */
+  function say(text, mood) {
+    feedbackText.textContent = text;
+    feedback.className = "feedback" + (mood === "think" ? " think" : mood === "cheer" ? " cheer" : "");
+    var icon = mood === "cheer" ? "\u{1F389}" : mood === "think" ? "\u{1F4A1}" : "\u{1F44D}";
+    fbIcon.textContent = icon;
+  }
+
+  /* ---------- Build materials box ---------- */
+  MATERIALS.forEach(function (m) {
+    var btn = document.createElement("button");
+    btn.className = "material";
+    btn.type = "button";
+    btn.setAttribute("data-material", m.id);
+    btn.setAttribute("aria-label", "Add a " + m.name + " to the building space");
+    btn.innerHTML = '<span class="pic" aria-hidden="true">' + m.emoji + '</span>' + m.name;
+
+    // Pointer drag from box to build area
+    btn.addEventListener("pointerdown", function (ev) {
+      startBoxDrag(ev, m);
+    });
+
+    // Keyboard: select, then Enter to drop into build area
+    btn.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        addPart(m, null, null);
+        say("Added a " + m.name + ". Use Tab to reach it, then arrow keys to move it.", "cheer");
+      }
+    });
+
+    grid.appendChild(btn);
+  });
+
+  /* ---------- Drag a NEW piece out of the box ---------- */
+  function startBoxDrag(ev, material) {
+    ev.preventDefault();
+    var ghost = document.createElement("div");
+    ghost.className = "placed dragging";
+    ghost.textContent = material.emoji;
+    ghost.style.position = "fixed";
+    ghost.style.pointerEvents = "none";
+    ghost.style.zIndex = "999";
+    document.body.appendChild(ghost);
+
+    function moveGhost(e) {
+      ghost.style.left = (e.clientX - 26) + "px";
+      ghost.style.top = (e.clientY - 26) + "px";
+    }
+    moveGhost(ev);
+
+    function up(e) {
+      window.removeEventListener("pointermove", moveGhost);
+      window.removeEventListener("pointerup", up);
+      document.body.removeChild(ghost);
+      var rect = buildArea.getBoundingClientRect();
+      if (e.clientX >= rect.left && e.clientX <= rect.right &&
+          e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        var x = e.clientX - rect.left - 26;
+        var y = e.clientY - rect.top - 26;
+        addPart(material, clamp(x, 4, rect.width - 60), clamp(y, 4, rect.height - 60));
+      }
+    }
+    window.addEventListener("pointermove", moveGhost);
+    window.addEventListener("pointerup", up);
+  }
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  /* ---------- Add a placed piece ---------- */
+  function addPart(material, x, y) {
+    var rect = buildArea.getBoundingClientRect();
+    if (x === null || y === null) {
+      // keyboard / tap drop: stagger pieces neatly
+      x = 30 + (state.parts.length % 4) * 70;
+      y = rect.height - 110 - Math.floor(state.parts.length / 4) * 60;
+      if (y < 10) y = 10;
+    }
+
+    var el = document.createElement("div");
+    el.className = "placed";
+    el.textContent = material.emoji;
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+    el.setAttribute("tabindex", "0");
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label", material.name + ". Arrow keys to move, R to rotate, Delete to remove.");
+
+    var part = { el: el, id: material.id, name: material.name, rotation: 0, x: x, y: y };
+    state.parts.push(part);
+
+    enablePieceDrag(part);
+    enablePieceKeys(part);
+
+    buildArea.appendChild(el);
+    buildArea.classList.add("has-parts");
+
+    checkJoin(part);
+    updateGoals();
+  }
+
+  /* ---------- Move an existing piece by pointer ---------- */
+  function enablePieceDrag(part) {
+    var el = part.el;
+    var offsetX = 0, offsetY = 0;
+
+    el.addEventListener("pointerdown", function (ev) {
+      ev.preventDefault();
+      selectPart(part);
+      el.setPointerCapture(ev.pointerId);
+      el.classList.add("dragging");
+      var rect = buildArea.getBoundingClientRect();
+      offsetX = ev.clientX - rect.left - part.x;
+      offsetY = ev.clientY - rect.top - part.y;
+    });
+
+    el.addEventListener("pointermove", function (ev) {
+      if (!el.classList.contains("dragging")) return;
+      var rect = buildArea.getBoundingClientRect();
+      part.x = clamp(ev.clientX - rect.left - offsetX, 0, rect.width - 50);
+      part.y = clamp(ev.clientY - rect.top - offsetY, 0, rect.height - 50);
+      el.style.left = part.x + "px";
+      el.style.top = part.y + "px";
+    });
+
+    el.addEventListener("pointerup", function (ev) {
+      if (!el.classList.contains("dragging")) return;
+      el.classList.remove("dragging");
+      try { el.releasePointerCapture(ev.pointerId); } catch (e) {}
+      checkJoin(part);
+    });
+  }
+
+  /* ---------- Keyboard control of a piece ---------- */
+  function enablePieceKeys(part) {
+    var el = part.el;
+    el.addEventListener("focus", function () { selectPart(part); });
+    el.addEventListener("keydown", function (ev) {
+      var step = 14;
+      var rect = buildArea.getBoundingClientRect();
+      var handled = true;
+      switch (ev.key) {
+        case "ArrowLeft":  part.x = clamp(part.x - step, 0, rect.width - 50); break;
+        case "ArrowRight": part.x = clamp(part.x + step, 0, rect.width - 50); break;
+        case "ArrowUp":    part.y = clamp(part.y - step, 0, rect.height - 50); break;
+        case "ArrowDown":  part.y = clamp(part.y + step, 0, rect.height - 50); break;
+        case "r": case "R": rotatePart(part); break;
+        case "Delete": case "Backspace": removePart(part); return;
+        default: handled = false;
+      }
+      if (handled) {
+        ev.preventDefault();
+        el.style.left = part.x + "px";
+        el.style.top = part.y + "px";
+        checkJoin(part);
+      }
+    });
+  }
+
+  function selectPart(part) {
+    state.parts.forEach(function (p) { p.el.classList.remove("selected"); });
+    part.el.classList.add("selected");
+  }
+
+  function rotatePart(part) {
+    part.rotation = (part.rotation + 45) % 360;
+    part.el.style.transform = "rotate(" + part.rotation + "deg)";
+    if (!state.rotatedOnce) {
+      state.rotatedOnce = true;
+      say("You shaped a piece by turning it. Designers turn pieces to make them fit.", "cheer");
+    }
+    updateGoals();
+  }
+
+  function removePart(part) {
+    var i = state.parts.indexOf(part);
+    if (i >= 0) state.parts.splice(i, 1);
+    if (part.el.parentNode) part.el.parentNode.removeChild(part.el);
+    if (state.parts.length === 0) buildArea.classList.remove("has-parts");
+    say("Took a piece out of the model. Add more from the junk box when you are ready.", "think");
+    updateGoals();
+  }
+
+  /* ---------- Joining logic: are two pieces touching? ---------- */
+  function checkJoin(part) {
+    var joinedNow = false;
+    state.parts.forEach(function (other) {
+      if (other === part) return;
+      var dx = (part.x) - (other.x);
+      var dy = (part.y) - (other.y);
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 56) {
+        joinedNow = true;
+      }
+    });
+
+    if (joinedNow) {
+      registerJoin(part);
+    }
+  }
+
+  function registerJoin(part) {
+    var tool = state.currentTool;
+    state.toolsUsed[tool] = true;
+    state.joinsMade += 1;
+
+    // show a join mark near the piece
+    showJoinMark(part, tool);
+
+    var info = TOOL_INFO[tool];
+    say("You joined two pieces with " + info.word + ". " + info.praise, "cheer");
+    updateGoals();
+  }
+
+  function showJoinMark(part, tool) {
+    var mark = document.createElement("span");
+    mark.className = "join-mark";
+    mark.setAttribute("aria-hidden", "true");
+    mark.textContent = TOOL_INFO[tool].emoji;
+    mark.style.left = (part.x + 30) + "px";
+    mark.style.top = (part.y - 6) + "px";
+    buildArea.appendChild(mark);
+    setTimeout(function () {
+      if (mark.parentNode) mark.parentNode.removeChild(mark);
+    }, 1400);
+  }
+
+  /* ---------- Tools ---------- */
+  var toolBtns = document.querySelectorAll(".tool-btn[data-tool]");
+  toolBtns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      state.currentTool = b.getAttribute("data-tool");
+      toolBtns.forEach(function (x) { x.setAttribute("aria-pressed", "false"); });
+      b.setAttribute("aria-pressed", "true");
+      var info = TOOL_INFO[state.currentTool];
+      say("You picked " + info.word + ". " + info.praise + " Now push two pieces together to join them.", "think");
+    });
+  });
+
+  /* ---------- Clear ---------- */
+  document.getElementById("clearBtn").addEventListener("click", function () {
+    state.parts.slice().forEach(function (p) {
+      if (p.el.parentNode) p.el.parentNode.removeChild(p.el);
+    });
+    state.parts = [];
+    state.toolsUsed = {};
+    state.joinsMade = 0;
+    state.rotatedOnce = false;
+    buildArea.classList.remove("has-parts");
+    goalsDone = { parts: false, join: false, tools: false, shape: false };
+    refreshGoalChips();
+    say("Cleared the building space. Start your model again whenever you are ready.", "think");
+  });
+
+  /* ---------- Goals ---------- */
+  function updateGoals() {
+    if (state.parts.length >= 3) goalsDone.parts = true;
+    if (state.joinsMade >= 1) goalsDone.join = true;
+    if (Object.keys(state.toolsUsed).length >= 3) goalsDone.tools = true;
+    if (state.rotatedOnce) goalsDone.shape = true;
+    refreshGoalChips();
+
+    if (goalsDone.parts && goalsDone.join && goalsDone.tools && goalsDone.shape) {
+      say("Brilliant designing! You used lots of pieces, joined them, tried every tool and shaped a piece. Your " + targetName.textContent + " looks great.", "cheer");
+    }
+  }
+
+  function refreshGoalChips() {
+    document.querySelectorAll(".chip").forEach(function (chip) {
+      var key = chip.getAttribute("data-goal");
+      var tick = chip.querySelector(".tick");
+      if (goalsDone[key]) {
+        chip.classList.add("done");
+        tick.textContent = "✔";
+      } else {
+        chip.classList.remove("done");
+        tick.textContent = "☆";
+      }
+    });
+  }
+
+  /* ---------- New design brief ---------- */
+  document.getElementById("newBriefBtn").addEventListener("click", function () {
+    var current = targetName.textContent;
+    var pick = current;
+    while (pick === current) {
+      pick = TARGETS[Math.floor(Math.random() * TARGETS.length)];
+    }
+    targetName.textContent = pick;
+    say("New class design: let us all build a " + pick + ". Choose your pieces from the junk box.", "think");
+  });
+
+  /* ---------- Tool Tap mini-game ---------- */
+  var TAP_QUESTIONS = [
+    {
+      q: "You want to join two flat boxes so they lie still and dry strong. What is best?",
+      opts: [
+        { tool: "glue", right: true },
+        { tool: "slot", right: false },
+        { tool: "tape", right: false }
+      ],
+      good: "Yes! Glue is best for sticking flat pieces together. Hold them and let the glue dry.",
+      bad: "Not quite. For two flat pieces that need to dry strong, glue works best."
+    },
+    {
+      q: "You want to push a tube into a hole in a box, with no mess. What is best?",
+      opts: [
+        { tool: "slot", right: true },
+        { tool: "tape", right: false },
+        { tool: "glue", right: false }
+      ],
+      good: "Yes! A slot lets the tube push into the box with no sticky mess.",
+      bad: "Not quite. To push a tube into a hole with no mess, a slot is best."
+    },
+    {
+      q: "You want to join two pieces quickly so you can keep building straight away. What is best?",
+      opts: [
+        { tool: "tape", right: true },
+        { tool: "glue", right: false },
+        { tool: "slot", right: false }
+      ],
+      good: "Yes! Tape holds pieces together fast so you do not have to wait.",
+      bad: "Not quite. To join fast and keep building, tape is best because it does not need drying time."
+    }
+  ];
+
+  var tapIndex = 0;
+  var tapQuestionEl = document.getElementById("tapQuestion");
+  var tapOptionsEl = document.getElementById("tapOptions");
+  var tapFeedbackText = document.getElementById("tapFeedbackText");
+  var tapFeedback = document.getElementById("tapFeedback");
+
+  function renderTap() {
+    var item = TAP_QUESTIONS[tapIndex];
+    tapQuestionEl.innerHTML = item.q.replace("What is best?", "<strong>What is best?</strong>");
+    tapOptionsEl.innerHTML = "";
+    item.opts.forEach(function (opt) {
+      var b = document.createElement("button");
+      b.className = "tap-opt";
+      b.type = "button";
+      var info = TOOL_INFO[opt.tool];
+      b.setAttribute("aria-label", "Choose " + info.word);
+      b.innerHTML = '<span class="te" aria-hidden="true">' + info.emoji + '</span>' +
+        info.word.charAt(0).toUpperCase() + info.word.slice(1);
+      b.addEventListener("click", function () {
+        answerTap(b, opt, item);
+      });
+      tapOptionsEl.appendChild(b);
+    });
+    tapFeedback.className = "feedback think";
+    tapFeedbackText.textContent = "Have a think, then tap your answer.";
+  }
+
+  function answerTap(btn, opt, item) {
+    var allBtns = tapOptionsEl.querySelectorAll(".tap-opt");
+    if (opt.right) {
+      btn.classList.add("right");
+      tapFeedbackText.textContent = item.good;
+      tapFeedback.className = "feedback cheer";
+      allBtns.forEach(function (b) { b.disabled = true; });
+      setTimeout(function () {
+        tapIndex = (tapIndex + 1) % TAP_QUESTIONS.length;
+        renderTap();
+      }, 2200);
+    } else {
+      btn.classList.add("wrong");
+      tapFeedbackText.textContent = item.bad + " Try again.";
+      tapFeedback.className = "feedback think";
+    }
+  }
+
+  renderTap();
+  refreshGoalChips();
+})();
+</script>
+</body>
+</html>

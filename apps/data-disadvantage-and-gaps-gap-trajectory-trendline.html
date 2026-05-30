@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gap Trajectory Trendline</title>
+<style>
+  :root {
+    --ink: #1d2733;
+    --muted: #5b6b7c;
+    --line: #d7dee6;
+    --bg: #f4f7fa;
+    --card: #ffffff;
+    --dis: #d6663b;      /* disadvantaged */
+    --adv: #2e6fb0;      /* others */
+    --gap: #7a4fb0;      /* gap line */
+    --good: #1f8a55;
+    --warn: #b8860b;
+    --bad: #c0392b;
+    --focus: #0a66c2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+  }
+  header {
+    background: linear-gradient(135deg, #16324f, #1f4e79);
+    color: #fff;
+    padding: 18px 20px 16px;
+  }
+  header h1 { margin: 0 0 4px; font-size: 1.5rem; letter-spacing: 0.2px; }
+  header .aim {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #d4e4f3;
+    max-width: 70ch;
+  }
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 18px 16px 60px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 3px rgba(20,40,70,0.06);
+  }
+  h2 { font-size: 1.1rem; margin: 0 0 10px; }
+  p.note { color: var(--muted); margin: 6px 0 12px; font-size: 0.92rem; }
+  .layout { display: grid; grid-template-columns: 1fr; gap: 18px; }
+  @media (min-width: 860px) {
+    .layout { grid-template-columns: 1.5fr 1fr; align-items: start; }
+  }
+  /* Chart */
+  .chartwrap { position: relative; }
+  svg { width: 100%; height: auto; display: block; touch-action: none; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 0.85rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 16px; height: 4px; border-radius: 2px; display: inline-block; }
+  .swatch.dot { width: 11px; height: 11px; border-radius: 50%; }
+  /* Controls */
+  .control-row { margin-bottom: 14px; }
+  .control-row label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+  .yearctrl {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 8px; margin-bottom: 8px; background: #fafcfe;
+  }
+  .yearctrl .yr { font-weight: 700; min-width: 64px; }
+  .yearctrl .val { font-variant-numeric: tabular-nums; min-width: 52px; text-align: right; font-weight: 600; }
+  input[type=range] { flex: 1; touch-action: none; accent-color: var(--dis); }
+  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  button {
+    font: inherit; cursor: pointer;
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+    padding: 8px 14px; border-radius: 8px; font-weight: 600;
+  }
+  button.primary { background: var(--focus); color: #fff; border-color: var(--focus); }
+  button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+    outline: 3px solid var(--focus); outline-offset: 2px;
+  }
+  /* Verdict */
+  .verdict {
+    border-radius: 10px; padding: 14px 16px; font-size: 0.98rem;
+    border-left: 6px solid var(--muted); background: #f7f9fb;
+  }
+  .verdict.good { border-left-color: var(--good); background: #eef8f1; }
+  .verdict.warn { border-left-color: var(--warn); background: #fcf6e8; }
+  .verdict.bad  { border-left-color: var(--bad);  background: #fbeeec; }
+  .verdict strong { display: block; font-size: 1.05rem; margin-bottom: 4px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 12px 0; }
+  .stat {
+    background: #f7f9fb; border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; text-align: center;
+  }
+  .stat .num { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .lab { font-size: 0.74rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .scenario-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .scenario-btns button { font-size: 0.85rem; padding: 6px 10px; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); border: 0;
+  }
+  .tag { display:inline-block; background:#eaf2fb; color:#1f4e79; border-radius:6px; padding:2px 8px; font-size:0.78rem; font-weight:600; }
+  footer { text-align:center; color: var(--muted); font-size: 0.82rem; padding: 10px 0 0; }
+  .hint { font-size: 0.84rem; color: var(--muted); margin-top: 6px; }
+  table.proj { width:100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 8px; }
+  table.proj th, table.proj td { border: 1px solid var(--line); padding: 5px 8px; text-align: right; }
+  table.proj th:first-child, table.proj td:first-child { text-align: left; }
+  table.proj thead th { background: #f0f4f8; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header>
+  <h1>Gap Trajectory Trendline &#x1F4C8;</h1>
+  <p class="aim">Teacher aim: read a multi-year disadvantage gap, judge whether it is narrowing or widening, and use the current rate of change to project when parity (a zero gap) would be reached.</p>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <h2>The picture across the years</h2>
+    <p class="note">
+      <span class="tag">Demonstration data</span>
+      Greenfield Academy (a fictional school). Each point is the percentage of pupils meeting the expected standard.
+      The <strong style="color:var(--gap)">gap</strong> is the difference between non-disadvantaged pupils and disadvantaged pupils.
+      Drag the markers, use the sliders, or use a keyboard, then read the projection.
+    </p>
+
+    <div class="layout">
+      <div>
+        <div class="chartwrap">
+          <svg id="chart" viewBox="0 0 560 380" role="img"
+               aria-label="Line chart of percentage meeting the expected standard for disadvantaged and non-disadvantaged pupils across five years, with the gap between them.">
+            <!-- drawn by script -->
+          </svg>
+        </div>
+        <div class="legend" aria-hidden="true">
+          <span><i class="swatch dot" style="background:var(--adv)"></i> Non-disadvantaged</span>
+          <span><i class="swatch dot" style="background:var(--dis)"></i> Disadvantaged</span>
+          <span><i class="swatch" style="background:var(--gap)"></i> Gap (percentage points)</span>
+        </div>
+        <p class="hint">Tip: select a marker and use the arrow keys to nudge it by 1 point (hold Shift for 5).</p>
+      </div>
+
+      <div>
+        <h2 style="font-size:1rem">Adjust disadvantaged results</h2>
+        <p class="note" style="margin-top:0">Move each year up or down. Non-disadvantaged results are fixed in this model so you can watch the gap respond.</p>
+        <div id="sliders" aria-label="Year-by-year disadvantaged attainment sliders"></div>
+        <div class="scenario-btns">
+          <button type="button" data-scn="narrow">Narrowing example</button>
+          <button type="button" data-scn="widen">Widening example</button>
+          <button type="button" data-scn="stuck">Stuck example</button>
+          <button type="button" data-scn="reset">Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Trajectory read-out</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="num" id="gapNow">--</div><div class="lab">Latest gap (pp)</div></div>
+      <div class="stat"><div class="num" id="gapChange">--</div><div class="lab">Change per year</div></div>
+      <div class="stat"><div class="num" id="direction">--</div><div class="lab">Direction</div></div>
+      <div class="stat"><div class="num" id="parityYear">--</div><div class="lab">Parity reached</div></div>
+    </div>
+    <div id="verdict" class="verdict" role="status" aria-live="polite">
+      Adjust the data to see the trajectory verdict.
+    </div>
+
+    <details>
+      <summary>Show the projection working</summary>
+      <p class="note" style="margin-top:8px">
+        The trend per year is the average change in the gap across the years shown (the slope of the best-fit line).
+        If the gap is closing, parity year = latest year + (latest gap &divide; yearly closing rate), rounded up to the next whole year.
+        If the gap is flat or widening, parity is never reached at the current rate.
+      </p>
+      <table class="proj" id="projTable" aria-label="Projected gap for future years at the current rate">
+        <thead><tr><th>Year</th><th>Projected gap (pp)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>Check your reading</h2>
+    <p class="note">A question changes each time the data changes. Choose the best answer for the current chart.</p>
+    <div id="quiz" aria-live="polite"></div>
+  </div>
+
+  <footer>Demonstration data only. No real pupils are represented. Greenfield Academy is fictional.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- Model -------------------------------------------------------------
+  var YEARS = ["2021", "2022", "2023", "2024", "2025"];
+  // Non-disadvantaged fixed; disadvantaged is editable.
+  var ADV = [76, 77, 78, 78, 79];
+  var DEFAULT_DIS = [52, 55, 59, 62, 66];
+
+  var SCENARIOS = {
+    narrow: [52, 55, 59, 62, 66],
+    widen:  [60, 58, 55, 52, 49],
+    stuck:  [58, 59, 57, 58, 58],
+    reset:  DEFAULT_DIS.slice()
+  };
+
+  var dis = DEFAULT_DIS.slice();
+  var selected = YEARS.length - 1;
+
+  // ---- Geometry ----------------------------------------------------------
+  var W = 560, H = 380;
+  var M = { l: 46, r: 18, t: 18, b: 46 };
+  var plotW = W - M.l - M.r;
+  var plotH = H - M.t - M.b;
+  var yMin = 30, yMax = 90; // attainment axis
+
+  function xOf(i) { return M.l + (plotW * i) / (YEARS.length - 1); }
+  function yOf(v) { return M.t + plotH * (1 - (v - yMin) / (yMax - yMin)); }
+  function valFromY(py) {
+    var v = yMin + (yMax - yMin) * (1 - (py - M.t) / plotH);
+    return Math.max(30, Math.min(90, Math.round(v)));
+  }
+
+  var svg = document.getElementById("chart");
+  var NS = "http://www.w3.org/2000/svg";
+  function el(name, attrs) {
+    var e = document.createElementNS(NS, name);
+    for (var k in attrs) { if (attrs.hasOwnProperty(k)) e.setAttribute(k, attrs[k]); }
+    return e;
+  }
+
+  // ---- Stats -------------------------------------------------------------
+  function gaps() {
+    return ADV.map(function (a, i) { return a - dis[i]; });
+  }
+  // Slope of gap over year-index using least squares (change per year).
+  function slope() {
+    var g = gaps(), n = g.length;
+    var sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (var i = 0; i < n; i++) { sx += i; sy += g[i]; sxx += i * i; sxy += i * g[i]; }
+    var denom = (n * sxx - sx * sx);
+    if (denom === 0) return 0;
+    return (n * sxy - sx * sy) / denom;
+  }
+
+  function fmtSigned(x) {
+    var r = Math.round(x * 10) / 10;
+    return (r > 0 ? "+" : "") + r;
+  }
+
+  // ---- Render chart ------------------------------------------------------
+  function render() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var g = gaps();
+
+    // gridlines + y labels
+    for (var v = 30; v <= 90; v += 10) {
+      svg.appendChild(el("line", { x1: M.l, y1: yOf(v), x2: W - M.r, y2: yOf(v),
+        stroke: "#eef2f6", "stroke-width": 1 }));
+      var t = el("text", { x: M.l - 8, y: yOf(v) + 4, "text-anchor": "end",
+        "font-size": 11, fill: "#5b6b7c" });
+      t.textContent = v + "%";
+      svg.appendChild(t);
+    }
+    // x labels
+    YEARS.forEach(function (yr, i) {
+      var t = el("text", { x: xOf(i), y: H - 26, "text-anchor": "middle",
+        "font-size": 11, fill: "#5b6b7c" });
+      t.textContent = yr;
+      svg.appendChild(t);
+    });
+    // axis titles
+    var yt = el("text", { x: 14, y: M.t + plotH / 2, "text-anchor": "middle",
+      "font-size": 11, fill: "#5b6b7c", transform: "rotate(-90 14 " + (M.t + plotH / 2) + ")" });
+    yt.textContent = "% meeting expected standard";
+    svg.appendChild(yt);
+
+    // gap shaded band between the two lines
+    var bandPts = [];
+    for (var i = 0; i < YEARS.length; i++) bandPts.push(xOf(i) + "," + yOf(ADV[i]));
+    for (var j = YEARS.length - 1; j >= 0; j--) bandPts.push(xOf(j) + "," + yOf(dis[j]));
+    svg.appendChild(el("polygon", { points: bandPts.join(" "),
+      fill: "rgba(122,79,176,0.10)", stroke: "none" }));
+
+    // line helper
+    function polyline(arr, color, dash) {
+      var pts = arr.map(function (v, i) { return xOf(i) + "," + yOf(v); }).join(" ");
+      svg.appendChild(el("polyline", { points: pts, fill: "none",
+        stroke: color, "stroke-width": 3, "stroke-linecap": "round",
+        "stroke-linejoin": "round", "stroke-dasharray": dash || "none" }));
+    }
+    polyline(ADV, getComputedStyle(document.documentElement).getPropertyValue("--adv") || "#2e6fb0");
+    polyline(dis, getComputedStyle(document.documentElement).getPropertyValue("--dis") || "#d6663b");
+
+    // non-dis markers (static)
+    ADV.forEach(function (v, i) {
+      svg.appendChild(el("circle", { cx: xOf(i), cy: yOf(v), r: 4.5,
+        fill: "#2e6fb0", stroke: "#fff", "stroke-width": 1.5 }));
+    });
+
+    // gap labels at midpoints
+    g.forEach(function (gv, i) {
+      var midY = (yOf(ADV[i]) + yOf(dis[i])) / 2;
+      var t = el("text", { x: xOf(i), y: midY + 4, "text-anchor": "middle",
+        "font-size": 11, "font-weight": 700, fill: "#7a4fb0" });
+      t.textContent = gv + "pp";
+      svg.appendChild(t);
+    });
+
+    // disadvantaged draggable markers
+    dis.forEach(function (v, i) {
+      var grp = el("g", {
+        tabindex: 0, role: "slider",
+        "data-i": i,
+        "aria-label": "Disadvantaged result, year " + YEARS[i] + ". " + v + " percent. Gap " + g[i] + " percentage points.",
+        "aria-valuemin": 30, "aria-valuemax": 90, "aria-valuenow": v,
+        "aria-valuetext": v + " percent in " + YEARS[i] + ", gap " + g[i] + " percentage points",
+        style: "cursor:grab; touch-action:none; outline:none;"
+      });
+      // big invisible hit area for touch
+      grp.appendChild(el("circle", { cx: xOf(i), cy: yOf(v), r: 18, fill: "transparent" }));
+      var ring = el("circle", { cx: xOf(i), cy: yOf(v),
+        r: (i === selected ? 9 : 6.5), fill: "#d6663b",
+        stroke: (i === selected ? "#7a3318" : "#fff"),
+        "stroke-width": (i === selected ? 3 : 1.5) });
+      grp.appendChild(ring);
+      attachDrag(grp, i);
+      svg.appendChild(grp);
+    });
+
+    updateReadout();
+    syncSliders();
+  }
+
+  // ---- Drag (Pointer Events) --------------------------------------------
+  function attachDrag(grp, i) {
+    function move(ev) {
+      var pt = clientToSvg(ev.clientX, ev.clientY);
+      dis[i] = valFromY(pt.y);
+      selected = i;
+      render();
+    }
+    grp.addEventListener("pointerdown", function (ev) {
+      ev.preventDefault();
+      selected = i;
+      grp.setPointerCapture(ev.pointerId);
+      grp.style.cursor = "grabbing";
+      move(ev);
+      function onMove(e) { move(e); }
+      function onUp(e) {
+        grp.releasePointerCapture(ev.pointerId);
+        grp.style.cursor = "grab";
+        grp.removeEventListener("pointermove", onMove);
+        grp.removeEventListener("pointerup", onUp);
+        announceQuizContext();
+      }
+      grp.addEventListener("pointermove", onMove);
+      grp.addEventListener("pointerup", onUp);
+    });
+    // keyboard
+    grp.addEventListener("keydown", function (ev) {
+      var step = ev.shiftKey ? 5 : 1;
+      var k = ev.key;
+      if (k === "ArrowUp" || k === "ArrowRight") { dis[i] = Math.min(90, dis[i] + step); }
+      else if (k === "ArrowDown" || k === "ArrowLeft") { dis[i] = Math.max(30, dis[i] - step); }
+      else if (k === "Home") { dis[i] = 30; }
+      else if (k === "End") { dis[i] = 90; }
+      else return;
+      ev.preventDefault();
+      selected = i;
+      render();
+      newQuestion();
+    });
+    grp.addEventListener("focus", function () { selected = i; render(); });
+  }
+
+  function clientToSvg(cx, cy) {
+    var rect = svg.getBoundingClientRect();
+    var x = (cx - rect.left) / rect.width * W;
+    var y = (cy - rect.top) / rect.height * H;
+    return { x: x, y: y };
+  }
+
+  // ---- Sliders -----------------------------------------------------------
+  var slidersBox = document.getElementById("sliders");
+  function buildSliders() {
+    slidersBox.innerHTML = "";
+    YEARS.forEach(function (yr, i) {
+      var row = document.createElement("div");
+      row.className = "yearctrl";
+      var lab = document.createElement("span");
+      lab.className = "yr"; lab.textContent = yr;
+      var inp = document.createElement("input");
+      inp.type = "range"; inp.min = 30; inp.max = 90; inp.step = 1;
+      inp.value = dis[i];
+      inp.setAttribute("aria-label", "Disadvantaged result for " + yr + ", percent meeting expected standard");
+      var val = document.createElement("span");
+      val.className = "val"; val.textContent = dis[i] + "%";
+      inp.addEventListener("input", function () {
+        dis[i] = parseInt(inp.value, 10);
+        val.textContent = dis[i] + "%";
+        selected = i;
+        render();
+      });
+      inp.addEventListener("change", function () { newQuestion(); });
+      row.appendChild(lab); row.appendChild(inp); row.appendChild(val);
+      slidersBox.appendChild(row);
+    });
+  }
+  function syncSliders() {
+    var inputs = slidersBox.querySelectorAll("input");
+    var vals = slidersBox.querySelectorAll(".val");
+    for (var i = 0; i < inputs.length; i++) {
+      inputs[i].value = dis[i];
+      vals[i].textContent = dis[i] + "%";
+    }
+  }
+
+  // ---- Read-out + projection --------------------------------------------
+  var gapNowEl = document.getElementById("gapNow");
+  var gapChangeEl = document.getElementById("gapChange");
+  var directionEl = document.getElementById("direction");
+  var parityYearEl = document.getElementById("parityYear");
+  var verdictEl = document.getElementById("verdict");
+  var projBody = document.querySelector("#projTable tbody");
+
+  function projection() {
+    var g = gaps();
+    var latestGap = g[g.length - 1];
+    var s = slope(); // change in gap per year (negative = narrowing)
+    var closingRate = -s; // positive when narrowing
+    var lastYear = parseInt(YEARS[YEARS.length - 1], 10);
+    var parity = null;
+    if (latestGap <= 0) {
+      parity = lastYear; // already at or beyond parity
+    } else if (closingRate > 0.05) {
+      var yearsToGo = latestGap / closingRate;
+      parity = lastYear + Math.ceil(yearsToGo);
+    }
+    return { latestGap: latestGap, slope: s, closingRate: closingRate, lastYear: lastYear, parity: parity };
+  }
+
+  function updateReadout() {
+    var p = projection();
+    gapNowEl.textContent = p.latestGap;
+    gapChangeEl.textContent = fmtSigned(p.slope) + " pp";
+
+    var cls, dirText, verdictHead, verdictBody;
+    if (p.latestGap <= 0) {
+      cls = "good"; dirText = "At parity"; directionEl.style.color = "var(--good)";
+      verdictHead = "Parity reached.";
+      verdictBody = "Disadvantaged pupils are matching or exceeding their peers in the latest year. The aim now is to hold this position.";
+    } else if (p.slope < -0.15) {
+      cls = "good"; dirText = "Narrowing"; directionEl.style.color = "var(--good)";
+      verdictHead = "The gap is narrowing.";
+      verdictBody = "On average the gap closes by " + Math.abs(Math.round(p.slope * 10) / 10) +
+        " percentage points each year. At this rate parity is projected for " + p.parity +
+        " (about " + Math.ceil(p.latestGap / p.closingRate) + " more year" +
+        (Math.ceil(p.latestGap / p.closingRate) === 1 ? "" : "s") + ").";
+    } else if (p.slope > 0.15) {
+      cls = "bad"; dirText = "Widening"; directionEl.style.color = "var(--bad)";
+      verdictHead = "The gap is widening.";
+      verdictBody = "The gap is growing by " + (Math.round(p.slope * 10) / 10) +
+        " percentage points a year. At the current rate parity is never reached: the trend is moving the wrong way.";
+    } else {
+      cls = "warn"; dirText = "Flat"; directionEl.style.color = "var(--warn)";
+      verdictHead = "The gap is broadly flat.";
+      verdictBody = "There is little change year on year, so a projection to parity is not meaningful. A flat gap means disadvantaged pupils are not yet catching up.";
+    }
+    parityYearEl.textContent = p.parity ? p.parity : "Never*";
+    parityYearEl.style.color = p.parity ? "var(--ink)" : "var(--bad)";
+    directionEl.textContent = dirText;
+
+    verdictEl.className = "verdict " + cls;
+    verdictEl.innerHTML = "<strong>" + verdictHead + "</strong>" + verdictBody;
+
+    // projection table: project gap forward 6 years from last
+    projBody.innerHTML = "";
+    var g = gaps();
+    var s = p.slope;
+    for (var k = 1; k <= 6; k++) {
+      var yr = p.lastYear + k;
+      var proj = Math.round((g[g.length - 1] + s * k) * 10) / 10;
+      var shown = proj < 0 ? 0 : proj;
+      var tr = document.createElement("tr");
+      var c1 = document.createElement("td"); c1.textContent = yr;
+      var c2 = document.createElement("td"); c2.textContent = shown.toFixed(1);
+      if (proj <= 0) { c2.style.color = "var(--good)"; c2.textContent = "0.0 (parity)"; }
+      tr.appendChild(c1); tr.appendChild(c2);
+      projBody.appendChild(tr);
+    }
+  }
+
+  // ---- Quiz (specific, data-driven feedback) -----------------------------
+  var quizBox = document.getElementById("quiz");
+  var currentQ = null;
+
+  function buildQuestion() {
+    var p = projection();
+    var g = gaps();
+    // Question type rotates with state to stay specific.
+    var type;
+    if (p.latestGap <= 0) type = "dir";
+    else if (p.slope < -0.15) type = (Math.random() < 0.5 ? "parity" : "dir");
+    else type = "dir";
+
+    if (type === "parity" && p.parity) {
+      var correct = p.parity;
+      var opts = shuffle([
+        { t: correct + "", ok: true },
+        { t: (correct + 2) + "", ok: false },
+        { t: (correct - 1) + "", ok: false },
+        { t: "It never reaches parity", ok: false }
+      ]);
+      return {
+        text: "The latest gap is " + p.latestGap + "pp and it is closing by about " +
+              Math.abs(Math.round(p.slope * 10) / 10) + "pp a year. In which year is parity projected?",
+        opts: opts,
+        why: "Parity year = " + p.lastYear + " + (" + p.latestGap + " &divide; " +
+             (Math.round(p.closingRate * 10) / 10) + "), rounded up to a whole year, giving " + correct + "."
+      };
+    }
+    // direction question
+    var dirCorrect;
+    if (p.latestGap <= 0) dirCorrect = "The gap has closed to parity";
+    else if (p.slope < -0.15) dirCorrect = "Narrowing";
+    else if (p.slope > 0.15) dirCorrect = "Widening";
+    else dirCorrect = "Broadly flat";
+    var pool = ["Narrowing", "Widening", "Broadly flat", "The gap has closed to parity"];
+    var opts2 = shuffle(pool.map(function (t) { return { t: t, ok: t === dirCorrect }; }));
+    return {
+      text: "Looking at the whole trend from " + YEARS[0] + " to " + YEARS[YEARS.length - 1] +
+            " (gap went from " + g[0] + "pp to " + g[g.length - 1] + "pp), how is the gap moving?",
+      opts: opts2,
+      why: dirCorrect === "Broadly flat"
+        ? "The gap barely changes across the years, so it is broadly flat: under 0.15pp average change per year."
+        : "The average change per year is " + fmtSigned(p.slope) + "pp, so the trend is best described as " +
+          dirCorrect.toLowerCase() + "."
+    };
+  }
+
+  function shuffle(a) {
+    a = a.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function newQuestion() {
+    currentQ = buildQuestion();
+    renderQuestion();
+  }
+
+  function renderQuestion() {
+    quizBox.innerHTML = "";
+    var q = document.createElement("p");
+    q.style.fontWeight = "600";
+    q.innerHTML = currentQ.text;
+    quizBox.appendChild(q);
+
+    var fb = document.createElement("div");
+    fb.setAttribute("role", "status");
+    fb.setAttribute("aria-live", "polite");
+
+    currentQ.opts.forEach(function (o) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.style.display = "block";
+      b.style.width = "100%";
+      b.style.textAlign = "left";
+      b.style.marginBottom = "6px";
+      b.innerHTML = o.t;
+      b.addEventListener("click", function () {
+        var all = quizBox.querySelectorAll("button");
+        for (var i = 0; i < all.length; i++) all[i].disabled = true;
+        if (o.ok) {
+          b.style.background = "#eef8f1";
+          b.style.borderColor = "var(--good)";
+          fb.className = "verdict good";
+          fb.innerHTML = "<strong>Correct.</strong> " + currentQ.why;
+        } else {
+          b.style.background = "#fbeeec";
+          b.style.borderColor = "var(--bad)";
+          fb.className = "verdict bad";
+          fb.innerHTML = "<strong>Not quite.</strong> " + currentQ.why;
+          // highlight the right one
+          for (var k = 0; k < all.length; k++) {
+            if (currentQ.opts[k] && currentQ.opts[k].ok) {
+              all[k].style.background = "#eef8f1";
+              all[k].style.borderColor = "var(--good)";
+            }
+          }
+        }
+        var again = document.createElement("button");
+        again.type = "button";
+        again.className = "primary";
+        again.style.marginTop = "8px";
+        again.textContent = "New question";
+        again.addEventListener("click", newQuestion);
+        fb.appendChild(document.createElement("br"));
+        fb.appendChild(again);
+      });
+      quizBox.appendChild(b);
+    });
+    quizBox.appendChild(fb);
+  }
+
+  function announceQuizContext() { /* reserved for future live cues */ }
+
+  // ---- Scenario buttons --------------------------------------------------
+  document.querySelectorAll("[data-scn]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var scn = btn.getAttribute("data-scn");
+      dis = SCENARIOS[scn].slice();
+      selected = YEARS.length - 1;
+      render();
+      newQuestion();
+    });
+  });
+
+  // ---- Init --------------------------------------------------------------
+  buildSliders();
+  render();
+  newQuestion();
+
+})();
+</script>
+</body>
+</html>

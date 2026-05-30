@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clay Studio 3D</title>
+<style>
+  :root {
+    --clay: #c97c5d;
+    --clay-dark: #9a5538;
+    --clay-light: #e0a888;
+    --ink: #2a2118;
+    --paper: #faf5ee;
+    --panel: #ffffff;
+    --line: #e3d7c8;
+    --accent: #3a7d6e;
+    --accent-dark: #2a5d52;
+    --warn: #b3541e;
+    --shadow: 0 2px 10px rgba(70,45,25,0.12);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.5;
+  }
+  header {
+    background: linear-gradient(135deg, var(--clay-dark), var(--clay));
+    color: #fff;
+    padding: 18px 20px 16px;
+    box-shadow: var(--shadow);
+  }
+  header h1 {
+    margin: 0;
+    font-size: clamp(1.4rem, 3.5vw, 2.1rem);
+    letter-spacing: 0.5px;
+  }
+  header .aim {
+    margin: 6px 0 0;
+    font-size: clamp(0.85rem, 2vw, 1rem);
+    opacity: 0.95;
+    max-width: 70ch;
+  }
+  header .strand {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 0.78rem;
+    background: rgba(255,255,255,0.2);
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 18px 16px 60px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  @media (min-width: 920px) {
+    .wrap { grid-template-columns: 1.25fr 1fr; align-items: start; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .panel h2 {
+    margin: 0 0 10px;
+    font-size: 1.1rem;
+    color: var(--clay-dark);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .stage-wrap {
+    position: relative;
+    background: radial-gradient(circle at 50% 35%, #fff8f1, #efe2d2);
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  canvas#pot {
+    display: block;
+    width: 100%;
+    height: auto;
+    touch-action: none;
+    cursor: grab;
+  }
+  canvas#pot:active { cursor: grabbing; }
+  .rotate-hint {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.78rem;
+    color: var(--clay-dark);
+    background: rgba(255,255,255,0.82);
+    padding: 3px 12px;
+    border-radius: 20px;
+    pointer-events: none;
+  }
+  .controls {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .tool-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    padding: 9px 13px;
+    border-radius: 10px;
+    transition: transform 0.08s, background 0.15s, border-color 0.15s;
+  }
+  button:hover { background: #fbf3ea; }
+  button:active { transform: translateY(1px); }
+  button:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  button.tool {
+    flex: 1 1 30%;
+    min-width: 110px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 11px 12px;
+  }
+  button.tool .t-name { font-weight: 700; font-size: 0.98rem; }
+  button.tool .t-sub { font-size: 0.74rem; color: #7a6a58; }
+  button.tool[aria-pressed="true"] {
+    background: var(--clay);
+    border-color: var(--clay-dark);
+    color: #fff;
+  }
+  button.tool[aria-pressed="true"] .t-sub { color: rgba(255,255,255,0.9); }
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent-dark);
+    font-weight: 600;
+  }
+  button.primary:hover { background: var(--accent-dark); }
+  button.ghost {
+    background: transparent;
+  }
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 6px 0;
+    font-size: 0.9rem;
+  }
+  .slider-row label { min-width: 88px; }
+  input[type=range] {
+    flex: 1;
+    accent-color: var(--clay);
+    height: 26px;
+  }
+  input[type=range]:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+  }
+  .feedback {
+    margin-top: 4px;
+    background: #f4efe7;
+    border-left: 5px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 14px;
+    min-height: 64px;
+    font-size: 0.95rem;
+  }
+  .feedback strong { color: var(--accent-dark); }
+  .feedback.warn { border-left-color: var(--warn); }
+  .feedback.warn strong { color: var(--warn); }
+  .feedback.win { border-left-color: var(--clay); background: #f7ece2; }
+  .feedback.win strong { color: var(--clay-dark); }
+  .step-track {
+    display: flex;
+    gap: 6px;
+    margin: 4px 0 14px;
+  }
+  .step-track .dot {
+    flex: 1;
+    height: 8px;
+    border-radius: 6px;
+    background: var(--line);
+  }
+  .step-track .dot.on { background: var(--clay); }
+  .step-track .dot.done { background: var(--accent); }
+  .technique-card {
+    background: #f9f4ed;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .technique-card h3 {
+    margin: 0 0 4px;
+    font-size: 1rem;
+    color: var(--clay-dark);
+  }
+  .technique-card p { margin: 0; font-size: 0.9rem; }
+  .checklist {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    font-size: 0.92rem;
+  }
+  .checklist li {
+    padding: 5px 0 5px 28px;
+    position: relative;
+  }
+  .checklist li::before {
+    content: '\25CB';
+    position: absolute;
+    left: 4px;
+    top: 4px;
+    color: #b8a78f;
+    font-size: 1rem;
+  }
+  .checklist li.done::before {
+    content: '\2713';
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .checklist li.done { color: #6a7a5f; }
+  .stat-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+    font-size: 0.82rem;
+    color: #6a5a48;
+  }
+  .stat-row .pill {
+    background: #f1e9de;
+    border-radius: 20px;
+    padding: 3px 11px;
+  }
+  .vh {
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  footer {
+    text-align: center;
+    font-size: 0.78rem;
+    color: #8a7a66;
+    padding: 0 16px 30px;
+  }
+  .kbd {
+    font-family: monospace;
+    background: #efe6d9;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-size: 0.82rem;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header>
+  <h1>&#x1FAB4; Clay Studio 3D</h1>
+  <p class="aim"><strong>Teacher aim:</strong> pupils build a virtual pot using the three hand-building methods, pinch, coil and slab, then rotate it a full 360 degrees to see how a three-dimensional form is constructed.</p>
+  <span class="strand">Art &amp; Design, KS2: painting, printmaking, sculpture and textiles techniques</span>
+</header>
+
+<div class="wrap">
+
+  <section class="panel" aria-label="Pottery wheel">
+    <h2>&#x1F504; The potter's wheel</h2>
+    <div class="step-track" id="stepTrack" aria-hidden="true">
+      <div class="dot on"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+
+    <div class="stage-wrap">
+      <canvas id="pot" width="640" height="520"
+        role="img" tabindex="0"
+        aria-label="A virtual clay pot you can build and rotate. Use the tools to add clay, then drag left or right or press the arrow keys to turn it around.">
+      </canvas>
+      <div class="rotate-hint" id="rotateHint">Drag the pot left or right to turn it</div>
+    </div>
+
+    <div class="controls" role="group" aria-label="Pot controls">
+      <button class="primary" id="addBtn">Add clay to the pot</button>
+      <button class="ghost" id="spinBtn" aria-pressed="false">Spin to inspect</button>
+      <button class="ghost" id="resetBtn">Start a new pot</button>
+    </div>
+
+    <div class="slider-row">
+      <label for="rotateRange">Turn pot</label>
+      <input type="range" id="rotateRange" min="0" max="360" value="0" step="2"
+        aria-label="Rotate the pot from 0 to 360 degrees" aria-valuetext="0 degrees">
+      <span id="degReadout" aria-hidden="true">0&#xB0;</span>
+    </div>
+
+    <div class="stat-row" aria-hidden="true">
+      <span class="pill" id="layerStat">Layers: 0</span>
+      <span class="pill" id="techStat">Last method: none</span>
+      <span class="pill" id="heightStat">Height: empty</span>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Making techniques and guidance">
+    <h2>&#x1F590; Choose a making method</h2>
+
+    <div class="tool-group" role="group" aria-label="Hand-building techniques">
+      <button class="tool" data-tool="pinch" aria-pressed="true">
+        <span class="t-name">&#x1F90F; Pinch</span>
+        <span class="t-sub">Press a thumb in and pinch the walls</span>
+      </button>
+      <button class="tool" data-tool="coil" aria-pressed="false">
+        <span class="t-name">&#x1F35C; Coil</span>
+        <span class="t-sub">Roll a snake of clay and wind it round</span>
+      </button>
+      <button class="tool" data-tool="slab" aria-pressed="false">
+        <span class="t-name">&#x1F9F1; Slab</span>
+        <span class="t-sub">Cut a flat sheet and join the edges</span>
+      </button>
+    </div>
+
+    <div class="technique-card" id="techCard">
+      <h3 id="techTitle">Pinch pot</h3>
+      <p id="techText">Start at the base. Press your thumb into a ball of clay, then pinch and turn to open out the walls. Good for small, rounded pots.</p>
+    </div>
+
+    <div class="slider-row">
+      <label for="thickRange">Wall control</label>
+      <input type="range" id="thickRange" min="0" max="100" value="55" step="1"
+        aria-label="How firmly you work the clay, thin to thick walls" aria-valuetext="balanced">
+    </div>
+
+    <div class="feedback" id="feedback" role="status" aria-live="polite">
+      <strong>Ready to begin.</strong> Pick a method, set your wall control, then press <em>Add clay to the pot</em>. Watch the form grow, then spin it to check every side.
+    </div>
+
+    <h2 style="margin-top:16px;">&#x2705; Potter's checklist</h2>
+    <ul class="checklist" id="checklist">
+      <li data-key="pinch">Use the pinch method</li>
+      <li data-key="coil">Use the coil method</li>
+      <li data-key="slab">Use the slab method</li>
+      <li data-key="tall">Build the pot at least 5 layers tall</li>
+      <li data-key="even">Keep your walls even (good wall control)</li>
+      <li data-key="spin">Rotate the pot a full 360 degrees</li>
+    </ul>
+  </section>
+
+</div>
+
+<footer>
+  Clay Studio 3D. A demonstration teaching tool for WeST. All work shown is imaginary; no real pupil work is stored.
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("pot");
+  var ctx = canvas.getContext("2d");
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+  // Logical drawing size
+  var W = 640, H = 520;
+
+  function fitCanvas() {
+    var cssW = canvas.clientWidth || W;
+    var scale = cssW / W;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.height = (H * scale) + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    draw();
+  }
+
+  // ---- State ----
+  var state = {
+    tool: "pinch",
+    thick: 0.55,          // 0 thin .. 1 thick
+    angle: 0,             // degrees rotation
+    spinning: false,
+    layers: []            // each: { method, radius, thick }
+  };
+
+  var used = { pinch: false, coil: false, slab: false, spin: false };
+
+  var techInfo = {
+    pinch: {
+      title: "Pinch pot",
+      text: "Start at the base. Press your thumb into a ball of clay, then pinch and turn to open out the walls. Good for small, rounded pots."
+    },
+    coil: {
+      title: "Coil pot",
+      text: "Roll a long snake of clay, then wind it round and round, smoothing each ring onto the last. Good for tall pots."
+    },
+    slab: {
+      title: "Slab pot",
+      text: "Roll a flat sheet of clay, cut it to shape and score and join the edges with slip. Good for straight-sided pots and boxes."
+    }
+  };
+
+  // ---- Tool selection ----
+  var toolBtns = Array.prototype.slice.call(document.querySelectorAll(".tool"));
+  toolBtns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      selectTool(b.getAttribute("data-tool"));
+    });
+  });
+
+  function selectTool(t) {
+    state.tool = t;
+    toolBtns.forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-tool") === t ? "true" : "false");
+    });
+    document.getElementById("techTitle").textContent = techInfo[t].title;
+    document.getElementById("techText").textContent = techInfo[t].text;
+  }
+
+  // ---- Wall control slider ----
+  var thickRange = document.getElementById("thickRange");
+  thickRange.addEventListener("input", function () {
+    state.thick = parseInt(thickRange.value, 10) / 100;
+    var word = state.thick < 0.33 ? "thin walls" : state.thick > 0.7 ? "thick walls" : "balanced";
+    thickRange.setAttribute("aria-valuetext", word);
+  });
+
+  // ---- Add clay ----
+  document.getElementById("addBtn").addEventListener("click", addLayer);
+
+  function addLayer() {
+    var method = state.tool;
+    // base radius depends on method, thickness modifies wall feel
+    var n = state.layers.length;
+    var baseR;
+    if (method === "pinch") baseR = 78 + Math.sin(n * 0.7) * 10;
+    else if (method === "coil") baseR = 70 - n * 1.5;     // coil narrows as it rises
+    else baseR = 64;                                       // slab: straight sides
+    // thickness slightly fattens the wall radius
+    baseR += (state.thick - 0.5) * 16;
+    if (baseR < 30) baseR = 30;
+
+    state.layers.push({ method: method, radius: baseR, thick: state.thick });
+    used[method] = true;
+
+    setFeedback(method);
+    updateStats();
+    updateChecklist();
+    bumpStep();
+    draw();
+  }
+
+  function bumpStep() {
+    var dots = document.querySelectorAll("#stepTrack .dot");
+    var distinct = (used.pinch ? 1 : 0) + (used.coil ? 1 : 0) + (used.slab ? 1 : 0);
+    dots.forEach(function (d, i) {
+      d.className = "dot" + (i < distinct ? " done" : (i === distinct ? " on" : ""));
+    });
+  }
+
+  // ---- Feedback engine: specific to method + wall control + height ----
+  function setFeedback(method) {
+    var fb = document.getElementById("feedback");
+    var n = state.layers.length;
+    var cls = "feedback";
+    var msg = "";
+
+    var methodName = { pinch: "pinched", coil: "coiled", slab: "added a slab to" }[method];
+
+    if (state.thick < 0.25) {
+      cls = "feedback warn";
+      msg = "<strong>Walls are very thin.</strong> You " + methodName + " the pot, but thin walls can collapse or crack in the kiln. Nudge the wall control up a little.";
+    } else if (state.thick > 0.82) {
+      cls = "feedback warn";
+      msg = "<strong>Walls are quite thick.</strong> You " + methodName + " a sturdy layer, but very thick clay traps air and can explode when fired. Ease the wall control down.";
+    } else {
+      cls = "feedback win";
+      msg = "<strong>Nicely done.</strong> You " + methodName + " a layer with even walls. ";
+      if (method === "coil") msg += "Remember to smooth each coil onto the one below so the rings join.";
+      else if (method === "slab") msg += "Score and add slip where slab edges meet so they bond.";
+      else msg += "Keep turning the pot as you pinch so the rim stays level.";
+    }
+
+    if (n >= 7) {
+      msg += " Your pot is getting tall, that is " + n + " layers of clay built up.";
+    } else if (n >= 4) {
+      msg += " The form is taking shape, " + n + " layers so far.";
+    }
+
+    fb.className = cls;
+    fb.innerHTML = msg;
+  }
+
+  // ---- Stats ----
+  function updateStats() {
+    var n = state.layers.length;
+    document.getElementById("layerStat").textContent = "Layers: " + n;
+    var last = n ? state.layers[n - 1].method : "none";
+    document.getElementById("techStat").textContent = "Last method: " + last;
+    var hWord = n === 0 ? "empty" : n < 3 ? "low" : n < 6 ? "medium" : "tall";
+    document.getElementById("heightStat").textContent = "Height: " + hWord;
+  }
+
+  // ---- Checklist ----
+  function evenWalls() {
+    // walls "even" if at least 3 layers all in the balanced band
+    var bal = state.layers.filter(function (l) { return l.thick >= 0.25 && l.thick <= 0.82; });
+    return bal.length >= 3;
+  }
+
+  function updateChecklist() {
+    var checks = {
+      pinch: used.pinch,
+      coil: used.coil,
+      slab: used.slab,
+      tall: state.layers.length >= 5,
+      even: evenWalls(),
+      spin: used.spin
+    };
+    var done = 0, total = 0;
+    document.querySelectorAll("#checklist li").forEach(function (li) {
+      total++;
+      var key = li.getAttribute("data-key");
+      if (checks[key]) { li.classList.add("done"); done++; }
+      else li.classList.remove("done");
+    });
+    if (done === total && total > 0 && !state._allDone) {
+      state._allDone = true;
+      var fb = document.getElementById("feedback");
+      fb.className = "feedback win";
+      fb.innerHTML = "<strong>Master potter!</strong> You used all three hand-building methods, built a tall pot with even walls, and inspected it from every side. You have shown how a 3D form is constructed.";
+    } else if (done < total) {
+      state._allDone = false;
+    }
+  }
+
+  // ---- Rotation ----
+  var rotateRange = document.getElementById("rotateRange");
+  var degReadout = document.getElementById("degReadout");
+  var maxSpunReach = 0;   // tracks how far round we have turned
+
+  rotateRange.addEventListener("input", function () {
+    setAngle(parseInt(rotateRange.value, 10), true);
+  });
+
+  function setAngle(a, fromSlider) {
+    a = ((a % 360) + 360) % 360;
+    state.angle = a;
+    if (!fromSlider) rotateRange.value = a;
+    degReadout.textContent = a + "°";
+    rotateRange.setAttribute("aria-valuetext", a + " degrees");
+    trackSpin(a);
+    draw();
+  }
+
+  // Track that the user has covered a full turn
+  var visited = new Set();
+  function trackSpin(a) {
+    if (state.layers.length === 0) return;
+    visited.add(Math.floor(a / 45)); // 8 sectors
+    if (visited.size >= 8 && !used.spin) {
+      used.spin = true;
+      updateChecklist();
+      var fb = document.getElementById("feedback");
+      if (!state._allDone) {
+        fb.className = "feedback win";
+        fb.innerHTML = "<strong>Full 360 turn complete.</strong> You have seen every side of your pot. This is how artists check a sculpture works in the round, not just from the front.";
+      }
+    }
+  }
+
+  // ---- Auto spin ----
+  var spinBtn = document.getElementById("spinBtn");
+  var spinTimer = null;
+  spinBtn.addEventListener("click", function () {
+    state.spinning = !state.spinning;
+    spinBtn.setAttribute("aria-pressed", state.spinning ? "true" : "false");
+    spinBtn.textContent = state.spinning ? "Stop spinning" : "Spin to inspect";
+    if (state.spinning) {
+      spinTimer = setInterval(function () {
+        setAngle(state.angle + 4);
+      }, 40);
+    } else {
+      clearInterval(spinTimer);
+    }
+  });
+
+  // ---- Reset ----
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    state.layers = [];
+    state.angle = 0;
+    state._allDone = false;
+    used = { pinch: false, coil: false, slab: false, spin: false };
+    visited = new Set();
+    rotateRange.value = 0;
+    setAngle(0);
+    updateStats();
+    updateChecklist();
+    bumpStep();
+    var fb = document.getElementById("feedback");
+    fb.className = "feedback";
+    fb.innerHTML = "<strong>Fresh ball of clay.</strong> Pick a method and start building again.";
+    draw();
+  });
+
+  // ---- Pointer drag to rotate ----
+  var dragging = false, lastX = 0;
+  canvas.addEventListener("pointerdown", function (e) {
+    dragging = true;
+    lastX = e.clientX;
+    canvas.setPointerCapture(e.pointerId);
+    document.getElementById("rotateHint").style.opacity = "0";
+  });
+  canvas.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    var dx = e.clientX - lastX;
+    lastX = e.clientX;
+    setAngle(state.angle + dx * 0.6);
+  });
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+  }
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
+
+  // ---- Keyboard ----
+  canvas.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowLeft") { setAngle(state.angle - 8); e.preventDefault(); }
+    else if (e.key === "ArrowRight") { setAngle(state.angle + 8); e.preventDefault(); }
+    else if (e.key === "Enter" || e.key === " ") { addLayer(); e.preventDefault(); }
+  });
+
+  // ---- Drawing the pot ----
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // turntable shadow
+    var cx = W / 2;
+    var baseY = H - 80;
+    ctx.save();
+    ctx.fillStyle = "rgba(120,90,60,0.12)";
+    ctx.beginPath();
+    ctx.ellipse(cx, baseY + 14, 130, 26, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // turntable
+    ctx.fillStyle = "#d8c7b0";
+    ctx.strokeStyle = "#bda988";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(cx, baseY + 6, 120, 24, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    if (state.layers.length === 0) {
+      ctx.fillStyle = "#a8967c";
+      ctx.font = "16px Segoe UI, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Empty wheel. Press “Add clay” to begin.", cx, baseY - 110);
+      // a small ball of clay
+      var g = ctx.createRadialGradient(cx - 8, baseY - 24, 4, cx, baseY - 14, 34);
+      g.addColorStop(0, "#e0a888");
+      g.addColorStop(1, "#9a5538");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(cx, baseY - 8, 30, 22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    var rad = state.angle * Math.PI / 180;
+    // perspective squash of the ellipses (how "open" the top reads as we rotate)
+    var ellH = 0.30; // vertical squash for rings
+
+    var layerH = 26;
+    var nLayers = state.layers.length;
+
+    // Draw from bottom up
+    for (var i = 0; i < nLayers; i++) {
+      var L = state.layers[i];
+      var y = baseY - i * layerH;
+      var yTop = y - layerH;
+      var r = L.radius;
+
+      // wall colour by method so techniques are visually distinct
+      var col = methodColour(L.method, i, nLayers);
+
+      // side wall as a band between this ring and the next
+      var rNext = (i + 1 < nLayers) ? state.layers[i + 1].radius : r * 0.94;
+      drawBand(cx, y, yTop, r, rNext, ellH, col, rad, L);
+    }
+
+    // top rim (opening of the pot)
+    var topL = state.layers[nLayers - 1];
+    var topY = baseY - (nLayers) * layerH + layerH;
+    var topR = topL.radius * 0.96;
+    // outer rim
+    ctx.fillStyle = "#7e4a30";
+    ctx.beginPath();
+    ctx.ellipse(cx, topY - layerH + 6, topR, topR * ellH, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // inner hollow
+    var inner = topR * (0.55 + (1 - topL.thick) * 0.18);
+    ctx.fillStyle = "#5a3621";
+    ctx.beginPath();
+    ctx.ellipse(cx, topY - layerH + 6, inner, inner * ellH, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // rotation marker: a painted stripe that moves round as it spins,
+    // so children can SEE the 360 turn happening
+    drawSpinMark(cx, baseY, nLayers, layerH, rad, ellH);
+
+    // shadow side shading hint depending on angle
+  }
+
+  function methodColour(method, i, n) {
+    // base hues per method, lit/shaded
+    var base;
+    if (method === "pinch") base = [201, 124, 93];
+    else if (method === "coil") base = [180, 110, 78];
+    else base = [165, 120, 86];
+    return base;
+  }
+
+  function drawBand(cx, yBottom, yTop, rB, rT, ellH, col, rad, L) {
+    // lateral shading: lighter on the side facing the "light" (left), darker on right.
+    // We simulate rotation lighting by shifting the highlight horizontally with angle.
+    var light = Math.cos(rad);       // -1..1
+    var lightShift = light * 0.35 + 0.5;
+
+    var grad = ctx.createLinearGradient(cx - rB, 0, cx + rB, 0);
+    var lit = "rgb(" + Math.min(255, col[0] + 45) + "," + Math.min(255, col[1] + 35) + "," + Math.min(255, col[2] + 30) + ")";
+    var mid = "rgb(" + col[0] + "," + col[1] + "," + col[2] + ")";
+    var dark = "rgb(" + Math.max(0, col[0] - 55) + "," + Math.max(0, col[1] - 45) + "," + Math.max(0, col[2] - 35) + ")";
+    var p = Math.max(0.05, Math.min(0.95, lightShift));
+    grad.addColorStop(0, dark);
+    grad.addColorStop(Math.max(0.06, p - 0.3), mid);
+    grad.addColorStop(p, lit);
+    grad.addColorStop(Math.min(0.94, p + 0.3), mid);
+    grad.addColorStop(1, dark);
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    // outer profile: bottom ring left -> up to top ring left -> across top -> down right
+    ctx.moveTo(cx - rB, yBottom);
+    ctx.lineTo(cx - rT, yTop);
+    ctx.ellipse(cx, yTop, rT, rT * ellH, 0, Math.PI, 0, true);
+    ctx.lineTo(cx + rB, yBottom);
+    ctx.ellipse(cx, yBottom, rB, rB * ellH, 0, 0, Math.PI, false);
+    ctx.closePath();
+    ctx.fill();
+
+    // method texture lines on the wall
+    drawTexture(cx, yBottom, yTop, rB, rT, ellH, L.method, rad);
+  }
+
+  function drawTexture(cx, yB, yT, rB, rT, ellH, method, rad) {
+    ctx.save();
+    ctx.lineWidth = 1.4;
+    if (method === "coil") {
+      // a horizontal coil ring across the band
+      ctx.strokeStyle = "rgba(90,55,33,0.45)";
+      var ym = (yB + yT) / 2;
+      var rm = (rB + rT) / 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, ym, rm, rm * ellH, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (method === "slab") {
+      // vertical seam lines suggesting joined slabs
+      ctx.strokeStyle = "rgba(80,50,30,0.4)";
+      [-0.55, 0, 0.55].forEach(function (f) {
+        var off = Math.sin(rad + f * 2) * rB;  // moves with rotation
+        if (Math.abs(off) < rB - 4) {
+          ctx.beginPath();
+          ctx.moveTo(cx + off, yB);
+          ctx.lineTo(cx + off, yT);
+          ctx.stroke();
+        }
+      });
+    } else {
+      // pinch: small dimple marks
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      for (var k = -2; k <= 2; k++) {
+        var fx = (k / 3) ;
+        var px = cx + fx * rB * 0.8;
+        var py = (yB + yT) / 2 + Math.sin(k + rad) * 3;
+        ctx.beginPath();
+        ctx.ellipse(px, py, 4, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawSpinMark(cx, baseY, nLayers, layerH, rad, ellH) {
+    // a small painted dot on the surface that orbits as the pot turns,
+    // disappearing round the back, so the 360 rotation is unmistakable.
+    var midLayer = Math.floor(nLayers / 2);
+    var L = state.layers[midLayer];
+    var y = baseY - midLayer * layerH - layerH / 2;
+    var r = L.radius;
+    var x = cx + Math.sin(rad) * r;          // horizontal orbit
+    var depth = Math.cos(rad);               // +1 front, -1 back
+    if (depth > -0.15) {                      // only draw when on the near side
+      var size = 5 + depth * 3;
+      var alpha = 0.35 + (depth + 1) / 2 * 0.55;
+      ctx.fillStyle = "rgba(58,125,110," + alpha.toFixed(2) + ")";
+      ctx.beginPath();
+      ctx.ellipse(x, y, size, size, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      ctx.beginPath();
+      ctx.ellipse(x - 1, y - 1, size * 0.4, size * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ---- Init ----
+  selectTool("pinch");
+  updateStats();
+  updateChecklist();
+  window.addEventListener("resize", fitCanvas);
+  fitCanvas();
+
+})();
+</script>
+</body>
+</html>

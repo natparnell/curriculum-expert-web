@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Population and Resources Modeller &middot; KS5 Geography</title>
+<style>
+  :root {
+    --ink: #16242e;
+    --paper: #f4f1ea;
+    --card: #ffffff;
+    --line: #d8d2c4;
+    --accent: #1d6b6b;
+    --accent-dark: #134a4a;
+    --malthus: #b3392f;
+    --boserup: #2f6fb3;
+    --food: #d98a1f;
+    --good: #2e7d4f;
+    --warn: #b3392f;
+    --muted: #5a6b72;
+    --shadow: 0 2px 14px rgba(20,40,50,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.page {
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+  }
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  h1 { font-size: 1.7rem; margin: 4px 0 6px; line-height: 1.15; }
+  .aim {
+    background: #eef4f0;
+    border-left: 4px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 8px 8px 0;
+    font-size: 0.95rem;
+    color: var(--accent-dark);
+    margin-top: 10px;
+  }
+  .aim strong { color: var(--ink); }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  @media (min-width: 880px) {
+    .grid { grid-template-columns: 360px 1fr; align-items: start; }
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 16px 16px 18px;
+  }
+  .panel h2 {
+    font-size: 1.02rem;
+    margin: 0 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel h2 .dot { font-size: 1.1rem; }
+  .control { margin-bottom: 18px; }
+  .control:last-child { margin-bottom: 6px; }
+  .control .lab {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .control .val {
+    font-variant-numeric: tabular-nums;
+    background: var(--ink);
+    color: #fff;
+    padding: 1px 8px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+  }
+  .control .help {
+    font-size: 0.76rem;
+    color: var(--muted);
+    margin: 2px 0 6px;
+  }
+  input[type="range"] {
+    width: 100%;
+    margin: 0;
+    accent-color: var(--accent);
+    height: 26px;
+    touch-action: pan-y;
+  }
+  .seg {
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    overflow: hidden;
+  }
+  .seg button {
+    flex: 1;
+    border: none;
+    background: #fff;
+    padding: 10px 6px;
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.84rem;
+    cursor: pointer;
+    color: var(--muted);
+    border-right: 1px solid var(--line);
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button[aria-pressed="true"].malthus { background: var(--malthus); color: #fff; }
+  .seg button[aria-pressed="true"].boserup { background: var(--boserup); color: #fff; }
+  .seg button:focus-visible { outline: 3px solid #000; outline-offset: -3px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .btn {
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    padding: 9px 14px;
+    border-radius: 8px;
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .btn.ghost { background: #fff; color: var(--accent); }
+  .btn:focus-visible { outline: 3px solid #000; outline-offset: 2px; }
+  .btn:active { transform: translateY(1px); }
+
+  .chartcard { padding-bottom: 8px; }
+  .chart-head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.8rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .swatch { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
+  .swatch.cap { height: 0; border-top: 3px dashed var(--food); }
+  svg.chart { width: 100%; height: auto; display: block; touch-action: none; background: #fcfbf8; border-radius: 8px; }
+
+  .readout {
+    margin-top: 14px;
+    border-radius: 10px;
+    padding: 14px 15px;
+    border: 1px solid var(--line);
+    background: #fbfaf6;
+  }
+  .readout.boserup-tone { border-color: #bcd2ec; background: #f1f6fc; }
+  .readout.malthus-tone { border-color: #e8c4c0; background: #fcf2f1; }
+  .readout h3 { margin: 0 0 6px; font-size: 1.0rem; }
+  .verdict {
+    font-weight: 700;
+    font-size: 0.92rem;
+    margin-bottom: 6px;
+  }
+  .verdict.good { color: var(--good); }
+  .verdict.warn { color: var(--warn); }
+  .readout p { margin: 6px 0; font-size: 0.9rem; }
+  .stat-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin: 12px 0 4px;
+  }
+  .stat {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 6px;
+    text-align: center;
+  }
+  .stat .n { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  details.theory {
+    margin-top: 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+  }
+  details.theory summary {
+    cursor: pointer;
+    font-weight: 600;
+    padding: 12px 14px;
+    font-size: 0.92rem;
+    list-style: none;
+  }
+  details.theory summary::-webkit-details-marker { display: none; }
+  details.theory summary::before { content: '\25B8'; display: inline-block; margin-right: 8px; color: var(--accent); }
+  details.theory[open] summary::before { content: '\25BE'; }
+  details.theory .body { padding: 0 14px 14px; font-size: 0.88rem; }
+  details.theory table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  details.theory th, details.theory td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  details.theory th { background: #f4f1ea; font-size: 0.78rem; }
+  details.theory td.m { color: var(--malthus); font-weight: 600; }
+  details.theory td.b { color: var(--boserup); font-weight: 600; }
+
+  .challenge {
+    margin-top: 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    padding: 14px 15px;
+  }
+  .challenge h3 { margin: 0 0 4px; font-size: 0.98rem; }
+  .challenge .task { font-size: 0.88rem; color: var(--ink); }
+  .challenge .feedback { font-size: 0.86rem; margin-top: 8px; min-height: 1.2em; }
+  .challenge .feedback.ok { color: var(--good); font-weight: 600; }
+  .challenge .feedback.no { color: var(--warn); font-weight: 600; }
+  .challenge .btn-row { margin-top: 10px; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  footer.foot { margin-top: 26px; font-size: 0.78rem; color: var(--muted); text-align: center; }
+  .pill { display: inline-block; font-size: 0.7rem; background: #e7efe9; color: var(--accent-dark); padding: 2px 9px; border-radius: 20px; font-weight: 600; }
+</style>
+</head>
+<body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="page">
+    <div class="eyebrow">KS5 Geography &middot; Population, environment and resources</div>
+    <h1>Population and Resources Modeller</h1>
+    <span class="pill">Malthus vs Boserup</span>
+    <div class="aim">
+      <strong>Teaching aim:</strong> model how population growth, technology and the resource base interact, then test whether outcomes follow Malthus (a ceiling and a crisis) or Boserup (necessity drives innovation). Adjust the drivers, read the carrying capacity, and explain the divergence.
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- ===================== CONTROLS ===================== -->
+    <section class="panel" aria-labelledby="ctrl-h">
+      <h2 id="ctrl-h"><span class="dot" aria-hidden="true">&#x2699;&#xFE0F;</span> Set the drivers</h2>
+
+      <div class="control">
+        <div class="lab"><label for="theory">Theoretical lens</label></div>
+        <div class="help">Malthus: food rises arithmetically while population rises geometrically. Boserup: population pressure forces agricultural innovation.</div>
+        <div class="seg" role="group" aria-label="Choose theoretical lens">
+          <button id="btn-malthus" class="malthus" aria-pressed="true" type="button">Malthus</button>
+          <button id="btn-boserup" class="boserup" aria-pressed="false" type="button">Boserup</button>
+        </div>
+      </div>
+
+      <div class="control">
+        <div class="lab"><label for="pop">Starting population</label><span class="val" id="pop-val">12.0 m</span></div>
+        <input type="range" id="pop" min="2" max="40" step="0.5" value="12" aria-describedby="pop-help">
+        <div class="help" id="pop-help">Initial population of the region, in millions.</div>
+      </div>
+
+      <div class="control">
+        <div class="lab"><label for="growth">Population growth rate</label><span class="val" id="growth-val">2.4% / yr</span></div>
+        <input type="range" id="growth" min="0" max="4" step="0.1" value="2.4" aria-describedby="growth-help">
+        <div class="help" id="growth-help">Annual natural increase. Higher rates raise demand faster.</div>
+      </div>
+
+      <div class="control">
+        <div class="lab"><label for="tech">Technology and innovation</label><span class="val" id="tech-val">Level 3</span></div>
+        <input type="range" id="tech" min="1" max="10" step="1" value="3" aria-describedby="tech-help">
+        <div class="help" id="tech-help">Farming intensity: irrigation, fertiliser, mechanisation, crop science. Lifts how much each hectare yields.</div>
+      </div>
+
+      <div class="control">
+        <div class="lab"><label for="resource">Resource base</label><span class="val" id="resource-val">Level 6</span></div>
+        <input type="range" id="resource" min="1" max="10" step="1" value="6" aria-describedby="resource-help">
+        <div class="help" id="resource-help">Quality and extent of land, water and soil before degradation.</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn ghost" id="reset" type="button">Reset drivers</button>
+        <button class="btn ghost" id="speak" type="button">Read verdict aloud</button>
+      </div>
+    </section>
+
+    <!-- ===================== OUTPUT ===================== -->
+    <section class="panel chartcard" aria-labelledby="chart-h">
+      <div class="chart-head">
+        <h2 id="chart-h"><span class="dot" aria-hidden="true">&#x1F4C8;</span> Projected outcome over 50 years</h2>
+        <div class="legend" aria-hidden="true">
+          <span><span class="swatch" style="background:var(--accent)"></span>Population</span>
+          <span><span class="swatch" style="background:var(--food)"></span>Food supply</span>
+          <span><span class="swatch cap"></span>Carrying capacity</span>
+        </div>
+      </div>
+
+      <svg class="chart" id="chart" viewBox="0 0 700 360" role="img"
+           aria-labelledby="chart-title chart-desc" tabindex="0">
+        <title id="chart-title">Population and food supply projection</title>
+        <desc id="chart-desc" aria-live="polite">Chart loading.</desc>
+      </svg>
+
+      <div class="readout" id="readout" aria-live="polite">
+        <h3 id="ro-head">Outcome</h3>
+        <div class="verdict" id="ro-verdict">&nbsp;</div>
+        <div class="stat-strip">
+          <div class="stat"><div class="n" id="s-cap">&ndash;</div><div class="k">Carrying capacity</div></div>
+          <div class="stat"><div class="n" id="s-pop">&ndash;</div><div class="k">Population at year 50</div></div>
+          <div class="stat"><div class="n" id="s-ratio">&ndash;</div><div class="k">Food per person</div></div>
+        </div>
+        <p id="ro-body">Move a slider to project an outcome.</p>
+      </div>
+
+      <!-- ===================== CHALLENGE ===================== -->
+      <div class="challenge" aria-labelledby="ch-h">
+        <h3 id="ch-h"><span aria-hidden="true">&#x1F3AF;</span> Modelling challenge</h3>
+        <div class="task" id="ch-task">Loading challenge.</div>
+        <div class="feedback" id="ch-feedback" aria-live="polite" role="status">&nbsp;</div>
+        <div class="btn-row">
+          <button class="btn" id="ch-check" type="button">Check my model</button>
+          <button class="btn ghost" id="ch-next" type="button">New challenge</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <details class="theory">
+    <summary>Theory recap: Malthus (1798) and Boserup (1965)</summary>
+    <div class="body">
+      <table>
+        <thead><tr><th>Aspect</th><th>Thomas Malthus</th><th>Ester Boserup</th></tr></thead>
+        <tbody>
+          <tr><td>Core claim</td><td class="m">Population grows geometrically, food only arithmetically.</td><td class="b">Population growth is the driver of agricultural change.</td></tr>
+          <tr><td>The ceiling</td><td class="m">A fixed carrying capacity. Overshoot triggers crisis.</td><td class="b">The ceiling is raised by innovation, so it moves.</td></tr>
+          <tr><td>What stops growth</td><td class="m">Positive checks (famine, disease, war) and preventive checks.</td><td class="b">Necessity prompts intensification, not collapse.</td></tr>
+          <tr><td>View of technology</td><td class="m">Cannot keep pace with demand.</td><td class="b">Demand pressure invents the technology needed.</td></tr>
+          <tr><td>Real-world echoes</td><td class="m">Sahel famines, Club of Rome limits-to-growth modelling.</td><td class="b">Green Revolution yields, intensified rice terracing.</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:0.84rem;color:var(--muted);margin-top:10px">In this model the lens changes one thing: under Boserup, sustained pressure (high population relative to food) feeds back into the technology term, lifting yields over time. Under Malthus, technology is fixed and the capacity is a hard ceiling that population overshoots.</p>
+    </div>
+  </details>
+
+  <footer class="foot">
+    Demonstration model for classroom use. Figures are illustrative and simplified to expose the Malthus and Boserup mechanisms, not to forecast any real region.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- state ----------
+  var state = {
+    theory: "malthus",   // or "boserup"
+    pop0: 12,            // millions
+    growth: 2.4,         // % per year
+    tech: 3,             // 1..10
+    resource: 6          // 1..10
+  };
+  var YEARS = 50;
+
+  // ---------- element refs ----------
+  var $ = function (id) { return document.getElementById(id); };
+  var els = {
+    btnM: $("btn-malthus"), btnB: $("btn-boserup"),
+    pop: $("pop"), popV: $("pop-val"),
+    growth: $("growth"), growthV: $("growth-val"),
+    tech: $("tech"), techV: $("tech-val"),
+    resource: $("resource"), resourceV: $("resource-val"),
+    reset: $("reset"), speak: $("speak"),
+    chart: $("chart"), chartDesc: $("chart-desc"),
+    readout: $("readout"), roHead: $("ro-head"), roVerdict: $("ro-verdict"), roBody: $("ro-body"),
+    sCap: $("s-cap"), sPop: $("s-pop"), sRatio: $("s-ratio"),
+    chTask: $("ch-task"), chFeedback: $("ch-feedback"), chCheck: $("ch-check"), chNext: $("ch-next")
+  };
+
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var lastResult = null;
+
+  // ---------- core model ----------
+  // Returns arrays for population and food supply over YEARS, plus a baseline capacity.
+  // Population: P(t) = P0 * (1+g)^t  (geometric growth, capped by available food via attrition).
+  // Food capacity index from tech and resource. Boserup lets tech rise under pressure.
+  function runModel(s) {
+    var pop = [];
+    var food = [];
+    var capArr = [];
+    var g = s.growth / 100;
+
+    // Baseline food output: resource base sets the land, tech multiplies the yield.
+    // Scale so that "food units" are directly comparable to population in millions fed.
+    function foodCapacity(tech, resource) {
+      // diminishing returns on resource, near-linear gain from tech
+      var land = 6 + resource * 2.3;            // ~8.3 .. 29
+      var yieldMult = 0.55 + tech * 0.16;        // ~0.71 .. 2.15
+      return land * yieldMult;                   // millions that can be fed
+    }
+
+    var effTech = s.tech;
+    var p = s.pop0;
+    // capacity at year 0 (for the readout headline, Malthus uses fixed)
+    var baseCap = foodCapacity(s.tech, s.resource);
+
+    for (var t = 0; t <= YEARS; t++) {
+      var capNow = foodCapacity(effTech, s.resource);
+      var f = capNow;
+
+      pop.push(p);
+      food.push(f);
+      capArr.push(capNow);
+
+      // ---- advance to next year ----
+      // raw geometric demand
+      var pNext = p * (1 + g);
+
+      var pressure = p / Math.max(capNow, 0.01); // demand vs supply ratio
+
+      if (s.theory === "boserup") {
+        // Necessity drives innovation: when pressure is high, tech creeps upward.
+        if (pressure > 0.9 && effTech < 10) {
+          var lift = (pressure - 0.9) * 0.35;     // stronger pressure, faster innovation
+          effTech = Math.min(10, effTech + lift);
+        }
+        // Boserup population is not catastrophically checked, only mild slowdown if it sprints far ahead
+        if (pressure > 1.25) {
+          pNext = p * (1 + g * 0.55);
+        }
+      } else {
+        // Malthus: hard ceiling. Overshoot triggers positive checks (famine/disease).
+        if (p > capNow) {
+          // population cannot exceed food for long: sharp corrective decline toward capacity
+          var overshoot = (p - capNow) / capNow;
+          pNext = p * (1 - Math.min(0.85, overshoot * 0.9));
+          if (pNext < capNow) pNext = capNow * (0.97 + 0.03); // settle near ceiling
+        } else if (pNext > capNow) {
+          // about to breach: brief overshoot allowed (this is the crisis spike)
+          pNext = Math.min(pNext, capNow * 1.12);
+        }
+      }
+      p = Math.max(0.2, pNext);
+    }
+
+    return {
+      pop: pop, food: food, cap: capArr,
+      baseCap: baseCap,
+      finalCap: capArr[capArr.length - 1],
+      finalPop: pop[pop.length - 1],
+      finalFood: food[food.length - 1],
+      effTech: effTech
+    };
+  }
+
+  // ---------- chart drawing ----------
+  function draw(res) {
+    var svg = els.chart;
+    // clear all but title/desc
+    var keep = {};
+    var kids = Array.prototype.slice.call(svg.childNodes);
+    kids.forEach(function (n) {
+      if (n.nodeType === 1 && (n.tagName === "title" || n.tagName === "desc")) keep[n.id] = true;
+      else svg.removeChild(n);
+    });
+
+    var W = 700, H = 360, padL = 48, padR = 14, padT = 16, padB = 34;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+
+    var allMax = 0;
+    res.pop.concat(res.food, res.cap).forEach(function (v) { if (v > allMax) allMax = v; });
+    var yMax = Math.ceil((allMax * 1.1) / 5) * 5;
+    if (yMax < 10) yMax = 10;
+
+    function X(i) { return padL + (i / YEARS) * plotW; }
+    function Y(v) { return padT + plotH - (v / yMax) * plotH; }
+
+    function mk(tag, attrs) {
+      var e = document.createElementNS(SVGNS, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      return e;
+    }
+
+    // gridlines + y labels
+    var steps = 5;
+    for (var i = 0; i <= steps; i++) {
+      var v = (yMax / steps) * i;
+      var y = Y(v);
+      svg.appendChild(mk("line", { x1: padL, y1: y, x2: W - padR, y2: y, stroke: "#e6e1d6", "stroke-width": 1 }));
+      var lab = mk("text", { x: padL - 6, y: y + 4, "text-anchor": "end", "font-size": 11, fill: "#5a6b72" });
+      lab.textContent = Math.round(v);
+      svg.appendChild(lab);
+    }
+    // axis labels
+    var yl = mk("text", { x: 12, y: padT + plotH / 2, "text-anchor": "middle", "font-size": 11, fill: "#5a6b72", transform: "rotate(-90 12 " + (padT + plotH / 2) + ")" });
+    yl.textContent = "Millions of people / food units";
+    svg.appendChild(yl);
+
+    // x ticks
+    [0, 10, 20, 30, 40, 50].forEach(function (yr) {
+      var x = X(yr);
+      svg.appendChild(mk("line", { x1: x, y1: padT + plotH, x2: x, y2: padT + plotH + 4, stroke: "#9aa6ab", "stroke-width": 1 }));
+      var t = mk("text", { x: x, y: H - 8, "text-anchor": "middle", "font-size": 11, fill: "#5a6b72" });
+      t.textContent = "Yr " + yr;
+      svg.appendChild(t);
+    });
+
+    function path(arr, opts) {
+      var d = "";
+      for (var i = 0; i < arr.length; i++) {
+        d += (i === 0 ? "M" : "L") + X(i).toFixed(1) + " " + Y(arr[i]).toFixed(1) + " ";
+      }
+      var p = mk("path", { d: d, fill: "none", stroke: opts.stroke, "stroke-width": opts.w, "stroke-linejoin": "round" });
+      if (opts.dash) p.setAttribute("stroke-dasharray", opts.dash);
+      svg.appendChild(p);
+    }
+
+    // carrying capacity (dashed amber)
+    path(res.cap, { stroke: "#d98a1f", w: 2, dash: "7 5" });
+    // food supply (solid amber)
+    path(res.food, { stroke: "#d98a1f", w: 2.5 });
+    // population (teal)
+    path(res.pop, { stroke: "#1d6b6b", w: 3 });
+
+    // mark crisis / divergence point: where population first exceeds food
+    var crisisYr = -1;
+    for (var k = 0; k < res.pop.length; k++) {
+      if (res.pop[k] > res.food[k] + 0.05) { crisisYr = k; break; }
+    }
+    if (crisisYr >= 0) {
+      var cx = X(crisisYr), cy = Y(res.pop[crisisYr]);
+      svg.appendChild(mk("circle", { cx: cx, cy: cy, r: 5, fill: "#b3392f", stroke: "#fff", "stroke-width": 2 }));
+      var ct = mk("text", { x: Math.min(cx + 8, W - 90), y: Math.max(cy - 8, padT + 12), "font-size": 11, fill: "#b3392f", "font-weight": "700" });
+      ct.textContent = "demand exceeds food (yr " + crisisYr + ")";
+      svg.appendChild(ct);
+    }
+
+    // end-point dots
+    svg.appendChild(mk("circle", { cx: X(YEARS), cy: Y(res.finalPop), r: 4, fill: "#1d6b6b" }));
+    svg.appendChild(mk("circle", { cx: X(YEARS), cy: Y(res.finalFood), r: 4, fill: "#d98a1f" }));
+  }
+
+  // ---------- verdict / readout ----------
+  function buildVerdict(res) {
+    var ratio = res.finalFood / Math.max(res.finalPop, 0.01); // food per person
+    var crisis = false;
+    for (var k = 0; k < res.pop.length; k++) {
+      if (res.pop[k] > res.food[k] + 0.1) { crisis = true; break; }
+    }
+    var headline, body, klass, verdictTxt, verdictClass;
+
+    if (state.theory === "malthus") {
+      els.readout.className = "readout malthus-tone";
+      if (crisis) {
+        verdictTxt = "Malthusian crisis: population overshot the food ceiling.";
+        verdictClass = "warn";
+        body = "Demand grew geometrically past a fixed carrying capacity of about " + res.baseCap.toFixed(1) + " million. With technology held constant, positive checks (famine and disease) forced population back toward the ceiling. This is Malthus's predicted correction.";
+      } else {
+        verdictTxt = "Malthusian balance held: population stayed under the ceiling.";
+        verdictClass = "good";
+        body = "With this growth rate and resource base, demand never breached the fixed carrying capacity of about " + res.baseCap.toFixed(1) + " million, so no positive check was triggered. Raise the growth rate or lower technology to force the overshoot Malthus warned of.";
+      }
+    } else {
+      els.readout.className = "readout boserup-tone";
+      var lifted = res.effTech - state.tech;
+      if (lifted > 0.4) {
+        verdictTxt = "Boserup response: pressure drove innovation and raised the ceiling.";
+        verdictClass = "good";
+        body = "As population pushed against the food supply, necessity intensified farming. Technology climbed from level " + state.tech + " to about level " + res.effTech.toFixed(1) + ", lifting capacity to roughly " + res.finalCap.toFixed(1) + " million. The ceiling moved with demand, so no collapse occurred.";
+      } else if (crisis) {
+        verdictTxt = "Pressure outran innovation: even Boserup has limits.";
+        verdictClass = "warn";
+        body = "Growth was so rapid that intensification could not keep pace, and demand still exceeded food. Boserup's mechanism works, but with technology already near its ceiling (level " + res.effTech.toFixed(1) + ") there is little headroom left. Lower the growth rate or start with more technology to give innovation room.";
+      } else {
+        verdictTxt = "Comfortable margin: little pressure, so little innovation.";
+        verdictClass = "good";
+        body = "Population never pressed hard against the food supply, so the Boserup trigger barely fired (technology near level " + res.effTech.toFixed(1) + "). Raise the growth rate to create the scarcity that, in Boserup's model, sparks agricultural change.";
+      }
+    }
+
+    els.roVerdict.textContent = verdictTxt;
+    els.roVerdict.className = "verdict " + verdictClass;
+    els.roBody.textContent = body;
+    els.sCap.textContent = (state.theory === "boserup" ? res.finalCap : res.baseCap).toFixed(1) + " m";
+    els.sPop.textContent = res.finalPop.toFixed(1) + " m";
+    els.sRatio.textContent = ratio.toFixed(2);
+
+    // accessible chart description
+    els.chartDesc.textContent =
+      "Over 50 years, population (teal) " +
+      (res.finalPop > res.pop[0] ? "rises from " : "changes from ") +
+      res.pop[0].toFixed(1) + " to " + res.finalPop.toFixed(1) + " million. " +
+      "Food supply (amber) " + (state.theory === "boserup" ? "rises as technology intensifies, ending near " : "stays at about ") +
+      res.finalFood.toFixed(1) + " million. " + verdictTxt;
+
+    lastResult = { verdict: verdictTxt, body: body, res: res };
+  }
+
+  // ---------- update pipeline ----------
+  function update() {
+    var res = runModel(state);
+    draw(res);
+    buildVerdict(res);
+    evaluateChallengeLive(res);
+  }
+
+  // ---------- control wiring ----------
+  function setTheory(t) {
+    state.theory = t;
+    els.btnM.setAttribute("aria-pressed", t === "malthus");
+    els.btnB.setAttribute("aria-pressed", t === "boserup");
+    update();
+  }
+  els.btnM.addEventListener("click", function () { setTheory("malthus"); });
+  els.btnB.addEventListener("click", function () { setTheory("boserup"); });
+
+  function fmtPop() { els.popV.textContent = parseFloat(els.pop.value).toFixed(1) + " m"; }
+  function fmtGrowth() { els.growthV.textContent = parseFloat(els.growth.value).toFixed(1) + "% / yr"; }
+  function fmtTech() { els.techV.textContent = "Level " + els.tech.value; }
+  function fmtResource() { els.resourceV.textContent = "Level " + els.resource.value; }
+
+  els.pop.addEventListener("input", function () { state.pop0 = parseFloat(this.value); fmtPop(); update(); });
+  els.growth.addEventListener("input", function () { state.growth = parseFloat(this.value); fmtGrowth(); update(); });
+  els.tech.addEventListener("input", function () { state.tech = parseInt(this.value, 10); fmtTech(); update(); });
+  els.resource.addEventListener("input", function () { state.resource = parseInt(this.value, 10); fmtResource(); update(); });
+
+  els.reset.addEventListener("click", function () {
+    els.pop.value = 12; els.growth.value = 2.4; els.tech.value = 3; els.resource.value = 6;
+    state.pop0 = 12; state.growth = 2.4; state.tech = 3; state.resource = 6;
+    fmtPop(); fmtGrowth(); fmtTech(); fmtResource();
+    setTheory("malthus");
+  });
+
+  els.speak.addEventListener("click", function () {
+    if (!lastResult) return;
+    if (window.westTTS && window.westTTS.ready()) {
+      window.westTTS.speak(lastResult.verdict + " " + lastResult.body, { lang: "en-GB", rate: 0.92, pitch: 1.0 });
+    }
+  });
+
+  // ---------- modelling challenge ----------
+  // Each challenge asks the pupil to drive the model to a target state, then we check it.
+  var challenges = [
+    {
+      id: "malthus-crisis",
+      prompt: "Using the Malthus lens, build a scenario that produces a Malthusian crisis (population overshoots and is checked). Hint: a fixed low-technology ceiling plus rapid growth.",
+      test: function (s, res) {
+        if (s.theory !== "malthus") return { ok: false, msg: "Switch the lens to Malthus first." };
+        var crisis = res.pop.some(function (p, i) { return p > res.food[i] + 0.1; });
+        return crisis
+          ? { ok: true, msg: "Correct. Demand breached the fixed ceiling and positive checks pulled population back. Note how raising technology would shift the ceiling but, for Malthus, you are not allowed to: it is held constant." }
+          : { ok: false, msg: "Not yet. Population stayed below the food ceiling. Try a higher growth rate or lower technology so demand outruns supply." };
+      }
+    },
+    {
+      id: "boserup-rescue",
+      prompt: "Switch to Boserup and create a scenario where population pressure drives innovation, lifting technology by at least one level and avoiding any crisis.",
+      test: function (s, res) {
+        if (s.theory !== "boserup") return { ok: false, msg: "Switch the lens to Boserup first." };
+        var lifted = res.effTech - s.tech;
+        var crisis = res.pop.some(function (p, i) { return p > res.food[i] + 0.1; });
+        if (lifted >= 1 && !crisis) return { ok: true, msg: "Correct. Scarcity triggered intensification: technology rose by " + lifted.toFixed(1) + " levels and the ceiling moved with demand. This is Boserup's central claim in action." };
+        if (lifted >= 1 && crisis) return { ok: false, msg: "Close. Technology did rise (" + lifted.toFixed(1) + " levels) but growth was so fast that a crisis still occurred. Ease the growth rate slightly so innovation can keep pace." };
+        return { ok: false, msg: "Not yet. There was too little pressure to spark innovation. Raise the growth rate or lower starting technology so scarcity bites." };
+      }
+    },
+    {
+      id: "compare",
+      prompt: "Find a single set of drivers (population, growth, technology, resources) that ends in crisis under Malthus but is rescued under Boserup. Set the drivers first, then check, switch lens, and check again.",
+      test: function (s, res) {
+        // We evaluate the current lens; success criteria depends on which lens is showing.
+        var crisis = res.pop.some(function (p, i) { return p > res.food[i] + 0.1; });
+        if (s.theory === "malthus") {
+          return crisis
+            ? { ok: true, msg: "Step 1 done: this scenario fails under Malthus. Now switch to Boserup with the SAME sliders and check again to see if innovation rescues it." }
+            : { ok: false, msg: "Under Malthus this scenario does not yet reach crisis. Increase growth or cut technology, then check again." };
+        } else {
+          var lifted = res.effTech - s.tech;
+          return (!crisis && lifted > 0.4)
+            ? { ok: true, msg: "Excellent contrast. The identical drivers collapse under Malthus but, under Boserup, pressure raised technology by " + lifted.toFixed(1) + " levels and averted crisis. That divergence is the whole debate in one experiment." }
+            : { ok: false, msg: "Under Boserup this scenario " + (crisis ? "still hits crisis: ease growth a little." : "shows little innovation: it needs more pressure to fire the Boserup trigger.") };
+        }
+      }
+    },
+    {
+      id: "carrying-cap",
+      prompt: "Reach a carrying capacity (food units) of at least 40 million without triggering any crisis. Think about which two drivers raise the ceiling.",
+      test: function (s, res) {
+        var cap = (s.theory === "boserup") ? res.finalCap : res.baseCap;
+        var crisis = res.pop.some(function (p, i) { return p > res.food[i] + 0.1; });
+        if (cap >= 40 && !crisis) return { ok: true, msg: "Correct. Capacity reached " + cap.toFixed(1) + " million with no crisis. Technology and the resource base both lift the ceiling: technology multiplies yield, resources set the land available." };
+        if (cap >= 40 && crisis) return { ok: false, msg: "Capacity is high enough (" + cap.toFixed(1) + " m) but a crisis still occurred. Reduce the growth rate so demand stays under the ceiling." };
+        return { ok: false, msg: "Capacity is only " + cap.toFixed(1) + " million. Raise technology and the resource base to lift the food ceiling." };
+      }
+    }
+  ];
+  var chIndex = 0;
+
+  function showChallenge() {
+    els.chTask.textContent = challenges[chIndex].prompt;
+    els.chFeedback.textContent = "";
+    els.chFeedback.className = "feedback";
+  }
+  function checkChallenge() {
+    var res = runModel(state);
+    var out = challenges[chIndex].test(state, res);
+    els.chFeedback.textContent = out.msg;
+    els.chFeedback.className = "feedback " + (out.ok ? "ok" : "no");
+  }
+  // live, non-judgemental clear when sliders move after a check
+  function evaluateChallengeLive() {
+    if (els.chFeedback.classList.contains("ok")) {
+      // keep success message until they request a new challenge
+      return;
+    }
+  }
+  els.chCheck.addEventListener("click", checkChallenge);
+  els.chNext.addEventListener("click", function () {
+    chIndex = (chIndex + 1) % challenges.length;
+    showChallenge();
+  });
+
+  // ---------- keyboard support for chart focus ----------
+  els.chart.addEventListener("keydown", function (e) {
+    // left/right nudge growth as a quick demo of sensitivity
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      var step = e.key === "ArrowRight" ? 0.1 : -0.1;
+      var nv = Math.min(4, Math.max(0, parseFloat(els.growth.value) + step));
+      els.growth.value = nv.toFixed(1);
+      state.growth = nv; fmtGrowth(); update();
+      e.preventDefault();
+    }
+  });
+
+  // ---------- init ----------
+  fmtPop(); fmtGrowth(); fmtTech(); fmtResource();
+  showChallenge();
+  update();
+})();
+</script>
+</body>
+</html>

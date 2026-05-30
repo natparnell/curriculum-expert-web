@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sort Race &#x2013; Bubble vs Insertion Sort</title>
+<style>
+  :root {
+    --ink: #16213a;
+    --muted: #5a6577;
+    --paper: #f4f6fb;
+    --card: #ffffff;
+    --line: #d9e0ee;
+    --bubble: #2e6fd6;
+    --bubble-soft: #dbe8fc;
+    --insert: #c8541f;
+    --insert-soft: #fbe4d6;
+    --good: #1f8a52;
+    --good-soft: #d8f0e2;
+    --warn: #b3471a;
+    --accent: #6a3fd1;
+    --shadow: 0 6px 22px rgba(22, 33, 58, 0.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 64px; }
+  header.app-head { margin-bottom: 14px; }
+  .kicker {
+    display: inline-block;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+    background: #efeaff;
+    border-radius: 999px;
+    padding: 4px 12px;
+  }
+  h1 { font-size: clamp(1.5rem, 4vw, 2.1rem); margin: 10px 0 4px; letter-spacing: -0.01em; }
+  .aim {
+    font-size: 0.95rem;
+    color: var(--muted);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 8px 0 0;
+  }
+  .aim strong { color: var(--ink); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-top: 16px;
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 0.85rem; font-weight: 700;
+    flex: 0 0 auto;
+  }
+
+  /* Step 1: data setup */
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .btn {
+    font: inherit; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    border-radius: 10px; padding: 10px 16px; min-height: 44px;
+    transition: transform 0.05s ease, background 0.15s ease, border-color 0.15s ease;
+    touch-action: manipulation;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 3px solid #b9a7f3; outline-offset: 2px; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.primary:hover { background: #5a31bd; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
+
+  /* Editable data chips */
+  .data-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip {
+    width: 52px; height: 52px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--paper);
+    font: inherit; font-weight: 700; font-size: 1.05rem; text-align: center;
+    color: var(--ink);
+  }
+  .chip:focus-visible { outline: 3px solid #b9a7f3; outline-offset: 2px; border-color: var(--accent); }
+  .hint { font-size: 0.85rem; color: var(--muted); margin: 10px 0 0; }
+
+  /* Step 2: prediction */
+  .predict-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+  .pred-btn {
+    flex: 1 1 150px; min-height: 56px; text-align: left; padding: 10px 14px;
+    border-radius: 12px; border: 2px solid var(--line); background: var(--card);
+    cursor: pointer; font: inherit; transition: all 0.12s ease; touch-action: manipulation;
+  }
+  .pred-btn:focus-visible { outline: 3px solid #b9a7f3; outline-offset: 2px; }
+  .pred-btn .pt { font-weight: 700; display: block; }
+  .pred-btn .ps { font-size: 0.82rem; color: var(--muted); }
+  .pred-btn[aria-pressed="true"] { border-color: var(--accent); background: #f4f0ff; }
+  .pred-feedback {
+    margin-top: 10px; font-size: 0.9rem; padding: 10px 12px; border-radius: 10px;
+    background: var(--paper); border: 1px dashed var(--line); min-height: 1em;
+  }
+
+  /* Step 3: race arena */
+  .arena { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 760px) { .arena { grid-template-columns: 1fr 1fr; } }
+  .lane {
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--paper);
+  }
+  .lane.bubble { border-top: 5px solid var(--bubble); }
+  .lane.insert { border-top: 5px solid var(--insert); }
+  .lane-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .lane-head h3 { margin: 0; font-size: 1rem; }
+  .lane.bubble h3 { color: var(--bubble); }
+  .lane.insert h3 { color: var(--insert); }
+  .counter {
+    font-variant-numeric: tabular-nums; font-weight: 800; font-size: 1.15rem;
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 2px 10px;
+  }
+  .bars {
+    display: flex; align-items: flex-end; gap: 6px; height: 180px; margin-top: 12px;
+    padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .bar {
+    flex: 1 1 0; border-radius: 5px 5px 0 0; position: relative;
+    display: flex; align-items: flex-end; justify-content: center;
+    transition: height 0.18s ease, background 0.12s ease;
+    color: #fff; font-size: 0.72rem; font-weight: 700; padding-bottom: 2px; min-width: 14px;
+  }
+  .lane.bubble .bar { background: #9bb9ea; }
+  .lane.insert .bar { background: #e3a684; }
+  .lane.bubble .bar.active { background: var(--bubble); }
+  .lane.insert .bar.active { background: var(--insert); }
+  .bar.sorted { background: var(--good) !important; }
+  .lane-status { font-size: 0.82rem; color: var(--muted); margin-top: 8px; min-height: 1.2em; }
+  .lane.done .lane-status { color: var(--good); font-weight: 700; }
+
+  .race-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 4px; }
+  .speed-wrap { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; color: var(--muted); }
+  input[type="range"] { accent-color: var(--accent); }
+
+  /* Verdict */
+  .verdict {
+    margin-top: 14px; padding: 14px; border-radius: 12px;
+    background: var(--paper); border: 1px solid var(--line); display: none;
+  }
+  .verdict.show { display: block; }
+  .verdict h3 { margin: 0 0 6px; font-size: 1rem; }
+  .verdict .tally { display: flex; gap: 18px; flex-wrap: wrap; margin: 8px 0; }
+  .verdict .tally span { font-weight: 700; }
+  .verdict.win-bubble { border-left: 5px solid var(--bubble); }
+  .verdict.win-insert { border-left: 5px solid var(--insert); }
+  .verdict.win-tie { border-left: 5px solid var(--muted); }
+
+  .scoreline { font-size: 0.85rem; color: var(--muted); margin-top: 10px; }
+  .scoreline b { color: var(--ink); }
+
+  .visually-hidden {
+    position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+
+  details.teach { margin-top: 16px; }
+  details.teach summary {
+    cursor: pointer; font-weight: 700; padding: 10px 12px; border-radius: 10px;
+    background: #efeaff; color: var(--accent); list-style: none;
+  }
+  details.teach summary::-webkit-details-marker { display: none; }
+  details.teach[open] summary { border-radius: 10px 10px 0 0; }
+  details.teach .body { border: 1px solid var(--line); border-top: none; border-radius: 0 0 10px 10px; padding: 14px; }
+  details.teach .body ul { margin: 0; padding-left: 20px; }
+  details.teach .body li { margin: 5px 0; }
+  footer.app-foot { text-align: center; color: var(--muted); font-size: 0.78rem; margin-top: 28px; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app-head">
+    <span class="kicker">Computing &#xB7; KS3 &#xB7; Algorithms</span>
+    <h1>Sort Race &#x1F3C1;</h1>
+    <p class="aim"><strong>Teacher aim:</strong> pupils design and compare algorithms by racing bubble sort against insertion sort on the same data, counting comparisons to decide which is more efficient and explaining why.</p>
+  </header>
+
+  <!-- STEP 1 -->
+  <section class="card" aria-labelledby="s1">
+    <h2 id="s1"><span class="num">1</span> Set up the data</h2>
+    <p class="hint">Both algorithms must sort the <em>same</em> list, so the race is fair. Edit any number below (use whole numbers 1 to 99), or shuffle a fresh list. Change the list and you change the race.</p>
+    <div class="data-strip" id="dataStrip" role="group" aria-label="Editable list of numbers to sort"></div>
+    <div class="controls" style="margin-top:14px;">
+      <button class="btn" id="shuffleBtn" type="button">Shuffle new list &#x1F500;</button>
+      <button class="btn" id="nearlyBtn" type="button">Nearly sorted list &#x2197;</button>
+      <button class="btn" id="reverseBtn" type="button">Reversed list &#x2198;</button>
+    </div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="card" aria-labelledby="s2">
+    <h2 id="s2"><span class="num">2</span> Predict the winner</h2>
+    <p class="hint">The winner is the algorithm that does <strong>fewer comparisons</strong> (fewer "is this bigger than that?" checks). Look at the list above, then commit to a prediction before you race.</p>
+    <div class="predict-row" role="group" aria-label="Predict which algorithm does fewer comparisons">
+      <button class="pred-btn" type="button" data-pred="bubble" aria-pressed="false">
+        <span class="pt">Bubble sort wins</span>
+        <span class="ps">It does fewer comparisons</span>
+      </button>
+      <button class="pred-btn" type="button" data-pred="insert" aria-pressed="false">
+        <span class="pt">Insertion sort wins</span>
+        <span class="ps">It does fewer comparisons</span>
+      </button>
+      <button class="pred-btn" type="button" data-pred="tie" aria-pressed="false">
+        <span class="pt">It will be a tie</span>
+        <span class="ps">Roughly equal comparisons</span>
+      </button>
+    </div>
+    <p class="pred-feedback" id="predFeedback" aria-live="polite">No prediction yet. Pick one option above.</p>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="card" aria-labelledby="s3">
+    <h2 id="s3"><span class="num">3</span> Race and count</h2>
+    <div class="race-controls">
+      <button class="btn primary" id="startBtn" type="button">Start race &#x25B6;</button>
+      <button class="btn" id="stepBtn" type="button">Step once &#x23ED;</button>
+      <button class="btn" id="pauseBtn" type="button" disabled>Pause &#x23F8;</button>
+      <button class="btn" id="resetBtn" type="button">Reset &#x21BA;</button>
+      <span class="speed-wrap">
+        <label for="speed">Speed</label>
+        <input type="range" id="speed" min="1" max="10" value="5" aria-label="Animation speed, 1 slow to 10 fast">
+      </span>
+    </div>
+
+    <div class="arena" style="margin-top:14px;">
+      <div class="lane bubble" id="laneBubble">
+        <div class="lane-head">
+          <h3>Bubble sort</h3>
+          <span class="counter" id="cntBubble" aria-hidden="true">0</span>
+        </div>
+        <div class="bars" id="barsBubble" role="img" aria-label="Bubble sort bar chart"></div>
+        <p class="lane-status" id="statusBubble" aria-live="off">Waiting to start.</p>
+      </div>
+
+      <div class="lane insert" id="laneInsert">
+        <div class="lane-head">
+          <h3>Insertion sort</h3>
+          <span class="counter" id="cntInsert" aria-hidden="true">0</span>
+        </div>
+        <div class="bars" id="barsInsert" role="img" aria-label="Insertion sort bar chart"></div>
+        <p class="lane-status" id="statusInsert" aria-live="off">Waiting to start.</p>
+      </div>
+    </div>
+
+    <p class="visually-hidden" id="liveRegion" aria-live="polite"></p>
+
+    <div class="verdict" id="verdict" role="status" aria-live="polite">
+      <h3 id="verdictTitle"></h3>
+      <div class="tally">
+        <span style="color:var(--bubble)">Bubble: <span id="vBubble">0</span> comparisons</span>
+        <span style="color:var(--insert)">Insertion: <span id="vInsert">0</span> comparisons</span>
+      </div>
+      <p id="verdictBody" style="margin:6px 0 0;"></p>
+    </div>
+
+    <p class="scoreline">Predictions correct this lesson: <b id="scoreRight">0</b> of <b id="scoreTotal">0</b> races.</p>
+  </section>
+
+  <details class="teach">
+    <summary>Teacher notes and the big idea (tap to open)</summary>
+    <div class="body">
+      <ul>
+        <li><strong>Abstraction:</strong> a bar's height stands for a number's value. We hide the real data and reason about heights, the same idea as comparing variables in code.</li>
+        <li><strong>Comparisons are the cost:</strong> both sorts swap and shuffle, but the fair measure of work is how many times each asks "is A greater than B?". That count is what we race.</li>
+        <li><strong>The key result:</strong> on a <em>nearly sorted</em> list, insertion sort usually wins clearly, because it stops scanning as soon as an item is in place. On a <em>reversed</em> list both do a lot of work and the gap shrinks. Try both list types to show pupils that "best algorithm" depends on the data.</li>
+        <li><strong>Tracing:</strong> use "Step once" with a slow speed to trace each comparison by hand, then check the live counter against pupils' tallies.</li>
+        <li><strong>Stretch:</strong> ask pupils to design a list where bubble sort beats insertion sort. (It cannot: insertion never does more comparisons than bubble on the same data.)</li>
+      </ul>
+    </div>
+  </details>
+
+  <footer class="app-foot">Sort Race &#xB7; WeST classroom demo &#xB7; demonstration data only.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ----- State -----
+  var SIZE = 8;
+  var baseData = [];          // the shared starting list
+  var prediction = null;      // 'bubble' | 'insert' | 'tie'
+  var running = false;
+  var rafTimer = null;
+  var scoreRight = 0, scoreTotal = 0;
+
+  // Each "engine" holds a precomputed sequence of animation events plus playback index.
+  var engines = { bubble: null, insert: null };
+
+  // ----- DOM -----
+  var $ = function (id) { return document.getElementById(id); };
+  var dataStrip = $("dataStrip");
+  var predFeedback = $("predFeedback");
+  var liveRegion = $("liveRegion");
+  var startBtn = $("startBtn"), stepBtn = $("stepBtn"), pauseBtn = $("pauseBtn"), resetBtn = $("resetBtn");
+  var speedEl = $("speed");
+  var verdict = $("verdict");
+
+  // ----- Data setup -----
+  function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+  function makeShuffled() {
+    var arr = [];
+    while (arr.length < SIZE) {
+      var v = randInt(5, 95);
+      if (arr.indexOf(v) === -1) arr.push(v);
+    }
+    return arr;
+  }
+  function makeNearly() {
+    var arr = makeShuffled().slice().sort(function (a, b) { return a - b; });
+    // swap two adjacent pairs to make it "nearly" sorted
+    var i = randInt(1, SIZE - 2);
+    var t = arr[i]; arr[i] = arr[i + 1]; arr[i + 1] = t;
+    var j = 0; t = arr[j]; arr[j] = arr[j + 1]; arr[j + 1] = t;
+    return arr;
+  }
+  function makeReversed() {
+    return makeShuffled().slice().sort(function (a, b) { return b - a; });
+  }
+
+  function setData(arr) {
+    baseData = arr.slice();
+    renderDataStrip();
+    resetRace();
+  }
+
+  function renderDataStrip() {
+    dataStrip.innerHTML = "";
+    baseData.forEach(function (val, idx) {
+      var inp = document.createElement("input");
+      inp.type = "number";
+      inp.className = "chip";
+      inp.min = "1"; inp.max = "99"; inp.value = val;
+      inp.setAttribute("inputmode", "numeric");
+      inp.setAttribute("aria-label", "Number " + (idx + 1) + " of " + SIZE);
+      inp.addEventListener("change", function () {
+        var n = parseInt(inp.value, 10);
+        if (isNaN(n)) n = 1;
+        n = Math.max(1, Math.min(99, n));
+        inp.value = n;
+        baseData[idx] = n;
+        resetRace();
+      });
+      dataStrip.appendChild(inp);
+    });
+  }
+
+  // ----- Algorithm recorders (produce event lists) -----
+  // Event types: 'compare' (i,j highlighted), 'set' (write value to position), 'sorted' (mark sorted), 'done'
+  // Comparisons are counted only on 'compare' events.
+
+  function recordBubble(input) {
+    var a = input.slice();
+    var n = a.length;
+    var events = [];
+    var comps = 0;
+    for (var pass = 0; pass < n - 1; pass++) {
+      for (var i = 0; i < n - 1 - pass; i++) {
+        comps++;
+        events.push({ t: "compare", i: i, j: i + 1 });
+        if (a[i] > a[i + 1]) {
+          var tmp = a[i]; a[i] = a[i + 1]; a[i + 1] = tmp;
+          events.push({ t: "set", arr: a.slice() });
+        }
+      }
+      events.push({ t: "sorted", idx: n - 1 - pass });
+    }
+    events.push({ t: "sorted", idx: 0 });
+    events.push({ t: "done", comps: comps });
+    return { events: events, comps: comps };
+  }
+
+  function recordInsertion(input) {
+    var a = input.slice();
+    var n = a.length;
+    var events = [];
+    var comps = 0;
+    events.push({ t: "sorted", idx: 0 });
+    for (var i = 1; i < n; i++) {
+      var key = a[i];
+      var j = i - 1;
+      var moved = false;
+      while (j >= 0) {
+        comps++;
+        events.push({ t: "compare", i: j, j: i });
+        if (a[j] > key) {
+          a[j + 1] = a[j];
+          events.push({ t: "set", arr: a.slice() });
+          j--;
+          moved = true;
+        } else {
+          break;
+        }
+      }
+      a[j + 1] = key;
+      if (moved) events.push({ t: "set", arr: a.slice() });
+    }
+    for (var k = 0; k < n; k++) events.push({ t: "sorted", idx: k });
+    events.push({ t: "done", comps: comps });
+    return { events: events, comps: comps };
+  }
+
+  // ----- Lane rendering -----
+  function buildBars(containerId) {
+    var c = $(containerId);
+    c.innerHTML = "";
+    var maxV = Math.max.apply(null, baseData.concat([1]));
+    baseData.forEach(function (v) {
+      var b = document.createElement("div");
+      b.className = "bar";
+      b.style.height = (18 + (v / maxV) * 80) + "%";
+      b.textContent = v;
+      c.appendChild(b);
+    });
+  }
+
+  function drawLane(laneKey, arr, highlight, sortedSet) {
+    var containerId = laneKey === "bubble" ? "barsBubble" : "barsInsert";
+    var c = $(containerId);
+    var bars = c.children;
+    var maxV = Math.max.apply(null, baseData.concat([1]));
+    for (var k = 0; k < bars.length; k++) {
+      var b = bars[k];
+      var v = arr[k];
+      b.style.height = (18 + (v / maxV) * 80) + "%";
+      b.textContent = v;
+      b.className = "bar";
+      if (sortedSet[k]) b.classList.add("sorted");
+      else if (highlight.indexOf(k) !== -1) b.classList.add("active");
+    }
+  }
+
+  // ----- Engine setup -----
+  function newEngine(laneKey, record) {
+    return {
+      laneKey: laneKey,
+      events: record.events,
+      totalComps: record.comps,
+      idx: 0,
+      comps: 0,
+      arr: baseData.slice(),
+      sortedSet: {},
+      finished: false
+    };
+  }
+
+  function advanceEngine(eng) {
+    // process events until we hit the next comparison (so each "tick" = one comparison shown),
+    // applying any sets/sorted in between
+    if (eng.finished) return false;
+    var progressed = false;
+    var sawCompare = false;
+    while (eng.idx < eng.events.length) {
+      var ev = eng.events[eng.idx];
+      eng.idx++;
+      progressed = true;
+      if (ev.t === "compare") {
+        eng.comps++;
+        eng.highlight = [ev.i, ev.j];
+        sawCompare = true;
+        break;
+      } else if (ev.t === "set") {
+        eng.arr = ev.arr.slice();
+      } else if (ev.t === "sorted") {
+        eng.sortedSet[ev.idx] = true;
+      } else if (ev.t === "done") {
+        eng.finished = true;
+        eng.highlight = [];
+        break;
+      }
+    }
+    // flush trailing non-compare events that may follow this compare's swap before next compare?
+    // We keep it simple: sets are applied on their own tick too. To keep visuals smooth, apply
+    // an immediately-following 'set' if present.
+    if (sawCompare && eng.idx < eng.events.length && eng.events[eng.idx].t === "set") {
+      eng.arr = eng.events[eng.idx].arr.slice();
+      eng.idx++;
+    }
+    return progressed && !eng.finished;
+  }
+
+  function renderEngine(eng) {
+    drawLane(eng.laneKey, eng.arr, eng.highlight || [], eng.sortedSet);
+    if (eng.laneKey === "bubble") $("cntBubble").textContent = eng.comps;
+    else $("cntInsert").textContent = eng.comps;
+    var statusId = eng.laneKey === "bubble" ? "statusBubble" : "statusInsert";
+    var laneId = eng.laneKey === "bubble" ? "laneBubble" : "laneInsert";
+    if (eng.finished) {
+      $(statusId).textContent = "Sorted. " + eng.comps + " comparisons in total.";
+      $(laneId).classList.add("done");
+    } else if (eng.comps === 0) {
+      $(statusId).textContent = "Waiting to start.";
+    } else {
+      var h = eng.highlight || [];
+      $(statusId).textContent = "Comparing positions " + (h[0] + 1) + " and " + (h[1] + 1) + ".";
+    }
+  }
+
+  // ----- Race control -----
+  function bothFinished() {
+    return engines.bubble && engines.insert && engines.bubble.finished && engines.insert.finished;
+  }
+
+  function tick() {
+    var b = advanceEngine(engines.bubble);
+    var i = advanceEngine(engines.insert);
+    renderEngine(engines.bubble);
+    renderEngine(engines.insert);
+    if (bothFinished()) {
+      stopRace();
+      showVerdict();
+    }
+  }
+
+  function speedDelay() {
+    var s = parseInt(speedEl.value, 10); // 1..10
+    return 620 - s * 55; // ~565ms at slow, ~70ms at fast
+  }
+
+  function loop() {
+    if (!running) return;
+    tick();
+    if (running && !bothFinished()) {
+      rafTimer = setTimeout(loop, speedDelay());
+    }
+  }
+
+  function startRace() {
+    ensureEngines();
+    if (bothFinished()) return;
+    running = true;
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+    stepBtn.disabled = true;
+    liveRegion.textContent = "Race started.";
+    loop();
+  }
+
+  function pauseRace() {
+    running = false;
+    if (rafTimer) { clearTimeout(rafTimer); rafTimer = null; }
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    stepBtn.disabled = false;
+    liveRegion.textContent = "Race paused.";
+  }
+
+  function stopRace() {
+    running = false;
+    if (rafTimer) { clearTimeout(rafTimer); rafTimer = null; }
+    startBtn.disabled = true;
+    pauseBtn.disabled = true;
+    stepBtn.disabled = true;
+  }
+
+  function ensureEngines() {
+    if (!engines.bubble) engines.bubble = newEngine("bubble", recordBubble(baseData));
+    if (!engines.insert) engines.insert = newEngine("insert", recordInsertion(baseData));
+  }
+
+  function stepOnce() {
+    ensureEngines();
+    if (bothFinished()) return;
+    tick();
+    if (bothFinished()) { showVerdict(); }
+    else { liveRegion.textContent = "Bubble " + engines.bubble.comps + ", Insertion " + engines.insert.comps + " comparisons."; }
+  }
+
+  function resetRace() {
+    stopRace();
+    engines.bubble = null;
+    engines.insert = null;
+    buildBars("barsBubble");
+    buildBars("barsInsert");
+    $("cntBubble").textContent = "0";
+    $("cntInsert").textContent = "0";
+    $("statusBubble").textContent = "Waiting to start.";
+    $("statusInsert").textContent = "Waiting to start.";
+    $("laneBubble").classList.remove("done");
+    $("laneInsert").classList.remove("done");
+    verdict.className = "verdict";
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    stepBtn.disabled = false;
+  }
+
+  // ----- Verdict and prediction scoring -----
+  function showVerdict() {
+    var bC = engines.bubble.totalComps;
+    var iC = engines.insert.totalComps;
+    var winner;
+    if (bC < iC) winner = "bubble";
+    else if (iC < bC) winner = "insert";
+    else winner = "tie";
+
+    $("vBubble").textContent = bC;
+    $("vInsert").textContent = iC;
+
+    var title, body;
+    if (winner === "bubble") {
+      title = "Bubble sort wins: fewer comparisons.";
+    } else if (winner === "insert") {
+      title = "Insertion sort wins: fewer comparisons.";
+    } else {
+      title = "It is a tie: equal comparisons.";
+    }
+
+    var diff = Math.abs(bC - iC);
+    if (winner === "tie") {
+      body = "Both algorithms did " + bC + " comparisons. That is rare and usually means a very small or very particular list.";
+    } else {
+      var slow = winner === "bubble" ? "insertion" : "bubble";
+      var fast = winner === "bubble" ? "bubble" : "insertion";
+      body = "On this list, " + fast + " sort did " + diff + " fewer comparisons than " + slow +
+             " sort. Insertion sort stops scanning the moment an item is already in place, so it shines on lists that are close to sorted. Bubble sort keeps comparing across every pass.";
+    }
+
+    verdict.className = "verdict show win-" + winner;
+    $("verdictTitle").textContent = title;
+    $("verdictBody").textContent = body;
+
+    // score the prediction
+    scoreTotal++;
+    var correct = (prediction === winner);
+    if (correct) scoreRight++;
+    $("scoreRight").textContent = scoreRight;
+    $("scoreTotal").textContent = scoreTotal;
+
+    if (prediction) {
+      var msg;
+      if (correct) {
+        msg = "Spot on. You predicted " + predWord(prediction) + " and that is what happened.";
+      } else {
+        msg = "Not this time. You predicted " + predWord(prediction) + ", but the result was " +
+              predWord(winner) + ". Look at the list again: how sorted was it to begin with?";
+      }
+      predFeedback.textContent = msg;
+      liveRegion.textContent = title + " " + msg;
+    } else {
+      predFeedback.textContent = "You did not predict this time. Result: " + predWord(winner) + ".";
+      liveRegion.textContent = title;
+    }
+  }
+
+  function predWord(p) {
+    if (p === "bubble") return "bubble sort wins";
+    if (p === "insert") return "insertion sort wins";
+    return "a tie";
+  }
+
+  // ----- Prediction buttons -----
+  var predBtns = document.querySelectorAll(".pred-btn");
+  function setPrediction(p, clickedBtn) {
+    prediction = p;
+    predBtns.forEach(function (btn) {
+      btn.setAttribute("aria-pressed", btn === clickedBtn ? "true" : "false");
+    });
+    var instant;
+    if (p === "insert") {
+      instant = "Good thinking. Insertion sort often wins, especially on nearly sorted lists. Now race to check.";
+    } else if (p === "bubble") {
+      instant = "Bold call. Bubble sort rarely does fewer comparisons than insertion sort on the same list. Race and see if you are right.";
+    } else {
+      instant = "A tie is possible but uncommon. Race to find out whether the comparison counts really land level.";
+    }
+    predFeedback.textContent = instant;
+  }
+  predBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () { setPrediction(btn.getAttribute("data-pred"), btn); });
+  });
+
+  // ----- Wire controls -----
+  $("shuffleBtn").addEventListener("click", function () { setData(makeShuffled()); });
+  $("nearlyBtn").addEventListener("click", function () { setData(makeNearly()); });
+  $("reverseBtn").addEventListener("click", function () { setData(makeReversed()); });
+  startBtn.addEventListener("click", startRace);
+  pauseBtn.addEventListener("click", pauseRace);
+  stepBtn.addEventListener("click", stepOnce);
+  resetBtn.addEventListener("click", function () { resetRace(); });
+
+  // ----- Init -----
+  setData(makeShuffled());
+})();
+</script>
+</body>
+</html>

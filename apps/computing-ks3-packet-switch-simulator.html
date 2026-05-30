@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Packet Switch Simulator | Computing KS3</title>
+<style>
+  :root {
+    --bg: #0f1729;
+    --panel: #1a2540;
+    --panel-2: #22304f;
+    --ink: #eef2fb;
+    --muted: #9fb0cf;
+    --line: #314064;
+    --accent: #36c9b0;
+    --accent-2: #5b8cff;
+    --warn: #ffb454;
+    --bad: #ff6b6b;
+    --good: #5fe39a;
+    --node: #2d3e63;
+    --node-active: #5b8cff;
+    --node-dead: #6b2d3a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  header {
+    padding: 18px 20px 12px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #14203b, #0f1729);
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 1.5rem;
+    letter-spacing: 0.2px;
+  }
+  .aim {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+    max-width: 70ch;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #0f1729;
+    background: var(--accent);
+    border-radius: 999px;
+    padding: 2px 10px;
+    margin-bottom: 8px;
+  }
+  .wrap {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  @media (min-width: 900px) {
+    .wrap { grid-template-columns: 1fr 340px; align-items: start; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .panel h2 {
+    margin: 0 0 10px;
+    font-size: 1.05rem;
+  }
+  .stage-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .hint {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin: 0;
+  }
+  .svg-frame {
+    background: radial-gradient(circle at 30% 20%, #1b2a4d, #131d35);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    touch-action: none;
+    width: 100%;
+    display: block;
+  }
+  svg { width: 100%; height: auto; display: block; touch-action: none; }
+  .node-circle {
+    cursor: pointer;
+    transition: fill 0.15s, stroke 0.15s;
+  }
+  .node-circle:focus-visible {
+    outline: 3px solid var(--warn);
+    outline-offset: 3px;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  button {
+    font: inherit;
+    font-weight: 600;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 9px 14px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+    min-height: 44px;
+  }
+  button:hover { background: #2b3c61; }
+  button:active { transform: translateY(1px); }
+  button:focus-visible { outline: 3px solid var(--warn); outline-offset: 2px; }
+  button.primary { background: var(--accent); color: #0a1322; border-color: var(--accent); }
+  button.primary:hover { background: #45d8bf; }
+  button.danger { border-color: #5a2230; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  label.field {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin: 10px 0 4px;
+    font-weight: 600;
+  }
+  input[type="text"], select {
+    width: 100%;
+    font: inherit;
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 9px 11px;
+    min-height: 44px;
+  }
+  input[type="text"]:focus, select:focus { outline: 3px solid var(--accent-2); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .packets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+    min-height: 30px;
+  }
+  .pkt {
+    font-size: 0.78rem;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 4px 7px;
+    white-space: nowrap;
+  }
+  .pkt b { color: var(--accent); }
+  .pkt.delivered { border-color: var(--good); }
+  .pkt.lost { border-color: var(--bad); opacity: 0.7; }
+  .log {
+    background: #0c1426;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px;
+    font-size: 0.82rem;
+    max-height: 220px;
+    overflow-y: auto;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .log p { margin: 0 0 5px; }
+  .log .ev-info { color: var(--muted); }
+  .log .ev-good { color: var(--good); }
+  .log .ev-warn { color: var(--warn); }
+  .log .ev-bad { color: var(--bad); }
+  .log .ev-key { color: var(--accent-2); }
+  .feedback {
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    margin-top: 12px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+  }
+  .feedback.good { border-color: var(--good); background: rgba(95,227,154,0.08); }
+  .feedback.warn { border-color: var(--warn); background: rgba(255,180,84,0.08); }
+  .feedback.bad { border-color: var(--bad); background: rgba(255,107,107,0.08); }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .stat {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px;
+    text-align: center;
+  }
+  .stat b { display: block; font-size: 1.3rem; }
+  .stat span { font-size: 0.72rem; color: var(--muted); }
+  details {
+    margin-top: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 6px 12px;
+  }
+  summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+  details p, details li { font-size: 0.86rem; color: var(--muted); }
+  .speed {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 0.85rem; color: var(--muted);
+  }
+  .speed input { flex: 1; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); border: 0;
+  }
+  footer { color: var(--muted); font-size: 0.78rem; padding: 4px 20px 24px; text-align: center; max-width: 1200px; margin: 0 auto; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header>
+  <span class="tag">Computing &middot; KS3 &middot; Networks &amp; the internet</span>
+  <h1>Packet Switch Simulator &#x1F310;</h1>
+  <p class="aim"><strong>Teaching aim:</strong> show that a message is split into numbered packets that travel independently across a network, and that packet switching survives node failure because each packet can be re-routed around a break.</p>
+</header>
+
+<div class="wrap">
+  <section class="panel" aria-labelledby="stageTitle">
+    <div class="stage-head">
+      <h2 id="stageTitle">The network</h2>
+      <p class="hint">Tap or click a router to break it (and tap again to mend it). Watch packets find a new route.</p>
+    </div>
+
+    <div class="svg-frame">
+      <svg id="net" viewBox="0 0 600 420" role="application"
+           aria-label="Network diagram. Sender on the left, Receiver on the right, with six routers between them. Activate a router to make it fail or recover.">
+        <g id="edges"></g>
+        <g id="packetLayer"></g>
+        <g id="nodes"></g>
+      </svg>
+    </div>
+
+    <div class="legend" aria-hidden="true">
+      <span><i class="dot" style="background:var(--good)"></i> Sender / Receiver</span>
+      <span><i class="dot" style="background:var(--node)"></i> Working router</span>
+      <span><i class="dot" style="background:var(--node-dead)"></i> Failed router</span>
+      <span><i class="dot" style="background:var(--accent)"></i> Packet in transit</span>
+    </div>
+
+    <div class="controls">
+      <button id="sendBtn" class="primary" type="button">&#x25B6;&#xFE0F; Split &amp; send message</button>
+      <button id="failBtn" type="button">&#x26A1; Fail a random router</button>
+      <button id="mendAllBtn" type="button">&#x1F527; Mend all routers</button>
+      <button id="resetBtn" class="danger" type="button">&#x21BA; Reset</button>
+    </div>
+
+    <div class="speed">
+      <label for="speed">Speed</label>
+      <input id="speed" type="range" min="1" max="5" value="3" aria-label="Animation speed, 1 slow to 5 fast">
+    </div>
+
+    <div class="stats" aria-hidden="true">
+      <div class="stat"><b id="stPackets">0</b><span>packets sent</span></div>
+      <div class="stat"><b id="stDelivered">0</b><span>delivered</span></div>
+      <div class="stat"><b id="stReroutes">0</b><span>re-routes</span></div>
+    </div>
+
+    <p id="liveRegion" class="sr-only" role="status" aria-live="polite"></p>
+
+    <details>
+      <summary>How does this work? (the key idea)</summary>
+      <p>A message is too big to send in one go, so it is chopped into small <b>packets</b>. Each packet carries a header: the destination address, a sequence number (so the message can be rebuilt in order), and the data. Routers pass each packet on towards its destination, choosing the next working link. If a router fails, the others simply route around it. This is <b>packet switching</b>, and it is why the internet keeps working even when parts break.</p>
+    </details>
+  </section>
+
+  <aside class="panel" aria-labelledby="ctrlTitle">
+    <h2 id="ctrlTitle">Your message</h2>
+
+    <label class="field" for="msg">Type a short message to send</label>
+    <input id="msg" type="text" value="HELLO WEST" maxlength="40" aria-describedby="msgHelp">
+    <p id="msgHelp" class="hint">It will be split into packets of 3 characters each.</p>
+
+    <label class="field" for="reliability">Network reliability</label>
+    <select id="reliability">
+      <option value="1">Perfect links (no loss)</option>
+      <option value="0.9" selected>Realistic (some packets retry)</option>
+      <option value="0.7">Congested (lots of retries)</option>
+    </select>
+
+    <h2 style="margin-top:16px">Packets</h2>
+    <div id="packets" class="packets" aria-label="List of packets created from your message"></div>
+
+    <h2 style="margin-top:16px">Event log</h2>
+    <div id="log" class="log" aria-live="off"></div>
+
+    <div id="feedback" class="feedback">Type a message, then press <b>Split &amp; send</b>. Try breaking a router first to see re-routing.</div>
+  </aside>
+</div>
+
+<footer>
+  Demonstration tool for classroom teaching. All names and data are fictional. Designed for the England National Curriculum, Computing, KS3: networks, the internet and protocols.
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var SVG_NS = "http://www.w3.org/2000/svg";
+
+  // Node layout: sender S, receiver R, routers A..F arranged in two rows.
+  var nodes = {
+    S: { id: "S", label: "Sender",   x: 60,  y: 210, type: "end" },
+    A: { id: "A", label: "Router A", x: 190, y: 110, type: "router" },
+    B: { id: "B", label: "Router B", x: 190, y: 310, type: "router" },
+    C: { id: "C", label: "Router C", x: 320, y: 60,  type: "router" },
+    D: { id: "D", label: "Router D", x: 320, y: 210, type: "router" },
+    E: { id: "E", label: "Router E", x: 320, y: 360, type: "router" },
+    F: { id: "F", label: "Router F", x: 450, y: 160, type: "router" },
+    G: { id: "G", label: "Router G", x: 450, y: 300, type: "router" },
+    R: { id: "R", label: "Receiver", x: 555, y: 210, type: "end" }
+  };
+
+  // Bidirectional links (graph edges).
+  var links = [
+    ["S","A"], ["S","B"],
+    ["A","C"], ["A","D"], ["B","D"], ["B","E"],
+    ["C","F"], ["D","F"], ["D","G"], ["E","G"],
+    ["F","R"], ["G","R"],
+    ["C","D"], ["D","E"], ["F","G"]
+  ];
+
+  var adj = {};
+  Object.keys(nodes).forEach(function (k) { adj[k] = []; });
+  links.forEach(function (l) {
+    adj[l[0]].push(l[1]);
+    adj[l[1]].push(l[0]);
+  });
+
+  var dead = {}; // id -> true if failed (only routers can fail)
+  var state = {
+    sending: false,
+    packetsSent: 0,
+    delivered: 0,
+    reroutes: 0
+  };
+
+  var els = {
+    svg: document.getElementById("net"),
+    edges: document.getElementById("edges"),
+    packetLayer: document.getElementById("packetLayer"),
+    nodesG: document.getElementById("nodes"),
+    sendBtn: document.getElementById("sendBtn"),
+    failBtn: document.getElementById("failBtn"),
+    mendAllBtn: document.getElementById("mendAllBtn"),
+    resetBtn: document.getElementById("resetBtn"),
+    msg: document.getElementById("msg"),
+    reliability: document.getElementById("reliability"),
+    packets: document.getElementById("packets"),
+    log: document.getElementById("log"),
+    feedback: document.getElementById("feedback"),
+    speed: document.getElementById("speed"),
+    live: document.getElementById("liveRegion"),
+    stPackets: document.getElementById("stPackets"),
+    stDelivered: document.getElementById("stDelivered"),
+    stReroutes: document.getElementById("stReroutes")
+  };
+
+  // ---- Drawing ----
+  function drawEdges() {
+    els.edges.innerHTML = "";
+    links.forEach(function (l) {
+      var a = nodes[l[0]], b = nodes[l[1]];
+      var line = document.createElementNS(SVG_NS, "line");
+      line.setAttribute("x1", a.x);
+      line.setAttribute("y1", a.y);
+      line.setAttribute("x2", b.x);
+      line.setAttribute("y2", b.y);
+      line.setAttribute("data-edge", l[0] + "-" + l[1]);
+      var down = dead[l[0]] || dead[l[1]];
+      line.setAttribute("stroke", down ? "#3a2a3a" : "#3a4b72");
+      line.setAttribute("stroke-width", "3");
+      line.setAttribute("stroke-dasharray", down ? "5 6" : "none");
+      els.edges.appendChild(line);
+    });
+  }
+
+  function nodeColour(n) {
+    if (n.type === "end") return "#1f6f52";
+    if (dead[n.id]) return "var(--node-dead)";
+    return "var(--node)";
+  }
+
+  function drawNodes() {
+    els.nodesG.innerHTML = "";
+    Object.keys(nodes).forEach(function (k) {
+      var n = nodes[k];
+      var g = document.createElementNS(SVG_NS, "g");
+
+      var c = document.createElementNS(SVG_NS, "circle");
+      c.setAttribute("cx", n.x);
+      c.setAttribute("cy", n.y);
+      c.setAttribute("r", n.type === "end" ? 26 : 22);
+      c.setAttribute("class", "node-circle");
+      c.setAttribute("fill", nodeColour(n));
+      c.setAttribute("stroke", n.type === "end" ? "#5fe39a" : "#5878b0");
+      c.setAttribute("stroke-width", "2");
+      c.setAttribute("data-node", n.id);
+
+      if (n.type === "router") {
+        c.setAttribute("tabindex", "0");
+        c.setAttribute("role", "button");
+        c.setAttribute("aria-pressed", dead[n.id] ? "true" : "false");
+        c.setAttribute("aria-label", n.label + (dead[n.id] ? ", failed. Activate to mend." : ", working. Activate to make it fail."));
+      } else {
+        c.setAttribute("aria-label", n.label);
+      }
+
+      var t = document.createElementNS(SVG_NS, "text");
+      t.setAttribute("x", n.x);
+      t.setAttribute("y", n.y + 4);
+      t.setAttribute("text-anchor", "middle");
+      t.setAttribute("fill", "#eef2fb");
+      t.setAttribute("font-size", "12");
+      t.setAttribute("font-weight", "700");
+      t.setAttribute("pointer-events", "none");
+      t.textContent = n.id;
+
+      var lbl = document.createElementNS(SVG_NS, "text");
+      lbl.setAttribute("x", n.x);
+      lbl.setAttribute("y", n.y + (n.type === "end" ? 42 : 38));
+      lbl.setAttribute("text-anchor", "middle");
+      lbl.setAttribute("fill", "#9fb0cf");
+      lbl.setAttribute("font-size", "10");
+      lbl.setAttribute("pointer-events", "none");
+      lbl.textContent = n.type === "end" ? n.label : "";
+
+      g.appendChild(c);
+      g.appendChild(t);
+      g.appendChild(lbl);
+      els.nodesG.appendChild(g);
+
+      if (n.type === "router") {
+        c.addEventListener("pointerdown", function (e) {
+          e.preventDefault();
+          toggleNode(n.id);
+        });
+        c.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+            e.preventDefault();
+            toggleNode(n.id);
+          }
+        });
+      }
+    });
+  }
+
+  // ---- Routing (breadth-first shortest path avoiding dead nodes) ----
+  function findPath(start, goal) {
+    var queue = [start];
+    var prev = {};
+    var visited = {};
+    visited[start] = true;
+    while (queue.length) {
+      var cur = queue.shift();
+      if (cur === goal) break;
+      var neigh = adj[cur].slice();
+      // small shuffle so equal-length routes vary a little
+      for (var i = neigh.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = neigh[i]; neigh[i] = neigh[j]; neigh[j] = tmp;
+      }
+      for (var n = 0; n < neigh.length; n++) {
+        var nb = neigh[n];
+        if (visited[nb]) continue;
+        if (dead[nb] && nb !== goal) continue;
+        visited[nb] = true;
+        prev[nb] = cur;
+        queue.push(nb);
+      }
+    }
+    if (!visited[goal]) return null;
+    var path = [goal], step = goal;
+    while (step !== start) {
+      step = prev[step];
+      path.unshift(step);
+    }
+    return path;
+  }
+
+  // ---- Logging & feedback ----
+  function log(msg, kind) {
+    var p = document.createElement("p");
+    p.className = "ev-" + (kind || "info");
+    p.textContent = msg;
+    els.log.appendChild(p);
+    els.log.scrollTop = els.log.scrollHeight;
+  }
+
+  function announce(msg) { els.live.textContent = msg; }
+
+  function setFeedback(html, kind) {
+    els.feedback.className = "feedback" + (kind ? " " + kind : "");
+    els.feedback.innerHTML = html;
+  }
+
+  function updateStats() {
+    els.stPackets.textContent = state.packetsSent;
+    els.stDelivered.textContent = state.delivered;
+    els.stReroutes.textContent = state.reroutes;
+  }
+
+  function speedMs() {
+    var v = parseInt(els.speed.value, 10);
+    return 540 - (v - 1) * 100; // 540ms (slow) .. 140ms (fast) per hop
+  }
+
+  // ---- Node toggle ----
+  function toggleNode(id) {
+    if (nodes[id].type !== "router") return;
+    dead[id] = !dead[id];
+    drawEdges();
+    drawNodes();
+    var working = !dead[id];
+    log("Router " + id + (working ? " mended (back online)." : " FAILED (offline)."), working ? "good" : "bad");
+    announce("Router " + id + (working ? " is now working." : " has failed."));
+    // Give live re-route guidance.
+    var path = findPath("S", "R");
+    if (!path) {
+      setFeedback("&#x274C; Right now there is <b>no working route</b> from Sender to Receiver. The whole graph is cut. Mend a router so packets can get through.", "bad");
+    } else if (!working) {
+      setFeedback("&#x1F501; Router " + id + " is down, but a route still exists: <b>" + path.join(" &rarr; ") + "</b>. Press <b>Split &amp; send</b> to watch packets take it.", "warn");
+    } else {
+      setFeedback("&#x2705; Router " + id + " is back. A shortest route now is <b>" + path.join(" &rarr; ") + "</b>.", "good");
+    }
+  }
+
+  // ---- Message to packets ----
+  function buildPackets() {
+    var raw = els.msg.value.trim();
+    if (!raw) raw = "DATA";
+    var chunks = [];
+    for (var i = 0; i < raw.length; i += 3) {
+      chunks.push(raw.slice(i, i + 3));
+    }
+    var total = chunks.length;
+    return chunks.map(function (data, idx) {
+      return { seq: idx + 1, total: total, data: data, dest: "R", delivered: false, lost: false, retries: 0 };
+    });
+  }
+
+  function renderPackets(pkts) {
+    els.packets.innerHTML = "";
+    pkts.forEach(function (p) {
+      var d = document.createElement("div");
+      d.className = "pkt";
+      d.id = "pkt-" + p.seq;
+      d.innerHTML = "[<b>" + p.seq + "/" + p.total + "</b> &rarr; " + p.dest + "] " + escapeHtml(p.data);
+      els.packets.appendChild(d);
+    });
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // ---- Animate one packet along a path ----
+  function animatePacket(pkt, path, onArrive) {
+    var dot = document.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("r", "8");
+    dot.setAttribute("fill", "var(--accent)");
+    dot.setAttribute("stroke", "#0a1322");
+    dot.setAttribute("stroke-width", "1.5");
+    els.packetLayer.appendChild(dot);
+
+    var lbl = document.createElementNS(SVG_NS, "text");
+    lbl.setAttribute("font-size", "9");
+    lbl.setAttribute("font-weight", "700");
+    lbl.setAttribute("fill", "#0a1322");
+    lbl.setAttribute("text-anchor", "middle");
+    lbl.textContent = pkt.seq;
+    els.packetLayer.appendChild(lbl);
+
+    var hop = 0;
+    var dur = speedMs();
+
+    function place(x, y) {
+      dot.setAttribute("cx", x);
+      dot.setAttribute("cy", y);
+      lbl.setAttribute("x", x);
+      lbl.setAttribute("y", y + 3);
+    }
+
+    var startNode = nodes[path[0]];
+    place(startNode.x, startNode.y);
+
+    function step() {
+      if (hop >= path.length - 1) {
+        els.packetLayer.removeChild(dot);
+        els.packetLayer.removeChild(lbl);
+        onArrive();
+        return;
+      }
+      var from = nodes[path[hop]];
+      var to = nodes[path[hop + 1]];
+      var t0 = null;
+      function frame(ts) {
+        if (t0 === null) t0 = ts;
+        var k = Math.min(1, (ts - t0) / dur);
+        place(from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k);
+        if (k < 1) {
+          requestAnimationFrame(frame);
+        } else {
+          hop++;
+          step();
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+    step();
+  }
+
+  // ---- Send the whole message ----
+  function sendMessage() {
+    if (state.sending) return;
+    var path0 = findPath("S", "R");
+    if (!path0) {
+      setFeedback("&#x274C; No route from Sender to Receiver exists right now. Mend a router, then send.", "bad");
+      announce("No route exists. Mend a router.");
+      log("Send aborted: no working path from S to R.", "bad");
+      return;
+    }
+
+    var pkts = buildPackets();
+    renderPackets(pkts);
+    state.sending = true;
+    setControls(false);
+    var reliability = parseFloat(els.reliability.value);
+    log("--- Sending message: " + pkts.length + " packets ---", "key");
+    announce("Sending " + pkts.length + " packets.");
+
+    var deliveredCount = 0;
+    var idx = 0;
+
+    function sendNext() {
+      if (idx >= pkts.length) {
+        finishSend(deliveredCount, pkts.length);
+        return;
+      }
+      var pkt = pkts[idx];
+      sendOnePacket(pkt, function (ok, finalPath) {
+        if (ok) {
+          deliveredCount++;
+          state.delivered++;
+          markPacket(pkt.seq, "delivered");
+          log("Packet " + pkt.seq + "/" + pkt.total + " (\"" + pkt.data + "\") delivered via " + finalPath.join("-") + ".", "good");
+        }
+        state.packetsSent++;
+        updateStats();
+        idx++;
+        sendNext();
+      }, reliability);
+    }
+    sendNext();
+  }
+
+  // Send a single packet, with up to 3 attempts; each attempt re-computes the path
+  // (so a router that fails mid-message forces a fresh route = re-routing demo).
+  function sendOnePacket(pkt, done, reliability) {
+    var attempt = 0;
+    var lastPath = null;
+
+    function tryOnce() {
+      attempt++;
+      var path = findPath("S", "R");
+      if (!path) {
+        log("Packet " + pkt.seq + ": dropped, no route available.", "bad");
+        markPacket(pkt.seq, "lost");
+        done(false, []);
+        return;
+      }
+      if (lastPath && path.join() !== lastPath.join()) {
+        state.reroutes++;
+        updateStats();
+        log("Packet " + pkt.seq + ": re-routed to " + path.join("-") + " (a link changed).", "warn");
+      }
+      lastPath = path;
+
+      animatePacket(pkt, path, function () {
+        // Decide success based on reliability, unless a router on the path died
+        // during transit (we re-check the path validity at arrival).
+        var stillValid = pathValid(path);
+        var lucky = Math.random() < reliability;
+        if (stillValid && lucky) {
+          done(true, path);
+        } else {
+          if (!stillValid) {
+            log("Packet " + pkt.seq + ": a router on its route went down. Retrying.", "warn");
+          } else {
+            log("Packet " + pkt.seq + ": lost to congestion. Retrying.", "warn");
+          }
+          if (attempt < 4) {
+            tryOnce();
+          } else {
+            log("Packet " + pkt.seq + ": gave up after 4 attempts.", "bad");
+            markPacket(pkt.seq, "lost");
+            done(false, path);
+          }
+        }
+      });
+    }
+    tryOnce();
+  }
+
+  function pathValid(path) {
+    for (var i = 0; i < path.length; i++) {
+      var id = path[i];
+      if (dead[id] && id !== "S" && id !== "R") return false;
+    }
+    return true;
+  }
+
+  function markPacket(seq, cls) {
+    var el = document.getElementById("pkt-" + seq);
+    if (el) el.classList.add(cls);
+  }
+
+  function finishSend(delivered, total) {
+    state.sending = false;
+    setControls(true);
+    log("--- Message complete: " + delivered + "/" + total + " packets delivered ---", "key");
+    updateStats();
+
+    if (delivered === total) {
+      var rebuilt = els.msg.value.trim() || "DATA";
+      setFeedback("&#x2705; <b>All " + total + " packets arrived.</b> The receiver puts them back in sequence order (1, 2, 3...) and rebuilds the message: <b>“" + escapeHtml(rebuilt) + "”</b>. Notice that packets can take different routes yet still reassemble correctly, thanks to their sequence numbers.", "good");
+      announce("All packets delivered and the message was reassembled.");
+    } else if (delivered > 0) {
+      setFeedback("&#x26A0;&#xFE0F; Only <b>" + delivered + " of " + total + "</b> packets got through. The message cannot be fully rebuilt with packets missing. On the real internet, the receiver would ask the sender to resend the missing ones. Try mending routers or choosing more reliable links.", "warn");
+      announce(delivered + " of " + total + " packets delivered.");
+    } else {
+      setFeedback("&#x274C; No packets arrived. The network is too broken or too congested. Mend routers and try again.", "bad");
+      announce("No packets delivered.");
+    }
+  }
+
+  function setControls(enabled) {
+    els.sendBtn.disabled = !enabled;
+    els.failBtn.disabled = !enabled;
+    els.mendAllBtn.disabled = !enabled;
+    els.resetBtn.disabled = !enabled;
+  }
+
+  // ---- Buttons ----
+  els.sendBtn.addEventListener("click", sendMessage);
+
+  els.failBtn.addEventListener("click", function () {
+    var working = Object.keys(nodes).filter(function (k) {
+      return nodes[k].type === "router" && !dead[k];
+    });
+    if (!working.length) {
+      setFeedback("All routers are already down. Mend some first.", "warn");
+      return;
+    }
+    var pick = working[Math.floor(Math.random() * working.length)];
+    toggleNode(pick);
+  });
+
+  els.mendAllBtn.addEventListener("click", function () {
+    Object.keys(dead).forEach(function (k) { delete dead[k]; });
+    drawEdges();
+    drawNodes();
+    log("All routers mended.", "good");
+    announce("All routers mended.");
+    setFeedback("&#x2705; The whole network is healthy again. Every route is open.", "good");
+  });
+
+  els.resetBtn.addEventListener("click", function () {
+    Object.keys(dead).forEach(function (k) { delete dead[k]; });
+    state.packetsSent = 0; state.delivered = 0; state.reroutes = 0;
+    els.packets.innerHTML = "";
+    els.log.innerHTML = "";
+    els.packetLayer.innerHTML = "";
+    updateStats();
+    drawEdges();
+    drawNodes();
+    setFeedback("Reset done. Type a message, then press <b>Split &amp; send</b>. Try breaking a router first to see re-routing.", "");
+    announce("Simulator reset.");
+  });
+
+  els.speed.addEventListener("input", function () {
+    announce("Speed set to " + els.speed.value + " of 5.");
+  });
+
+  // ---- Init ----
+  drawEdges();
+  drawNodes();
+  updateStats();
+})();
+</script>
+</body>
+</html>

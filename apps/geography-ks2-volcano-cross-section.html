@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Volcano Cross-Section</title>
+<style>
+  :root {
+    --ink: #1f2733;
+    --soft: #5b6678;
+    --paper: #f5f3ee;
+    --card: #ffffff;
+    --line: #e2ddd2;
+    --rock1: #6d5a48;
+    --rock2: #8a7560;
+    --rock3: #a08a72;
+    --magma: #d8431b;
+    --magma2: #f4a623;
+    --accent: #2a6f6b;
+    --accent-dk: #1d4f4c;
+    --good: #2f8f4e;
+    --bad: #c4452b;
+    --focus: #1565c0;
+    --sky: #bcdfe8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 18px 16px 60px;
+  }
+  header.app-head {
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 12px;
+    margin-bottom: 18px;
+  }
+  .kicker {
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  h1 {
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    margin: 4px 0 6px;
+    line-height: 1.1;
+  }
+  .aim {
+    background: #fff8e9;
+    border: 1px solid #ecd9a6;
+    border-left: 5px solid var(--magma2);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: #4a3d1c;
+    max-width: 720px;
+  }
+  .aim strong { color: #2f2710; }
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  @media (min-width: 860px) {
+    .layout { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); align-items: start; }
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 2px 10px rgba(40,30,10,0.05);
+  }
+  .card h2 {
+    font-size: 1.15rem;
+    margin: 0 0 4px;
+  }
+  .card .lead {
+    margin: 0 0 12px;
+    color: var(--soft);
+    font-size: 0.92rem;
+  }
+  /* Stage 1: SVG volcano */
+  .svg-frame {
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    background: linear-gradient(var(--sky), #e7f4f7);
+    display: block;
+  }
+  svg { display: block; width: 100%; height: auto; }
+  .hot-part {
+    cursor: pointer;
+    transition: filter 0.15s ease;
+    outline: none;
+  }
+  .hot-part:hover { filter: brightness(1.08); }
+  .hot-part:focus-visible { filter: brightness(1.12); }
+  .hot-part:focus-visible .focus-ring { stroke: var(--focus); stroke-width: 4; stroke-dasharray: 6 4; }
+  .part-found { filter: drop-shadow(0 0 4px rgba(244,166,35,0.9)); }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    padding: 9px 14px;
+    font-weight: 600;
+  }
+  button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .btn-primary {
+    background: var(--magma);
+    color: #fff;
+    box-shadow: 0 2px 0 #a8320f;
+  }
+  .btn-primary:hover { background: #ec5226; }
+  .btn-primary:active { transform: translateY(1px); box-shadow: 0 1px 0 #a8320f; }
+  .btn-ghost {
+    background: #fff;
+    color: var(--accent-dk);
+    border-color: var(--accent);
+  }
+  .btn-ghost:hover { background: #eef6f5; }
+  .info-strip {
+    margin-top: 12px;
+    min-height: 74px;
+    background: #f4f1ea;
+    border: 1px dashed #cfc7b6;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.95rem;
+  }
+  .info-strip h3 { margin: 0 0 3px; font-size: 1rem; color: var(--accent-dk); }
+  .info-strip p { margin: 0; }
+  .erupt-note {
+    color: var(--magma);
+    font-weight: 700;
+  }
+  /* Stage 2: drag & drop */
+  .label-bank {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    min-height: 48px;
+    padding: 8px;
+    background: #f4f1ea;
+    border: 1px dashed #cfc7b6;
+    border-radius: 10px;
+  }
+  .chip {
+    background: #fff;
+    border: 2px solid var(--accent);
+    color: var(--accent-dk);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+  }
+  .chip:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .chip.dragging { opacity: 0.4; }
+  .chip.placed-correct { border-color: var(--good); color: var(--good); cursor: default; }
+  .chip.selected { background: #fff3d6; border-color: var(--magma2); }
+  .drag-clone {
+    position: fixed;
+    z-index: 999;
+    pointer-events: none;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+  }
+  .drop-slot {
+    cursor: pointer;
+  }
+  .slot-box {
+    fill: #ffffff;
+    stroke: var(--soft);
+    stroke-width: 2;
+    stroke-dasharray: 5 4;
+    rx: 6;
+  }
+  .drop-slot.slot-over .slot-box { stroke: var(--focus); stroke-width: 3.5; fill: #eaf2ff; stroke-dasharray: none; }
+  .drop-slot.slot-target .slot-box { stroke: var(--magma2); stroke-width: 3.5; fill: #fff3d6; stroke-dasharray: none; }
+  .drop-slot.slot-correct .slot-box { stroke: var(--good); stroke-width: 2.5; fill: #e6f5ea; stroke-dasharray: none; }
+  .slot-text { font-size: 13px; font-weight: 700; fill: var(--good); }
+  .slot-num {
+    font-size: 13px; font-weight: 800; fill: var(--soft);
+  }
+  .lead-line { stroke: var(--soft); stroke-width: 2; }
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 4px 0 12px;
+    font-weight: 700;
+    color: var(--accent-dk);
+  }
+  .pbar {
+    flex: 1;
+    height: 12px;
+    background: #e4ddcd;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .pfill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--magma2), var(--magma));
+    transition: width 0.35s ease;
+  }
+  .feedback {
+    margin-top: 12px;
+    min-height: 50px;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.96rem;
+    border: 1px solid var(--line);
+    background: #faf8f3;
+  }
+  .feedback.ok { background: #e9f6ee; border-color: #b6e0c4; color: #1d5e33; }
+  .feedback.no { background: #fcecea; border-color: #f0c2ba; color: #8e2b1a; }
+  .feedback strong { display: block; }
+  .win {
+    text-align: center;
+    background: linear-gradient(135deg, #fff3d6, #ffe6cf);
+    border: 2px solid var(--magma2);
+    border-radius: 12px;
+    padding: 14px;
+    margin-top: 12px;
+  }
+  .win h3 { margin: 0 0 4px; color: var(--magma); }
+  .hint {
+    font-size: 0.85rem;
+    color: var(--soft);
+    margin-top: 10px;
+  }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .word-help {
+    margin-top: 14px;
+    font-size: 0.86rem;
+    color: var(--soft);
+  }
+  .word-help summary { cursor: pointer; font-weight: 700; color: var(--accent-dk); }
+  .word-help dl { margin: 8px 0 0; }
+  .word-help dt { font-weight: 700; color: var(--ink); margin-top: 6px; }
+  .word-help dd { margin: 0 0 0 0; }
+  footer.foot {
+    margin-top: 28px;
+    font-size: 0.8rem;
+    color: var(--soft);
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+  }
+  .speak-toggle {
+    margin-left: auto;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--accent-dk);
+    font-weight: 600;
+  }
+  .head-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <div class="kicker">Geography &middot; KS2 &middot; Physical geography</div>
+    <h1>Volcano Cross-Section</h1>
+    <div class="head-row">
+      <p class="aim"><strong>Teacher aim:</strong> Pupils explore inside a volcano, watch the magma rise and erupt, then label each part of the cross-section to learn how a mountain that volcanoes build is shaped.</p>
+      <label class="speak-toggle">
+        <input type="checkbox" id="speakChk" checked>
+        Read aloud &#x1F50A;
+      </label>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- ===================== STAGE 1: EXPLORE ===================== -->
+    <section class="card" aria-labelledby="exploreH">
+      <h2 id="exploreH">1. Explore inside the volcano</h2>
+      <p class="lead">Tap, click or use Tab and Enter on a glowing part to find out what it does. Find all four, then press <strong>Erupt!</strong></p>
+
+      <div class="svg-frame">
+        <svg id="volcanoSvg" viewBox="0 0 400 300" role="group" aria-label="Cross-section of a volcano. Interactive parts you can explore.">
+          <!-- sky already from frame bg -->
+          <!-- ground rock layers -->
+          <defs>
+            <clipPath id="mountClip">
+              <path d="M0,300 L0,210 L130,210 L200,70 L270,210 L400,210 L400,300 Z"/>
+            </clipPath>
+            <radialGradient id="magmaGrad" cx="50%" cy="80%" r="70%">
+              <stop offset="0%" stop-color="#ffd84d"/>
+              <stop offset="55%" stop-color="#f4a623"/>
+              <stop offset="100%" stop-color="#d8431b"/>
+            </radialGradient>
+          </defs>
+
+          <!-- mountain body with rock layers -->
+          <g clip-path="url(#mountClip)">
+            <rect x="0" y="60" width="400" height="240" fill="#a08a72"/>
+            <rect x="0" y="120" width="400" height="180" fill="#8a7560"/>
+            <rect x="0" y="180" width="400" height="120" fill="#6d5a48"/>
+            <rect x="0" y="250" width="400" height="50" fill="#574635"/>
+          </g>
+
+          <!-- magma chamber (hot part) -->
+          <g id="part-chamber" class="hot-part" tabindex="0" role="button"
+             aria-label="Magma chamber. Explore this part.">
+            <ellipse class="focus-ring" cx="200" cy="262" rx="62" ry="30" fill="url(#magmaGrad)" stroke="#a8320f" stroke-width="2"/>
+            <text x="200" y="267" text-anchor="middle" font-size="11" font-weight="700" fill="#5a1c08">tap me</text>
+          </g>
+
+          <!-- magma pipe (hidden flow drawn on erupt) -->
+          <rect id="magmaFlow" x="192" y="80" width="16" height="180" rx="6" fill="url(#magmaGrad)" opacity="0"/>
+
+          <!-- main vent / pipe (hot part) -->
+          <g id="part-vent" class="hot-part" tabindex="0" role="button"
+             aria-label="Main vent, the pipe inside the volcano. Explore this part.">
+            <rect class="focus-ring" x="190" y="95" width="20" height="140" rx="7" fill="#3a2c20" stroke="#241a12" stroke-width="2"/>
+          </g>
+
+          <!-- crater (hot part) -->
+          <g id="part-crater" class="hot-part" tabindex="0" role="button"
+             aria-label="Crater at the top of the volcano. Explore this part.">
+            <path class="focus-ring" d="M180,72 L186,92 L214,92 L220,72 Q200,60 180,72 Z" fill="#2e2218" stroke="#241a12" stroke-width="2"/>
+          </g>
+
+          <!-- ash cloud group (hidden until erupt) -->
+          <g id="ashCloud" opacity="0">
+            <circle cx="200" cy="40" r="26" fill="#7a7066"/>
+            <circle cx="172" cy="48" r="20" fill="#8c8278"/>
+            <circle cx="228" cy="48" r="22" fill="#8c8278"/>
+            <circle cx="200" cy="26" r="20" fill="#9a9086"/>
+          </g>
+
+          <!-- lava flow down side (hidden until erupt) -->
+          <path id="lavaSide" d="M205,80 Q230,140 250,205" stroke="#f4592a" stroke-width="0" fill="none" stroke-linecap="round" opacity="0"/>
+
+          <!-- lava layer label hot part (the slopes / sides) -->
+          <g id="part-lava" class="hot-part" tabindex="0" role="button"
+             aria-label="Lava layers that build the mountain slopes. Explore this part.">
+            <path class="focus-ring" d="M270,210 L200,70 L233,210 Z" fill="#9a8064" stroke="#6d5a48" stroke-width="2"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="controls">
+        <button id="eruptBtn" class="btn-primary" disabled aria-describedby="eruptHint">Erupt! &#x1F30B;</button>
+        <button id="resetExplore" class="btn-ghost" type="button">Reset volcano</button>
+      </div>
+      <p id="eruptHint" class="hint">Find all four glowing parts to switch on the Erupt button.</p>
+
+      <div class="info-strip" id="infoStrip" aria-live="polite">
+        <h3 id="infoTitle">Start exploring</h3>
+        <p id="infoBody">Choose a glowing part of the volcano to begin.</p>
+      </div>
+    </section>
+
+    <!-- ===================== STAGE 2: LABEL ===================== -->
+    <section class="card" aria-labelledby="labelH">
+      <h2 id="labelH">2. Label the cross-section</h2>
+      <p class="lead">Drag each word to the right box, or tap a word then tap a box. You can also use Tab and Enter with the keyboard.</p>
+
+      <div class="progress" aria-hidden="true">
+        <span id="scoreTxt">0 of 5 placed</span>
+        <span class="pbar"><span class="pfill" id="pfill"></span></span>
+      </div>
+
+      <div class="label-bank" id="bank" role="list" aria-label="Word bank. Choose a word to place."></div>
+
+      <div class="svg-frame">
+        <svg id="labelSvg" viewBox="0 0 400 300" role="group" aria-label="Volcano cross-section diagram with five empty label boxes.">
+          <g clip-path="url(#mountClip)">
+            <rect x="0" y="60" width="400" height="240" fill="#a08a72"/>
+            <rect x="0" y="120" width="400" height="180" fill="#8a7560"/>
+            <rect x="0" y="180" width="400" height="120" fill="#6d5a48"/>
+            <rect x="0" y="250" width="400" height="50" fill="#574635"/>
+          </g>
+          <ellipse cx="200" cy="262" rx="62" ry="30" fill="url(#magmaGrad)" stroke="#a8320f" stroke-width="2"/>
+          <rect x="190" y="95" width="20" height="140" rx="7" fill="#3a2c20"/>
+          <path d="M180,72 L186,92 L214,92 L220,72 Q200,60 180,72 Z" fill="#2e2218"/>
+          <g opacity="0.9">
+            <circle cx="200" cy="40" r="22" fill="#8c8278"/>
+            <circle cx="176" cy="48" r="16" fill="#9a9086"/>
+            <circle cx="224" cy="48" r="17" fill="#9a9086"/>
+          </g>
+          <!-- lead lines + slots are injected by JS -->
+          <g id="slotLayer"></g>
+        </svg>
+      </div>
+
+      <div class="controls">
+        <button id="checkAll" class="btn-ghost" type="button">Need a hint?</button>
+        <button id="resetLabels" class="btn-ghost" type="button">Start labels again</button>
+      </div>
+
+      <div class="feedback" id="feedback" role="status" aria-live="polite">
+        Drag your first word onto the diagram to begin.
+      </div>
+
+      <div class="win" id="winBox" hidden>
+        <h3>Brilliant! &#x1F389;</h3>
+        <p>You labelled the whole volcano cross-section. A volcano is a mountain that builds up over many years as lava cools and sets into hard rock layers.</p>
+      </div>
+
+      <details class="word-help">
+        <summary>Word help</summary>
+        <dl>
+          <dt>Magma chamber</dt><dd>A big pool of hot, melted rock deep underground.</dd>
+          <dt>Main vent</dt><dd>The pipe that carries magma up to the top.</dd>
+          <dt>Crater</dt><dd>The bowl-shaped dip at the very top where magma comes out.</dd>
+          <dt>Lava</dt><dd>Magma is called lava once it reaches the surface.</dd>
+          <dt>Ash cloud</dt><dd>Tiny bits of rock and gas thrown high into the sky.</dd>
+        </dl>
+      </details>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    Volcano Cross-Section. Demonstration teaching app for WeST. UK National Curriculum, KS2 physical geography: mountains and volcanoes. Works offline.
+  </footer>
+</div>
+
+<div id="liveRegion" class="sr-only" aria-live="assertive"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ----------------------- shared helpers ----------------------- */
+  var speakChk = document.getElementById('speakChk');
+  function say(text) {
+    if (speakChk && speakChk.checked && window.westTTS && window.westTTS.ready()) {
+      window.westTTS.speak(text, { lang: 'en-GB', rate: 0.85, pitch: 1.1 });
+    }
+  }
+  speakChk.addEventListener('change', function () {
+    if (!speakChk.checked && window.westTTS) window.westTTS.cancel();
+  });
+  var live = document.getElementById('liveRegion');
+  function announce(text) { live.textContent = ''; setTimeout(function () { live.textContent = text; }, 30); }
+
+  /* ===================== STAGE 1: EXPLORE ===================== */
+  var PARTS = {
+    'part-chamber': {
+      title: 'Magma chamber',
+      body: 'Deep underground sits a big pool of red-hot melted rock called magma. This is the magma chamber.'
+    },
+    'part-vent': {
+      title: 'Main vent',
+      body: 'The main vent is the pipe inside the volcano. Hot magma is pushed up through it towards the top.'
+    },
+    'part-crater': {
+      title: 'Crater',
+      body: 'The crater is the bowl-shaped dip at the very top. This is the opening where magma escapes.'
+    },
+    'part-lava': {
+      title: 'Lava layers',
+      body: 'When magma reaches the surface it is called lava. The lava cools, sets hard and builds up the slopes of the mountain.'
+    }
+  };
+  var found = {};
+  var partCount = Object.keys(PARTS).length;
+  var infoTitle = document.getElementById('infoTitle');
+  var infoBody = document.getElementById('infoBody');
+  var eruptBtn = document.getElementById('eruptBtn');
+
+  function exploreFind(id) {
+    var info = PARTS[id];
+    if (!info) return;
+    infoTitle.textContent = info.title;
+    infoBody.textContent = info.body;
+    say(info.title + '. ' + info.body);
+    var g = document.getElementById(id);
+    if (g && !found[id]) {
+      g.classList.add('part-found');
+      found[id] = true;
+      var nFound = Object.keys(found).length;
+      if (nFound >= partCount) {
+        eruptBtn.disabled = false;
+        eruptBtn.focus();
+        announce('All parts found. The Erupt button is now ready.');
+      } else {
+        announce(info.title + ' found. ' + (partCount - nFound) + ' parts left.');
+      }
+    }
+    var tm = g.querySelector('text');
+    if (tm) tm.remove();
+  }
+
+  Object.keys(PARTS).forEach(function (id) {
+    var g = document.getElementById(id);
+    g.addEventListener('click', function () { exploreFind(id); });
+    g.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        exploreFind(id);
+      }
+    });
+  });
+
+  /* ----- eruption animation (CSS-free, plain JS timers) ----- */
+  var magmaFlow = document.getElementById('magmaFlow');
+  var ashCloud = document.getElementById('ashCloud');
+  var lavaSide = document.getElementById('lavaSide');
+  var erupting = false;
+
+  function resetEruptionVisuals() {
+    magmaFlow.setAttribute('opacity', '0');
+    magmaFlow.setAttribute('y', '80');
+    magmaFlow.setAttribute('height', '180');
+    ashCloud.setAttribute('opacity', '0');
+    ashCloud.setAttribute('transform', 'translate(0,0)');
+    lavaSide.setAttribute('stroke-width', '0');
+    lavaSide.setAttribute('opacity', '0');
+  }
+
+  function erupt() {
+    if (erupting) return;
+    erupting = true;
+    infoTitle.textContent = 'Eruption!';
+    infoBody.innerHTML = '<span class="erupt-note">The magma rises up the vent, bursts from the crater, and lava flows down the sides.</span>';
+    say('Eruption! The magma rises up the vent, bursts from the crater, and lava flows down the sides of the mountain.');
+    announce('The volcano is erupting. Magma rises and lava flows down the sides.');
+
+    // 1) magma rises in the pipe
+    magmaFlow.setAttribute('opacity', '1');
+    var step = 0;
+    var rise = setInterval(function () {
+      step++;
+      var prog = step / 22; // 0..1
+      if (prog >= 1) { clearInterval(rise); afterRise(); return; }
+      // pulse brightness via opacity flicker
+      magmaFlow.setAttribute('opacity', (0.7 + 0.3 * Math.abs(Math.sin(step / 2))).toFixed(2));
+    }, 45);
+  }
+
+  function afterRise() {
+    // 2) ash cloud bursts upward and grows
+    ashCloud.setAttribute('opacity', '1');
+    var t = 0;
+    var burst = setInterval(function () {
+      t++;
+      var dy = -t * 1.2;
+      ashCloud.setAttribute('transform', 'translate(0,' + dy + ')');
+      if (t >= 14) { clearInterval(burst); }
+    }, 50);
+    // 3) lava flows down the side
+    var w = 0;
+    var lava = setInterval(function () {
+      w += 0.8;
+      lavaSide.setAttribute('stroke-width', w.toFixed(1));
+      lavaSide.setAttribute('opacity', '1');
+      if (w >= 9) { clearInterval(lava); erupting = false; }
+    }, 60);
+  }
+
+  eruptBtn.addEventListener('click', erupt);
+
+  document.getElementById('resetExplore').addEventListener('click', function () {
+    found = {};
+    erupting = false;
+    Object.keys(PARTS).forEach(function (id) {
+      document.getElementById(id).classList.remove('part-found');
+    });
+    resetEruptionVisuals();
+    eruptBtn.disabled = true;
+    infoTitle.textContent = 'Start exploring';
+    infoBody.textContent = 'Choose a glowing part of the volcano to begin.';
+    announce('Volcano reset. Explore the parts again.');
+  });
+
+  /* ===================== STAGE 2: LABEL ===================== */
+  // Each label: id, word, x/y of slot box, lead line endpoint on diagram
+  var LABELS = [
+    { id: 'ash',     word: 'Ash cloud',      sx: 8,   sy: 18,  bw: 96, lx: 200, ly: 40  },
+    { id: 'crater',  word: 'Crater',         sx: 296, sy: 18,  bw: 96, lx: 200, ly: 74  },
+    { id: 'vent',    word: 'Main vent',      sx: 296, sy: 120, bw: 96, lx: 200, ly: 150 },
+    { id: 'lava',    word: 'Lava',           sx: 8,   sy: 120, bw: 96, lx: 250, ly: 175 },
+    { id: 'chamber', word: 'Magma chamber',  sx: 8,   sy: 246, bw: 130, lx: 200, ly: 262 }
+  ];
+  var slotLayer = document.getElementById('slotLayer');
+  var bank = document.getElementById('bank');
+  var labelSvg = document.getElementById('labelSvg');
+  var feedback = document.getElementById('feedback');
+  var winBox = document.getElementById('winBox');
+  var scoreTxt = document.getElementById('scoreTxt');
+  var pfill = document.getElementById('pfill');
+  var placed = {};       // id -> true when correct
+  var selectedChip = null;
+  var SVGNS = 'http://www.w3.org/2000/svg';
+
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function buildSlots() {
+    slotLayer.innerHTML = '';
+    LABELS.forEach(function (L, idx) {
+      var g = document.createElementNS(SVGNS, 'g');
+      g.setAttribute('class', 'drop-slot');
+      g.setAttribute('id', 'slot-' + L.id);
+      g.dataset.id = L.id;
+      // lead line from slot to part
+      var cx = L.sx + L.bw / 2;
+      var cy = L.sy + 13;
+      var line = document.createElementNS(SVGNS, 'line');
+      line.setAttribute('class', 'lead-line');
+      line.setAttribute('x1', cx); line.setAttribute('y1', cy);
+      line.setAttribute('x2', L.lx); line.setAttribute('y2', L.ly);
+      slotLayer.appendChild(line);
+      var dot = document.createElementNS(SVGNS, 'circle');
+      dot.setAttribute('cx', L.lx); dot.setAttribute('cy', L.ly);
+      dot.setAttribute('r', 3.5); dot.setAttribute('fill', '#5b6678');
+      slotLayer.appendChild(dot);
+      // box
+      var rect = document.createElementNS(SVGNS, 'rect');
+      rect.setAttribute('class', 'slot-box');
+      rect.setAttribute('x', L.sx); rect.setAttribute('y', L.sy);
+      rect.setAttribute('width', L.bw); rect.setAttribute('height', 26);
+      rect.setAttribute('rx', 6);
+      g.appendChild(rect);
+      // number badge
+      var num = document.createElementNS(SVGNS, 'text');
+      num.setAttribute('class', 'slot-num');
+      num.setAttribute('x', L.sx + 8); num.setAttribute('y', L.sy + 17);
+      num.textContent = (idx + 1);
+      g.appendChild(num);
+      // placed-word text (empty for now)
+      var txt = document.createElementNS(SVGNS, 'text');
+      txt.setAttribute('class', 'slot-text');
+      txt.setAttribute('x', cx); txt.setAttribute('y', L.sy + 17);
+      txt.setAttribute('text-anchor', 'middle');
+      txt.setAttribute('id', 'slottext-' + L.id);
+      g.appendChild(txt);
+
+      slotLayer.appendChild(g);
+
+      // make slot a tap/keyboard target
+      g.setAttribute('tabindex', '0');
+      g.setAttribute('role', 'button');
+      g.setAttribute('aria-label', 'Label box number ' + (idx + 1) + ', empty. Place a word here.');
+      g.addEventListener('click', function () { onSlotActivate(L.id); });
+      g.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+          e.preventDefault(); onSlotActivate(L.id);
+        }
+      });
+    });
+  }
+
+  function buildBank() {
+    bank.innerHTML = '';
+    var order = shuffle(LABELS.slice());
+    order.forEach(function (L) {
+      if (placed[L.id]) return;
+      var chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip';
+      chip.textContent = L.word;
+      chip.dataset.id = L.id;
+      chip.setAttribute('role', 'listitem');
+      chip.setAttribute('aria-label', L.word + '. Word to place. Press Enter to pick it up, then choose a box.');
+      bank.appendChild(chip);
+      attachPointerDrag(chip, L);
+      chip.addEventListener('click', function (e) {
+        // pointer drag handles the drag; plain click selects for tap-to-place
+        if (chip.dataset.dragged === '1') { chip.dataset.dragged = '0'; return; }
+        selectChip(chip);
+      });
+      chip.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+          e.preventDefault(); selectChip(chip);
+        }
+      });
+    });
+  }
+
+  function selectChip(chip) {
+    if (selectedChip === chip) {
+      chip.classList.remove('selected');
+      selectedChip = null;
+      clearTargetHighlights();
+      feedback.className = 'feedback';
+      feedback.textContent = 'Word put down. Choose a word again when you are ready.';
+      return;
+    }
+    if (selectedChip) selectedChip.classList.remove('selected');
+    selectedChip = chip;
+    chip.classList.add('selected');
+    highlightTargets();
+    var word = chip.textContent;
+    feedback.className = 'feedback';
+    feedback.innerHTML = '<strong>' + word + ' picked up.</strong> Now tap or press a glowing box on the diagram.';
+    say(word + ' picked up. Now choose a box on the diagram.');
+    announce(word + ' picked up. Choose a label box.');
+  }
+
+  function highlightTargets() {
+    LABELS.forEach(function (L) {
+      if (placed[L.id]) return;
+      var slot = document.getElementById('slot-' + L.id);
+      if (slot) slot.classList.add('slot-target');
+    });
+  }
+  function clearTargetHighlights() {
+    LABELS.forEach(function (L) {
+      var slot = document.getElementById('slot-' + L.id);
+      if (slot) slot.classList.remove('slot-target');
+    });
+  }
+
+  function onSlotActivate(slotId) {
+    if (!selectedChip) {
+      feedback.className = 'feedback';
+      feedback.textContent = 'Pick a word from the word bank first, then choose this box.';
+      return;
+    }
+    tryPlace(selectedChip.dataset.id, slotId);
+  }
+
+  function correctText(id) {
+    var L = LABELS.filter(function (x) { return x.id === id; })[0];
+    return L ? L.word : '';
+  }
+
+  function tryPlace(chipId, slotId) {
+    var slot = document.getElementById('slot-' + slotId);
+    var chip = bank.querySelector('.chip[data-id="' + chipId + '"]');
+    var wordL = LABELS.filter(function (x) { return x.id === chipId; })[0];
+    var word = wordL ? wordL.word : '';
+    if (chipId === slotId) {
+      // correct
+      placed[slotId] = true;
+      var st = document.getElementById('slottext-' + slotId);
+      if (st) st.textContent = correctText(slotId);
+      slot.classList.add('slot-correct');
+      slot.classList.remove('slot-target');
+      slot.setAttribute('aria-label', 'Label box, correct: ' + correctText(slotId));
+      if (chip) chip.remove();
+      selectedChip = null;
+      clearTargetHighlights();
+      feedback.className = 'feedback ok';
+      feedback.innerHTML = '<strong>Yes! That is the ' + word.toLowerCase() + '.</strong> ' + slotHint(slotId);
+      say('Yes. That is the ' + word + '. ' + slotHint(slotId));
+      announce('Correct. ' + word + ' placed.');
+      updateScore();
+    } else {
+      // wrong: flash the slot, keep chip selected
+      slot.classList.add('slot-over');
+      setTimeout(function () { slot.classList.remove('slot-over'); }, 600);
+      feedback.className = 'feedback no';
+      feedback.innerHTML = '<strong>Not quite.</strong> That box is for the ' + correctText(slotId).toLowerCase() + '. Try the ' + word.toLowerCase() + ' somewhere else.';
+      say('Not quite. That box is for the ' + correctText(slotId) + '. Try again.');
+      announce('Not quite. Try a different box for ' + word + '.');
+    }
+  }
+
+  function slotHint(id) {
+    var map = {
+      ash: 'Tiny bits of rock and gas blast high into the sky.',
+      crater: 'It is the bowl-shaped dip at the very top.',
+      vent: 'It is the pipe that carries magma up.',
+      lava: 'Magma is called lava once it flows on the surface.',
+      chamber: 'It is the pool of melted rock deep underground.'
+    };
+    return map[id] || '';
+  }
+
+  function updateScore() {
+    var n = Object.keys(placed).length;
+    scoreTxt.textContent = n + ' of ' + LABELS.length + ' placed';
+    pfill.style.width = (n / LABELS.length * 100) + '%';
+    if (n >= LABELS.length) {
+      winBox.hidden = false;
+      feedback.className = 'feedback ok';
+      feedback.innerHTML = '<strong>All five labels correct.</strong> You really know your volcano cross-section.';
+      say('All five labels correct. Well done. A volcano is a mountain built from layers of cooled lava.');
+      announce('Well done. All labels correct.');
+    }
+  }
+
+  /* ----- Pointer Events drag (touch + mouse + pen) ----- */
+  function attachPointerDrag(chip, L) {
+    var clone = null, startX = 0, startY = 0, moved = false;
+    chip.addEventListener('pointerdown', function (e) {
+      if (placed[L.id]) return;
+      e.preventDefault();
+      moved = false;
+      chip.dataset.dragged = '0';
+      startX = e.clientX; startY = e.clientY;
+      try { chip.setPointerCapture(e.pointerId); } catch (err) {}
+      var r = chip.getBoundingClientRect();
+      clone = chip.cloneNode(true);
+      clone.classList.add('drag-clone');
+      clone.style.left = r.left + 'px';
+      clone.style.top = r.top + 'px';
+      clone.style.width = r.width + 'px';
+      document.body.appendChild(clone);
+      chip.classList.add('dragging');
+      offsetX = e.clientX - r.left;
+      offsetY = e.clientY - r.top;
+    });
+    var offsetX = 0, offsetY = 0;
+    chip.addEventListener('pointermove', function (e) {
+      if (!clone) return;
+      if (Math.abs(e.clientX - startX) > 4 || Math.abs(e.clientY - startY) > 4) moved = true;
+      clone.style.left = (e.clientX - offsetX) + 'px';
+      clone.style.top = (e.clientY - offsetY) + 'px';
+      highlightSlotUnder(e.clientX, e.clientY);
+    });
+    function finish(e) {
+      if (!clone) return;
+      clone.remove(); clone = null;
+      chip.classList.remove('dragging');
+      try { chip.releasePointerCapture(e.pointerId); } catch (err) {}
+      var slotId = slotUnder(e.clientX, e.clientY);
+      clearSlotOver();
+      if (moved) {
+        chip.dataset.dragged = '1';
+        if (slotId) {
+          tryPlace(L.id, slotId);
+        } else {
+          feedback.className = 'feedback';
+          feedback.textContent = 'Drop the word onto one of the dotted boxes.';
+        }
+      }
+    }
+    chip.addEventListener('pointerup', finish);
+    chip.addEventListener('pointercancel', function (e) {
+      if (clone) { clone.remove(); clone = null; }
+      chip.classList.remove('dragging');
+      clearSlotOver();
+    });
+  }
+
+  function slotUnder(x, y) {
+    var found = null;
+    LABELS.forEach(function (L) {
+      if (placed[L.id]) return;
+      var slot = document.getElementById('slot-' + L.id);
+      var rect = slot.querySelector('.slot-box');
+      var r = rect.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) found = L.id;
+    });
+    return found;
+  }
+  function highlightSlotUnder(x, y) {
+    var hit = slotUnder(x, y);
+    LABELS.forEach(function (L) {
+      var slot = document.getElementById('slot-' + L.id);
+      if (!slot) return;
+      if (L.id === hit) slot.classList.add('slot-over');
+      else slot.classList.remove('slot-over');
+    });
+  }
+  function clearSlotOver() {
+    LABELS.forEach(function (L) {
+      var slot = document.getElementById('slot-' + L.id);
+      if (slot) slot.classList.remove('slot-over');
+    });
+  }
+
+  /* ----- hint + reset ----- */
+  document.getElementById('checkAll').addEventListener('click', function () {
+    var remaining = LABELS.filter(function (L) { return !placed[L.id]; });
+    if (!remaining.length) {
+      feedback.className = 'feedback ok';
+      feedback.textContent = 'Everything is already labelled. Great work.';
+      return;
+    }
+    var L = remaining[0];
+    feedback.className = 'feedback';
+    feedback.innerHTML = '<strong>Hint:</strong> Look for the word <em>' + L.word + '</em>. ' + slotHint(L.id);
+    say('Hint. Look for the word ' + L.word + '. ' + slotHint(L.id));
+    // briefly pulse the target box
+    var slot = document.getElementById('slot-' + L.id);
+    if (slot) { slot.classList.add('slot-target'); setTimeout(function () {
+      if (!selectedChip) slot.classList.remove('slot-target');
+    }, 1400); }
+  });
+
+  function resetLabels() {
+    placed = {};
+    selectedChip = null;
+    winBox.hidden = true;
+    buildSlots();
+    buildBank();
+    scoreTxt.textContent = '0 of ' + LABELS.length + ' placed';
+    pfill.style.width = '0%';
+    feedback.className = 'feedback';
+    feedback.textContent = 'Drag your first word onto the diagram to begin.';
+    announce('Labels reset. Start again.');
+  }
+  document.getElementById('resetLabels').addEventListener('click', resetLabels);
+
+  /* ----- init ----- */
+  buildSlots();
+  buildBank();
+})();
+</script>
+</body>
+</html>

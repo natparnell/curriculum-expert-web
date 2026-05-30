@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sound Button Blender</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #5c6478;
+    --paper: #fbf8f3;
+    --card: #ffffff;
+    --line: #e4ddd0;
+    --accent: #2563a8;
+    --accent-soft: #e6f0fa;
+    --green: #2e8b57;
+    --green-soft: #e3f4ea;
+    --amber: #c8881a;
+    --pink: #c0457a;
+    --digraph: #7a4fbf;
+    --shadow: 0 6px 18px rgba(31, 36, 48, 0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 18px 16px 60px; }
+
+  header.app-head {
+    border-bottom: 3px solid var(--ink);
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+  }
+  .kicker {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+  h1 {
+    font-size: clamp(1.7rem, 5vw, 2.5rem);
+    margin: 0 0 6px;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+  .aim {
+    margin: 6px 0 0;
+    font-size: 0.98rem;
+    color: var(--muted);
+    max-width: 70ch;
+  }
+  .aim strong { color: var(--ink); }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 18px 16px;
+    margin-bottom: 18px;
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .group-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-right: 2px;
+  }
+  .word-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    border: 2px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip:active { transform: translateY(1px); }
+  .chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .chip.has-digraph::after {
+    content: '\25C6';
+    color: var(--digraph);
+    font-size: 0.7em;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .chip.active.has-digraph::after { color: #d9c8f2; }
+
+  .stage-aim {
+    font-size: 0.86rem;
+    color: var(--muted);
+    margin: 0 0 14px;
+  }
+
+  /* Sound button row */
+  .blend-area { text-align: center; }
+  .graphemes {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 14px;
+    margin: 8px 0 6px;
+    min-height: 132px;
+    align-items: flex-end;
+    touch-action: none;
+  }
+  .gtile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+  .grapheme {
+    font-size: clamp(2.6rem, 9vw, 3.8rem);
+    font-weight: 800;
+    line-height: 1;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+    min-width: 1.1em;
+    text-align: center;
+  }
+  .grapheme.digraph { color: var(--digraph); }
+  .sound-btn {
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    border-radius: 12px;
+    padding: 10px 4px;
+    width: clamp(58px, 14vw, 84px);
+    color: #fff;
+    background: var(--accent);
+    box-shadow: 0 3px 0 rgba(0,0,0,0.18);
+    transition: transform 0.07s ease, filter 0.12s ease;
+    touch-action: manipulation;
+  }
+  .gtile.digraph .sound-btn { background: var(--digraph); }
+  .sound-btn:hover { filter: brightness(1.06); }
+  .sound-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.18); }
+  .sound-btn.pressed {
+    animation: pop 0.4s ease;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+  .gtile.dragging { z-index: 5; }
+  .gtile.dragging .grapheme { color: var(--pink); }
+
+  /* the blend slot / target */
+  .blend-track {
+    position: relative;
+    margin: 18px auto 6px;
+    max-width: 640px;
+  }
+  .blend-slot {
+    border: 3px dashed var(--line);
+    border-radius: 16px;
+    min-height: 86px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 10px 16px;
+    background: var(--paper);
+    transition: border-color 0.15s ease, background 0.15s ease;
+    font-size: clamp(2.2rem, 8vw, 3.4rem);
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+  }
+  .blend-slot.hot {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .blend-slot.solved {
+    border-style: solid;
+    border-color: var(--green);
+    background: var(--green-soft);
+    color: var(--green);
+  }
+  .blend-slot .ph { font-size: 0.9rem; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+  .blend-slot .built-part { color: var(--ink); }
+  .blend-slot .built-part.digraph { color: var(--digraph); }
+  .blend-slot.solved .built-part, .blend-slot.solved .built-part.digraph { color: var(--green); }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 16px;
+  }
+  .btn {
+    font: inherit;
+    font-weight: 700;
+    border-radius: 12px;
+    padding: 11px 18px;
+    cursor: pointer;
+    border: 2px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    transition: filter 0.12s ease, transform 0.08s ease;
+  }
+  .btn:hover { filter: brightness(1.05); }
+  .btn:active { transform: translateY(1px); }
+  .btn.ghost { background: #fff; color: var(--accent); }
+  .btn.green { background: var(--green); border-color: var(--green); }
+
+  .feedback {
+    margin: 16px auto 0;
+    max-width: 680px;
+    min-height: 58px;
+    border-radius: 14px;
+    padding: 12px 16px;
+    font-size: 1.02rem;
+    text-align: center;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--muted);
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+  .feedback.good { background: var(--green-soft); border-color: var(--green); color: #1d5c39; font-weight: 700; }
+  .feedback.nudge { background: #fff6e8; border-color: var(--amber); color: #8a5d10; }
+  .feedback strong { color: inherit; }
+
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 14px;
+    font-size: 0.86rem;
+    color: var(--muted);
+  }
+  .stars { letter-spacing: 2px; font-size: 1.1rem; color: var(--amber); }
+
+  .help {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 8px;
+    text-align: center;
+  }
+  kbd {
+    font: inherit;
+    font-size: 0.78rem;
+    background: #f0ece2;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    padding: 1px 6px;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 10px;
+    justify-content: center;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+  .dot.single { background: var(--accent); }
+  .dot.dig { background: var(--digraph); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+
+  footer.note {
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 26px;
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+  }
+
+  @media (max-width: 520px) {
+    .graphemes { gap: 10px; }
+    .feedback { font-size: 0.95rem; }
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <p class="kicker">English &middot; EYFS &middot; Reception phonics</p>
+    <h1>Sound Button Blender</h1>
+    <p class="aim">
+      <strong>Teacher aim:</strong> children press a sound button under each grapheme to hear its
+      pure sound, then drag the sounds together so the class blends and reads the word aloud.
+      Builds VC and CVC words with single letters and the core Reception digraphs.
+    </p>
+  </header>
+
+  <!-- Word picker -->
+  <section class="panel" aria-labelledby="picker-head">
+    <h2 id="picker-head" class="sr-only">Choose a word</h2>
+    <div class="toolbar">
+      <span class="group-label">VC &amp; CVC</span>
+      <div class="word-chips" id="simpleChips"></div>
+    </div>
+    <div class="toolbar">
+      <span class="group-label">Digraph words</span>
+      <div class="word-chips" id="digraphChips"></div>
+    </div>
+    <div class="legend" aria-hidden="true">
+      <span><span class="dot single"></span> single sound</span>
+      <span><span class="dot dig"></span> digraph (two letters, one sound)</span>
+    </div>
+  </section>
+
+  <!-- Blending stage -->
+  <section class="panel" aria-labelledby="stage-head">
+    <h2 id="stage-head" class="sr-only">Blending stage</h2>
+    <p class="stage-aim" id="stageAim">
+      Step 1: press each sound button to hear it. Step 2: drag the sounds into the blending box, in order, to build the word.
+    </p>
+
+    <div class="blend-area">
+      <div class="graphemes" id="graphemes" role="group" aria-label="Sound buttons. Press to hear each sound, then drag into the blending box in order."></div>
+
+      <div class="blend-track">
+        <div class="blend-slot" id="blendSlot" aria-label="Blending box">
+          <span class="ph" id="slotPlaceholder">Drag the sounds here, left to right</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn" id="blendBtn" type="button">&#x1F50A; Blend the word</button>
+        <button class="btn ghost" id="resetBtn" type="button">&#x21BB; Start this word again</button>
+        <button class="btn green" id="nextBtn" type="button">Next word &#x2192;</button>
+      </div>
+
+      <div class="feedback" id="feedback" role="status" aria-live="polite">
+        Pick a word above to begin. Press each sound button, then drag the sounds together.
+      </div>
+
+      <div class="progress" aria-hidden="true">
+        <span id="progressText">0 of 0 words blended</span>
+        <span class="stars" id="starRow"></span>
+      </div>
+
+      <p class="help">
+        Keyboard: <kbd>Tab</kbd> to a sound button, <kbd>Enter</kbd> to hear it,
+        <kbd>Space</kbd> to drop it into the box next.
+      </p>
+    </div>
+  </section>
+
+  <footer class="note">
+    Demonstration tool for Reception phonics. Pure sounds are spoken by your device voice;
+    say them crisply with the class. Names and words are illustrative examples only.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Word bank ----------
+     Each grapheme: { g: letters shown, s: pure-sound spoken hint, d: isDigraph }
+     The spoken hint biases the device voice toward the pure phoneme. */
+  function single(letter, sound) { return { g: letter, s: sound, d: false }; }
+  function dig(letters, sound) { return { g: letters, s: sound, d: true }; }
+
+  var WORDS = [
+    // VC / CVC single sounds
+    { word: "at",  type: "simple", parts: [ single("a","a"), single("t","tuh") ] },
+    { word: "it",  type: "simple", parts: [ single("i","i"), single("t","tuh") ] },
+    { word: "cat", type: "simple", parts: [ single("c","cuh"), single("a","a"), single("t","tuh") ] },
+    { word: "dog", type: "simple", parts: [ single("d","duh"), single("o","o"), single("g","guh") ] },
+    { word: "sun", type: "simple", parts: [ single("s","sss"), single("u","u"), single("n","nnn") ] },
+    { word: "pin", type: "simple", parts: [ single("p","puh"), single("i","i"), single("n","nnn") ] },
+    { word: "map", type: "simple", parts: [ single("m","mmm"), single("a","a"), single("p","puh") ] },
+    { word: "red", type: "simple", parts: [ single("r","rrr"), single("e","e"), single("d","duh") ] },
+    // Digraph words: 10+ core Reception digraphs
+    { word: "ship", type: "digraph", parts: [ dig("sh","sh"), single("i","i"), single("p","puh") ] },
+    { word: "chip", type: "digraph", parts: [ dig("ch","ch"), single("i","i"), single("p","puh") ] },
+    { word: "this", type: "digraph", parts: [ dig("th","th"), single("i","i"), single("s","sss") ] },
+    { word: "ring", type: "digraph", parts: [ single("r","rrr"), single("i","i"), dig("ng","ng") ] },
+    { word: "rain", type: "digraph", parts: [ single("r","rrr"), dig("ai","ay"), single("n","nnn") ] },
+    { word: "feet", type: "digraph", parts: [ single("f","fff"), dig("ee","ee"), single("t","tuh") ] },
+    { word: "boat", type: "digraph", parts: [ single("b","buh"), dig("oa","oh"), single("t","tuh") ] },
+    { word: "night",type: "digraph", parts: [ single("n","nnn"), dig("igh","eye"), single("t","tuh") ] },
+    { word: "moon", type: "digraph", parts: [ single("m","mmm"), dig("oo","oo"), single("n","nnn") ] },
+    { word: "fork", type: "digraph", parts: [ single("f","fff"), dig("or","or"), single("k","kuh") ] },
+    { word: "girl", type: "digraph", parts: [ single("g","guh"), dig("ir","er"), single("l","lll") ] },
+    { word: "cow",  type: "digraph", parts: [ single("c","cuh"), dig("ow","ow") ] },
+    { word: "coin", type: "digraph", parts: [ single("c","cuh"), dig("oi","oy"), single("n","nnn") ] }
+  ];
+
+  /* ---------- State ---------- */
+  var current = null;        // current word object
+  var built = [];            // indices placed into slot, in order
+  var solvedSet = {};        // word -> true once blended correctly
+  var totalWords = WORDS.length;
+
+  /* ---------- DOM ---------- */
+  var simpleChipsEl = document.getElementById("simpleChips");
+  var digraphChipsEl = document.getElementById("digraphChips");
+  var graphemesEl = document.getElementById("graphemes");
+  var slotEl = document.getElementById("blendSlot");
+  var placeholderEl = document.getElementById("slotPlaceholder");
+  var feedbackEl = document.getElementById("feedback");
+  var blendBtn = document.getElementById("blendBtn");
+  var resetBtn = document.getElementById("resetBtn");
+  var nextBtn = document.getElementById("nextBtn");
+  var progressText = document.getElementById("progressText");
+  var starRow = document.getElementById("starRow");
+
+  function speak(text, opts) {
+    if (window.westTTS && window.westTTS.ready()) {
+      window.westTTS.speak(text, Object.assign({ lang: "en-GB", rate: 0.85, pitch: 1.1 }, opts || {}));
+    }
+  }
+
+  /* ---------- Build word chips ---------- */
+  function buildChips() {
+    WORDS.forEach(function (w, idx) {
+      var b = document.createElement("button");
+      b.className = "chip" + (w.type === "digraph" ? " has-digraph" : "");
+      b.type = "button";
+      b.textContent = w.word;
+      b.setAttribute("data-idx", idx);
+      b.setAttribute("aria-label", "Build the word " + w.word.split("").join(" "));
+      b.addEventListener("click", function () { loadWord(idx); });
+      (w.type === "digraph" ? digraphChipsEl : simpleChipsEl).appendChild(b);
+    });
+  }
+
+  function markActiveChip(idx) {
+    var chips = document.querySelectorAll(".chip");
+    chips.forEach(function (c) {
+      c.classList.toggle("active", parseInt(c.getAttribute("data-idx"), 10) === idx);
+    });
+  }
+
+  /* ---------- Load a word ---------- */
+  function loadWord(idx) {
+    current = WORDS[idx];
+    current._idx = idx;
+    built = [];
+    markActiveChip(idx);
+    renderGraphemes();
+    renderSlot();
+    setFeedback(
+      "Press each sound button to hear the sound. Then drag them into the box, in order.",
+      ""
+    );
+    speak("Let's build the word. Press a sound button.", { rate: 0.9 });
+  }
+
+  /* ---------- Render sound buttons ---------- */
+  function renderGraphemes() {
+    graphemesEl.innerHTML = "";
+    current.parts.forEach(function (p, i) {
+      var tile = document.createElement("div");
+      tile.className = "gtile" + (p.d ? " digraph" : "");
+      tile.setAttribute("data-part", i);
+
+      var gl = document.createElement("div");
+      gl.className = "grapheme" + (p.d ? " digraph" : "");
+      gl.textContent = p.g;
+      gl.setAttribute("aria-hidden", "true");
+
+      var btn = document.createElement("button");
+      btn.className = "sound-btn";
+      btn.type = "button";
+      btn.innerHTML = "&#x1F50A; sound";
+      btn.setAttribute("data-part", i);
+      btn.setAttribute("aria-label",
+        "Sound button for " + (p.d ? "the digraph " : "the letter ") + p.g.split("").join(" ") +
+        ". Press to hear the sound, press Space to add it to the blending box.");
+
+      tile.appendChild(gl);
+      tile.appendChild(btn);
+      graphemesEl.appendChild(tile);
+
+      // press to hear
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        playSound(i, btn);
+      });
+      // Space key drops it into slot (keyboard path)
+      btn.addEventListener("keydown", function (e) {
+        if (e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          tryPlaceNext(i);
+        }
+      });
+
+      attachDrag(tile, i);
+    });
+  }
+
+  function playSound(i, btn) {
+    var p = current.parts[i];
+    if (btn) {
+      btn.classList.remove("pressed");
+      // reflow to restart animation
+      void btn.offsetWidth;
+      btn.classList.add("pressed");
+    }
+    speak(p.s, { rate: 0.8, pitch: 1.05 });
+  }
+
+  /* ---------- Slot rendering ---------- */
+  function renderSlot() {
+    slotEl.classList.remove("solved");
+    if (!built.length) {
+      slotEl.innerHTML = '<span class="ph" id="slotPlaceholder">Drag the sounds here, left to right</span>';
+      return;
+    }
+    slotEl.innerHTML = "";
+    built.forEach(function (partIdx) {
+      var p = current.parts[partIdx];
+      var span = document.createElement("span");
+      span.className = "built-part" + (p.d ? " digraph" : "");
+      span.textContent = p.g;
+      slotEl.appendChild(span);
+    });
+  }
+
+  /* ---------- Placement logic ---------- */
+  function tryPlaceNext(partIdx) {
+    if (built.indexOf(partIdx) !== -1) {
+      setFeedback("That sound is already in the box. Pick the next one.", "nudge");
+      return;
+    }
+    var expected = built.length; // next correct position is the next part in order
+    placePart(partIdx, expected);
+  }
+
+  function placePart(partIdx, expectedPos) {
+    var p = current.parts[partIdx];
+    if (partIdx === expectedPos) {
+      built.push(partIdx);
+      renderSlot();
+      speak(p.s, { rate: 0.8, pitch: 1.05 });
+      if (built.length === current.parts.length) {
+        setFeedback("All the sounds are in. Now press <strong>Blend the word</strong>.", "good");
+        speak("All the sounds are in. Now blend.", { rate: 0.9 });
+      } else {
+        setFeedback("Good. That sound goes there. Now find the next sound.", "good");
+      }
+    } else {
+      // wrong order: specific feedback
+      var needed = current.parts[expectedPos];
+      setFeedback(
+        "Almost. The next sound we need is <strong>" + needed.g + "</strong>, the first empty space. Try that one.",
+        "nudge"
+      );
+      speak("Not yet. We need the " + needed.s + " sound next.", { rate: 0.85 });
+      flashHint(expectedPos);
+    }
+  }
+
+  function flashHint(partIdx) {
+    var tile = graphemesEl.querySelector('.gtile[data-part="' + partIdx + '"] .sound-btn');
+    if (!tile) return;
+    tile.classList.remove("pressed");
+    void tile.offsetWidth;
+    tile.classList.add("pressed");
+  }
+
+  /* ---------- Drag with Pointer Events ---------- */
+  function attachDrag(tile, partIdx) {
+    var dragging = false, ghost = null, startX = 0, startY = 0, pointerId = null;
+
+    tile.addEventListener("pointerdown", function (e) {
+      // do not start drag from the sound button itself (that plays the sound)
+      if (e.target.closest(".sound-btn")) return;
+      if (built.indexOf(partIdx) !== -1) return;
+      dragging = true;
+      pointerId = e.pointerId;
+      startX = e.clientX; startY = e.clientY;
+      tile.classList.add("dragging");
+      try { tile.setPointerCapture(pointerId); } catch (err) {}
+      e.preventDefault();
+    });
+
+    tile.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      var dx = e.clientX - startX, dy = e.clientY - startY;
+      tile.style.transform = "translate(" + dx + "px," + dy + "px)";
+      var over = isOverSlot(e.clientX, e.clientY);
+      slotEl.classList.toggle("hot", over);
+      e.preventDefault();
+    });
+
+    function endDrag(e) {
+      if (!dragging) return;
+      dragging = false;
+      tile.classList.remove("dragging");
+      tile.style.transform = "";
+      slotEl.classList.remove("hot");
+      try { tile.releasePointerCapture(pointerId); } catch (err) {}
+      var x = e.clientX, y = e.clientY;
+      if (isOverSlot(x, y)) {
+        tryPlaceNext(partIdx);
+      }
+    }
+    tile.addEventListener("pointerup", endDrag);
+    tile.addEventListener("pointercancel", endDrag);
+  }
+
+  function isOverSlot(x, y) {
+    var r = slotEl.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  }
+
+  /* ---------- Blend ---------- */
+  function blendWord() {
+    if (!current) {
+      setFeedback("Choose a word first.", "nudge");
+      return;
+    }
+    if (built.length < current.parts.length) {
+      var nextNeeded = current.parts[built.length];
+      setFeedback(
+        "Not all the sounds are in yet. The next one we need is <strong>" + nextNeeded.g + "</strong>.",
+        "nudge"
+      );
+      speak("We still need more sounds. Drag them all in first.", { rate: 0.9 });
+      flashHint(built.length);
+      return;
+    }
+    // correct full word
+    slotEl.classList.add("solved");
+    setFeedback(
+      "&#x2B50; You blended it: <strong>" + current.word + "</strong>. Say it with me, fast and smooth.",
+      "good"
+    );
+    // speak each sound then the whole word
+    speakSequence();
+    if (!solvedSet[current.word]) {
+      solvedSet[current.word] = true;
+      updateProgress();
+    }
+  }
+
+  function speakSequence() {
+    // speak each pure sound in turn, then the blended word
+    var seq = current.parts.map(function (p) { return p.s; });
+    var i = 0;
+    function step() {
+      if (i < seq.length) {
+        speak(seq[i], { rate: 0.75, pitch: 1.05 });
+        i++;
+        setTimeout(step, 700);
+      } else {
+        setTimeout(function () { speak(current.word, { rate: 0.7, pitch: 1.1 }); }, 250);
+      }
+    }
+    step();
+  }
+
+  /* ---------- Progress ---------- */
+  function updateProgress() {
+    var n = Object.keys(solvedSet).length;
+    progressText.textContent = n + " of " + totalWords + " words blended";
+    var caps = Math.min(n, 12);
+    var s = "";
+    for (var i = 0; i < caps; i++) { s += "★"; }
+    starRow.textContent = s;
+    starRow.setAttribute("aria-label", n + " words blended");
+  }
+
+  /* ---------- Feedback helper ---------- */
+  function setFeedback(html, kind) {
+    feedbackEl.innerHTML = html;
+    feedbackEl.className = "feedback" + (kind ? " " + kind : "");
+  }
+
+  /* ---------- Controls ---------- */
+  blendBtn.addEventListener("click", blendWord);
+  resetBtn.addEventListener("click", function () {
+    if (!current) { setFeedback("Choose a word first.", "nudge"); return; }
+    built = [];
+    renderSlot();
+    setFeedback("Cleared. Press the sounds again, then drag them into the box in order.", "");
+    speak("Let's try again.", { rate: 0.9 });
+  });
+  nextBtn.addEventListener("click", function () {
+    var nextIdx = current ? (current._idx + 1) % WORDS.length : 0;
+    loadWord(nextIdx);
+  });
+
+  /* ---------- Init ---------- */
+  buildChips();
+  updateProgress();
+  loadWord(0);
+})();
+</script>
+</body>
+</html>

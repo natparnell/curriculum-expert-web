@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bee-Bot Floor Path</title>
+<style>
+  :root {
+    --honey: #ffcc33;
+    --honey-deep: #f4a900;
+    --ink: #2b2433;
+    --grass: #7dbb5a;
+    --grass-deep: #5a9a3c;
+    --sky: #fff8e6;
+    --card: #ffffff;
+    --line: #e4ddc9;
+    --good: #2e7d32;
+    --warn: #c62828;
+    --shadow: 0 4px 14px rgba(70,50,10,0.12);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: "Segoe UI", "Trebuchet MS", Verdana, sans-serif;
+    background: linear-gradient(160deg, #fff8e6 0%, #fdeec2 100%);
+    color: var(--ink);
+    -webkit-text-size-adjust: 100%;
+  }
+  header.app {
+    padding: 16px 18px 10px;
+    text-align: center;
+  }
+  header.app h1 {
+    margin: 0;
+    font-size: clamp(1.5rem, 4.5vw, 2.4rem);
+    letter-spacing: 0.5px;
+  }
+  header.app h1 .bee { font-size: 1.1em; }
+  .aim {
+    margin: 6px auto 0;
+    max-width: 760px;
+    font-size: clamp(0.85rem, 2.4vw, 1rem);
+    background: #fff3cf;
+    border: 1px solid var(--honey-deep);
+    border-radius: 12px;
+    padding: 8px 14px;
+    line-height: 1.4;
+  }
+  .aim strong { color: var(--honey-deep); }
+
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 8px 12px 40px;
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 880px) {
+    main { grid-template-columns: 320px 1fr; align-items: start; }
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+  .panel h2 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Command buttons (tray) */
+  .tray {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .cmd {
+    font: inherit;
+    cursor: pointer;
+    border: 2px solid var(--honey-deep);
+    background: var(--honey);
+    border-radius: 14px;
+    padding: 12px 6px;
+    text-align: center;
+    font-weight: 700;
+    color: var(--ink);
+    touch-action: none;
+    user-select: none;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+    box-shadow: 0 3px 0 var(--honey-deep);
+  }
+  .cmd:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--honey-deep); }
+  .cmd:focus-visible { outline: 4px solid #1769aa; outline-offset: 2px; }
+  .cmd .glyph { display: block; font-size: 1.7rem; line-height: 1; }
+  .cmd .lbl { display: block; font-size: 0.72rem; margin-top: 4px; }
+  .cmd.dragging { opacity: 0.5; }
+
+  .hint {
+    font-size: 0.8rem;
+    color: #6b5f4a;
+    margin: 10px 0 0;
+    line-height: 1.4;
+  }
+
+  /* Program strip */
+  .program {
+    margin-top: 14px;
+  }
+  .prog-list {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 8px;
+    min-height: 64px;
+    border: 2px dashed var(--honey-deep);
+    border-radius: 14px;
+    background: #fffaf0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-content: flex-start;
+  }
+  .prog-list.drop-active { background: #fff0c7; border-style: solid; }
+  .prog-list:empty::before {
+    content: "Drop arrows here to build the path";
+    color: #b3a684;
+    font-size: 0.85rem;
+    font-style: italic;
+  }
+  .prog-list li:empty::before { content: none; }
+  .step {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    background: var(--honey);
+    border: 2px solid var(--honey-deep);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+  .step:focus-visible { outline: 4px solid #1769aa; outline-offset: 2px; }
+  .step.active-step {
+    background: var(--grass);
+    border-color: var(--grass-deep);
+    transform: scale(1.08);
+  }
+  .step .del {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--warn);
+    color: #fff;
+    border: none;
+    font-size: 0.8rem;
+    line-height: 18px;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 12px;
+    padding: 11px 16px;
+    border: 2px solid transparent;
+    flex: 1 1 auto;
+  }
+  .btn:focus-visible { outline: 4px solid #1769aa; outline-offset: 2px; }
+  .btn-go { background: var(--grass); color: #fff; border-color: var(--grass-deep); box-shadow: 0 3px 0 var(--grass-deep); }
+  .btn-go:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--grass-deep); }
+  .btn-reset { background: #fff; color: var(--ink); border-color: var(--line); }
+  .btn-clear { background: #fff; color: var(--warn); border-color: #f0c6c6; }
+  .btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+  /* Predict box */
+  .predict {
+    margin-top: 12px;
+    background: #eef6ff;
+    border: 1px solid #b9d6f2;
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 0.88rem;
+    line-height: 1.45;
+  }
+  .predict strong { color: #1769aa; }
+
+  /* Grid / mat */
+  .mat-wrap { display: flex; flex-direction: column; align-items: center; }
+  .mat {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    gap: 4px;
+    width: min(92vw, 480px);
+    aspect-ratio: 1 / 1;
+    background: var(--grass-deep);
+    padding: 6px;
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+    touch-action: none;
+  }
+  .cell {
+    position: relative;
+    background: var(--grass);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(1rem, 4.5vw, 1.6rem);
+  }
+  .cell:nth-child(odd) { background: #84c163; }
+  .cell.flower { }
+  .cell.target {
+    box-shadow: inset 0 0 0 4px #ffd54a;
+  }
+  .cell.landed-good { box-shadow: inset 0 0 0 4px var(--good); }
+  .cell.landed-bad { box-shadow: inset 0 0 0 4px var(--warn); }
+
+  /* Bee */
+  .bee-token {
+    position: absolute;
+    width: 76%;
+    height: 76%;
+    left: 12%;
+    top: 12%;
+    font-size: clamp(1.4rem, 7vw, 2.3rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: left 0.45s ease, top 0.45s ease, transform 0.35s ease;
+    z-index: 5;
+    pointer-events: none;
+    will-change: left, top, transform;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.25));
+  }
+
+  /* Feedback live area */
+  .feedback {
+    margin-top: 14px;
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: clamp(0.92rem, 2.6vw, 1.05rem);
+    font-weight: 600;
+    line-height: 1.4;
+    min-height: 24px;
+    border: 2px solid var(--line);
+    background: #fffdf6;
+  }
+  .feedback.good { background: #e8f5e9; border-color: var(--good); color: #1b5e20; }
+  .feedback.bad { background: #fdecea; border-color: var(--warn); color: #8e1b13; }
+  .feedback.info { background: #eef6ff; border-color: #b9d6f2; color: #16527d; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+
+  footer.note {
+    text-align: center;
+    font-size: 0.78rem;
+    color: #8a7d63;
+    padding: 0 16px 24px;
+    max-width: 760px;
+    margin: 0 auto;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="app">
+  <h1><span class="bee">&#x1F41D;</span> Bee-Bot Floor Path</h1>
+  <p class="aim"><strong>Teacher aim:</strong> children give simple instructions to a programmable toy and predict the result. This builds early control and cause-and-effect: each button press makes the bee do one clear thing.</p>
+</header>
+
+<main>
+  <!-- LEFT: building the program -->
+  <section class="panel" aria-labelledby="build-h">
+    <h2 id="build-h"><span aria-hidden="true">&#x1F9E9;</span> Build the path</h2>
+
+    <p class="hint">Drag an arrow into the path, or tap an arrow to add it to the end. The bee always starts in the bottom corner facing up.</p>
+
+    <div class="tray" role="group" aria-label="Instruction buttons. Drag or tap to add to the path.">
+      <button type="button" class="cmd" data-cmd="forward" draggable="false">
+        <span class="glyph" aria-hidden="true">&#x2B06;&#xFE0F;</span>
+        <span class="lbl">Forward</span>
+      </button>
+      <button type="button" class="cmd" data-cmd="left" draggable="false">
+        <span class="glyph" aria-hidden="true">&#x21BA;</span>
+        <span class="lbl">Turn left</span>
+      </button>
+      <button type="button" class="cmd" data-cmd="right" draggable="false">
+        <span class="glyph" aria-hidden="true">&#x21BB;</span>
+        <span class="lbl">Turn right</span>
+      </button>
+    </div>
+
+    <div class="program">
+      <h2 style="font-size:0.95rem; margin-bottom:4px;"><span aria-hidden="true">&#x1F4DC;</span> The bee's path</h2>
+      <ol class="prog-list" id="progList" aria-label="Current path of instructions"></ol>
+    </div>
+
+    <div class="controls">
+      <button type="button" class="btn btn-go" id="goBtn"><span aria-hidden="true">&#x25B6;&#xFE0F;</span> Go</button>
+      <button type="button" class="btn btn-reset" id="resetBtn">Send bee home</button>
+      <button type="button" class="btn btn-clear" id="clearBtn">Clear path</button>
+    </div>
+
+    <div class="predict" id="predictBox">
+      <strong>Before you press Go:</strong> ask the class, "Which flower will the bee land on?" Then watch it buzz the route step by step.
+    </div>
+  </section>
+
+  <!-- RIGHT: the floor mat -->
+  <section class="panel" aria-labelledby="mat-h">
+    <h2 id="mat-h"><span aria-hidden="true">&#x1F33B;</span> The flower mat</h2>
+    <div class="mat-wrap">
+      <div class="mat" id="mat" role="img" aria-label="A five by five flower mat. The bee starts in the bottom left corner facing the top."></div>
+    </div>
+
+    <div class="feedback info" id="feedback" role="status" aria-live="polite">
+      Build a path on the left, then press Go to watch the bee buzz along.
+    </div>
+    <p class="sr-only" id="srState" aria-live="polite"></p>
+  </section>
+</main>
+
+<footer class="note">
+  Demonstration activity for Early Years computing. The bee, the flowers and any names are make-believe. No real children are shown.
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var SIZE = 5; // 5x5 grid
+  var mat = document.getElementById("mat");
+  var progList = document.getElementById("progList");
+  var feedback = document.getElementById("feedback");
+  var srState = document.getElementById("srState");
+  var goBtn = document.getElementById("goBtn");
+  var resetBtn = document.getElementById("resetBtn");
+  var clearBtn = document.getElementById("clearBtn");
+
+  // Directions: 0 = up (north), 1 = right, 2 = down, 3 = left
+  var DIR_NAMES = ["up", "right", "down", "left"];
+  // Row 0 is the TOP row, row 4 is the BOTTOM row. Bee starts bottom-left.
+  var START = { r: SIZE - 1, c: 0, dir: 0 };
+
+  // Flowers placed on the mat (fictional, fixed). r,c with emoji + name.
+  var flowers = [
+    { r: 0, c: 4, emoji: "\u{1F337}", name: "the red tulip" },   // top-right
+    { r: 0, c: 0, emoji: "\u{1F338}", name: "the pink blossom" },// top-left
+    { r: 2, c: 2, emoji: "\u{1F33C}", name: "the yellow daisy" },// centre
+    { r: 4, c: 4, emoji: "\u{1F33A}", name: "the orange flower" }// bottom-right
+  ];
+
+  var program = [];   // array of "forward" | "left" | "right"
+  var running = false;
+  var bee = null;     // the bee DOM token
+  var cells = [];     // 2D array of cell elements
+
+  var CMD_GLYPH = {
+    forward: "⬆️",
+    left: "↺",
+    right: "↻"
+  };
+  var CMD_WORD = {
+    forward: "forward",
+    left: "turn left",
+    right: "turn right"
+  };
+
+  function flowerAt(r, c) {
+    for (var i = 0; i < flowers.length; i++) {
+      if (flowers[i].r === r && flowers[i].c === c) return flowers[i];
+    }
+    return null;
+  }
+
+  // Build the grid
+  function buildMat() {
+    mat.innerHTML = "";
+    cells = [];
+    for (var r = 0; r < SIZE; r++) {
+      cells[r] = [];
+      for (var c = 0; c < SIZE; c++) {
+        var cell = document.createElement("div");
+        cell.className = "cell";
+        var f = flowerAt(r, c);
+        if (f) {
+          cell.classList.add("flower");
+          cell.textContent = f.emoji;
+          cell.setAttribute("aria-hidden", "false");
+        }
+        mat.appendChild(cell);
+        cells[r][c] = cell;
+      }
+    }
+    // bee token
+    bee = document.createElement("div");
+    bee.className = "bee-token";
+    bee.textContent = "\u{1F41D}";
+    bee.setAttribute("aria-hidden", "true");
+    mat.appendChild(bee);
+    placeBee(START.r, START.c, START.dir, false);
+  }
+
+  // Place the bee at row/col, facing dir. Position with percentages.
+  function placeBee(r, c, dir, animate) {
+    var leftPct = (c / SIZE) * 100;
+    var topPct = (r / SIZE) * 100;
+    if (!animate) {
+      var prev = bee.style.transition;
+      bee.style.transition = "none";
+      bee.style.left = (leftPct + 2) + "%";
+      bee.style.top = (topPct + 2) + "%";
+      // force reflow then restore
+      void bee.offsetWidth;
+      bee.style.transition = prev;
+    } else {
+      bee.style.left = (leftPct + 2) + "%";
+      bee.style.top = (topPct + 2) + "%";
+    }
+    bee.style.width = (100 / SIZE - 4) + "%";
+    bee.style.height = (100 / SIZE - 4) + "%";
+    bee.style.transform = "rotate(" + (dir * 90) + "deg)";
+  }
+
+  // ---- Program list rendering ----
+  function renderProgram() {
+    progList.innerHTML = "";
+    program.forEach(function (cmd, idx) {
+      var li = document.createElement("li");
+      li.className = "step";
+      li.setAttribute("data-index", idx);
+      li.setAttribute("tabindex", "0");
+      li.setAttribute("role", "listitem");
+      li.setAttribute("aria-label", "Step " + (idx + 1) + ": " + CMD_WORD[cmd] + ". Press Delete or Backspace to remove.");
+      li.textContent = CMD_GLYPH[cmd];
+
+      var del = document.createElement("button");
+      del.type = "button";
+      del.className = "del";
+      del.setAttribute("aria-label", "Remove step " + (idx + 1) + ", " + CMD_WORD[cmd]);
+      del.textContent = "×";
+      del.addEventListener("click", function (e) {
+        e.stopPropagation();
+        removeStep(idx);
+      });
+      li.appendChild(del);
+
+      li.addEventListener("keydown", function (e) {
+        if (e.key === "Delete" || e.key === "Backspace") {
+          e.preventDefault();
+          removeStep(idx);
+        }
+      });
+
+      progList.appendChild(li);
+    });
+    goBtn.disabled = program.length === 0;
+    clearBtn.disabled = program.length === 0;
+  }
+
+  function addCmd(cmd) {
+    if (running) return;
+    program.push(cmd);
+    renderProgram();
+    setFeedback("info", "Added: " + CMD_WORD[cmd] + ". The path now has " + program.length + " step" + (program.length === 1 ? "" : "s") + ".");
+    // focus the newly added step for keyboard users
+    var steps = progList.querySelectorAll(".step");
+    if (steps.length) steps[steps.length - 1].focus();
+  }
+
+  function removeStep(idx) {
+    if (running) return;
+    program.splice(idx, 1);
+    renderProgram();
+    setFeedback("info", "Step removed. The path now has " + program.length + " step" + (program.length === 1 ? "" : "s") + ".");
+  }
+
+  function clearProgram() {
+    if (running) return;
+    program = [];
+    renderProgram();
+    clearLandingMarks();
+    placeBee(START.r, START.c, START.dir, false);
+    setFeedback("info", "Path cleared. The bee is back home in the bottom corner, facing up.");
+  }
+
+  function clearLandingMarks() {
+    for (var r = 0; r < SIZE; r++) {
+      for (var c = 0; c < SIZE; c++) {
+        cells[r][c].classList.remove("landed-good", "landed-bad");
+      }
+    }
+  }
+
+  function setFeedback(kind, msg) {
+    feedback.className = "feedback " + kind;
+    feedback.textContent = msg;
+  }
+  function announce(msg) {
+    srState.textContent = msg;
+  }
+
+  // ---- Running the program ----
+  function runProgram() {
+    if (running || program.length === 0) return;
+    running = true;
+    setButtons(true);
+    clearLandingMarks();
+
+    var state = { r: START.r, c: START.c, dir: START.dir };
+    placeBee(state.r, state.c, state.dir, false);
+
+    var i = 0;
+    var bumped = false;
+
+    setFeedback("info", "The bee is starting. Watch it buzz.");
+    announce("Bee starting in the bottom corner facing up.");
+
+    function doStep() {
+      if (i >= program.length) {
+        finish(state, bumped);
+        return;
+      }
+      var cmd = program[i];
+      highlightStep(i);
+
+      if (cmd === "left") {
+        state.dir = (state.dir + 3) % 4;
+        placeBee(state.r, state.c, state.dir, true);
+        announce("Turn left. Now facing " + DIR_NAMES[state.dir] + ".");
+      } else if (cmd === "right") {
+        state.dir = (state.dir + 1) % 4;
+        placeBee(state.r, state.c, state.dir, true);
+        announce("Turn right. Now facing " + DIR_NAMES[state.dir] + ".");
+      } else { // forward
+        var nr = state.r, nc = state.c;
+        if (state.dir === 0) nr -= 1;        // up
+        else if (state.dir === 1) nc += 1;   // right
+        else if (state.dir === 2) nr += 1;   // down
+        else nc -= 1;                        // left
+
+        if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE) {
+          // bumped the edge: wobble, stay put
+          bumped = true;
+          wobbleBee();
+          announce("Buzz! The bee bumped the edge of the mat and could not move.");
+          setFeedback("bad", "Buzz! The bee tried to go off the mat, so it stayed still. Try a turn first.");
+        } else {
+          state.r = nr;
+          state.c = nc;
+          placeBee(state.r, state.c, state.dir, true);
+          announce("Forward one square.");
+        }
+      }
+
+      i += 1;
+      setTimeout(doStep, 650);
+    }
+
+    setTimeout(doStep, 500);
+  }
+
+  function highlightStep(idx) {
+    var steps = progList.querySelectorAll(".step");
+    steps.forEach(function (s, k) {
+      if (k === idx) s.classList.add("active-step");
+      else s.classList.remove("active-step");
+    });
+  }
+
+  function wobbleBee() {
+    var base = bee.style.transform;
+    bee.animate(
+      [
+        { transform: base + " translateX(0px)" },
+        { transform: base + " translateX(-6px)" },
+        { transform: base + " translateX(6px)" },
+        { transform: base + " translateX(0px)" }
+      ],
+      { duration: 360, iterations: 1 }
+    );
+  }
+
+  function finish(state, bumped) {
+    var steps = progList.querySelectorAll(".step");
+    steps.forEach(function (s) { s.classList.remove("active-step"); });
+
+    var landCell = cells[state.r][state.c];
+    var f = flowerAt(state.r, state.c);
+
+    if (f) {
+      landCell.classList.add("landed-good");
+      var msg = "Hooray! The bee landed on " + f.name + ". Your instructions worked.";
+      setFeedback("good", "\u{1F41D} " + msg);
+      announce(msg);
+    } else {
+      landCell.classList.add("landed-bad");
+      var nearest = nearestFlower(state.r, state.c);
+      var tip = nearest
+        ? " It is close to " + nearest.name + ". Try adding or changing a step to reach a flower."
+        : " Try a different path to reach a flower.";
+      var msg2 = "The bee stopped on an empty square." + tip;
+      setFeedback("bad", "\u{1F41D} " + msg2);
+      announce(msg2);
+    }
+    if (bumped) {
+      feedback.textContent += "  (It bumped the edge along the way.)";
+    }
+
+    running = false;
+    setButtons(false);
+  }
+
+  function nearestFlower(r, c) {
+    var best = null, bestD = Infinity;
+    flowers.forEach(function (f) {
+      var d = Math.abs(f.r - r) + Math.abs(f.c - c);
+      if (d < bestD) { bestD = d; best = f; }
+    });
+    return best;
+  }
+
+  function setButtons(isRunning) {
+    goBtn.disabled = isRunning || program.length === 0;
+    resetBtn.disabled = isRunning;
+    clearBtn.disabled = isRunning || program.length === 0;
+    var cmds = document.querySelectorAll(".cmd");
+    cmds.forEach(function (b) { b.disabled = isRunning; });
+  }
+
+  function sendHome() {
+    if (running) return;
+    clearLandingMarks();
+    placeBee(START.r, START.c, START.dir, true);
+    setFeedback("info", "The bee is home in the bottom corner, facing up. Press Go to run the path again.");
+    announce("Bee is home in the bottom corner facing up.");
+  }
+
+  // ---- Tap-to-add ----
+  document.querySelectorAll(".cmd").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      // Only treat as a tap-add if it was not a drag (handled by drag logic)
+      if (btn._wasDrag) { btn._wasDrag = false; return; }
+      addCmd(btn.getAttribute("data-cmd"));
+    });
+  });
+
+  // ---- Pointer-based drag from tray into the program list ----
+  var dragGhost = null;
+  var dragCmd = null;
+
+  document.querySelectorAll(".cmd").forEach(function (btn) {
+    btn.addEventListener("pointerdown", function (e) {
+      if (running) return;
+      // start a potential drag
+      var startX = e.clientX, startY = e.clientY;
+      var moved = false;
+      var cmd = btn.getAttribute("data-cmd");
+
+      function onMove(ev) {
+        var dx = ev.clientX - startX;
+        var dy = ev.clientY - startY;
+        if (!moved && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+          moved = true;
+          btn._wasDrag = true;
+          btn.classList.add("dragging");
+          dragCmd = cmd;
+          makeGhost(ev.clientX, ev.clientY, cmd);
+        }
+        if (moved) {
+          moveGhost(ev.clientX, ev.clientY);
+          var over = isOverDrop(ev.clientX, ev.clientY);
+          progList.classList.toggle("drop-active", over);
+        }
+      }
+      function onUp(ev) {
+        btn.releasePointerCapture && safeRelease(btn, e.pointerId);
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        btn.classList.remove("dragging");
+        progList.classList.remove("drop-active");
+        removeGhost();
+        if (moved) {
+          var over = isOverDrop(ev.clientX, ev.clientY);
+          if (over) addCmd(cmd);
+          // reset _wasDrag shortly after so the click handler ignores this gesture
+          setTimeout(function () { btn._wasDrag = false; }, 0);
+        }
+        dragCmd = null;
+      }
+
+      try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    });
+  });
+
+  function safeRelease(el, id) {
+    try { el.releasePointerCapture(id); } catch (e) {}
+  }
+
+  function isOverDrop(x, y) {
+    var rect = progList.getBoundingClientRect();
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  }
+
+  function makeGhost(x, y, cmd) {
+    dragGhost = document.createElement("div");
+    dragGhost.textContent = CMD_GLYPH[cmd];
+    dragGhost.style.position = "fixed";
+    dragGhost.style.zIndex = "999";
+    dragGhost.style.pointerEvents = "none";
+    dragGhost.style.fontSize = "2rem";
+    dragGhost.style.background = "#ffcc33";
+    dragGhost.style.border = "2px solid #f4a900";
+    dragGhost.style.borderRadius = "12px";
+    dragGhost.style.width = "52px";
+    dragGhost.style.height = "52px";
+    dragGhost.style.display = "flex";
+    dragGhost.style.alignItems = "center";
+    dragGhost.style.justifyContent = "center";
+    dragGhost.style.opacity = "0.9";
+    document.body.appendChild(dragGhost);
+    moveGhost(x, y);
+  }
+  function moveGhost(x, y) {
+    if (!dragGhost) return;
+    dragGhost.style.left = (x - 26) + "px";
+    dragGhost.style.top = (y - 26) + "px";
+  }
+  function removeGhost() {
+    if (dragGhost && dragGhost.parentNode) dragGhost.parentNode.removeChild(dragGhost);
+    dragGhost = null;
+  }
+
+  // ---- Wire controls ----
+  goBtn.addEventListener("click", runProgram);
+  resetBtn.addEventListener("click", sendHome);
+  clearBtn.addEventListener("click", clearProgram);
+
+  // ---- Init ----
+  buildMat();
+  renderProgram();
+
+  // Reposition bee on resize (percentages handle most of it, but reflow keeps it crisp)
+  window.addEventListener("resize", function () {
+    // bee uses percentages so no recompute needed; keep handler for future-proofing
+  });
+})();
+</script>
+</body>
+</html>

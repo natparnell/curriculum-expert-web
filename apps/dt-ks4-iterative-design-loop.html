@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iterative Design Loop: KS4 Design and Technology</title>
+<style>
+  :root{
+    --ink:#1d2433; --muted:#5a6478; --line:#dce1ea; --paper:#ffffff;
+    --bg:#eef1f6; --brand:#2b6cb0; --brand-dk:#1f4f80; --accent:#0f7b6c;
+    --warn:#b7791f; --bad:#c0392b; --good:#1f8a4c;
+    --chip:#eaf1f9; --shadow:0 2px 10px rgba(20,30,55,.08);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:var(--bg); line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:18px 16px 64px}
+  header.app{
+    background:linear-gradient(135deg,#244a78,#2b6cb0);
+    color:#fff; border-radius:var(--radius); padding:20px 22px; box-shadow:var(--shadow);
+  }
+  header.app h1{margin:0 0 4px; font-size:1.5rem; letter-spacing:.2px}
+  header.app .sub{font-size:.95rem; opacity:.95}
+  .aim{
+    margin:12px 0 0; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25);
+    padding:9px 12px; border-radius:10px; font-size:.9rem;
+  }
+  .aim strong{font-weight:700}
+
+  .stages{
+    display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 8px;
+    position:sticky; top:0; z-index:20; background:var(--bg); padding:8px 0;
+  }
+  .stage-btn{
+    flex:1 1 130px; min-width:120px; border:1px solid var(--line); background:var(--paper);
+    border-radius:10px; padding:10px 8px; cursor:pointer; text-align:center;
+    font-size:.86rem; font-weight:600; color:var(--muted); position:relative;
+    transition:transform .08s ease, border-color .12s ease;
+  }
+  .stage-btn .n{display:block; font-size:1.1rem; line-height:1}
+  .stage-btn[aria-current="true"]{
+    border-color:var(--brand); color:var(--brand-dk); box-shadow:var(--shadow);
+  }
+  .stage-btn[data-done="true"]::after{
+    content:'\2713'; position:absolute; top:5px; right:7px; color:var(--good); font-weight:800;
+  }
+  .stage-btn:focus-visible{outline:3px solid #9cc2e6; outline-offset:2px}
+
+  .panel{
+    background:var(--paper); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:18px; margin-bottom:16px;
+  }
+  .panel h2{margin:0 0 4px; font-size:1.2rem}
+  .panel .lead{color:var(--muted); margin:0 0 14px; font-size:.95rem}
+  .hidden{display:none !important}
+
+  .brief{
+    background:var(--chip); border-left:4px solid var(--brand); padding:12px 14px;
+    border-radius:0 10px 10px 0; margin-bottom:14px; font-size:.92rem;
+  }
+  .brief b{color:var(--brand-dk)}
+
+  /* Explore: requirement weighting */
+  .req-grid{display:grid; gap:12px}
+  .req{
+    border:1px solid var(--line); border-radius:10px; padding:12px;
+  }
+  .req .top{display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap}
+  .req .name{font-weight:700}
+  .req .why{font-size:.84rem; color:var(--muted); margin:4px 0 8px}
+  .req input[type=range]{width:100%}
+  .req .val{font-variant-numeric:tabular-nums; font-weight:700; color:var(--brand-dk)}
+  .budget{
+    margin-top:12px; padding:10px 12px; border-radius:10px; font-weight:600; font-size:.92rem;
+    border:1px solid var(--line);
+  }
+  .budget.ok{background:#e9f7ef; border-color:#bfe6cd; color:var(--good)}
+  .budget.over{background:#fdecea; border-color:#f3c0bb; color:var(--bad)}
+
+  /* Create: the canvas controls */
+  .layout{display:grid; grid-template-columns:1fr; gap:16px}
+  @media(min-width:860px){ .layout{grid-template-columns:340px 1fr} }
+  .controls .ctrl{margin-bottom:14px}
+  .controls label{display:block; font-weight:600; font-size:.9rem; margin-bottom:4px}
+  .controls .hint{font-size:.8rem; color:var(--muted); margin:2px 0 6px}
+  .controls input[type=range]{width:100%}
+  .seg{display:flex; gap:6px; flex-wrap:wrap}
+  .seg button{
+    flex:1 1 auto; border:1px solid var(--line); background:#fafbfd; border-radius:8px;
+    padding:8px 6px; cursor:pointer; font-size:.85rem; font-weight:600; color:var(--muted);
+  }
+  .seg button[aria-pressed="true"]{background:var(--brand); color:#fff; border-color:var(--brand)}
+  .seg button:focus-visible{outline:3px solid #9cc2e6; outline-offset:2px}
+
+  .stage-canvas{
+    border:1px solid var(--line); border-radius:12px; background:
+      linear-gradient(#f5f7fb 1px,transparent 1px) 0 0/100% 24px,
+      linear-gradient(90deg,#f5f7fb 1px,transparent 1px) 0 0/24px 100%,
+      #ffffff;
+    width:100%; height:300px; display:block; touch-action:none;
+  }
+  .readouts{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:10px}
+  @media(min-width:560px){ .readouts{grid-template-columns:repeat(4,1fr)} }
+  .ro{border:1px solid var(--line); border-radius:10px; padding:8px 10px; text-align:center; background:#fbfcfe}
+  .ro .k{font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.4px}
+  .ro .v{font-size:1.05rem; font-weight:800; color:var(--brand-dk); font-variant-numeric:tabular-nums}
+
+  /* Tolerance check */
+  .tol-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:6px; font-size:.9rem}
+  .tol-pill{padding:3px 9px; border-radius:999px; font-weight:700; font-size:.82rem}
+  .tol-pass{background:#e9f7ef; color:var(--good); border:1px solid #bfe6cd}
+  .tol-fail{background:#fdecea; color:var(--bad); border:1px solid #f3c0bb}
+
+  /* Evaluate: feedback + scoring */
+  .meter{margin:10px 0}
+  .meter .lab{display:flex; justify-content:space-between; font-size:.88rem; margin-bottom:3px}
+  .meter .lab .s{font-weight:800; font-variant-numeric:tabular-nums}
+  .bar{height:12px; border-radius:999px; background:#eef1f6; overflow:hidden}
+  .bar > span{display:block; height:100%; border-radius:999px; transition:width .35s ease}
+  .feedback{
+    margin-top:12px; border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fbfcfe;
+  }
+  .feedback h3{margin:0 0 6px; font-size:1rem}
+  .feedback ul{margin:6px 0 0; padding-left:20px}
+  .feedback li{margin:4px 0; font-size:.92rem}
+  .feedback li.win::marker{content:'\2713  '}
+  .feedback li.win{color:var(--good)}
+  .feedback li.fix::marker{content:'\2192  '}
+  .feedback li.fix{color:var(--warn)}
+
+  .users{display:grid; gap:10px; margin-top:8px}
+  @media(min-width:680px){ .users{grid-template-columns:1fr 1fr 1fr} }
+  .user-card{border:1px solid var(--line); border-radius:10px; padding:11px 12px; background:#fff}
+  .user-card .who{font-weight:700; font-size:.92rem}
+  .user-card .who small{font-weight:500; color:var(--muted)}
+  .user-card .quote{font-size:.88rem; margin:6px 0 0; color:#34405a}
+  .user-card .tag{display:inline-block; margin-top:8px; font-size:.74rem; font-weight:700;
+    padding:2px 8px; border-radius:999px; background:var(--chip); color:var(--brand-dk)}
+
+  /* Refine prompt */
+  .refine-box{background:var(--chip); border-radius:10px; padding:12px 14px; font-size:.92rem; margin-top:6px}
+
+  /* History / version log */
+  .history{display:grid; gap:10px}
+  .vrow{
+    display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center;
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:#fff;
+  }
+  .vrow .vtag{font-weight:800; color:var(--brand-dk); font-variant-numeric:tabular-nums}
+  .vrow .vmeta{font-size:.85rem; color:var(--muted)}
+  .vrow .vscore{font-weight:800; font-variant-numeric:tabular-nums; text-align:right}
+  .vrow.best{border-color:#bfe6cd; background:#f3fbf6}
+  .delta{font-size:.78rem; font-weight:700; padding:1px 7px; border-radius:999px; margin-left:6px}
+  .delta.up{background:#e9f7ef; color:var(--good)}
+  .delta.down{background:#fdecea; color:var(--bad)}
+  .delta.same{background:#eef1f6; color:var(--muted)}
+
+  .btn{
+    border:none; border-radius:10px; padding:11px 18px; font-size:.95rem; font-weight:700;
+    cursor:pointer; background:var(--brand); color:#fff; box-shadow:var(--shadow);
+  }
+  .btn.secondary{background:#fff; color:var(--brand-dk); border:1px solid var(--line); box-shadow:none}
+  .btn:focus-visible{outline:3px solid #9cc2e6; outline-offset:2px}
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+  .row-actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:16px}
+
+  .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); border:0}
+  .note{font-size:.82rem; color:var(--muted); margin-top:10px}
+  .kbd{font-family:ui-monospace,Menlo,Consolas,monospace; background:#eef1f6; border:1px solid var(--line);
+    border-radius:5px; padding:0 5px; font-size:.82rem}
+  footer.foot{font-size:.8rem; color:var(--muted); text-align:center; margin-top:20px}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <h1>Iterative Design Loop</h1>
+    <div class="sub">KS4 Design and Technology &middot; Designing and making principles</div>
+    <p class="aim"><strong>Teacher aim:</strong> Pupils run a full GCSE design cycle (explore, create, evaluate, refine) on one product, using user feedback, ergonomics and tolerances to drive measurable improvement across versions.</p>
+  </header>
+
+  <!-- Stage navigation -->
+  <nav class="stages" aria-label="Design loop stages">
+    <button class="stage-btn" data-go="0" aria-current="true"><span class="n">1</span>Explore</button>
+    <button class="stage-btn" data-go="1"><span class="n">2</span>Create</button>
+    <button class="stage-btn" data-go="2"><span class="n">3</span>Evaluate</button>
+    <button class="stage-btn" data-go="3"><span class="n">4</span>Refine</button>
+    <button class="stage-btn" data-go="4"><span class="n">&#x1F4D6;</span>History</button>
+  </nav>
+
+  <!-- ============ STAGE 1: EXPLORE ============ -->
+  <section class="panel" id="stage-0" aria-labelledby="h0">
+    <h2 id="h0">1. Explore the brief</h2>
+    <p class="lead">Before drawing anything, designers analyse who the product is for and what matters most. Set your design priorities. You have a limited "focus budget", so you cannot make everything equally important.</p>
+
+    <div class="brief">
+      <b>Brief:</b> Design a handheld <b>reusable water bottle</b> for Year 7 pupils to carry between lessons. It must fit in a side pocket of a school bag, be easy to open one-handed, and survive being dropped. Three test users are waiting to try your prototype.
+    </div>
+
+    <p style="font-weight:600; margin:4px 0 6px">Set priority for each requirement (0 to 5):</p>
+    <div class="req-grid" id="reqGrid"></div>
+
+    <div class="budget" id="budgetBox" aria-live="polite">Focus budget used: 0 of 12</div>
+    <p class="note">A balanced specification respects real constraints. Spend your focus on what the brief and users care about most. The choices you make here change how every test user reacts later.</p>
+
+    <div class="row-actions">
+      <button class="btn" id="exploreNext">Lock priorities &amp; start designing &rarr;</button>
+    </div>
+  </section>
+
+  <!-- ============ STAGE 2: CREATE ============ -->
+  <section class="panel hidden" id="stage-1" aria-labelledby="h1">
+    <h2 id="h1">2. Create the prototype</h2>
+    <p class="lead">Adjust the design parameters. The preview, capacity, mass and tolerance check update live. This is your working drawing for the current version.</p>
+
+    <div class="layout">
+      <div class="controls">
+        <div class="ctrl">
+          <label for="cHeight">Bottle height: <span id="vHeight" class="val">190</span> mm</label>
+          <div class="hint">Side pocket allows a maximum of 210 mm.</div>
+          <input type="range" id="cHeight" min="120" max="240" value="190" step="1"
+                 aria-describedby="vHeight">
+        </div>
+        <div class="ctrl">
+          <label for="cDia">Body diameter: <span id="vDia" class="val">68</span> mm</label>
+          <div class="hint">A Year 7 hand grips best around 60 to 75 mm.</div>
+          <input type="range" id="cDia" min="50" max="95" value="68" step="1" aria-describedby="vDia">
+        </div>
+        <div class="ctrl">
+          <label for="cWall">Wall thickness: <span id="vWall" class="val">2.0</span> mm</label>
+          <div class="hint">Thicker walls survive drops but add mass.</div>
+          <input type="range" id="cWall" min="0.8" max="4.0" value="2.0" step="0.1" aria-describedby="vWall">
+        </div>
+        <div class="ctrl">
+          <label for="cGrip">Grip texture (drop resistance): <span id="vGrip" class="val">2</span></label>
+          <div class="hint">0 = smooth, 5 = deep ridged grip.</div>
+          <input type="range" id="cGrip" min="0" max="5" value="2" step="1" aria-describedby="vGrip">
+        </div>
+        <div class="ctrl">
+          <label id="lidLabel">Lid type</label>
+          <div class="hint">Affects one-handed opening and leak resistance.</div>
+          <div class="seg" id="lidSeg" role="group" aria-labelledby="lidLabel">
+            <button data-lid="screw" aria-pressed="false">Screw cap</button>
+            <button data-lid="flip" aria-pressed="true">Flip top</button>
+            <button data-lid="push" aria-pressed="false">Push pull</button>
+          </div>
+        </div>
+        <div class="ctrl">
+          <label id="matLabel">Material</label>
+          <div class="hint">Trades mass, cost and toughness.</div>
+          <div class="seg" id="matSeg" role="group" aria-labelledby="matLabel">
+            <button data-mat="pp" aria-pressed="true">Polypropylene</button>
+            <button data-mat="al" aria-pressed="false">Aluminium</button>
+            <button data-mat="ss" aria-pressed="false">Stainless steel</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <svg id="preview" class="stage-canvas" viewBox="0 0 240 300" role="img"
+             aria-labelledby="previewTitle previewDesc" tabindex="0">
+          <title id="previewTitle">Live bottle preview</title>
+          <desc id="previewDesc">A scale drawing of the bottle updating as you change parameters.</desc>
+        </svg>
+        <p class="sr-only" id="previewLive" aria-live="polite"></p>
+
+        <div class="readouts">
+          <div class="ro"><div class="k">Capacity</div><div class="v" id="roCap">--</div></div>
+          <div class="ro"><div class="k">Mass (empty)</div><div class="v" id="roMass">--</div></div>
+          <div class="ro"><div class="k">Pocket fit</div><div class="v" id="roFit">--</div></div>
+          <div class="ro"><div class="k">Est. cost</div><div class="v" id="roCost">--</div></div>
+        </div>
+
+        <div class="tol-row" aria-live="polite">
+          <span style="font-weight:600">Quality control:</span>
+          <span>height target 190 &plusmn;5 mm &rarr;</span>
+          <span class="tol-pill" id="tolPill">checking</span>
+          <span id="tolNote" style="color:var(--muted)"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="row-actions">
+      <button class="btn secondary" data-go="0">&larr; Back to brief</button>
+      <button class="btn" id="createNext">Test with users &rarr;</button>
+    </div>
+  </section>
+
+  <!-- ============ STAGE 3: EVALUATE ============ -->
+  <section class="panel hidden" id="stage-2" aria-labelledby="h2e">
+    <h2 id="h2e">3. Evaluate against the spec and users</h2>
+    <p class="lead">Your prototype scores against the priorities you set, and three fictional test users give feedback. Higher priority requirements weigh more heavily in the overall score.</p>
+
+    <div id="scoreMeters"></div>
+
+    <div class="feedback">
+      <h3>Specification analysis</h3>
+      <ul id="specFeedback"></ul>
+    </div>
+
+    <h3 style="margin:18px 0 2px; font-size:1rem">User testing panel</h3>
+    <p class="note" style="margin-top:2px">Fictional test users. No real pupil is represented.</p>
+    <div class="users" id="userPanel"></div>
+
+    <div class="row-actions">
+      <button class="btn secondary" data-go="1">&larr; Adjust prototype</button>
+      <button class="btn" id="evalNext">Plan the next iteration &rarr;</button>
+    </div>
+  </section>
+
+  <!-- ============ STAGE 4: REFINE ============ -->
+  <section class="panel hidden" id="stage-3" aria-labelledby="h3r">
+    <h2 id="h3r">4. Refine and iterate</h2>
+    <p class="lead">This is the heart of iterative design. Read the targeted advice, save this version, then loop back to Create to improve it. Each saved version is logged so you can prove improvement.</p>
+
+    <div class="feedback">
+      <h3>Where to focus next</h3>
+      <ul id="refineList"></ul>
+    </div>
+
+    <div class="refine-box" id="refineSummary" aria-live="polite"></div>
+
+    <div class="row-actions">
+      <button class="btn" id="saveVersion">Save this version &amp; iterate &rarr;</button>
+      <button class="btn secondary" data-go="4">View version history</button>
+    </div>
+    <p class="note">Iterative design means deliberate, evidence-led change. Save a version, return to Create, change one or two parameters in response to feedback, then re-test. Compare scores in the History tab.</p>
+  </section>
+
+  <!-- ============ HISTORY ============ -->
+  <section class="panel hidden" id="stage-4" aria-labelledby="h4h">
+    <h2 id="h4h">Version history</h2>
+    <p class="lead">A development journey: every saved iteration with its score and what changed. Examiners reward evidence of refinement driven by testing, not a single lucky guess.</p>
+    <div class="history" id="historyList" aria-live="polite"></div>
+    <div class="row-actions">
+      <button class="btn secondary" data-go="1">Keep iterating</button>
+      <button class="btn secondary" id="resetAll">Reset everything</button>
+    </div>
+  </section>
+
+  <footer class="foot">Iterative Design Loop &middot; WeST Curriculum Expert &middot; Demonstration tool for KS4 Design and Technology.</footer>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- Requirements (Explore) ---------- */
+const REQS = [
+  {id:"portable", name:"Portable and pocket-fit", why:"Must slot into a school bag side pocket (height ≤ 210 mm)."},
+  {id:"ergo",     name:"Ergonomic grip",          why:"Comfortable one-handed hold for a Year 7 (diameter 60 to 75 mm)."},
+  {id:"open",     name:"Easy one-handed opening", why:"Opens between lessons without two hands or spills."},
+  {id:"durable",  name:"Drop durability",         why:"Survives being knocked off a desk repeatedly."},
+  {id:"capacity", name:"Useful capacity",         why:"Holds enough water for a morning (aim ~500 ml)."},
+  {id:"light",    name:"Light to carry",          why:"Low empty mass so a full bag is not heavy."}
+];
+const BUDGET = 12;
+
+/* ---------- State ---------- */
+const state = {
+  priorities: {portable:2, ergo:2, open:2, durable:2, capacity:2, light:2},
+  design: {height:190, dia:68, wall:2.0, grip:2, lid:"flip", mat:"pp"},
+  versions: [],
+  lastScore: null
+};
+
+const MAT = {
+  pp: {name:"Polypropylene", density:0.95, toughness:2.2, costPerCm3:0.012, label:"PP"},
+  al: {name:"Aluminium",     density:2.70, toughness:3.4, costPerCm3:0.040, label:"Al"},
+  ss: {name:"Stainless steel",density:7.90, toughness:4.6, costPerCm3:0.075, label:"SS"}
+};
+const LID = {
+  screw:{name:"Screw cap", openEase:2, leak:5},
+  flip: {name:"Flip top",  openEase:4, leak:4},
+  push: {name:"Push pull", openEase:5, leak:2}
+};
+
+/* ---------- Helpers ---------- */
+const $ = (s)=>document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const round=(v,d=0)=>{const f=Math.pow(10,d);return Math.round(v*f)/f;};
+
+/* ===================================================================
+   STAGE 1: EXPLORE
+=================================================================== */
+function buildReqs(){
+  const grid=$("#reqGrid");
+  grid.innerHTML="";
+  REQS.forEach(r=>{
+    const wrap=document.createElement("div");
+    wrap.className="req";
+    wrap.innerHTML =
+      '<div class="top"><span class="name">'+r.name+'</span>'+
+      '<span class="val"><span id="pv-'+r.id+'">'+state.priorities[r.id]+'</span>/5</span></div>'+
+      '<div class="why">'+r.why+'</div>'+
+      '<input type="range" min="0" max="5" step="1" value="'+state.priorities[r.id]+
+      '" id="pr-'+r.id+'" aria-label="Priority for '+r.name+', 0 to 5">';
+    grid.appendChild(wrap);
+    const input=wrap.querySelector("#pr-"+r.id);
+    input.addEventListener("input",()=>{
+      state.priorities[r.id]=parseInt(input.value,10);
+      $("#pv-"+r.id).textContent=input.value;
+      updateBudget();
+    });
+  });
+  updateBudget();
+}
+function totalPriority(){
+  return REQS.reduce((s,r)=>s+state.priorities[r.id],0);
+}
+function updateBudget(){
+  const used=totalPriority();
+  const box=$("#budgetBox");
+  box.textContent="Focus budget used: "+used+" of "+BUDGET;
+  const over=used>BUDGET;
+  box.classList.toggle("over",over);
+  box.classList.toggle("ok",!over);
+  if(over){ box.textContent+="; trim a priority to continue."; }
+  $("#exploreNext").disabled = over || used===0;
+}
+
+/* ===================================================================
+   STAGE 2: CREATE
+=================================================================== */
+function bindCreate(){
+  const map=[["#cHeight","height","#vHeight",0],["#cDia","dia","#vDia",0],
+             ["#cWall","wall","#vWall",1],["#cGrip","grip","#vGrip",0]];
+  map.forEach(([sel,key,vsel,dec])=>{
+    const el=$(sel);
+    el.value=state.design[key];
+    $(vsel).textContent=dec?round(state.design[key],1).toFixed(1):state.design[key];
+    el.addEventListener("input",()=>{
+      state.design[key]=parseFloat(el.value);
+      $(vsel).textContent=dec?round(state.design[key],1).toFixed(1):Math.round(state.design[key]);
+      renderCreate();
+    });
+  });
+  $("#lidSeg").querySelectorAll("button").forEach(b=>{
+    b.addEventListener("click",()=>{
+      state.design.lid=b.dataset.lid;
+      $("#lidSeg").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b?"true":"false"));
+      renderCreate();
+    });
+  });
+  $("#matSeg").querySelectorAll("button").forEach(b=>{
+    b.addEventListener("click",()=>{
+      state.design.mat=b.dataset.mat;
+      $("#matSeg").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b?"true":"false"));
+      renderCreate();
+    });
+  });
+}
+
+/* Engineering calcs (simplified, plausible for teaching) */
+function computeMetrics(d){
+  const innerR = (d.dia/2 - d.wall)/10;        // cm
+  const innerH = (d.height - 2*d.wall - 10)/10; // cm, allow for base + neck
+  const capCm3 = Math.PI*innerR*innerR*Math.max(innerH,0); // ml
+  // material volume (shell): outer minus inner, rough
+  const outerR=d.dia/20, outerH=d.height/10;
+  const volOuter=Math.PI*outerR*outerR*outerH;
+  const volInner=Math.PI*innerR*innerR*Math.max(innerH,0);
+  const shellCm3=Math.max(volOuter-volInner,2);
+  const mat=MAT[d.mat];
+  const mass=shellCm3*mat.density; // g
+  const cost=shellCm3*mat.costPerCm3 + 0.35; // + lid/finish
+  return {cap:capCm3, mass, cost, shellCm3};
+}
+
+function drawPreview(d){
+  const svg=$("#preview");
+  // scale: map mm to viewBox 240x300 with margin
+  const maxH=240, maxDia=95;
+  const px = (d.height/240)*ph(); // not used; build manually
+  const vbW=240, vbH=300, pad=24;
+  const drawH=(d.height/maxH)*(vbH-2*pad);
+  const drawW=(d.dia/maxDia)*120;
+  const cx=vbW/2;
+  const top=vbH-pad-drawH;
+  const left=cx-drawW/2;
+  const grip=d.grip;
+  const wallPx=clamp(d.wall*2.2,2,9);
+  const matCol = d.mat==="pp"?"#cfe3f4":(d.mat==="al"?"#e3e7ee":"#d8dde6");
+  const matStroke = d.mat==="pp"?"#2b6cb0":(d.mat==="al"?"#7a8699":"#5a6478");
+  const lidH=14;
+  // grip ridges
+  let ridges="";
+  if(grip>0){
+    for(let i=1;i<=grip;i++){
+      const y=top+lidH+ (drawH-lidH)*(i/(grip+1));
+      ridges+='<line x1="'+(left+3)+'" y1="'+y+'" x2="'+(left+drawW-3)+'" y2="'+y+'" stroke="'+matStroke+'" stroke-opacity="0.45" stroke-width="2"/>';
+    }
+  }
+  // lid shape by type
+  let lid="";
+  if(d.lid==="screw"){
+    lid='<rect x="'+(cx-drawW*0.28)+'" y="'+(top-12)+'" width="'+(drawW*0.56)+'" height="16" rx="3" fill="#9fb6cf"/>';
+  } else if(d.lid==="flip"){
+    lid='<rect x="'+(cx-drawW*0.30)+'" y="'+(top-12)+'" width="'+(drawW*0.60)+'" height="14" rx="6" fill="#9fb6cf"/>'+
+        '<rect x="'+(cx-2)+'" y="'+(top-18)+'" width="12" height="8" rx="3" fill="#7a93b3"/>';
+  } else {
+    lid='<rect x="'+(cx-drawW*0.20)+'" y="'+(top-16)+'" width="'+(drawW*0.40)+'" height="18" rx="7" fill="#9fb6cf"/>'+
+        '<rect x="'+(cx-drawW*0.07)+'" y="'+(top-24)+'" width="'+(drawW*0.14)+'" height="10" rx="4" fill="#7a93b3"/>';
+  }
+
+  svg.innerHTML =
+    '<title id="previewTitle">Live bottle preview</title>'+
+    '<desc id="previewDesc">A scale drawing of the bottle updating as you change parameters.</desc>'+
+    // body
+    '<rect x="'+left+'" y="'+top+'" width="'+drawW+'" height="'+drawH+'" rx="'+clamp(drawW*0.22,6,20)+'" '+
+       'fill="'+matCol+'" stroke="'+matStroke+'" stroke-width="'+wallPx+'"/>'+
+    ridges + lid +
+    // dimension lines
+    '<line x1="'+(left-12)+'" y1="'+top+'" x2="'+(left-12)+'" y2="'+(top+drawH)+'" stroke="#9aa4b8" stroke-width="1"/>'+
+    '<text x="'+(left-16)+'" y="'+(top+drawH/2)+'" font-size="11" fill="#5a6478" text-anchor="end" transform="rotate(-90 '+(left-16)+' '+(top+drawH/2)+')">'+d.height+' mm</text>'+
+    '<line x1="'+left+'" y1="'+(top+drawH+10)+'" x2="'+(left+drawW)+'" y2="'+(top+drawH+10)+'" stroke="#9aa4b8" stroke-width="1"/>'+
+    '<text x="'+cx+'" y="'+(top+drawH+24)+'" font-size="11" fill="#5a6478" text-anchor="middle">'+d.dia+' mm dia</text>';
+}
+function ph(){return 300;}
+
+function checkTolerance(d){
+  const target=190, tol=5;
+  const ok=Math.abs(d.height-target)<=tol;
+  const pill=$("#tolPill");
+  pill.textContent= ok? "PASS" : "FAIL";
+  pill.className="tol-pill "+(ok?"tol-pass":"tol-fail");
+  const dev=d.height-target;
+  $("#tolNote").textContent = ok
+    ? "within tolerance (deviation "+(dev>=0?"+":"")+dev+" mm)."
+    : "out of tolerance by "+(Math.abs(dev)-tol)+" mm; a QC inspector would reject this batch.";
+  return ok;
+}
+
+function renderCreate(){
+  const d=state.design;
+  drawPreview(d);
+  const m=computeMetrics(d);
+  $("#roCap").textContent=round(m.cap)+" ml";
+  $("#roMass").textContent=round(m.mass)+" g";
+  $("#roFit").textContent= d.height<=210 ? "Fits" : "Too tall";
+  $("#roCost").textContent="£"+round(m.cost,2).toFixed(2);
+  $("#roFit").style.color = d.height<=210 ? "var(--good)" : "var(--bad)";
+  checkTolerance(d);
+  $("#previewLive").textContent =
+    LID[d.lid].name+" "+MAT[d.mat].name+" bottle, "+d.height+" by "+d.dia+
+    " millimetres, capacity "+round(m.cap)+" millilitres, mass "+round(m.mass)+" grams.";
+}
+
+/* ===================================================================
+   STAGE 3: EVALUATE  (the scoring engine)
+=================================================================== */
+/* Each requirement returns a 0..100 sub-score based on the design. */
+function subScores(d,m){
+  // portable: best when height comfortably under 210, ideal ~185-200
+  let portable;
+  if(d.height>210) portable=Math.max(0,40-(d.height-210)*4);
+  else portable=clamp(100-Math.abs(d.height-195)*1.6,40,100);
+
+  // ergonomic grip: ideal diameter 60-75, plus grip texture helps a little
+  const diaScore=clamp(100-Math.abs(d.dia-67)*5,0,100);
+  const ergo=clamp(diaScore*0.85 + d.grip*3,0,100);
+
+  // easy opening: from lid openEase
+  const open=clamp(LID[d.lid].openEase*18 + 10,0,100);
+
+  // durability: wall thickness + grip + material toughness + lid leak (push leaks more)
+  const dur=clamp(d.wall*14 + d.grip*5 + MAT[d.mat].toughness*8 + LID[d.lid].leak*1.5 - 10,0,100);
+
+  // capacity: ideal ~500 ml
+  const cap=clamp(100-Math.abs(m.cap-500)*0.16,0,100);
+
+  // light: lower mass better; under ~120 g great, over ~350 g poor
+  const light=clamp(120-(m.mass-90)*0.45,0,100);
+
+  return {portable, ergo, open, durable:dur, capacity:cap, light};
+}
+
+function weightedTotal(subs){
+  let num=0, den=0;
+  REQS.forEach(r=>{
+    const w=state.priorities[r.id];
+    num+=subs[r.id]*w; den+=w;
+  });
+  return den? round(num/den) : 0;
+}
+
+function barColour(v){
+  if(v>=75) return "var(--good)";
+  if(v>=50) return "var(--warn)";
+  return "var(--bad)";
+}
+
+function renderEvaluate(){
+  const d=state.design, m=computeMetrics(d);
+  const subs=subScores(d,m);
+  const total=weightedTotal(subs);
+  state.lastScore={total, subs, design:JSON.parse(JSON.stringify(d)), metrics:m};
+
+  // meters
+  const mc=$("#scoreMeters");
+  mc.innerHTML="";
+  const overall=document.createElement("div");
+  overall.className="meter";
+  overall.innerHTML='<div class="lab"><span style="font-weight:800">Overall (weighted by your priorities)</span>'+
+    '<span class="s">'+total+'/100</span></div>'+
+    '<div class="bar"><span style="width:'+total+'%; background:'+barColour(total)+'"></span></div>';
+  mc.appendChild(overall);
+
+  REQS.forEach(r=>{
+    const v=round(subs[r.id]);
+    const w=state.priorities[r.id];
+    const row=document.createElement("div");
+    row.className="meter";
+    row.innerHTML='<div class="lab"><span>'+r.name+
+      ' <small style="color:var(--muted)">(priority '+w+'/5)</small></span>'+
+      '<span class="s">'+v+'</span></div>'+
+      '<div class="bar"><span style="width:'+v+'%; background:'+barColour(v)+'"></span></div>';
+    mc.appendChild(row);
+  });
+
+  // spec feedback (targeted)
+  const fb=$("#specFeedback"); fb.innerHTML="";
+  const items=specMessages(d,m,subs);
+  items.forEach(it=>{
+    const li=document.createElement("li");
+    li.className=it.type;
+    li.textContent=it.text;
+    fb.appendChild(li);
+  });
+
+  renderUsers(d,m,subs);
+}
+
+function specMessages(d,m,subs){
+  const out=[];
+  if(d.height<=210) out.push({type:"win",text:"Pocket fit: at "+d.height+" mm it slides into the bag side pocket."});
+  else out.push({type:"fix",text:"Pocket fit: "+d.height+" mm exceeds the 210 mm limit. Reduce height."});
+
+  if(subs.ergo>=70) out.push({type:"win",text:"Grip: "+d.dia+" mm diameter sits well in a Year 7 hand."});
+  else out.push({type:"fix",text:"Grip: "+d.dia+" mm is "+(d.dia>75?"too wide":"too narrow")+" for the 60 to 75 mm comfort band."});
+
+  if(LID[d.lid].openEase>=4) out.push({type:"win",text:"Opening: the "+LID[d.lid].name.toLowerCase()+" opens easily one-handed."});
+  else out.push({type:"fix",text:"Opening: the "+LID[d.lid].name.toLowerCase()+" is fiddly one-handed; consider a flip top or push pull."});
+
+  if(subs.durable>=65) out.push({type:"win",text:"Durability: wall "+d.wall.toFixed(1)+" mm and grip "+d.grip+" should survive desk drops."});
+  else out.push({type:"fix",text:"Durability: thin walls or low grip risk cracks on impact. Increase wall thickness or grip."});
+
+  if(d.lid==="push") out.push({type:"fix",text:"Leak risk: push pull lids spill in a bag. Trade ease of opening against leak resistance."});
+
+  if(subs.capacity>=70) out.push({type:"win",text:"Capacity: "+round(m.cap)+" ml is close to the 500 ml target."});
+  else out.push({type:"fix",text:"Capacity: "+round(m.cap)+" ml is "+(m.cap<500?"low":"high")+"; adjust height or diameter."});
+
+  if(m.mass>300) out.push({type:"fix",text:"Mass: "+round(m.mass)+" g empty is heavy. "+MAT[d.mat].name+" and thick walls add weight."});
+  else out.push({type:"win",text:"Mass: "+round(m.mass)+" g empty is reasonable to carry."});
+
+  return out;
+}
+
+/* Fictional user personas weight requirements differently */
+const USERS=[
+  {name:"Priya", year:"Year 7", cares:["ergo","open"], persona:"small hands, drinks between every lesson"},
+  {name:"Marcus", year:"Year 7", cares:["durable","portable"], persona:"plays football, bottle gets thrown in the bag"},
+  {name:"Ade", year:"Year 7", cares:["capacity","light"], persona:"walks 30 minutes to school, wants a full morning of water"}
+];
+function renderUsers(d,m,subs){
+  const panel=$("#userPanel"); panel.innerHTML="";
+  USERS.forEach(u=>{
+    const score=round(u.cares.reduce((s,c)=>s+subs[c],0)/u.cares.length);
+    const card=document.createElement("div");
+    card.className="user-card";
+    const quote=userQuote(u,d,m,subs,score);
+    let tag = score>=75?"Happy":(score>=50?"Mixed":"Frustrated");
+    card.innerHTML='<div class="who">'+u.name+' <small>'+u.year+', '+u.persona+'</small></div>'+
+      '<p class="quote">“'+quote+'”</p>'+
+      '<span class="tag">'+tag+' &middot; cares about '+u.cares.map(labelFor).join(" + ")+'</span>';
+    panel.appendChild(card);
+  });
+}
+function labelFor(id){ return (REQS.find(r=>r.id===id)||{}).name.replace(/ and.*/,"").toLowerCase(); }
+
+function userQuote(u,d,m,subs){
+  // Priya: grip + opening
+  if(u.name==="Priya"){
+    if(subs.ergo<60) return "It is hard to wrap my hand around, my fingers do not meet.";
+    if(subs.open<55) return "I cannot open it one-handed when I am carrying my books.";
+    return "It fits my hand and the lid pops open easily. Lovely.";
+  }
+  if(u.name==="Marcus"){
+    if(subs.durable<55) return "It cracked the first time it hit the floor. Not tough enough.";
+    if(d.height>210) return "It will not fit my bag pocket, it pokes out and falls.";
+    return "I dropped it loads and it is fine, and it sits in my bag pocket.";
+  }
+  // Ade: capacity + light
+  if(subs.capacity<55) return "It runs out before break, I need more than "+round(m.cap)+" ml.";
+  if(subs.light<55) return "Full of water it is heavy on my walk, "+round(m.mass)+" g empty is a lot.";
+  return "Holds enough for the morning and it is not too heavy to carry. Great.";
+}
+
+/* ===================================================================
+   STAGE 4: REFINE
+=================================================================== */
+function renderRefine(){
+  const s=state.lastScore;
+  const list=$("#refineList"); list.innerHTML="";
+  if(!s){ list.innerHTML="<li>Run an evaluation first.</li>"; return; }
+  const subs=s.subs, d=s.design;
+  // rank weakest weighted contributions
+  const ranked=REQS.map(r=>({
+    r, gap:(100-subs[r.id])*state.priorities[r.id]
+  })).sort((a,b)=>b.gap-a.gap);
+
+  const advice={
+    portable:"Reduce height towards 185 to 200 mm so it clears the 210 mm pocket limit.",
+    ergo:"Move diameter into the 60 to 75 mm comfort band for a Year 7 hand.",
+    open:"Switch to a flip top or push pull lid for easier one-handed opening.",
+    durable:"Increase wall thickness, raise grip texture, or choose a tougher material.",
+    capacity:"Adjust height and diameter to bring capacity nearer 500 ml.",
+    light:"Reduce wall thickness or choose polypropylene to cut empty mass."
+  };
+  ranked.slice(0,3).forEach((x,i)=>{
+    if(x.gap<=0) return;
+    const li=document.createElement("li");
+    li.className="fix";
+    li.textContent=(i+1)+". "+x.r.name+" (priority "+state.priorities[x.r.id]+"/5, currently "+round(subs[x.r.id])+"/100): "+advice[x.r.id];
+    list.appendChild(li);
+  });
+  if(!list.children.length){
+    const li=document.createElement("li"); li.className="win";
+    li.textContent="Strong all round. Try raising the priority of a requirement in Explore to expose new trade-offs.";
+    list.appendChild(li);
+  }
+
+  const prev=state.versions.length?state.versions[state.versions.length-1].total:null;
+  let trend="";
+  if(prev!==null){
+    const dlt=s.total-prev;
+    trend = dlt>0 ? "Up "+dlt+" points on your last saved version. The iteration worked."
+          : dlt<0 ? "Down "+Math.abs(dlt)+" points on your last version. A change made it worse; review what you altered."
+          : "Same score as last version. Try a bolder, evidence-led change.";
+  } else {
+    trend="This will be version 1, your baseline. Save it, then change one thing in response to the feedback and re-test.";
+  }
+  $("#refineSummary").innerHTML="<b>Current weighted score: "+s.total+"/100.</b> "+trend;
+}
+
+function saveVersion(){
+  const s=state.lastScore;
+  if(!s) return;
+  const prev=state.versions.length?state.versions[state.versions.length-1]:null;
+  const changes = prev? describeChanges(prev.design,s.design) : "Baseline design.";
+  state.versions.push({
+    n:state.versions.length+1, total:s.total,
+    design:JSON.parse(JSON.stringify(s.design)),
+    metrics:s.metrics, changes
+  });
+  renderHistory();
+  setStage(4);
+}
+
+function describeChanges(a,b){
+  const out=[];
+  if(a.height!==b.height) out.push("height "+a.height+"→"+b.height+" mm");
+  if(a.dia!==b.dia) out.push("diameter "+a.dia+"→"+b.dia+" mm");
+  if(a.wall!==b.wall) out.push("wall "+a.wall.toFixed(1)+"→"+b.wall.toFixed(1)+" mm");
+  if(a.grip!==b.grip) out.push("grip "+a.grip+"→"+b.grip);
+  if(a.lid!==b.lid) out.push("lid "+LID[a.lid].name+"→"+LID[b.lid].name);
+  if(a.mat!==b.mat) out.push("material "+MAT[a.mat].label+"→"+MAT[b.mat].label);
+  return out.length? "Changed: "+out.join(", ")+"." : "No parameters changed (re-tested same design).";
+}
+
+function renderHistory(){
+  const wrap=$("#historyList"); wrap.innerHTML="";
+  if(!state.versions.length){
+    wrap.innerHTML='<p class="note">No versions saved yet. Complete a cycle and press "Save this version".</p>';
+    return;
+  }
+  const best=Math.max(...state.versions.map(v=>v.total));
+  state.versions.forEach((v,i)=>{
+    const row=document.createElement("div");
+    row.className="vrow"+(v.total===best?" best":"");
+    let delta="";
+    if(i>0){
+      const dlt=v.total-state.versions[i-1].total;
+      const cls=dlt>0?"up":(dlt<0?"down":"same");
+      delta='<span class="delta '+cls+'">'+(dlt>0?"+":"")+dlt+'</span>';
+    }
+    row.innerHTML='<span class="vtag">v'+v.n+'</span>'+
+      '<span class="vmeta">'+v.changes+'<br>'+
+        round(v.metrics.cap)+' ml · '+round(v.metrics.mass)+' g · £'+round(v.metrics.cost,2).toFixed(2)+
+        (v.total===best?' · <b style="color:var(--good)">best so far</b>':'')+'</span>'+
+      '<span class="vscore">'+v.total+'/100'+delta+'</span>';
+    wrap.appendChild(row);
+  });
+}
+
+/* ===================================================================
+   STAGE NAVIGATION
+=================================================================== */
+const stageBtns=document.querySelectorAll(".stage-btn");
+function setStage(i){
+  for(let k=0;k<5;k++){
+    $("#stage-"+k).classList.toggle("hidden",k!==i);
+  }
+  stageBtns.forEach(b=>{
+    const t=parseInt(b.dataset.go,10);
+    b.setAttribute("aria-current", t===i?"true":"false");
+  });
+  if(i===1) renderCreate();
+  if(i===2) renderEvaluate();
+  if(i===3) renderRefine();
+  if(i===4) renderHistory();
+  window.scrollTo({top:0,behavior:"smooth"});
+  markDone(i);
+}
+function markDone(i){
+  // mark earlier stages as visited/done
+  stageBtns.forEach(b=>{
+    const t=parseInt(b.dataset.go,10);
+    if(t<i && t<4) b.setAttribute("data-done","true");
+  });
+}
+
+/* wire all data-go buttons */
+document.querySelectorAll("[data-go]").forEach(b=>{
+  if(b.classList.contains("stage-btn")){
+    b.addEventListener("click",()=>setStage(parseInt(b.dataset.go,10)));
+  } else {
+    b.addEventListener("click",()=>setStage(parseInt(b.dataset.go,10)));
+  }
+});
+
+$("#exploreNext").addEventListener("click",()=>setStage(1));
+$("#createNext").addEventListener("click",()=>setStage(2));
+$("#evalNext").addEventListener("click",()=>setStage(3));
+$("#saveVersion").addEventListener("click",saveVersion);
+$("#resetAll").addEventListener("click",()=>{
+  if(!confirm("Reset all priorities, the design and version history?")) return;
+  state.priorities={portable:2, ergo:2, open:2, durable:2, capacity:2, light:2};
+  state.design={height:190, dia:68, wall:2.0, grip:2, lid:"flip", mat:"pp"};
+  state.versions=[]; state.lastScore=null;
+  buildReqs();
+  // reset create controls
+  $("#cHeight").value=190; $("#vHeight").textContent="190";
+  $("#cDia").value=68; $("#vDia").textContent="68";
+  $("#cWall").value=2.0; $("#vWall").textContent="2.0";
+  $("#cGrip").value=2; $("#vGrip").textContent="2";
+  $("#lidSeg").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x.dataset.lid==="flip"?"true":"false"));
+  $("#matSeg").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x.dataset.mat==="pp"?"true":"false"));
+  stageBtns.forEach(b=>b.removeAttribute("data-done"));
+  setStage(0);
+});
+
+/* keyboard nudge on SVG preview (accessibility) */
+$("#preview").addEventListener("keydown",(e)=>{
+  const d=state.design;
+  if(e.key==="ArrowUp"||e.key==="ArrowDown"){
+    d.height=clamp(d.height+(e.key==="ArrowUp"?2:-2),120,240);
+    $("#cHeight").value=d.height; $("#vHeight").textContent=d.height; renderCreate(); e.preventDefault();
+  }
+  if(e.key==="ArrowRight"||e.key==="ArrowLeft"){
+    d.dia=clamp(d.dia+(e.key==="ArrowRight"?2:-2),50,95);
+    $("#cDia").value=d.dia; $("#vDia").textContent=d.dia; renderCreate(); e.preventDefault();
+  }
+});
+
+/* init */
+buildReqs();
+bindCreate();
+setStage(0);
+</script>
+</body>
+</html>

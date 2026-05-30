@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workload Self-Audit Tool</title>
+<style>
+  :root{
+    --bg:#f4f6f9; --card:#ffffff; --ink:#1f2733; --muted:#5b6675;
+    --line:#e1e6ee; --brand:#1d5e8c; --brand-dk:#15466a;
+    --high:#2f8f5b; --high-bg:#e7f5ec;
+    --mid:#c98a16; --mid-bg:#fbf2dd;
+    --low:#c0492f; --low-bg:#fbe7e2;
+    --shadow:0 2px 10px rgba(20,40,70,.08);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1040px; margin:0 auto; padding:18px 16px 64px;}
+  header.app{margin-bottom:14px;}
+  .eyebrow{font-size:.74rem; letter-spacing:.09em; text-transform:uppercase; color:var(--brand); font-weight:700;}
+  h1{font-size:1.7rem; margin:.18em 0 .12em; line-height:1.15;}
+  .aim{background:var(--card); border:1px solid var(--line); border-left:5px solid var(--brand);
+    border-radius:10px; padding:10px 14px; color:var(--muted); font-size:.95rem; box-shadow:var(--shadow);}
+  .aim strong{color:var(--ink);}
+  .grid{display:grid; gap:18px; grid-template-columns:1fr; margin-top:18px;}
+  @media(min-width:860px){ .grid{grid-template-columns:1.15fr .85fr;} }
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px 16px 18px; box-shadow:var(--shadow);}
+  .card h2{font-size:1.06rem; margin:0 0 4px;}
+  .card .sub{color:var(--muted); font-size:.86rem; margin:0 0 12px;}
+
+  .budget{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin:0 0 12px;
+    padding:9px 12px; border-radius:10px; background:var(--bg); border:1px solid var(--line);}
+  .budget b{font-size:1.25rem;}
+  .budget .ok{color:var(--high);} .budget .over{color:var(--low);} .budget .under{color:var(--mid);}
+  .budget .hint{color:var(--muted); font-size:.82rem;}
+
+  .task{border:1px solid var(--line); border-radius:11px; padding:11px 12px; margin-bottom:11px; background:#fff;}
+  .task .top{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .task .name{font-weight:650; flex:1 1 auto; min-width:140px;}
+  .impact-tag{font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+    padding:2px 8px; border-radius:999px; white-space:nowrap;}
+  .t-high{background:var(--high-bg); color:var(--high);}
+  .t-mid{background:var(--mid-bg); color:var(--mid);}
+  .t-low{background:var(--low-bg); color:var(--low);}
+  .task .desc{font-size:.82rem; color:var(--muted); margin:5px 0 9px;}
+  .row{display:flex; align-items:center; gap:12px;}
+  .slider{flex:1 1 auto;}
+  input[type=range]{width:100%; touch-action:none; accent-color:var(--brand); height:26px;}
+  .hours{min-width:74px; text-align:right; font-variant-numeric:tabular-nums; font-weight:650;}
+  .hours small{display:block; font-weight:400; color:var(--muted); font-size:.7rem;}
+
+  .meter{height:9px; border-radius:6px; background:var(--line); overflow:hidden; margin-top:9px;}
+  .meter > i{display:block; height:100%; width:0%; background:var(--brand); transition:width .18s ease;}
+
+  .scoreband{display:flex; gap:10px; align-items:center; margin:2px 0 14px;}
+  .gauge{flex:1 1 auto; height:16px; border-radius:9px; position:relative;
+    background:linear-gradient(90deg,var(--low) 0%,var(--mid) 50%,var(--high) 100%);}
+  .gauge .pin{position:absolute; top:-6px; width:4px; height:28px; border-radius:3px; background:var(--ink);
+    transform:translateX(-50%); transition:left .25s ease; box-shadow:0 0 0 2px #fff;}
+  .scorenum{font-size:2rem; font-weight:800; min-width:74px; text-align:center; line-height:1;}
+  .scorenum span{display:block; font-size:.66rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;}
+
+  .feedback{border-radius:11px; padding:12px 14px; font-size:.9rem; border:1px solid var(--line);}
+  .feedback h3{margin:0 0 6px; font-size:.96rem;}
+  .feedback ul{margin:6px 0 0; padding-left:18px;}
+  .feedback li{margin-bottom:6px;}
+  .fb-good{background:var(--high-bg); border-color:#bfe4cc;}
+  .fb-warn{background:var(--mid-bg); border-color:#ecdcb0;}
+  .fb-bad{background:var(--low-bg); border-color:#eecabf;}
+
+  .policy{margin-top:14px;}
+  .policy h3{font-size:.92rem; margin:0 0 8px;}
+  .chip{display:inline-block; margin:0 6px 6px 0; padding:6px 11px; border-radius:999px;
+    border:1px solid var(--line); background:#fff; font-size:.82rem; cursor:pointer; transition:.15s;
+    color:var(--ink); user-select:none;}
+  .chip:hover{border-color:var(--brand);}
+  .chip:focus-visible{outline:3px solid #9cc6e3; outline-offset:2px;}
+  .chip[aria-pressed=true]{background:var(--brand); color:#fff; border-color:var(--brand-dk);}
+  .reclaim{margin-top:10px; font-size:.88rem; color:var(--muted);}
+  .reclaim b{color:var(--high);}
+
+  .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;}
+  button.btn{font:inherit; font-weight:650; cursor:pointer; border-radius:10px; padding:10px 16px; border:1px solid var(--brand-dk);
+    background:var(--brand); color:#fff;}
+  button.btn.ghost{background:#fff; color:var(--brand); }
+  button.btn:focus-visible{outline:3px solid #9cc6e3; outline-offset:2px;}
+
+  .standards{font-size:.82rem; color:var(--muted); margin-top:10px;}
+  .standards b{color:var(--ink);}
+  .visually-hidden{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;}
+  footer.note{margin-top:26px; font-size:.78rem; color:var(--muted); text-align:center;}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <div class="eyebrow">CPD &amp; Staff Tools &middot; Professional Behaviours and Growth</div>
+    <h1>Workload Self-Audit Tool</h1>
+    <div class="aim">
+      <strong>Teacher aim:</strong> Audit where a typical working week goes, weigh it against high-impact activity, then plan workload reductions that align to the trust workload-reduction policy. Move the sliders, then act on the live feedback.
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <!-- LEFT: allocation -->
+    <section class="card" aria-labelledby="allocTitle">
+      <h2 id="allocTitle">1. Where does your week go?</h2>
+      <p class="sub">Allocate your directed and self-directed hours across a typical week. Each activity is tagged by its evidence-based impact on pupil outcomes.</p>
+
+      <div class="budget" id="budget" aria-live="polite">
+        <span class="hint">Allocated</span>
+        <b id="budgetUsed">0.0h</b>
+        <span class="hint">of a</span>
+        <b id="budgetCap">48.0h</b>
+        <span class="hint">week.</span>
+        <span id="budgetState" class="hint"></span>
+      </div>
+
+      <div id="tasks"></div>
+    </section>
+
+    <!-- RIGHT: feedback -->
+    <section class="card" aria-labelledby="fbTitle">
+      <h2 id="fbTitle">2. Impact balance and feedback</h2>
+      <p class="sub">Your Impact Balance Score reflects how much of your week lands on activity that moves pupil outcomes, versus low-impact effort the trust is committed to reducing.</p>
+
+      <div class="scoreband">
+        <div class="scorenum" aria-hidden="true">
+          <span>score</span><div id="scoreVal">0</div>
+        </div>
+        <div class="gauge" role="img" aria-label="Impact balance gauge from low to high">
+          <div class="pin" id="pin" style="left:0%"></div>
+        </div>
+      </div>
+
+      <div class="feedback fb-warn" id="feedback" aria-live="polite">
+        <h3 id="fbHead">Set your hours to begin.</h3>
+        <p id="fbLead">Drag the sliders on the left. The app responds to your exact mix.</p>
+        <ul id="fbList"></ul>
+      </div>
+
+      <div class="policy">
+        <h3>3. Plan reductions aligned to trust policy</h3>
+        <p class="sub" style="margin-bottom:8px;">Tap the workload-reduction commitments you will adopt. The app reclaims time from low-impact activity and re-models your week.</p>
+        <div id="chips"></div>
+        <p class="reclaim" id="reclaim" aria-live="polite">No reductions selected yet.</p>
+      </div>
+
+      <div class="actions">
+        <button class="btn ghost" id="resetBtn" type="button">Reset week</button>
+        <button class="btn" id="copyBtn" type="button">Copy action summary</button>
+      </div>
+      <p class="standards">
+        Maps to <b>Teachers' Standards Part Two</b> (professional conduct) and the DfE workload-reduction principle that effort should follow impact. Reflection prompt for appraisal and CPD planning.
+      </p>
+    </section>
+  </div>
+
+  <footer class="note">Demonstration tool. Hours and benchmarks are illustrative for staff reflection, not a contractual measure of working time.</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // Activity model. impact: high/mid/low. cap = sensible max hours for a slider.
+  // "reducible" flags low-impact time a workload policy can claw back.
+  var TASKS = [
+    {id:"teach", name:"Teaching and live instruction", impact:"high",
+     desc:"Time in front of classes. Highest direct impact on pupil outcomes.", start:20, cap:28},
+    {id:"plan", name:"Planning from shared curriculum", impact:"high",
+     desc:"Adapting centrally resourced units. High impact, low duplication.", start:4, cap:10},
+    {id:"feedback", name:"Responsive feedback to pupils", impact:"high",
+     desc:"Live and whole-class feedback that pupils act on.", start:3, cap:8},
+    {id:"assess", name:"Marking deep-mark books", impact:"low",
+     desc:"Triple-ticking and written comments with little pupil response.", start:5, cap:10, reducible:true},
+    {id:"data", name:"Data entry and tracking sheets", impact:"low",
+     desc:"Duplicate spreadsheets and re-keying assessment data.", start:3, cap:8, reducible:true},
+    {id:"display", name:"Display boards and presentation",  impact:"mid",
+     desc:"Classroom environment. Worthwhile but easily over-invested.", start:2, cap:6},
+    {id:"email", name:"Email and admin requests", impact:"low",
+     desc:"Out-of-hours email and repeated information requests.", start:4, cap:9, reducible:true},
+    {id:"cpd", name:"CPD and collaborative planning", impact:"mid",
+     desc:"Developing practice with colleagues. Builds long-term capacity.", start:2, cap:6}
+  ];
+
+  // Trust policy reductions: each removes capped hours from a target task.
+  var REDUCTIONS = [
+    {id:"r1", label:"Adopt whole-class feedback (drop deep marking)", target:"assess", saves:3.5,
+     adds:{feedback:1}, note:"Trust marking policy: feedback not deep marking."},
+    {id:"r2", label:"Single point of assessment data entry", target:"data", saves:2.5,
+     note:"One central data drop replaces duplicate trackers."},
+    {id:"r3", label:"Protected email window, no out-of-hours expectation", target:"email", saves:2.5,
+     note:"Trust email charter: no reply expected after 6pm or weekends."},
+    {id:"r4", label:"Use the centrally resourced curriculum", target:null, saves:0,
+     adds:{plan:-1}, note:"Reduces planning duplication across the trust."}
+  ];
+
+  var IMPACT_WEIGHT = {high:1.0, mid:0.5, low:0.05};
+  var CAP_HOURS = 48; // illustrative weekly budget
+
+  var tasksEl = document.getElementById("tasks");
+  var chipsEl = document.getElementById("chips");
+  var state = {};            // id -> hours
+  var picked = {};           // reduction id -> bool
+
+  TASKS.forEach(function(t){ state[t.id] = t.start; });
+
+  // ---------- build sliders ----------
+  function impactClass(i){ return i==="high"?"t-high":i==="mid"?"t-mid":"t-low"; }
+  function impactLabel(i){ return i==="high"?"High impact":i==="mid"?"Medium impact":"Low impact"; }
+
+  TASKS.forEach(function(t){
+    var wrap = document.createElement("div");
+    wrap.className = "task";
+    wrap.innerHTML =
+      '<div class="top">'+
+        '<span class="name">'+t.name+'</span>'+
+        '<span class="impact-tag '+impactClass(t.impact)+'">'+impactLabel(t.impact)+'</span>'+
+      '</div>'+
+      '<div class="desc">'+t.desc+'</div>'+
+      '<div class="row">'+
+        '<div class="slider">'+
+          '<input type="range" min="0" max="'+t.cap+'" step="0.5" value="'+t.start+'" '+
+            'id="sl-'+t.id+'" aria-label="'+t.name+', '+impactLabel(t.impact)+', hours per week">'+
+        '</div>'+
+        '<div class="hours"><span id="hv-'+t.id+'">'+t.start.toFixed(1)+'h</span><small>per week</small></div>'+
+      '</div>';
+    tasksEl.appendChild(wrap);
+    var sl = wrap.querySelector("input");
+    sl.addEventListener("input", function(){
+      state[t.id] = parseFloat(sl.value);
+      document.getElementById("hv-"+t.id).textContent = state[t.id].toFixed(1)+"h";
+      render();
+    });
+  });
+
+  // ---------- build reduction chips ----------
+  REDUCTIONS.forEach(function(r){
+    var c = document.createElement("button");
+    c.type = "button";
+    c.className = "chip";
+    c.setAttribute("aria-pressed","false");
+    c.id = "chip-"+r.id;
+    c.textContent = r.label;
+    c.title = r.note;
+    c.addEventListener("click", function(){ toggleReduction(r); });
+    chipsEl.appendChild(c);
+  });
+
+  function toggleReduction(r){
+    var on = !picked[r.id];
+    picked[r.id] = on;
+    var chip = document.getElementById("chip-"+r.id);
+    chip.setAttribute("aria-pressed", on?"true":"false");
+
+    var delta = on ? -1 : 1; // applying removes time; un-applying restores
+    if(r.target){
+      var sl = document.getElementById("sl-"+r.target);
+      var nv = clamp(parseFloat(sl.value) + delta*r.saves, 0, parseFloat(sl.max));
+      sl.value = nv; state[r.target] = nv;
+      document.getElementById("hv-"+r.target).textContent = nv.toFixed(1)+"h";
+    }
+    if(r.adds){
+      for(var k in r.adds){
+        var s2 = document.getElementById("sl-"+k);
+        var add = r.adds[k] * (on?1:-1);
+        var nv2 = clamp(parseFloat(s2.value) + add, 0, parseFloat(s2.max));
+        s2.value = nv2; state[k] = nv2;
+        document.getElementById("hv-"+k).textContent = nv2.toFixed(1)+"h";
+      }
+    }
+    render();
+  }
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+  // ---------- scoring + feedback ----------
+  function compute(){
+    var total=0, weighted=0, lowTime=0, highTime=0, reducibleTime=0;
+    TASKS.forEach(function(t){
+      var h = state[t.id];
+      total += h;
+      weighted += h * IMPACT_WEIGHT[t.impact];
+      if(t.impact==="low") lowTime += h;
+      if(t.impact==="high") highTime += h;
+      if(t.reducible) reducibleTime += h;
+    });
+    var score = total>0 ? Math.round((weighted/total)*100) : 0;
+    return {total:total, score:score, lowTime:lowTime, highTime:highTime,
+            reducible:reducibleTime, hiPct: total>0?(highTime/total*100):0,
+            loPct: total>0?(lowTime/total*100):0};
+  }
+
+  function render(){
+    var c = compute();
+
+    // budget
+    document.getElementById("budgetUsed").textContent = c.total.toFixed(1)+"h";
+    var bs = document.getElementById("budgetState");
+    if(c.total > CAP_HOURS + 0.01){
+      bs.textContent = "("+(c.total-CAP_HOURS).toFixed(1)+"h over a sustainable week)";
+      bs.className="hint over";
+    } else if(c.total < CAP_HOURS - 6){
+      bs.textContent = "(room to spare)";
+      bs.className="hint under";
+    } else {
+      bs.textContent = "(within a sustainable week)";
+      bs.className="hint ok";
+    }
+
+    // score + gauge
+    document.getElementById("scoreVal").textContent = c.score;
+    document.getElementById("pin").style.left = c.score + "%";
+
+    // feedback content driven by exact mix
+    var fb = document.getElementById("feedback");
+    var head = document.getElementById("fbHead");
+    var lead = document.getElementById("fbLead");
+    var list = document.getElementById("fbList");
+    list.innerHTML = "";
+    var items = [];
+
+    var band;
+    if(c.score >= 70){ band="fb-good"; head.textContent="Strong impact balance"; }
+    else if(c.score >= 45){ band="fb-warn"; head.textContent="Mixed: workload is leaking into low-impact effort"; }
+    else { band="fb-bad"; head.textContent="At risk: high effort, low pupil impact"; }
+    fb.className = "feedback "+band;
+
+    lead.textContent = "High-impact activity is "+Math.round(c.hiPct)+"% of your week; low-impact activity is "+Math.round(c.loPct)+"%.";
+
+    // specific, conditional prompts
+    if(c.total > CAP_HOURS + 2){
+      items.push("Your week totals "+c.total.toFixed(1)+" hours. That is above a sustainable load. Reduce a low-impact slider before adding anywhere else.");
+    }
+    if(state.assess >= 4){
+      items.push("Deep marking sits at "+state.assess.toFixed(1)+"h. The trust marking policy expects feedback, not triple-ticking. Try the whole-class feedback reduction.");
+    }
+    if(state.data >= 3){
+      items.push("Data entry is "+state.data.toFixed(1)+"h. Duplicate trackers are reducible: a single data drop should replace re-keying.");
+    }
+    if(state.email >= 4){
+      items.push("Email and admin is "+state.email.toFixed(1)+"h. A protected email window and no out-of-hours expectation can claw back time and protect wellbeing.");
+    }
+    if(c.hiPct < 55){
+      items.push("Less than 55% of your week is high impact. Protect teaching, curriculum-led planning and responsive feedback first.");
+    }
+    if(state.feedback < 2){
+      items.push("Responsive feedback is low at "+state.feedback.toFixed(1)+"h. Feedback pupils act on outperforms hours spent marking they do not read.");
+    }
+    if(c.score >= 70 && c.total <= CAP_HOURS){
+      items.push("Well balanced and sustainable. Use this as evidence of professional judgement in your appraisal reflection.");
+    }
+    if(items.length===0){
+      items.push("Balanced mix. Keep monitoring that low-impact tasks do not creep back up.");
+    }
+    items.forEach(function(txt){
+      var li=document.createElement("li"); li.textContent=txt; list.appendChild(li);
+    });
+
+    // reclaim line
+    var reclaimed=0, count=0;
+    REDUCTIONS.forEach(function(r){ if(picked[r.id]){ reclaimed += r.saves; count++; } });
+    var rEl = document.getElementById("reclaim");
+    if(count===0){ rEl.textContent = "No reductions selected yet."; }
+    else {
+      rEl.innerHTML = count+" reduction"+(count>1?"s":"")+" adopted, reclaiming about <b>"+reclaimed.toFixed(1)+
+        " hours</b> per week from low-impact activity.";
+    }
+  }
+
+  // ---------- buttons ----------
+  document.getElementById("resetBtn").addEventListener("click", function(){
+    TASKS.forEach(function(t){
+      state[t.id]=t.start;
+      var sl=document.getElementById("sl-"+t.id);
+      sl.value=t.start;
+      document.getElementById("hv-"+t.id).textContent=t.start.toFixed(1)+"h";
+    });
+    REDUCTIONS.forEach(function(r){
+      picked[r.id]=false;
+      document.getElementById("chip-"+r.id).setAttribute("aria-pressed","false");
+    });
+    render();
+  });
+
+  document.getElementById("copyBtn").addEventListener("click", function(){
+    var c = compute();
+    var lines = ["Workload self-audit summary (demonstration)",
+      "Impact balance score: "+c.score+"/100",
+      "Total week: "+c.total.toFixed(1)+"h  (high-impact "+Math.round(c.hiPct)+"%, low-impact "+Math.round(c.loPct)+"%)",
+      "",
+      "Reductions adopted:"];
+    var any=false;
+    REDUCTIONS.forEach(function(r){ if(picked[r.id]){ lines.push("  - "+r.label+" ("+r.note+")"); any=true; } });
+    if(!any) lines.push("  - none selected");
+    var text=lines.join("\n");
+    var btn=this;
+    function done(){ var o=btn.textContent; btn.textContent="Copied"; setTimeout(function(){btn.textContent=o;},1400); }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done, function(){ fallback(text); done(); });
+    } else { fallback(text); done(); }
+  });
+
+  function fallback(text){
+    var ta=document.createElement("textarea"); ta.value=text;
+    ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta);
+    ta.select(); try{ document.execCommand("copy"); }catch(e){} document.body.removeChild(ta);
+  }
+
+  document.getElementById("budgetCap").textContent = CAP_HOURS.toFixed(1)+"h";
+  render();
+})();
+</script>
+</body>
+</html>

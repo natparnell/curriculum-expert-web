@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Risk Trade-Off Engine | KS4 Behaviour &amp; Pastoral</title>
+<style>
+  :root{
+    --bg:#0f1724;
+    --panel:#ffffff;
+    --ink:#1a2233;
+    --muted:#5b6678;
+    --line:#e3e8f0;
+    --accent:#2563a8;
+    --accent-dark:#17436f;
+    --reward:#1f8a55;
+    --reward-soft:#e3f5ec;
+    --risk:#c2410c;
+    --risk-soft:#fdeee4;
+    --harm:#b3122b;
+    --harm-soft:#fbe4e8;
+    --amber:#b07b00;
+    --shadow:0 8px 28px rgba(15,23,36,.10);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg,#0f1724 0%,#16263c 240px,#eef1f6 240px,#eef1f6 100%);
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:20px 16px 64px}
+  header.app{color:#fff;padding:8px 0 18px}
+  .eyebrow{
+    display:inline-block;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
+    font-weight:700;color:#9ec1e6;background:rgba(255,255,255,.08);
+    padding:5px 11px;border-radius:999px;margin-bottom:12px;
+  }
+  header.app h1{margin:0 0 6px;font-size:1.9rem;line-height:1.15;letter-spacing:-.01em}
+  header.app p.lede{margin:0;color:#c7d4e6;max-width:62ch;font-size:1rem}
+  .aim{
+    background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);
+    border-radius:12px;padding:11px 14px;margin-top:16px;color:#eaf1fa;font-size:.92rem;
+    max-width:78ch;
+  }
+  .aim strong{color:#fff}
+
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:20px;margin-top:18px;
+  }
+  .card h2{margin:0 0 4px;font-size:1.18rem;letter-spacing:-.01em}
+  .card .sub{margin:0 0 14px;color:var(--muted);font-size:.92rem}
+
+  .scenario-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+  .scenario-bar button{
+    border:1px solid var(--line);background:#f7f9fc;color:var(--ink);
+    font:inherit;font-size:.86rem;font-weight:600;padding:8px 12px;border-radius:999px;cursor:pointer;
+    transition:all .12s ease;
+  }
+  .scenario-bar button:hover{border-color:var(--accent);color:var(--accent)}
+  .scenario-bar button[aria-pressed="true"]{
+    background:var(--accent);border-color:var(--accent);color:#fff;
+  }
+  .scenario-bar button:focus-visible{outline:3px solid #9ec1e6;outline-offset:2px}
+
+  .scenario-text{
+    background:#f7f9fc;border:1px solid var(--line);border-left:4px solid var(--accent);
+    border-radius:10px;padding:13px 15px;margin:14px 0 4px;font-size:.98rem;
+  }
+  .scenario-text .who{font-weight:700;color:var(--accent-dark)}
+
+  .layout{display:grid;grid-template-columns:1fr;gap:18px}
+  @media(min-width:860px){.layout{grid-template-columns:1.05fr .95fr}}
+
+  /* Sliders / dials */
+  .dial{margin:16px 0 4px}
+  .dial label{display:block;font-weight:700;font-size:.95rem;margin-bottom:2px}
+  .dial .hint{font-size:.82rem;color:var(--muted);margin-bottom:8px}
+  .dial .row{display:flex;align-items:center;gap:12px}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:8px;border-radius:6px;
+    background:linear-gradient(90deg,#cfe6da,#f2d9c6,#f3c3cb);outline:none;margin:6px 0;
+    touch-action:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:26px;height:26px;border-radius:50%;
+    background:#fff;border:3px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid var(--accent);
+    box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:pointer;
+  }
+  input[type=range]:focus-visible{outline:3px solid #9ec1e6;outline-offset:4px;border-radius:8px}
+  .dial .val{
+    min-width:54px;text-align:center;font-weight:800;font-size:1rem;padding:4px 8px;border-radius:8px;
+    background:#eef3f9;color:var(--accent-dark);font-variant-numeric:tabular-nums;
+  }
+  .ladder{display:flex;justify-content:space-between;font-size:.74rem;color:var(--muted);margin-top:-2px}
+
+  /* Gauges */
+  .gauges{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+  @media(min-width:520px){.gauges{grid-template-columns:1fr 1fr 1fr}}
+  .gauge{
+    border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center;background:#fbfcfe;
+  }
+  .gauge .gname{font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .gauge .gnum{font-size:1.7rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1;margin:2px 0}
+  .bar{height:9px;border-radius:6px;background:#e9edf3;overflow:hidden;margin-top:6px}
+  .bar i{display:block;height:100%;width:0;border-radius:6px;transition:width .35s ease,background .35s ease}
+  .g-reward .gnum{color:var(--reward)}
+  .g-risk .gnum{color:var(--risk)}
+  .g-harm .gnum{color:var(--harm)}
+
+  .verdict{
+    margin-top:16px;border-radius:12px;padding:14px 16px;border:1px solid var(--line);
+    background:#f7f9fc;font-size:.96rem;
+  }
+  .verdict h3{margin:0 0 6px;font-size:1.02rem;display:flex;align-items:center;gap:8px}
+  .verdict .tag{
+    font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    padding:3px 9px;border-radius:999px;color:#fff;
+  }
+  .verdict ul{margin:8px 0 0;padding-left:20px}
+  .verdict li{margin-bottom:5px}
+  .verdict .protect{
+    margin-top:10px;background:#fff;border:1px dashed var(--reward);border-radius:10px;
+    padding:9px 12px;font-size:.9rem;color:#155e3b;
+  }
+  .verdict .protect strong{color:var(--reward)}
+
+  .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+  .btn{
+    font:inherit;font-weight:700;border-radius:10px;padding:10px 16px;cursor:pointer;border:1px solid transparent;
+  }
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:var(--accent-dark)}
+  .btn-ghost{background:#fff;border-color:var(--line);color:var(--ink)}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+  .btn:focus-visible{outline:3px solid #9ec1e6;outline-offset:2px}
+
+  .log{margin-top:8px}
+  .log h2{margin-bottom:6px}
+  .log table{width:100%;border-collapse:collapse;font-size:.86rem}
+  .log th,.log td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  .log th{font-size:.74rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .log .pill{font-size:.72rem;font-weight:800;padding:2px 8px;border-radius:999px;color:#fff;white-space:nowrap}
+  .log .empty{color:var(--muted);font-style:italic;padding:14px 8px}
+
+  .know{margin-top:0}
+  .know details{border:1px solid var(--line);border-radius:10px;padding:0 14px;margin-bottom:10px;background:#fbfcfe}
+  .know summary{cursor:pointer;font-weight:700;padding:12px 0;list-style:none;display:flex;align-items:center;gap:8px}
+  .know summary::-webkit-details-marker{display:none}
+  .know summary::before{content:'\25B8';color:var(--accent);font-size:.9rem;transition:transform .15s}
+  .know details[open] summary::before{transform:rotate(90deg)}
+  .know p{margin:0 0 12px;font-size:.92rem;color:#333}
+  .know .src{font-size:.78rem;color:var(--muted)}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  footer.app{margin-top:26px;font-size:.8rem;color:var(--muted);text-align:center}
+  .tagcols{--reward:var(--reward)}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <span class="eyebrow">KS4 &bull; Behaviour &amp; Pastoral &bull; Substances, Risk &amp; Personal Safety</span>
+    <h1>Risk Trade-Off Engine &#x2696;&#xFE0F;</h1>
+    <p class="lede">Real decisions are rarely all good or all bad. Adjust the choices in each situation and watch how reward, risk and possible harm move together. The aim is not to avoid every risk: it is to weigh them honestly.</p>
+    <div class="aim"><strong>Teacher aim:</strong> Pupils model decisions involving alcohol, drugs, addiction and peer pressure on a reward versus harm scale, then identify protective actions that lower harm without lecturing. Links to the PSHE Association Programme of Study, Health and Prevention (RSHE statutory guidance) and the Drugs and Alcohol strand.</div>
+  </header>
+
+  <!-- ENGINE -->
+  <section class="card" aria-labelledby="engineHeading">
+    <h2 id="engineHeading">The decision</h2>
+    <p class="sub">Pick a situation, then move the sliders to set what the person decides to do.</p>
+
+    <div class="scenario-bar" role="group" aria-label="Choose a situation">
+      <button type="button" data-scn="0" aria-pressed="true">Party at Maya's</button>
+      <button type="button" data-scn="1" aria-pressed="false">Vape in the toilets</button>
+      <button type="button" data-scn="2" aria-pressed="false">Pills at a festival</button>
+      <button type="button" data-scn="3" aria-pressed="false">Walking home late</button>
+      <button type="button" data-scn="4" aria-pressed="false">Energy drinks &amp; revision</button>
+    </div>
+
+    <div class="scenario-text" id="scnText" aria-live="polite"></div>
+
+    <div class="layout">
+      <!-- left: controls -->
+      <div>
+        <div class="dial" id="dialWrap1">
+          <label id="lab1" for="d1">Slider 1</label>
+          <div class="hint" id="hint1"></div>
+          <div class="row">
+            <input type="range" id="d1" min="0" max="4" step="1" value="0"
+                   aria-describedby="hint1" aria-valuetext="">
+            <span class="val" id="v1">0</span>
+          </div>
+          <div class="ladder" id="ladder1" aria-hidden="true"></div>
+        </div>
+
+        <div class="dial" id="dialWrap2">
+          <label id="lab2" for="d2">Slider 2</label>
+          <div class="hint" id="hint2"></div>
+          <div class="row">
+            <input type="range" id="d2" min="0" max="4" step="1" value="0"
+                   aria-describedby="hint2" aria-valuetext="">
+            <span class="val" id="v2">0</span>
+          </div>
+          <div class="ladder" id="ladder2" aria-hidden="true"></div>
+        </div>
+
+        <div class="dial" id="dialWrap3">
+          <label id="lab3" for="d3">Slider 3</label>
+          <div class="hint" id="hint3"></div>
+          <div class="row">
+            <input type="range" id="d3" min="0" max="4" step="1" value="0"
+                   aria-describedby="hint3" aria-valuetext="">
+            <span class="val" id="v3">0</span>
+          </div>
+          <div class="ladder" id="ladder3" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <!-- right: outcome -->
+      <div>
+        <div class="gauges" aria-hidden="true">
+          <div class="gauge g-reward">
+            <div class="gname">Reward</div>
+            <div class="gnum"><span id="gReward">0</span></div>
+            <div class="bar"><i id="barReward" style="background:var(--reward)"></i></div>
+          </div>
+          <div class="gauge g-risk">
+            <div class="gname">Risk</div>
+            <div class="gnum"><span id="gRisk">0</span></div>
+            <div class="bar"><i id="barRisk" style="background:var(--risk)"></i></div>
+          </div>
+          <div class="gauge g-harm">
+            <div class="gname">Likely harm</div>
+            <div class="gnum"><span id="gHarm">0</span></div>
+            <div class="bar"><i id="barHarm" style="background:var(--harm)"></i></div>
+          </div>
+        </div>
+
+        <div class="verdict" id="verdict" role="status" aria-live="polite">
+          <h3><span class="tag" id="vTag" style="background:var(--muted)">Set the sliders</span> <span id="vTitle">Move a slider to begin</span></h3>
+          <div id="vBody"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-primary" id="logBtn">Log this decision</button>
+      <button type="button" class="btn btn-ghost" id="safestBtn">Show the lowest-harm choice</button>
+      <button type="button" class="btn btn-ghost" id="resetBtn">Reset sliders</button>
+    </div>
+  </section>
+
+  <!-- LOG -->
+  <section class="card log" aria-labelledby="logHeading">
+    <h2 id="logHeading">Class decision log</h2>
+    <p class="sub">Compare the choices the class has tested. Talk about why the same situation can land very differently.</p>
+    <table>
+      <thead>
+        <tr><th scope="col">Situation</th><th scope="col">Choice</th><th scope="col">Reward</th><th scope="col">Harm</th><th scope="col">Verdict</th></tr>
+      </thead>
+      <tbody id="logBody">
+        <tr><td colspan="5" class="empty">No decisions logged yet. Set the sliders and press "Log this decision".</td></tr>
+      </tbody>
+    </table>
+    <div class="actions">
+      <button type="button" class="btn btn-ghost" id="clearLogBtn">Clear log</button>
+    </div>
+  </section>
+
+  <!-- KNOWLEDGE -->
+  <section class="card know" aria-labelledby="knowHeading">
+    <h2 id="knowHeading">Know the facts</h2>
+    <p class="sub">Open each one. The engine is built on the same ideas.</p>
+
+    <details>
+      <summary>Risk is reward times harm times likelihood, not just "bad"</summary>
+      <p>A sensible way to weigh a decision is to ask three things: how much do I gain, how likely is something to go wrong, and how serious would it be if it did. A small chance of a serious harm (for example getting into a stranger's car) can outweigh a large, certain reward. Lowering any one of the three factors makes the whole decision safer.</p>
+    </details>
+    <details>
+      <summary>Alcohol and the developing brain</summary>
+      <p>UK Chief Medical Officers advise that an alcohol-free childhood is the healthiest option, and that if young people do drink it should not be before 15. The teenage brain is still developing into the mid-twenties, so the effects of alcohol on judgement, memory and risk-taking are stronger than in adults.</p>
+    </details>
+    <details>
+      <summary>Vaping and nicotine</summary>
+      <p>It is illegal to sell vapes or e-cigarettes to anyone under 18 in the UK. Most vapes contain nicotine, which is addictive and can affect the developing teenage brain, including concentration and mood. "Just trying it" is how most nicotine dependence starts.</p>
+    </details>
+    <details>
+      <summary>Unknown pills and dosage</summary>
+      <p>You can never be sure what is in a pill bought from someone, even a friend. Strength varies enormously between batches, so the same "one pill" can have very different effects. Mixing substances (for example alcohol plus a stimulant) sharply increases the danger. If someone becomes unwell, calling 999 and telling the truth about what was taken saves lives.</p>
+    </details>
+    <details>
+      <summary>Peer pressure and saying no</summary>
+      <p>Most young people overestimate how many of their peers drink, vape or take drugs. Having a planned exit line ("I'm good, thanks", "my coach tests us", "I've got football early") makes refusing easier in the moment. A trusted adult or friend who knows your plan is one of the strongest protective factors there is.</p>
+    </details>
+    <details>
+      <summary>Personal safety at night</summary>
+      <p>Simple plans reduce risk a lot: tell someone your route and expected time, keep your phone charged, stay in well-lit areas, and travel with others where you can. None of these remove your right to be safe; they are just sensible ways to lower the chance and seriousness of harm.</p>
+    </details>
+    <p class="src">Sources reflect UK Chief Medical Officers' guidance, the RSHE statutory guidance (Health and Prevention) and the PSHE Association Programme of Study. Figures are illustrative for teaching, not clinical advice.</p>
+  </section>
+
+  <footer class="app">
+    Risk Trade-Off Engine &bull; Demonstration tool for WeST &bull; All names and situations are fictional. If anything here worries you, speak to a trusted adult or a member of staff.
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---- Scenario data ----------------------------------------------------
+  // Each slider: label, hint, 5 step labels (0..4), and per-step effects
+  // on reward (R), risk (K) and harm (H). Values combine across sliders.
+  var SCENARIOS = [
+    {
+      name:"Party at Maya's",
+      text:"<span class='who'>You</span> are at Maya's house party. There is no adult home. People are drinking and someone keeps topping up your cup.",
+      sliders:[
+        {
+          label:"How much you drink",
+          hint:"From nothing to clearly drunk.",
+          steps:["None","One drink","A few","Quite a lot","Until drunk"],
+          R:[1,3,4,3,2], K:[0,1,2,3,4], H:[0,1,3,5,7]
+        },
+        {
+          label:"Who knows where you are",
+          hint:"A safety net if things go wrong.",
+          steps:["Nobody","A friend there","A friend texting in","A parent knows","Parent + lift booked"],
+          R:[0,0,1,1,1], K:[2,1,1,0,0], H:[3,2,1,0,-1]
+        },
+        {
+          label:"Your way home",
+          hint:"How you get back, and how safely.",
+          steps:["No plan","Walk alone","Walk with mates","Booked taxi","Parent collecting"],
+          R:[0,0,1,1,1], K:[3,2,1,1,0], H:[3,2,1,0,0]
+        }
+      ]
+    },
+    {
+      name:"Vape in the toilets",
+      text:"<span class='who'>Jordan</span> offers you a vape in the toilets before lessons. \"Everyone does it, it's just flavour.\"",
+      sliders:[
+        {
+          label:"What you do",
+          hint:"From declining to using regularly.",
+          steps:["Say no","One puff to fit in","Use sometimes","Use daily","Buy your own"],
+          R:[1,2,2,1,1], K:[0,1,2,3,4], H:[0,2,4,6,7]
+        },
+        {
+          label:"How you handle the pressure",
+          hint:"Your exit line in the moment.",
+          steps:["Cave silently","Awkward 'no'","Clear 'no thanks'","'No, I race at weekends'","Leave + tell a friend"],
+          R:[0,1,2,3,3], K:[3,2,1,0,0], H:[2,1,0,-1,-1]
+        },
+        {
+          label:"Whether you tell anyone",
+          hint:"Bringing it into the open.",
+          steps:["Keep it secret","Mention to a mate","Tell a friend properly","Tell a parent","Tell a trusted adult"],
+          R:[0,0,1,1,1], K:[2,2,1,1,0], H:[1,1,0,-1,-1]
+        }
+      ]
+    },
+    {
+      name:"Pills at a festival",
+      text:"<span class='who'>Sam</span> is at a festival. A person Sam half-knows is selling pills. \"They're strong, take two, it's a great night.\"",
+      sliders:[
+        {
+          label:"What you take",
+          hint:"Unknown strength, unknown contents.",
+          steps:["Nothing","Half, then wait","One pill","Two at once","Two + alcohol"],
+          R:[1,2,3,3,2], K:[0,2,3,4,5], H:[0,3,5,7,9]
+        },
+        {
+          label:"Who you are with",
+          hint:"Someone sober who can help.",
+          steps:["Wandered off alone","Crowd of strangers","With mates","Mate stays sober","Sober mate + meeting point"],
+          R:[0,0,1,1,1], K:[3,2,1,0,0], H:[4,3,1,0,-1]
+        },
+        {
+          label:"If someone feels unwell",
+          hint:"What you would actually do.",
+          steps:["Hope it passes","Ask a stranger","Find welfare tent","Tell staff the truth","Call 999, say what was taken"],
+          R:[0,0,1,1,1], K:[3,2,1,1,0], H:[4,3,1,0,-2]
+        }
+      ]
+    },
+    {
+      name:"Walking home late",
+      text:"<span class='who'>You</span> are heading home after dark. It is quicker through the unlit park, and your phone is on 8%.",
+      sliders:[
+        {
+          label:"Route you take",
+          hint:"Speed versus visibility.",
+          steps:["Unlit shortcut","Quiet back lanes","Mixed route","Main lit roads","Lit roads with a friend"],
+          R:[2,2,2,1,1], K:[0,1,1,2,2], H:[5,4,2,1,0]
+        },
+        {
+          label:"Your phone",
+          hint:"Can you call for help?",
+          steps:["Dead battery","8%, unsure","Enough charge","Charged + share location","Charged + on a call home"],
+          R:[0,0,0,0,1], K:[3,2,1,1,0], H:[3,2,1,0,-1]
+        },
+        {
+          label:"Who knows your plan",
+          hint:"Expected time and route.",
+          steps:["Nobody","Vague 'on my way'","Told route","Told route + ETA","ETA + check-in agreed"],
+          R:[0,0,1,1,1], K:[2,2,1,0,0], H:[3,2,1,0,-1]
+        }
+      ]
+    },
+    {
+      name:"Energy drinks & revision",
+      text:"<span class='who'>Alex</span> has exams next week and is exhausted. \"Three energy drinks and I'll pull an all-nighter.\"",
+      sliders:[
+        {
+          label:"Caffeine you take",
+          hint:"Energy drinks are high in caffeine and sugar.",
+          steps:["Water/none","One drink","Two drinks","Three+","Three + no sleep"],
+          R:[2,3,3,2,1], K:[0,1,2,3,4], H:[0,1,2,4,6]
+        },
+        {
+          label:"Your sleep",
+          hint:"Sleep is when memory consolidates.",
+          steps:["All-nighter","3 hours","5 hours","7 hours","Full night"],
+          R:[1,1,2,3,4], K:[4,3,2,1,0], H:[5,3,2,1,0]
+        },
+        {
+          label:"How you revise",
+          hint:"Steady beats cramming.",
+          steps:["Panic cram","Long marathon","Some breaks","Planned sessions","Plan + ask for help"],
+          R:[1,2,3,4,4], K:[3,2,1,0,0], H:[3,2,1,0,-1]
+        }
+      ]
+    }
+  ];
+
+  // ---- State ------------------------------------------------------------
+  var current = 0;
+  var vals = [0,0,0];
+  var logRows = [];
+  var touched = false;
+
+  // ---- Elements ---------------------------------------------------------
+  var $ = function(id){ return document.getElementById(id); };
+  var scnText = $("scnText");
+  var sliders = [$("d1"),$("d2"),$("d3")];
+  var valOut  = [$("v1"),$("v2"),$("v3")];
+  var labs    = [$("lab1"),$("lab2"),$("lab3")];
+  var hints   = [$("hint1"),$("hint2"),$("hint3")];
+  var ladders = [$("ladder1"),$("ladder2"),$("ladder3")];
+
+  // ---- Compute totals ---------------------------------------------------
+  function compute(scnIndex, v){
+    var s = SCENARIOS[scnIndex].sliders;
+    var R=0,K=0,H=0;
+    for(var i=0;i<3;i++){
+      R += s[i].R[v[i]];
+      K += s[i].K[v[i]];
+      H += s[i].H[v[i]];
+    }
+    R = Math.max(0,R); K = Math.max(0,K); H = Math.max(0,H);
+    return {R:R,K:K,H:H};
+  }
+
+  // theoretical max for bar scaling per scenario
+  function maxes(scnIndex){
+    var s = SCENARIOS[scnIndex].sliders, mR=0,mK=0,mH=0;
+    for(var i=0;i<3;i++){
+      mR += Math.max.apply(null,s[i].R);
+      mK += Math.max.apply(null,s[i].K);
+      mH += Math.max.apply(null,s[i].H);
+    }
+    return {R:mR||1,K:mK||1,H:mH||1};
+  }
+
+  // ---- Verdict logic ----------------------------------------------------
+  function verdictFor(t){
+    // Harm-led judgement; reward only softens low-harm choices.
+    var tag, title, colour, lines=[];
+    if(t.H <= 1){
+      tag="Low harm"; colour="var(--reward)";
+      title = t.R>=5 ? "Good trade-off: real upside, very low harm." : "Sensible and safe.";
+      lines.push("You have kept likely harm right down. This is what a strong decision looks like.");
+      if(t.R>=5) lines.push("You are still getting the reward you wanted, which shows safe and fun are not opposites.");
+    } else if(t.H <= 4){
+      tag="Manageable"; colour="var(--amber)";
+      title="Some risk, but you have safety nets in place.";
+      lines.push("The harm here is real but you have lowered it with sensible choices.");
+      lines.push("Look at which slider is adding most harm and ask whether the reward is worth it.");
+    } else if(t.H <= 7){
+      tag="High harm"; colour="var(--risk)";
+      title="The downside now outweighs the upside.";
+      lines.push("Even with the reward, the likely harm is getting serious.");
+      lines.push("A single protective change (who knows where you are, how you get home, what you take) would cut this sharply.");
+    } else {
+      tag="Danger"; colour="var(--harm)";
+      title="This is a dangerous combination.";
+      lines.push("You have stacked the riskiest options together with no safety net.");
+      lines.push("If this were real, the priority is to remove yourself, get a sober adult, and call 999 if anyone is unwell.");
+    }
+    return {tag:tag,title:title,colour:colour,lines:lines};
+  }
+
+  // Find which single slider step most reduces harm from current, to coach.
+  function bestProtective(scnIndex, v){
+    var base = compute(scnIndex,v).H;
+    var best=null, bestDrop=0;
+    var s = SCENARIOS[scnIndex].sliders;
+    for(var i=0;i<3;i++){
+      for(var step=0; step<5; step++){
+        if(step===v[i]) continue;
+        var test=v.slice(); test[i]=step;
+        var h=compute(scnIndex,test).H;
+        var drop = base - h;
+        if(drop>bestDrop){ bestDrop=drop; best={slider:i,step:step,drop:drop}; }
+      }
+    }
+    if(!best) return null;
+    var name=SCENARIOS[scnIndex].sliders[best.slider].label.toLowerCase();
+    var to=SCENARIOS[scnIndex].sliders[best.slider].steps[best.step];
+    return {text:"Biggest single win: change <strong>"+name+"</strong> to “"+to+"” to cut likely harm by about "+best.drop+" point"+(best.drop===1?"":"s")+".", drop:best.drop};
+  }
+
+  // lowest-harm configuration (greedy per slider, harm-first then reward)
+  function safestConfig(scnIndex){
+    var s=SCENARIOS[scnIndex].sliders, v=[0,0,0];
+    for(var i=0;i<3;i++){
+      var bestStep=0, bestH=Infinity, bestR=-Infinity;
+      for(var step=0;step<5;step++){
+        var h=s[i].H[step], r=s[i].R[step];
+        if(h<bestH || (h===bestH && r>bestR)){ bestH=h; bestR=r; bestStep=step; }
+      }
+      v[i]=bestStep;
+    }
+    return v;
+  }
+
+  // ---- Render -----------------------------------------------------------
+  function setBar(barEl, value, max){
+    var pct = Math.max(0, Math.min(100, Math.round((value/max)*100)));
+    barEl.style.width = pct + "%";
+  }
+
+  function render(){
+    var scn = SCENARIOS[current];
+    var t = compute(current, vals);
+    var m = maxes(current);
+
+    // gauges
+    $("gReward").textContent = t.R;
+    $("gRisk").textContent   = t.K;
+    $("gHarm").textContent   = t.H;
+    setBar($("barReward"), t.R, m.R);
+    setBar($("barRisk"),   t.K, m.K);
+    setBar($("barHarm"),   t.H, m.H);
+    // colour harm bar by severity
+    var harmColour = t.H<=1?"var(--reward)": t.H<=4?"var(--amber)": t.H<=7?"var(--risk)":"var(--harm)";
+    $("barHarm").style.background = harmColour;
+
+    // verdict
+    var vEl = $("vTag"), vTitle=$("vTitle"), vBody=$("vBody");
+    if(!touched){
+      vEl.textContent="Set the sliders"; vEl.style.background="var(--muted)";
+      vTitle.textContent="Move a slider to begin";
+      vBody.innerHTML="<p style='margin:6px 0 0;color:var(--muted)'>Each move updates reward, risk and likely harm instantly.</p>";
+      return;
+    }
+    var ver = verdictFor(t);
+    vEl.textContent = ver.tag; vEl.style.background = ver.colour;
+    vTitle.textContent = ver.title;
+    var html = "<ul>";
+    for(var i=0;i<ver.lines.length;i++) html += "<li>"+ver.lines[i]+"</li>";
+    html += "</ul>";
+    var prot = bestProtective(current, vals);
+    if(prot && prot.drop>0){
+      html += "<div class='protect'><span aria-hidden='true'>&#x1F6E1;&#xFE0F; </span>"+prot.text+"</div>";
+    } else if(t.H<=1){
+      html += "<div class='protect'><span aria-hidden='true'>&#x2705; </span><strong>Well judged.</strong> There is no lower-harm option left to take here.</div>";
+    }
+    vBody.innerHTML = html;
+  }
+
+  function loadScenario(idx){
+    current = idx;
+    vals = [0,0,0];
+    touched = false;
+    var scn = SCENARIOS[idx];
+    scnText.innerHTML = scn.text;
+    for(var i=0;i<3;i++){
+      labs[i].textContent = scn.sliders[i].label;
+      hints[i].textContent = scn.sliders[i].hint;
+      sliders[i].value = 0;
+      updateSliderUI(i);
+      // ladder labels (first & last only to stay readable)
+      ladders[i].innerHTML = "<span>"+scn.sliders[i].steps[0]+"</span><span>"+scn.sliders[i].steps[4]+"</span>";
+    }
+    render();
+  }
+
+  function updateSliderUI(i){
+    var step = parseInt(sliders[i].value,10);
+    vals[i]=step;
+    var lbl = SCENARIOS[current].sliders[i].steps[step];
+    valOut[i].textContent = step;
+    sliders[i].setAttribute("aria-valuetext", lbl);
+    valOut[i].setAttribute("title", lbl);
+  }
+
+  // ---- Logging ----------------------------------------------------------
+  function choiceSummary(){
+    var s=SCENARIOS[current].sliders;
+    return s[0].steps[vals[0]]+" / "+s[1].steps[vals[1]]+" / "+s[2].steps[vals[2]];
+  }
+
+  function renderLog(){
+    var body=$("logBody");
+    if(logRows.length===0){
+      body.innerHTML="<tr><td colspan='5' class='empty'>No decisions logged yet. Set the sliders and press “Log this decision”.</td></tr>";
+      return;
+    }
+    var html="";
+    for(var i=0;i<logRows.length;i++){
+      var r=logRows[i];
+      html += "<tr>"
+        + "<td>"+r.scn+"</td>"
+        + "<td>"+r.choice+"</td>"
+        + "<td>"+r.R+"</td>"
+        + "<td>"+r.H+"</td>"
+        + "<td><span class='pill' style='background:"+r.colour+"'>"+r.tag+"</span></td>"
+        + "</tr>";
+    }
+    body.innerHTML=html;
+  }
+
+  // ---- Events -----------------------------------------------------------
+  function onSlide(i){
+    return function(){
+      touched=true;
+      updateSliderUI(i);
+      render();
+    };
+  }
+  for(var i=0;i<3;i++){
+    sliders[i].addEventListener("input", onSlide(i));
+  }
+
+  // scenario buttons
+  var scnBtns = document.querySelectorAll(".scenario-bar button");
+  for(var b=0;b<scnBtns.length;b++){
+    (function(btn){
+      btn.addEventListener("click", function(){
+        for(var k=0;k<scnBtns.length;k++) scnBtns[k].setAttribute("aria-pressed","false");
+        btn.setAttribute("aria-pressed","true");
+        loadScenario(parseInt(btn.getAttribute("data-scn"),10));
+      });
+    })(scnBtns[b]);
+  }
+
+  $("logBtn").addEventListener("click", function(){
+    var t=compute(current,vals);
+    var ver=verdictFor(t);
+    logRows.unshift({
+      scn:SCENARIOS[current].name,
+      choice:choiceSummary(),
+      R:t.R, H:t.H, tag:ver.tag, colour:ver.colour
+    });
+    if(logRows.length>12) logRows.pop();
+    renderLog();
+  });
+
+  $("clearLogBtn").addEventListener("click", function(){
+    logRows=[]; renderLog();
+  });
+
+  $("resetBtn").addEventListener("click", function(){
+    for(var i=0;i<3;i++){ sliders[i].value=0; updateSliderUI(i); }
+    touched=false; render();
+  });
+
+  $("safestBtn").addEventListener("click", function(){
+    var v=safestConfig(current);
+    for(var i=0;i<3;i++){ sliders[i].value=v[i]; updateSliderUI(i); }
+    touched=true; render();
+  });
+
+  // ---- Init -------------------------------------------------------------
+  loadScenario(0);
+  renderLog();
+})();
+</script>
+</body>
+</html>

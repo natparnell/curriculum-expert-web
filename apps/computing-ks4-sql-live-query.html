@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Live Query &middot; Computing KS4</title>
+<style>
+  :root {
+    --bg: #0f1729;
+    --panel: #ffffff;
+    --ink: #1a2236;
+    --muted: #5b6577;
+    --line: #e2e6ee;
+    --accent: #2563eb;
+    --accent-dark: #1d4ed8;
+    --good: #16855c;
+    --good-bg: #e7f6ef;
+    --bad: #c2410c;
+    --bad-bg: #fdf0e8;
+    --warn: #b45309;
+    --kw: #7c3aed;
+    --hit: #fff3bf;
+    --shadow: 0 10px 30px rgba(15,23,41,.10);
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: var(--sans);
+    color: var(--ink);
+    background: linear-gradient(180deg, #0f1729 0%, #1b2747 280px, #eef1f7 280px, #eef1f7 100%);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  header.page {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 28px 20px 18px;
+    color: #fff;
+  }
+  .eyebrow {
+    display: inline-flex; gap: 8px; align-items: center;
+    font-size: .78rem; letter-spacing: .08em; text-transform: uppercase;
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
+    padding: 5px 12px; border-radius: 999px; font-weight: 600;
+  }
+  header.page h1 { font-size: clamp(1.6rem, 4vw, 2.3rem); margin: 12px 0 6px; letter-spacing: -.01em; }
+  .aim {
+    font-size: .98rem; color: #c9d4ee; max-width: 760px; margin: 0;
+  }
+  .aim strong { color: #fff; }
+  main {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 20px 60px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  @media (min-width: 940px) {
+    .grid { grid-template-columns: 1.05fr 1fr; align-items: start; }
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 18px 18px 20px;
+  }
+  .card h2 {
+    font-size: 1.02rem; margin: 0 0 4px; display: flex; align-items: center; gap: 9px;
+  }
+  .card h2 .num {
+    width: 26px; height: 26px; border-radius: 8px; background: var(--accent); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; font-size: .85rem; font-weight: 700; flex: 0 0 auto;
+  }
+  .card .sub { color: var(--muted); font-size: .9rem; margin: 0 0 14px; }
+
+  /* Query builder */
+  .builder { display: grid; gap: 12px; }
+  .qrow { display: grid; gap: 6px; }
+  .qrow label { font-weight: 600; font-size: .88rem; }
+  .qrow label .kw { font-family: var(--mono); color: var(--kw); font-weight: 700; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  select, .pill-input {
+    font: inherit; font-size: .92rem; padding: 9px 11px; border: 1.5px solid var(--line);
+    border-radius: 10px; background: #fff; color: var(--ink); min-height: 44px;
+  }
+  select:focus, .pill-input:focus, input:focus, button:focus-visible {
+    outline: 3px solid #bfd2ff; outline-offset: 1px; border-color: var(--accent);
+  }
+  .cols { display: flex; flex-wrap: wrap; gap: 6px; }
+  .colchip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 999px;
+    border: 1.5px solid var(--line); background: #f7f9fc; cursor: pointer; font-size: .85rem; font-weight: 600;
+    user-select: none; min-height: 38px;
+  }
+  .colchip input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+  .colchip.on { background: #eef4ff; border-color: #9dbcff; color: var(--accent-dark); }
+  .where-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .where-line .lab { font-family: var(--mono); color: var(--kw); font-weight: 700; }
+  input[type="number"], input[type="text"] {
+    font: inherit; font-size: .92rem; padding: 9px 11px; border: 1.5px solid var(--line);
+    border-radius: 10px; min-height: 44px; width: 130px;
+  }
+  .toggle-where { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  .toggle-where input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .where-body[hidden] { display: none; }
+  .where-body { display: grid; gap: 8px; }
+  .and-row { display: flex; align-items: center; gap: 8px; }
+  .and-row .conj {
+    font-family: var(--mono); font-weight: 700; color: var(--kw);
+    background: #f3eefe; border: 1px solid #e4d8fb; border-radius: 8px; padding: 4px 9px; font-size: .85rem;
+  }
+
+  /* SQL preview */
+  .sqlbox {
+    background: #0f1729; color: #e8edf7; border-radius: 12px; padding: 14px 16px; font-family: var(--mono);
+    font-size: .92rem; line-height: 1.65; white-space: pre-wrap; word-break: break-word; margin-top: 2px;
+    border: 1px solid #24314f;
+  }
+  .sqlbox .kw { color: #93b8ff; font-weight: 700; }
+  .sqlbox .col { color: #ffd479; }
+  .sqlbox .val { color: #7ee0a8; }
+  .sqlbox .op { color: #f3a0c0; }
+
+  .runbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+  button.btn {
+    font: inherit; font-weight: 700; border: none; border-radius: 10px; padding: 11px 18px; cursor: pointer;
+    min-height: 46px; background: var(--accent); color: #fff;
+  }
+  button.btn:hover { background: var(--accent-dark); }
+  button.btn.ghost { background: #eef1f7; color: var(--ink); border: 1.5px solid var(--line); }
+  button.btn.ghost:hover { background: #e4e9f2; }
+  .resultcount {
+    margin-left: auto; font-weight: 700; font-size: .9rem; color: var(--accent-dark);
+    background: #eef4ff; border: 1px solid #cfe0ff; padding: 6px 12px; border-radius: 999px;
+  }
+
+  /* Results table */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; margin-top: 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { background: #f4f7fc; font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); position: sticky; top: 0; }
+  tbody tr.match { animation: pop .35s ease; }
+  tbody tr.dim { opacity: .28; }
+  td.hl { background: var(--hit); }
+  @keyframes pop { from { background: #eafaf1; } to { background: transparent; } }
+  .empty { text-align: center; color: var(--muted); padding: 26px 12px; font-style: italic; }
+
+  .feedback {
+    margin-top: 12px; border-radius: 12px; padding: 12px 14px; font-size: .92rem; border: 1px solid var(--line);
+    background: #f7f9fc;
+  }
+  .feedback.good { background: var(--good-bg); border-color: #b7e6cf; color: #0b5e40; }
+  .feedback.bad { background: var(--bad-bg); border-color: #f4cbb0; color: #8a3309; }
+  .feedback strong { display: block; margin-bottom: 2px; }
+
+  /* Challenges */
+  .chal { display: grid; gap: 10px; }
+  .chal-card {
+    border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fbfcfe;
+  }
+  .chal-card.solved { border-color: #b7e6cf; background: var(--good-bg); }
+  .chal-head { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: .92rem; }
+  .chal-head .tick {
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; color: transparent;
+  }
+  .chal-card.solved .tick { background: var(--good); border-color: var(--good); color: #fff; }
+  .chal-card p { margin: 6px 0 0; font-size: .9rem; color: var(--muted); }
+
+  /* Boolean / truth-table section */
+  .full { grid-column: 1 / -1; }
+  .gatewrap { display: grid; gap: 16px; }
+  @media (min-width: 720px) { .gatewrap { grid-template-columns: 1.1fr 1fr; align-items: center; } }
+  .gate-controls { display: grid; gap: 14px; }
+  .gate-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+  .gate-pick button {
+    font: inherit; font-weight: 700; padding: 9px 14px; border-radius: 10px; border: 1.5px solid var(--line);
+    background: #fff; cursor: pointer; min-height: 44px; font-family: var(--mono);
+  }
+  .gate-pick button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .switches { display: flex; gap: 14px; flex-wrap: wrap; }
+  .switch {
+    display: grid; gap: 6px; justify-items: center;
+  }
+  .switch .lab { font-family: var(--mono); font-weight: 700; }
+  .swbtn {
+    width: 74px; height: 44px; border-radius: 999px; border: 2px solid var(--line); background: #f0f2f7;
+    position: relative; cursor: pointer; transition: background .15s; padding: 0;
+  }
+  .swbtn[aria-pressed="true"] { background: #cdebda; border-color: var(--good); }
+  .swbtn .knob {
+    position: absolute; top: 2px; left: 2px; width: 36px; height: 36px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: left .15s; display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-weight: 700; font-size: .85rem; color: var(--muted);
+  }
+  .swbtn[aria-pressed="true"] .knob { left: 34px; color: var(--good); }
+  .gate-output {
+    display: grid; gap: 8px; justify-items: center; padding: 14px; border: 1.5px solid var(--line); border-radius: 12px;
+    background: #fbfcfe;
+  }
+  .bulb {
+    width: 92px; height: 92px; border-radius: 50%; border: 3px solid var(--line); background: #eceff5;
+    display: flex; align-items: center; justify-content: center; font-size: 2.2rem; transition: all .2s;
+  }
+  .bulb.on { background: #fff7d6; border-color: #f1c40f; box-shadow: 0 0 0 8px rgba(241,196,15,.18); }
+  .out-eq { font-family: var(--mono); font-weight: 700; font-size: 1.05rem; }
+  table.tt { font-size: .9rem; }
+  table.tt th, table.tt td { text-align: center; }
+  table.tt tr.current td { background: var(--hit); font-weight: 700; }
+  table.tt td.q1 { color: var(--good); font-weight: 700; }
+  table.tt td.q0 { color: var(--muted); }
+
+  details.schema { margin-top: 14px; }
+  details.schema summary { cursor: pointer; font-weight: 700; font-size: .9rem; padding: 6px 0; }
+  .schema-grid { display: grid; gap: 10px; margin-top: 8px; }
+  @media (min-width: 560px) { .schema-grid { grid-template-columns: repeat(3, 1fr); } }
+  .schema-grid .field { font-family: var(--mono); font-size: .82rem; background: #f4f7fc; border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; }
+  .schema-grid .field b { color: var(--accent-dark); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  footer.note { max-width: 1120px; margin: 0 auto; padding: 0 20px 40px; color: var(--muted); font-size: .82rem; }
+  .hint { font-size: .82rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="page">
+  <span class="eyebrow">&#x1F5C4;&#xFE0F; Computing &middot; KS4 &middot; Databases &amp; Logic</span>
+  <h1>SQL Live Query</h1>
+  <p class="aim"><strong>Teacher aim:</strong> pupils build <code>SELECT &hellip; FROM &hellip; WHERE</code> queries against a school database table of records and see the result set filter instantly, then connect Boolean conditions to logic gates and truth tables.</p>
+</header>
+
+<main>
+  <div class="grid">
+
+    <!-- LEFT: Query builder -->
+    <section class="card" aria-labelledby="builder-h">
+      <h2 id="builder-h"><span class="num">1</span> Build a query</h2>
+      <p class="sub">Choose the columns to <span style="color:var(--kw);font-family:var(--mono);font-weight:700">SELECT</span>, then add a <span style="color:var(--kw);font-family:var(--mono);font-weight:700">WHERE</span> condition to filter the rows. The table on the right updates as you go.</p>
+
+      <div class="builder">
+        <div class="qrow">
+          <label id="sel-lbl"><span class="kw">SELECT</span> columns <span class="hint">(tap to include)</span></label>
+          <div class="cols" id="colChips" role="group" aria-labelledby="sel-lbl"></div>
+        </div>
+
+        <div class="qrow">
+          <label><span class="kw">FROM</span> table</label>
+          <div class="controls">
+            <select id="fromTable" aria-label="Table to query">
+              <option value="students" selected>students</option>
+            </select>
+            <span class="hint">12 demonstration records</span>
+          </div>
+        </div>
+
+        <div class="qrow">
+          <div class="toggle-where">
+            <input type="checkbox" id="whereOn" checked>
+            <label for="whereOn" style="margin:0"><span class="kw">WHERE</span> add a filter condition</label>
+          </div>
+          <div class="where-body" id="whereBody">
+            <div class="where-line">
+              <select id="w1col" aria-label="First condition column">
+                <option value="year_group">year_group</option>
+                <option value="house">house</option>
+                <option value="reading_age">reading_age</option>
+                <option value="attendance">attendance</option>
+                <option value="active">active</option>
+              </select>
+              <select id="w1op" aria-label="First condition operator">
+                <option value="=">=</option>
+                <option value="&gt;">&gt;</option>
+                <option value="&gt;=">&gt;=</option>
+                <option value="&lt;">&lt;</option>
+                <option value="&lt;=">&lt;=</option>
+                <option value="!=">!=</option>
+              </select>
+              <span id="w1valWrap"></span>
+            </div>
+
+            <div class="and-row">
+              <span class="conj" id="conjLbl">AND</span>
+              <input type="checkbox" id="and2on" aria-label="Add a second condition">
+              <label for="and2on" style="font-size:.86rem">add second condition</label>
+              <select id="conjSel" aria-label="Combine conditions with AND or OR" style="min-height:38px;padding:5px 8px">
+                <option value="AND">AND</option>
+                <option value="OR">OR</option>
+              </select>
+            </div>
+
+            <div class="where-line" id="w2line" hidden>
+              <select id="w2col" aria-label="Second condition column">
+                <option value="year_group">year_group</option>
+                <option value="house">house</option>
+                <option value="reading_age">reading_age</option>
+                <option value="attendance">attendance</option>
+                <option value="active">active</option>
+              </select>
+              <select id="w2op" aria-label="Second condition operator">
+                <option value="=">=</option>
+                <option value="&gt;">&gt;</option>
+                <option value="&gt;=">&gt;=</option>
+                <option value="&lt;">&lt;</option>
+                <option value="&lt;=">&lt;=</option>
+                <option value="!=">!=</option>
+              </select>
+              <span id="w2valWrap"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="qrow">
+          <label>Your SQL</label>
+          <div class="sqlbox" id="sqlPreview" aria-live="polite"></div>
+        </div>
+
+        <div class="runbar">
+          <button class="btn ghost" id="resetBtn" type="button">Reset query</button>
+          <span class="resultcount" id="resCount" aria-live="polite">0 rows</span>
+        </div>
+      </div>
+
+      <details class="schema">
+        <summary>View table structure (the record fields)</summary>
+        <p class="hint" style="margin:8px 0 0">Each row is a <b>record</b>; each record holds the same named <b>fields</b>. Together the rows form an array of records.</p>
+        <div class="schema-grid" id="schemaGrid"></div>
+      </details>
+    </section>
+
+    <!-- RIGHT: Results -->
+    <section class="card" aria-labelledby="res-h">
+      <h2 id="res-h"><span class="num">2</span> Result set</h2>
+      <p class="sub">Rows that satisfy the <code>WHERE</code> condition are kept; matched cells are highlighted. Non-matching rows fade out.</p>
+      <div class="tablewrap">
+        <table id="resTable">
+          <thead><tr id="resHead"></tr></thead>
+          <tbody id="resBody"></tbody>
+        </table>
+      </div>
+      <div class="feedback" id="feedback" aria-live="polite">
+        <strong>Tip</strong>Change the WHERE value and watch which rows stay.
+      </div>
+    </section>
+
+    <!-- Challenges -->
+    <section class="card full" aria-labelledby="chal-h">
+      <h2 id="chal-h"><span class="num">3</span> Query challenges</h2>
+      <p class="sub">Set your query so the result set exactly matches each target. Solve them in any order; the card ticks the moment your result is right.</p>
+      <div class="chal" id="chalList"></div>
+    </section>
+
+    <!-- Boolean logic -->
+    <section class="card full" aria-labelledby="bool-h">
+      <h2 id="bool-h"><span class="num">4</span> From WHERE to Boolean logic</h2>
+      <p class="sub">A <code>WHERE</code> condition is a Boolean expression: each comparison is true (1) or false (0), and <code>AND</code> / <code>OR</code> combine them exactly like logic gates. Flip the inputs and predict the output.</p>
+      <div class="gatewrap">
+        <div class="gate-controls">
+          <div>
+            <div class="hint" style="margin-bottom:6px">Choose a gate</div>
+            <div class="gate-pick" id="gatePick" role="group" aria-label="Logic gate">
+              <button type="button" data-gate="AND" class="on">AND</button>
+              <button type="button" data-gate="OR">OR</button>
+              <button type="button" data-gate="NOT">NOT</button>
+              <button type="button" data-gate="XOR">XOR</button>
+            </div>
+          </div>
+          <div class="switches" id="switches">
+            <div class="switch">
+              <span class="lab">A</span>
+              <button type="button" class="swbtn" id="swA" aria-pressed="false" aria-label="Input A, currently 0">
+                <span class="knob">0</span>
+              </button>
+            </div>
+            <div class="switch" id="switchBwrap">
+              <span class="lab">B</span>
+              <button type="button" class="swbtn" id="swB" aria-pressed="false" aria-label="Input B, currently 0">
+                <span class="knob">0</span>
+              </button>
+            </div>
+          </div>
+          <p class="hint" id="gateExplain"></p>
+        </div>
+
+        <div class="gate-output">
+          <div class="bulb" id="bulb" role="img" aria-label="Output lamp, off">&#x1F4A1;</div>
+          <div class="out-eq" id="outEq" aria-live="polite"></div>
+          <div class="tablewrap" style="margin-top:6px">
+            <table class="tt" id="ttTable">
+              <thead id="ttHead"></thead>
+              <tbody id="ttBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="note">
+  Demonstration data only. All names are fictional. Built for WeST classrooms to teach databases, SQL and Boolean logic at KS4. Works fully offline.
+</footer>
+
+<div class="sr-only" aria-live="assertive" id="srLive"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ----------------------------------------------------------
+     Sample school database: an array of records (fictional)
+  ----------------------------------------------------------- */
+  var COLUMNS = [
+    { name: "id",          label: "id",          type: "int"  },
+    { name: "name",        label: "name",        type: "text" },
+    { name: "year_group",  label: "year_group",  type: "int"  },
+    { name: "house",       label: "house",       type: "text" },
+    { name: "reading_age", label: "reading_age", type: "num"  },
+    { name: "attendance",  label: "attendance",  type: "int"  },
+    { name: "active",      label: "active",       type: "bool" }
+  ];
+
+  var STUDENTS = [
+    { id:1,  name:"Ava Thornbury",   year_group:10, house:"Dart",   reading_age:13.5, attendance:97, active:true  },
+    { id:2,  name:"Beau Castleton",  year_group:11, house:"Tamar",  reading_age:11.2, attendance:88, active:true  },
+    { id:3,  name:"Cleo Marsden",    year_group:10, house:"Dart",   reading_age:14.8, attendance:99, active:true  },
+    { id:4,  name:"Dev Okonkwo",     year_group:9,  house:"Plym",   reading_age:10.4, attendance:74, active:false },
+    { id:5,  name:"Esme Pellow",     year_group:11, house:"Tamar",  reading_age:12.9, attendance:92, active:true  },
+    { id:6,  name:"Finn Tregarth",   year_group:10, house:"Plym",   reading_age:9.8,  attendance:81, active:true  },
+    { id:7,  name:"Gita Rao",        year_group:9,  house:"Dart",   reading_age:13.1, attendance:96, active:true  },
+    { id:8,  name:"Hugo Wenmoth",    year_group:11, house:"Plym",   reading_age:15.2, attendance:90, active:false },
+    { id:9,  name:"Ivy Carne",       year_group:9,  house:"Tamar",  reading_age:8.7,  attendance:69, active:false },
+    { id:10, name:"Jude Anstey",     year_group:10, house:"Tamar",  reading_age:12.0, attendance:94, active:true  },
+    { id:11, name:"Kira Bellamy",    year_group:11, house:"Dart",   reading_age:14.0, attendance:85, active:true  },
+    { id:12, name:"Leo Penhallow",   year_group:9,  house:"Plym",   reading_age:11.6, attendance:78, active:true  }
+  ];
+
+  function $(id){ return document.getElementById(id); }
+  function el(tag, attrs){
+    var e = document.createElement(tag);
+    if(attrs){ for(var k in attrs){ if(k==="text"){ e.textContent = attrs[k]; } else { e.setAttribute(k, attrs[k]); } } }
+    return e;
+  }
+  function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]; }); }
+
+  /* ----------------------------------------------------------
+     Column distinct values, for WHERE value pickers
+  ----------------------------------------------------------- */
+  function distinct(col){
+    var seen = {}, out = [];
+    STUDENTS.forEach(function(r){ var v = r[col]; if(!(v in seen)){ seen[v]=1; out.push(v); } });
+    return out;
+  }
+
+  /* ----------------------------------------------------------
+     STATE
+  ----------------------------------------------------------- */
+  var selected = { id:true, name:true, year_group:true, house:true, reading_age:true, attendance:true, active:true };
+
+  /* ----------------------------------------------------------
+     SELECT column chips
+  ----------------------------------------------------------- */
+  var colChips = $("colChips");
+  COLUMNS.forEach(function(c){
+    var chip = el("label", { "class":"colchip on" });
+    var cb = el("input", { type:"checkbox" });
+    cb.checked = true;
+    cb.setAttribute("aria-label", "Include column " + c.name);
+    cb.addEventListener("change", function(){
+      selected[c.name] = cb.checked;
+      chip.classList.toggle("on", cb.checked);
+      // never allow zero columns
+      if(Object.keys(selected).filter(function(k){return selected[k];}).length === 0){
+        cb.checked = true; selected[c.name] = true; chip.classList.add("on");
+      }
+      render();
+    });
+    chip.appendChild(cb);
+    chip.appendChild(document.createTextNode(c.name));
+    colChips.appendChild(chip);
+  });
+
+  /* ----------------------------------------------------------
+     Schema grid
+  ----------------------------------------------------------- */
+  var schemaGrid = $("schemaGrid");
+  COLUMNS.forEach(function(c){
+    var f = el("div", { "class":"field" });
+    f.innerHTML = "<b>" + esc(c.name) + "</b> : " + esc(c.type);
+    schemaGrid.appendChild(f);
+  });
+
+  /* ----------------------------------------------------------
+     WHERE value inputs (depend on column type)
+  ----------------------------------------------------------- */
+  function buildValInput(wrapId, colId){
+    var wrap = $(wrapId);
+    wrap.innerHTML = "";
+    var col = $(colId).value;
+    var meta = COLUMNS.filter(function(c){return c.name===col;})[0];
+    var ctl;
+    if(meta.type === "bool"){
+      ctl = el("select", { "aria-label":"Condition value" });
+      ["true","false"].forEach(function(v){ var o = el("option",{value:v,text:v}); ctl.appendChild(o); });
+    } else if(meta.type === "text"){
+      ctl = el("select", { "aria-label":"Condition value" });
+      distinct(col).forEach(function(v){ var o = el("option",{value:String(v),text:"'"+v+"'"}); ctl.appendChild(o); });
+    } else {
+      ctl = el("input", { type:"number", step: meta.type==="num" ? "0.1" : "1", "aria-label":"Condition value" });
+      // sensible default
+      var def = { year_group:10, reading_age:12, attendance:90, id:5 }[col];
+      ctl.value = (def !== undefined) ? def : 0;
+    }
+    ctl.classList.add("pill-input");
+    ctl.addEventListener("change", render);
+    ctl.addEventListener("input", render);
+    wrap.appendChild(ctl);
+    return ctl;
+  }
+
+  function valOf(wrapId){
+    var node = $(wrapId).firstChild;
+    if(!node) return "";
+    return node.value;
+  }
+
+  buildValInput("w1valWrap", "w1col");
+  buildValInput("w2valWrap", "w2col");
+
+  $("w1col").addEventListener("change", function(){ buildValInput("w1valWrap","w1col"); render(); });
+  $("w2col").addEventListener("change", function(){ buildValInput("w2valWrap","w2col"); render(); });
+
+  /* ----------------------------------------------------------
+     WHERE toggles
+  ----------------------------------------------------------- */
+  $("whereOn").addEventListener("change", function(){
+    $("whereBody").hidden = !this.checked;
+    render();
+  });
+  $("and2on").addEventListener("change", function(){
+    $("w2line").hidden = !this.checked;
+    render();
+  });
+  $("conjSel").addEventListener("change", function(){
+    $("conjLbl").textContent = this.value;
+    render();
+  });
+  ["w1op","w2op"].forEach(function(id){ $(id).addEventListener("change", render); });
+
+  /* ----------------------------------------------------------
+     Evaluate a single comparison
+  ----------------------------------------------------------- */
+  function coerce(col, raw){
+    var meta = COLUMNS.filter(function(c){return c.name===col;})[0];
+    if(meta.type === "bool") return (raw === "true");
+    if(meta.type === "text") return String(raw);
+    return parseFloat(raw);
+  }
+  function compare(rowVal, op, target){
+    switch(op){
+      case "=":  return rowVal === target;
+      case "!=": return rowVal !== target;
+      case ">":  return rowVal >  target;
+      case ">=": return rowVal >= target;
+      case "<":  return rowVal <  target;
+      case "<=": return rowVal <= target;
+    }
+    return true;
+  }
+
+  function getConditions(){
+    var conds = [];
+    if(!$("whereOn").checked) return conds;
+    conds.push({
+      col: $("w1col").value,
+      op:  $("w1op").value,
+      raw: valOf("w1valWrap")
+    });
+    if($("and2on").checked){
+      conds.push({
+        col: $("w2col").value,
+        op:  $("w2op").value,
+        raw: valOf("w2valWrap"),
+        conj: $("conjSel").value
+      });
+    }
+    return conds;
+  }
+
+  function rowMatches(row, conds){
+    if(conds.length === 0) return { keep:true, hits:{} };
+    var hits = {};
+    var r1 = compare(row[conds[0].col], conds[0].op, coerce(conds[0].col, conds[0].raw));
+    if(r1) hits[conds[0].col] = true;
+    if(conds.length === 1) return { keep:r1, hits:hits };
+    var r2 = compare(row[conds[1].col], conds[1].op, coerce(conds[1].col, conds[1].raw));
+    if(r2) hits[conds[1].col] = true;
+    var keep = (conds[1].conj === "OR") ? (r1 || r2) : (r1 && r2);
+    return { keep:keep, hits:hits };
+  }
+
+  /* ----------------------------------------------------------
+     SQL preview
+  ----------------------------------------------------------- */
+  function fmtVal(col, raw){
+    var meta = COLUMNS.filter(function(c){return c.name===col;})[0];
+    if(meta.type === "text") return "'" + raw + "'";
+    return raw;
+  }
+  function buildSqlPlain(){
+    var cols = COLUMNS.filter(function(c){return selected[c.name];}).map(function(c){return c.name;});
+    var allOn = cols.length === COLUMNS.length;
+    var selPart = allOn ? "*" : cols.join(", ");
+    var sql = "SELECT " + selPart + " FROM students";
+    var conds = getConditions();
+    if(conds.length){
+      var w = conds[0].col + " " + conds[0].op + " " + fmtVal(conds[0].col, conds[0].raw);
+      if(conds.length > 1){
+        w += " " + conds[1].conj + " " + conds[1].col + " " + conds[1].op + " " + fmtVal(conds[1].col, conds[1].raw);
+      }
+      sql += " WHERE " + w;
+    }
+    return sql + ";";
+  }
+  function renderSql(){
+    var cols = COLUMNS.filter(function(c){return selected[c.name];}).map(function(c){return c.name;});
+    var allOn = cols.length === COLUMNS.length;
+    var html = '<span class="kw">SELECT</span> ';
+    html += allOn ? '<span class="col">*</span>' : cols.map(function(c){return '<span class="col">'+esc(c)+'</span>';}).join('<span class="op">, </span>');
+    html += '\n<span class="kw">FROM</span> students';
+    var conds = getConditions();
+    if(conds.length){
+      html += '\n<span class="kw">WHERE</span> <span class="col">'+esc(conds[0].col)+'</span> <span class="op">'+esc(conds[0].op)+'</span> <span class="val">'+esc(fmtVal(conds[0].col,conds[0].raw))+'</span>';
+      if(conds.length>1){
+        html += ' <span class="kw">'+esc(conds[1].conj)+'</span> <span class="col">'+esc(conds[1].col)+'</span> <span class="op">'+esc(conds[1].op)+'</span> <span class="val">'+esc(fmtVal(conds[1].col,conds[1].raw))+'</span>';
+      }
+    }
+    html += '<span class="op">;</span>';
+    $("sqlPreview").innerHTML = html;
+  }
+
+  /* ----------------------------------------------------------
+     Render results table
+  ----------------------------------------------------------- */
+  function render(){
+    renderSql();
+    var cols = COLUMNS.filter(function(c){return selected[c.name];});
+    var conds = getConditions();
+
+    // header
+    var head = $("resHead");
+    head.innerHTML = "";
+    cols.forEach(function(c){ var th = el("th",{text:c.name}); head.appendChild(th); });
+
+    // body
+    var body = $("resBody");
+    body.innerHTML = "";
+    var matchCount = 0;
+
+    STUDENTS.forEach(function(row){
+      var m = rowMatches(row, conds);
+      if(m.keep) matchCount++;
+      var tr = el("tr");
+      tr.className = m.keep ? "match" : "dim";
+      cols.forEach(function(c){
+        var td = el("td");
+        var v = row[c.name];
+        if(c.type === "bool") v = v ? "true" : "false";
+        td.textContent = v;
+        if(m.keep && m.hits[c.name]) td.className = "hl";
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+
+    $("resCount").textContent = matchCount + (matchCount===1 ? " row" : " rows");
+    feedbackFor(conds, matchCount);
+    checkChallenges();
+  }
+
+  /* ----------------------------------------------------------
+     Targeted feedback
+  ----------------------------------------------------------- */
+  function feedbackFor(conds, count){
+    var fb = $("feedback");
+    fb.className = "feedback";
+    if(conds.length === 0){
+      fb.innerHTML = "<strong>No filter active</strong>The query returns every record (12 rows) because there is no WHERE condition.";
+      return;
+    }
+    if(count === 0){
+      fb.classList.add("bad");
+      var c0 = conds[0];
+      var hint = "";
+      var meta = COLUMNS.filter(function(c){return c.name===c0.col;})[0];
+      if(meta.type==="num" || meta.type==="int"){
+        hint = " Try a smaller threshold, or switch the operator (for example &gt;= instead of &gt;).";
+      } else {
+        hint = " Check the spelling and casing of the value you are matching.";
+      }
+      fb.innerHTML = "<strong>No rows match</strong>Nothing satisfies this condition." + hint;
+      return;
+    }
+    fb.classList.add("good");
+    var word = (conds.length>1) ? ("combined with <b>"+conds[1].conj+"</b>") : "";
+    var pct = Math.round(count/STUDENTS.length*100);
+    fb.innerHTML = "<strong>"+count+" of 12 records kept</strong>The WHERE condition "+word+" is true for these rows ("+pct+"% of the table). Highlighted cells are the ones the condition tested.";
+  }
+
+  /* ----------------------------------------------------------
+     CHALLENGES: target result = set of ids
+  ----------------------------------------------------------- */
+  var CHALLENGES = [
+    {
+      id:"c1",
+      title:"List every Year 11 student",
+      detail:"Return all records where year_group equals 11.",
+      ids:[2,5,8,11]
+    },
+    {
+      id:"c2",
+      title:"Strong readers in Dart house",
+      detail:"Records in Dart house with a reading_age of at least 13.5.",
+      ids:[1,3,11]
+    },
+    {
+      id:"c3",
+      title:"Attendance concern, currently active",
+      detail:"Active students whose attendance is below 85.",
+      ids:[6,12]
+    },
+    {
+      id:"c4",
+      title:"Year 9 or attendance under 75",
+      detail:"Records in year_group 9, OR with attendance below 75.",
+      ids:[4,7,9,12]
+    }
+  ];
+
+  function currentResultIds(){
+    var conds = getConditions();
+    var out = [];
+    STUDENTS.forEach(function(row){
+      if(rowMatches(row, conds).keep) out.push(row.id);
+    });
+    return out;
+  }
+  function sameSet(a,b){
+    if(a.length!==b.length) return false;
+    var sa = a.slice().sort(function(x,y){return x-y;});
+    var sb = b.slice().sort(function(x,y){return x-y;});
+    for(var i=0;i<sa.length;i++){ if(sa[i]!==sb[i]) return false; }
+    return true;
+  }
+
+  var solved = {};
+  var chalList = $("chalList");
+  CHALLENGES.forEach(function(ch){
+    var card = el("div", { "class":"chal-card", id:"chal-"+ch.id });
+    card.innerHTML =
+      '<div class="chal-head"><span class="tick">&#x2713;</span><span>'+esc(ch.title)+'</span></div>'+
+      '<p>'+esc(ch.detail)+' <span class="hint">(target: '+ch.ids.length+' rows)</span></p>';
+    chalList.appendChild(card);
+  });
+
+  function checkChallenges(){
+    var ids = currentResultIds();
+    CHALLENGES.forEach(function(ch){
+      var card = $("chal-"+ch.id);
+      var hit = sameSet(ids, ch.ids);
+      if(hit && !solved[ch.id]){
+        solved[ch.id] = true;
+        announce("Challenge solved: " + ch.title);
+      }
+      // a challenge stays solved once achieved
+      card.classList.toggle("solved", !!solved[ch.id]);
+    });
+  }
+
+  /* ----------------------------------------------------------
+     Reset
+  ----------------------------------------------------------- */
+  $("resetBtn").addEventListener("click", function(){
+    // all columns on
+    Array.prototype.forEach.call(colChips.querySelectorAll("input"), function(cb,i){
+      cb.checked = true; selected[COLUMNS[i].name] = true; cb.parentNode.classList.add("on");
+    });
+    $("whereOn").checked = true; $("whereBody").hidden = false;
+    $("and2on").checked = false; $("w2line").hidden = true;
+    $("w1col").value = "year_group"; buildValInput("w1valWrap","w1col");
+    $("w1op").value = "=";
+    $("w2col").value = "house"; buildValInput("w2valWrap","w2col");
+    $("conjSel").value = "AND"; $("conjLbl").textContent = "AND";
+    render();
+  });
+
+  /* ----------------------------------------------------------
+     BOOLEAN LOGIC: gates + truth table
+  ----------------------------------------------------------- */
+  var gate = "AND";
+  var inA = false, inB = false;
+
+  function gateOut(g,a,b){
+    switch(g){
+      case "AND": return a && b;
+      case "OR":  return a || b;
+      case "NOT": return !a;
+      case "XOR": return a !== b;
+    }
+    return false;
+  }
+  function isUnary(g){ return g === "NOT"; }
+
+  var gatePick = $("gatePick");
+  Array.prototype.forEach.call(gatePick.querySelectorAll("button"), function(btn){
+    btn.addEventListener("click", function(){
+      gate = btn.getAttribute("data-gate");
+      Array.prototype.forEach.call(gatePick.querySelectorAll("button"), function(b){ b.classList.toggle("on", b===btn); });
+      $("switchBwrap").style.display = isUnary(gate) ? "none" : "";
+      renderGate();
+    });
+  });
+
+  function wireSwitch(id, getter, setter){
+    var btn = $(id);
+    btn.addEventListener("click", function(){
+      setter(!getter());
+      btn.setAttribute("aria-pressed", getter() ? "true" : "false");
+      btn.querySelector(".knob").textContent = getter() ? "1" : "0";
+      btn.setAttribute("aria-label", "Input " + id.slice(2) + ", currently " + (getter()?"1":"0"));
+      renderGate();
+    });
+  }
+  wireSwitch("swA", function(){return inA;}, function(v){inA=v;});
+  wireSwitch("swB", function(){return inB;}, function(v){inB=v;});
+
+  function renderGate(){
+    var out = gateOut(gate, inA, inB);
+    var bulb = $("bulb");
+    bulb.classList.toggle("on", out);
+    bulb.setAttribute("aria-label", "Output lamp, " + (out ? "on" : "off"));
+
+    var eq;
+    var ai = inA?1:0, bi = inB?1:0, oi = out?1:0;
+    if(isUnary(gate)){
+      eq = "NOT " + ai + " = " + oi;
+    } else {
+      eq = ai + " " + gate + " " + bi + " = " + oi;
+    }
+    $("outEq").textContent = eq;
+
+    // truth table
+    var head = $("ttHead"), body = $("ttBody");
+    head.innerHTML = isUnary(gate)
+      ? "<tr><th>A</th><th>"+gate+" A</th></tr>"
+      : "<tr><th>A</th><th>B</th><th>A "+gate+" B</th></tr>";
+    body.innerHTML = "";
+    var rows = isUnary(gate)
+      ? [[0],[1]]
+      : [[0,0],[0,1],[1,0],[1,1]];
+    rows.forEach(function(r){
+      var tr = el("tr");
+      var ra = r[0], rb = (r.length>1?r[1]:0);
+      var o = isUnary(gate) ? (ra?0:1) : (gate==="AND"?(ra&&rb):gate==="OR"?(ra||rb):(ra!==rb)?1:0);
+      o = o ? 1 : 0;
+      function cell(v){ var td = el("td",{text:v}); td.className = v? "q1":"q0"; return td; }
+      tr.appendChild(cell(ra));
+      if(!isUnary(gate)) tr.appendChild(cell(rb));
+      tr.appendChild(cell(o));
+      var isCurrent = isUnary(gate) ? (ra===ai) : (ra===ai && rb===bi);
+      if(isCurrent) tr.className = "current";
+      body.appendChild(tr);
+    });
+
+    // explainer tying back to SQL
+    var ex = "";
+    if(gate==="AND"){ ex = "AND is true only when both comparisons are true: like WHERE x AND y."; }
+    else if(gate==="OR"){ ex = "OR is true when at least one comparison is true: like WHERE x OR y."; }
+    else if(gate==="NOT"){ ex = "NOT inverts a comparison: 1 becomes 0, 0 becomes 1. Like WHERE NOT (active = true)."; }
+    else { ex = "XOR (exclusive OR) is true when the inputs differ: exactly one is true."; }
+    $("gateExplain").textContent = ex;
+  }
+
+  /* ----------------------------------------------------------
+     Accessibility live announce
+  ----------------------------------------------------------- */
+  function announce(msg){ $("srLive").textContent = msg; }
+
+  /* ----------------------------------------------------------
+     INIT
+  ----------------------------------------------------------- */
+  $("w1col").value = "year_group"; buildValInput("w1valWrap","w1col");
+  $("w2col").value = "house"; buildValInput("w2valWrap","w2col");
+  render();
+  renderGate();
+})();
+</script>
+</body>
+</html>

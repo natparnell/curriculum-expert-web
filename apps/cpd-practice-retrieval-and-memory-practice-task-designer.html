@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Practice Task Designer</title>
+<style>
+  :root{
+    --ink:#1d2330; --muted:#5b6577; --line:#dfe4ee; --paper:#f4f6fb;
+    --card:#ffffff; --accent:#3858c8; --accent-d:#283f97;
+    --guided:#b9651d; --guided-bg:#fdf0e2; --guided-line:#eccba0;
+    --support:#0f7a64; --support-bg:#e4f4ef; --support-line:#aedfd2;
+    --indep:#5132a8; --indep-bg:#efeafb; --indep-line:#cfc1ee;
+    --good:#1f7a4d; --good-bg:#e6f5ec; --warn:#9a5a00; --warn-bg:#fcf2e0;
+    --bad:#a32525; --bad-bg:#fbe9e9; --shadow:0 1px 2px rgba(20,30,60,.06),0 8px 24px rgba(20,30,60,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:var(--paper); line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:18px 16px 64px}
+  header.app{margin-bottom:14px}
+  .eyebrow{font-size:.74rem; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:700}
+  h1{font-size:1.62rem; margin:.18em 0 .14em; letter-spacing:-.01em}
+  .aim{background:var(--card); border:1px solid var(--line); border-left:5px solid var(--accent);
+    border-radius:10px; padding:10px 14px; font-size:.95rem; color:var(--muted); box-shadow:var(--shadow)}
+  .aim strong{color:var(--ink)}
+
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); padding:16px; margin-top:16px}
+  .panel h2{font-size:1.06rem; margin:0 0 4px}
+  .panel .lead{color:var(--muted); font-size:.9rem; margin:0 0 12px}
+  .step-tag{display:inline-block; font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:#fff; background:var(--accent); border-radius:999px; padding:2px 9px; margin-bottom:8px}
+
+  /* Scenario picker */
+  .scenarios{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px}
+  .scn{appearance:none; text-align:left; cursor:pointer; background:#fbfcff; border:1.5px solid var(--line);
+    border-radius:11px; padding:12px 13px; font:inherit; color:inherit; transition:border-color .12s, box-shadow .12s, transform .06s}
+  .scn:hover{border-color:#b9c4e6}
+  .scn:active{transform:translateY(1px)}
+  .scn[aria-pressed="true"]{border-color:var(--accent); box-shadow:0 0 0 3px rgba(56,88,200,.14)}
+  .scn .subj{font-size:.7rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--accent)}
+  .scn .obj{font-weight:650; margin:3px 0 2px}
+  .scn .ks{font-size:.8rem; color:var(--muted)}
+
+  /* Difficulty ladder workspace */
+  .builder{display:grid; grid-template-columns:1.15fr .85fr; gap:16px; align-items:start}
+  @media (max-width:860px){ .builder{grid-template-columns:1fr} .scn{padding:11px} }
+
+  .ladder-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:8px}
+  .ladder-head .hint{font-size:.82rem; color:var(--muted)}
+
+  .zones{display:flex; flex-direction:column; gap:12px}
+  .zone{border:1.5px dashed var(--line); border-radius:12px; padding:10px 10px 12px; transition:background .12s, border-color .12s}
+  .zone.over{border-style:solid; box-shadow:0 0 0 3px rgba(56,88,200,.12)}
+  .zone[data-band="guided"]{background:var(--guided-bg); border-color:var(--guided-line)}
+  .zone[data-band="support"]{background:var(--support-bg); border-color:var(--support-line)}
+  .zone[data-band="independent"]{background:var(--indep-bg); border-color:var(--indep-line)}
+  .zone-title{display:flex; align-items:center; gap:8px; font-weight:700; font-size:.9rem; margin-bottom:2px}
+  .zone-title .dot{width:11px; height:11px; border-radius:50%}
+  .zone[data-band="guided"] .dot{background:var(--guided)}
+  .zone[data-band="support"] .dot{background:var(--support)}
+  .zone[data-band="independent"] .dot{background:var(--indep)}
+  .zone-sub{font-size:.78rem; color:var(--muted); margin-bottom:8px}
+  .zone-list{min-height:46px; display:flex; flex-direction:column; gap:7px}
+  .zone-empty{font-size:.8rem; color:#9aa3b5; font-style:italic; padding:6px 4px}
+
+  /* Item cards */
+  .pool{display:flex; flex-direction:column; gap:8px}
+  .pool-head{font-weight:700; font-size:.9rem; margin-bottom:2px}
+  .pool-sub{font-size:.78rem; color:var(--muted); margin-bottom:8px}
+  .item{
+    background:#fff; border:1.5px solid var(--line); border-radius:10px; padding:9px 10px;
+    touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none;
+    box-shadow:0 1px 1px rgba(20,30,60,.04); position:relative;
+  }
+  .item:focus-visible{outline:3px solid rgba(56,88,200,.5); outline-offset:2px}
+  .item.dragging{opacity:.5}
+  .item.flying{position:fixed; z-index:50; pointer-events:none; box-shadow:0 10px 28px rgba(20,30,60,.22); cursor:grabbing; margin:0}
+  .item .it-top{display:flex; gap:7px; align-items:center; flex-wrap:wrap; margin-bottom:3px}
+  .it-help{font-size:.66rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; border-radius:999px; padding:1px 7px}
+  .it-help.h-full{background:var(--guided-bg); color:var(--guided)}
+  .it-help.h-some{background:var(--support-bg); color:var(--support)}
+  .it-help.h-none{background:var(--indep-bg); color:var(--indep)}
+  .it-grip{margin-left:auto; color:#b3bccd; font-size:.95rem; line-height:1}
+  .item .it-text{font-size:.86rem}
+  .item .it-note{font-size:.74rem; color:var(--muted); margin-top:3px}
+  .item .kbd-move{display:none; gap:6px; margin-top:7px; flex-wrap:wrap}
+  .item.kb-active .kbd-move{display:flex}
+  .it-btn{font:inherit; font-size:.72rem; border:1px solid var(--line); background:#fff; border-radius:7px; padding:2px 8px; cursor:pointer}
+  .it-btn:hover{border-color:#b9c4e6}
+
+  .btnrow{display:flex; gap:9px; flex-wrap:wrap; margin-top:14px}
+  button.act{font:inherit; font-weight:650; cursor:pointer; border-radius:10px; padding:9px 15px; border:1.5px solid transparent}
+  button.primary{background:var(--accent); color:#fff}
+  button.primary:hover{background:var(--accent-d)}
+  button.ghost{background:#fff; color:var(--accent); border-color:#c2cdf0}
+  button.ghost:hover{background:#f4f7ff}
+  button.act:focus-visible{outline:3px solid rgba(56,88,200,.5); outline-offset:2px}
+
+  /* Feedback */
+  .fb{margin-top:14px; border-radius:12px; padding:0; overflow:hidden; border:1px solid var(--line); display:none}
+  .fb.show{display:block; animation:pop .18s ease}
+  @keyframes pop{from{transform:translateY(4px); opacity:0} to{transform:none; opacity:1}}
+  .fb-band{padding:11px 14px; display:flex; align-items:center; gap:10px}
+  .fb-band .score{font-weight:800; font-size:1.05rem}
+  .fb-band.g{background:var(--good-bg); color:var(--good)}
+  .fb-band.w{background:var(--warn-bg); color:var(--warn)}
+  .fb-band.b{background:var(--bad-bg); color:var(--bad)}
+  .fb-body{padding:12px 14px; background:#fff}
+  .fb-list{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px}
+  .fb-list li{display:flex; gap:9px; font-size:.88rem; align-items:flex-start}
+  .fb-mark{flex:0 0 auto; width:20px; height:20px; border-radius:50%; display:grid; place-items:center; font-size:.72rem; font-weight:800; color:#fff; margin-top:1px}
+  .fb-mark.ok{background:var(--good)} .fb-mark.no{background:var(--bad)} .fb-mark.mid{background:var(--warn)}
+  .fb-mark.tip{background:var(--accent)}
+  .fb-list b{color:var(--ink)}
+
+  .principle{margin-top:14px; background:#fbfcff; border:1px solid var(--line); border-radius:11px; padding:12px 14px}
+  .principle h3{margin:0 0 6px; font-size:.86rem; letter-spacing:.04em; text-transform:uppercase; color:var(--accent)}
+  .principle p{margin:0 0 6px; font-size:.86rem; color:var(--muted)}
+  .principle p:last-child{margin-bottom:0}
+  .principle .miss{color:var(--ink)}
+
+  .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+  .livewrap{position:absolute; left:-9999px}
+  footer.note{margin-top:22px; font-size:.78rem; color:#8a93a6; text-align:center}
+  .count-pill{font-size:.72rem; font-weight:700; color:var(--muted); background:#eef1f8; border-radius:999px; padding:1px 8px}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <div class="eyebrow">CPD &amp; Staff Tools &middot; Practice, Retrieval and Memory</div>
+    <h1>Practice Task Designer</h1>
+    <div class="aim">
+      <strong>Teacher aim:</strong> design a set of practice items that moves from guided to independent, calibrating difficulty so each step is reachable and giving the <em>minimal effective help</em>: just enough support to keep pupils accurate, then fading it deliberately.
+    </div>
+  </header>
+
+  <!-- STEP 1 -->
+  <section class="panel" id="p-scenario">
+    <span class="step-tag">Step 1</span>
+    <h2>Choose a learning objective to build practice for</h2>
+    <p class="lead">Pick one. The item pool below changes to match it. Names and classes are fictional.</p>
+    <div class="scenarios" id="scenarios" role="group" aria-label="Choose a learning objective"></div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="panel" id="p-builder" hidden>
+    <span class="step-tag">Step 2</span>
+    <h2 id="obj-heading">Sequence the practice ladder</h2>
+    <p class="lead">Drag each practice item into the band that matches its level of support. A strong sequence starts <b>fully guided</b>, fades to <b>partial support</b>, then reaches <b>independent</b> practice at the right difficulty. Tablet, whiteboard and keyboard all work.</p>
+
+    <div class="builder">
+      <!-- Drop zones -->
+      <div>
+        <div class="ladder-head">
+          <div class="hint">Top band = most help. Bottom band = no scaffold.</div>
+          <span class="count-pill" id="placed-count">0 of 6 placed</span>
+        </div>
+        <div class="zones">
+          <div class="zone" data-band="guided" role="group" aria-label="Guided practice band: fully worked or heavily scaffolded items">
+            <div class="zone-title"><span class="dot"></span>Guided practice <span class="count-pill zc" data-zc="guided">0</span></div>
+            <div class="zone-sub">Worked example or near-complete scaffold. Pupil mostly follows. Errors should be near zero.</div>
+            <div class="zone-list" id="z-guided"><div class="zone-empty">Drop the most supported items here.</div></div>
+          </div>
+          <div class="zone" data-band="support" role="group" aria-label="Faded support band: partial scaffold items">
+            <div class="zone-title"><span class="dot"></span>Faded support <span class="count-pill zc" data-zc="support">0</span></div>
+            <div class="zone-sub">Partial scaffold: hints, sentence stems, a step removed. Pupil does more of the thinking.</div>
+            <div class="zone-list" id="z-support"><div class="zone-empty">Drop partly scaffolded items here.</div></div>
+          </div>
+          <div class="zone" data-band="independent" role="group" aria-label="Independent practice band: no scaffold items">
+            <div class="zone-title"><span class="dot"></span>Independent practice <span class="count-pill zc" data-zc="independent">0</span></div>
+            <div class="zone-sub">No scaffold, exam-style or novel context. Difficulty calibrated so success is likely, not guaranteed.</div>
+            <div class="zone-list" id="z-independent"><div class="zone-empty">Drop unscaffolded items here.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Item pool -->
+      <div>
+        <div class="pool-head">Practice items <span class="count-pill" id="pool-count">6</span></div>
+        <div class="pool-sub">Each shows how much help is baked in. Read it, then place it by support level.</div>
+        <div class="pool" id="pool" role="group" aria-label="Unplaced practice items"></div>
+      </div>
+    </div>
+
+    <div class="btnrow">
+      <button class="act primary" id="check">Check my practice ladder</button>
+      <button class="act ghost" id="reset">Reset</button>
+    </div>
+
+    <div class="fb" id="feedback" role="region" aria-label="Feedback on your practice ladder"></div>
+
+    <div class="principle" id="principle" hidden>
+      <h3>Design principle in play</h3>
+      <p id="principle-text"></p>
+    </div>
+  </section>
+
+  <footer class="note">
+    Demonstration tool for staff CPD. All pupils, classes and tasks are fictional. Designed for the WeST trust.
+  </footer>
+</div>
+
+<div class="livewrap"><div id="live" aria-live="polite"></div></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- Data: each objective has 6 items with a true band + difficulty rank ----------
+     band: guided | support | independent
+     diff: ordinal difficulty within the set (1 easiest .. higher harder)
+     help: 'full' | 'some' | 'none'  (what the card shows)               */
+  var SCENARIOS = [
+    {
+      id:"frac",
+      subj:"Maths · Year 5",
+      obj:"Add fractions with the same denominator",
+      ks:"Class 5R · numerator/denominator secure",
+      items:[
+        {id:"f1", help:"full", diff:1, band:"guided",
+          text:"Worked example shown in full: ¼ + ¼ = ? with each step modelled. Pupil copies the method on an identical item beneath.",
+          note:"Complete model, then identical copy"},
+        {id:"f2", help:"full", diff:2, band:"guided",
+          text:"⅕ + ⅖ = ?  The bar model is drawn and the denominator is circled. Pupil only writes the new numerator and total.",
+          note:"Diagram given, one step to do"},
+        {id:"f3", help:"some", diff:3, band:"support",
+          text:"⅐ + ⅐ = ?  Stem provided: “Add the ____, keep the ____ the same.” Pupil completes the stem then answers.",
+          note:"Sentence stem prompts the rule"},
+        {id:"f4", help:"some", diff:4, band:"support",
+          text:"⅙ + ⅙ + ⅙ = ?  Reminder box in the margin: “Denominator stays the same.” No worked steps.",
+          note:"Hint only, three addends"},
+        {id:"f5", help:"none", diff:5, band:"independent",
+          text:"⅗ + ⅗ = ?  and  ¾ + ¾ = ?  No prompts. The second crosses a whole, so the answer is improper.",
+          note:"No scaffold, mild stretch"},
+        {id:"f6", help:"none", diff:6, band:"independent",
+          text:"Word problem: Maya drinks ⅔ of a bottle, then ⅕ more of the same bottle. How much has she drunk? No method given.",
+          note:"Novel context, fully independent"}
+      ]
+    },
+    {
+      id:"evid",
+      subj:"English · Year 9",
+      obj:"Embed a quotation to support a point",
+      ks:"Class 9B · can locate quotations",
+      items:[
+        {id:"e1", help:"full", diff:1, band:"guided",
+          text:"Fully written model sentence with the embedded quotation highlighted and labelled (point, evidence, comma). Pupil annotates the parts.",
+          note:"Annotated model, identify only"},
+        {id:"e2", help:"full", diff:2, band:"guided",
+          text:"Gap-fill sentence: “The writer presents Scrooge as ____ when he describes him as ‘____’.” Word bank and quotation supplied.",
+          note:"Cloze with word bank"},
+        {id:"e3", help:"some", diff:3, band:"support",
+          text:"Point and quotation both given separately. Pupil rewrites them as one embedded sentence. Stem: “The writer ____ ... ‘quote’ ...”",
+          note:"Parts given, stem to combine"},
+        {id:"e4", help:"some", diff:4, band:"support",
+          text:"Quotation supplied; pupil writes their own point and embeds it. Margin reminder: “Keep the flow of the sentence.”",
+          note:"Half supplied, hint only"},
+        {id:"e5", help:"none", diff:5, band:"independent",
+          text:"A short extract is given. Pupil selects a quotation and embeds it to support a stated point. No stems or reminders.",
+          note:"Own selection, no scaffold"},
+        {id:"e6", help:"none", diff:6, band:"independent",
+          text:"Unseen extract. Pupil writes a full point with embedded quotation in response to an exam-style question. No support at all.",
+          note:"Exam-style, fully independent"}
+      ]
+    },
+    {
+      id:"bal",
+      subj:"Science · Year 10",
+      obj:"Balance a chemical equation",
+      ks:"Class 10S · reads formulae confidently",
+      items:[
+        {id:"b1", help:"full", diff:1, band:"guided",
+          text:"Worked example: H₂ + O₂ → H₂O balanced step by step, atom counts shown in a table. Pupil reproduces the same table for an identical equation.",
+          note:"Full model with atom table"},
+        {id:"b2", help:"full", diff:2, band:"guided",
+          text:"Mg + O₂ → MgO with a half-completed atom-count table. Pupil fills the remaining cells and writes the coefficients.",
+          note:"Partly filled table given"},
+        {id:"b3", help:"some", diff:3, band:"support",
+          text:"Na + Cl₂ → NaCl. Prompt: “Count Cl on each side first.” No table supplied. Pupil balances using the hint.",
+          note:"Single targeted hint"},
+        {id:"b4", help:"some", diff:4, band:"support",
+          text:"Fe + O₂ → Fe₂O₃. Reminder box: “Try the most complex compound first.” No worked steps.",
+          note:"Strategy hint only"},
+        {id:"b5", help:"none", diff:5, band:"independent",
+          text:"C₃H₈ + O₂ → CO₂ + H₂O. No prompts. Pupil balances independently (combustion, several coefficients).",
+          note:"No scaffold, mild stretch"},
+        {id:"b6", help:"none", diff:6, band:"independent",
+          text:"A reaction described in words only: aluminium reacts with hydrochloric acid. Pupil writes and balances the equation unaided.",
+          note:"From words, fully independent"}
+      ]
+    }
+  ];
+
+  var BANDS = ["guided","support","independent"];
+  var HELP_LABEL = { full:"Full help", some:"Some help", none:"No help" };
+  var HELP_CLASS = { full:"h-full", some:"h-some", none:"h-none" };
+
+  /* ---------- State ---------- */
+  var current = null;          // current scenario
+  var placement = {};          // itemId -> band | null
+  var pool = document.getElementById("pool");
+  var live = document.getElementById("live");
+  var zones = {
+    guided: document.getElementById("z-guided"),
+    support: document.getElementById("z-support"),
+    independent: document.getElementById("z-independent")
+  };
+
+  function say(msg){ live.textContent = ""; setTimeout(function(){ live.textContent = msg; }, 30); }
+
+  /* ---------- Build scenario picker ---------- */
+  var scnWrap = document.getElementById("scenarios");
+  SCENARIOS.forEach(function(s){
+    var b = document.createElement("button");
+    b.className = "scn"; b.type = "button"; b.setAttribute("aria-pressed","false");
+    b.dataset.id = s.id;
+    b.innerHTML = '<div class="subj">'+s.subj+'</div><div class="obj">'+s.obj+'</div><div class="ks">'+s.ks+'</div>';
+    b.addEventListener("click", function(){ selectScenario(s.id); });
+    scnWrap.appendChild(b);
+  });
+
+  function selectScenario(id){
+    current = SCENARIOS.filter(function(s){ return s.id===id; })[0];
+    document.querySelectorAll(".scn").forEach(function(el){
+      el.setAttribute("aria-pressed", el.dataset.id===id ? "true":"false");
+    });
+    document.getElementById("obj-heading").textContent = "Sequence the practice ladder: " + current.obj;
+    document.getElementById("p-builder").hidden = false;
+    resetBoard();
+    document.getElementById("p-builder").scrollIntoView({behavior:"smooth", block:"start"});
+    say("Objective chosen: " + current.obj + ". Six practice items are ready to sort.");
+  }
+
+  /* ---------- Render items ---------- */
+  function itemMarkup(it){
+    return ''+
+      '<div class="it-top">'+
+        '<span class="it-help '+HELP_CLASS[it.help]+'">'+HELP_LABEL[it.help]+'</span>'+
+        '<span class="it-grip" aria-hidden="true">☰</span>'+
+      '</div>'+
+      '<div class="it-text">'+it.text+'</div>'+
+      '<div class="it-note">'+it.note+'</div>'+
+      '<div class="kbd-move" role="group" aria-label="Move this item by keyboard">'+
+        '<button class="it-btn" data-mv="guided" type="button">→ Guided</button>'+
+        '<button class="it-btn" data-mv="support" type="button">→ Support</button>'+
+        '<button class="it-btn" data-mv="independent" type="button">→ Independent</button>'+
+        '<button class="it-btn" data-mv="pool" type="button">→ Pool</button>'+
+      '</div>';
+  }
+
+  function makeItemEl(it){
+    var el = document.createElement("div");
+    el.className = "item"; el.id = "item-"+it.id; el.dataset.item = it.id;
+    el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+    el.setAttribute("aria-label", HELP_LABEL[it.help]+". "+it.text+" Press Enter to choose a band, or drag.");
+    el.innerHTML = itemMarkup(it);
+    attachItemHandlers(el, it);
+    return el;
+  }
+
+  function resetBoard(){
+    placement = {};
+    pool.innerHTML = "";
+    BANDS.forEach(function(band){ clearZone(band); });
+    // shuffle item order for the pool so the answer is not just "leave it as is"
+    var order = current.items.slice();
+    for (var i=order.length-1; i>0; i--){ var j=Math.floor(Math.random()*(i+1)); var t=order[i]; order[i]=order[j]; order[j]=t; }
+    order.forEach(function(it){ placement[it.id]=null; pool.appendChild(makeItemEl(it)); });
+    document.getElementById("pool-count").textContent = current.items.length;
+    hideFeedback();
+    updateCounts();
+  }
+
+  function clearZone(band){
+    zones[band].innerHTML = '<div class="zone-empty">'+emptyText(band)+'</div>';
+  }
+  function emptyText(band){
+    return band==="guided" ? "Drop the most supported items here." :
+           band==="support" ? "Drop partly scaffolded items here." :
+           "Drop unscaffolded items here.";
+  }
+
+  /* ---------- Placement ---------- */
+  function moveItem(itemId, targetBand){
+    var el = document.getElementById("item-"+itemId);
+    if(!el) return;
+    placement[itemId] = (targetBand==="pool") ? null : targetBand;
+    // detach
+    if(el.parentNode){
+      var p = el.parentNode;
+      el.parentNode.removeChild(el);
+      if(p.classList && p.classList.contains("zone-list") && p.children.length===0){
+        var band = p.id.replace("z-","");
+        clearZone(band);
+      }
+    }
+    if(targetBand==="pool"){
+      pool.appendChild(el);
+    } else {
+      var z = zones[targetBand];
+      var empty = z.querySelector(".zone-empty");
+      if(empty) empty.remove();
+      z.appendChild(el);
+    }
+    el.classList.remove("kb-active");
+    updateCounts();
+    hideFeedback();
+    var label = targetBand==="pool" ? "the item pool" : bandName(targetBand)+" band";
+    say("Item moved to "+label+".");
+  }
+
+  function bandName(b){ return b==="guided"?"Guided practice":b==="support"?"Faded support":"Independent practice"; }
+
+  function updateCounts(){
+    var placed=0;
+    BANDS.forEach(function(band){
+      var n = Object.keys(placement).filter(function(k){ return placement[k]===band; }).length;
+      var pill = document.querySelector('.zc[data-zc="'+band+'"]');
+      if(pill) pill.textContent = n;
+      placed += n;
+    });
+    document.getElementById("placed-count").textContent = placed+" of "+current.items.length+" placed";
+  }
+
+  /* ---------- Pointer-based drag ---------- */
+  var drag = null;
+  function attachItemHandlers(el, it){
+    el.addEventListener("pointerdown", function(ev){
+      if(ev.target.classList.contains("it-btn")) return; // let buttons work
+      ev.preventDefault();
+      startDrag(el, ev);
+    });
+    // keyboard activation
+    el.addEventListener("keydown", function(ev){
+      if(ev.key==="Enter" || ev.key===" "){
+        ev.preventDefault();
+        toggleKbMove(el);
+      } else if(ev.key==="Escape"){
+        el.classList.remove("kb-active");
+      }
+    });
+    // band buttons
+    el.querySelectorAll(".it-btn").forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        moveItem(it.id, btn.dataset.mv);
+        var focusTarget = document.getElementById("item-"+it.id);
+        if(focusTarget) focusTarget.focus();
+      });
+    });
+  }
+
+  function toggleKbMove(el){
+    var open = el.classList.toggle("kb-active");
+    document.querySelectorAll(".item.kb-active").forEach(function(o){ if(o!==el) o.classList.remove("kb-active"); });
+    say(open ? "Choose a destination band for this item using the buttons." : "Move cancelled.");
+  }
+
+  function startDrag(el, ev){
+    var rect = el.getBoundingClientRect();
+    drag = {
+      el: el, id: el.dataset.item,
+      offX: ev.clientX - rect.left, offY: ev.clientY - rect.top,
+      w: rect.width, origin: el.parentNode
+    };
+    el.setPointerCapture(ev.pointerId);
+    el.classList.add("dragging");
+    // create floating clone for the actual movement
+    el.style.width = rect.width+"px";
+    el.classList.add("flying");
+    el.style.left = rect.left+"px"; el.style.top = rect.top+"px";
+    document.body.appendChild(el);
+    el.addEventListener("pointermove", onDragMove);
+    el.addEventListener("pointerup", onDragEnd);
+    el.addEventListener("pointercancel", onDragEnd);
+  }
+
+  function onDragMove(ev){
+    if(!drag) return;
+    drag.el.style.left = (ev.clientX - drag.offX)+"px";
+    drag.el.style.top = (ev.clientY - drag.offY)+"px";
+    var z = zoneUnder(ev.clientX, ev.clientY);
+    highlightZone(z);
+  }
+
+  function zoneUnder(x,y){
+    var found=null;
+    document.querySelectorAll(".zone").forEach(function(zone){
+      var r = zone.getBoundingClientRect();
+      if(x>=r.left && x<=r.right && y>=r.top && y<=r.bottom) found = zone.dataset.band;
+    });
+    // also allow dropping back to pool
+    var pr = pool.getBoundingClientRect();
+    if(!found && x>=pr.left && x<=pr.right && y>=pr.top && y<=pr.bottom) found = "pool";
+    return found;
+  }
+
+  function highlightZone(band){
+    document.querySelectorAll(".zone").forEach(function(z){
+      z.classList.toggle("over", z.dataset.band===band);
+    });
+  }
+
+  function onDragEnd(ev){
+    if(!drag) return;
+    var el = drag.el;
+    var target = zoneUnder(ev.clientX, ev.clientY);
+    el.removeEventListener("pointermove", onDragMove);
+    el.removeEventListener("pointerup", onDragEnd);
+    el.removeEventListener("pointercancel", onDragEnd);
+    el.classList.remove("flying","dragging");
+    el.style.left=el.style.top=el.style.width="";
+    document.querySelectorAll(".zone").forEach(function(z){ z.classList.remove("over"); });
+    var id = drag.id;
+    drag = null;
+    if(target && (target==="pool" || BANDS.indexOf(target)>=0)){
+      moveItem(id, target);
+    } else {
+      // dropped nowhere valid: return to where it was
+      moveItem(id, placement[id] || "pool");
+    }
+    var ft = document.getElementById("item-"+id);
+    if(ft) ft.focus();
+  }
+
+  /* ---------- Checking & feedback ---------- */
+  var fb = document.getElementById("feedback");
+  function hideFeedback(){ fb.classList.remove("show"); document.getElementById("principle").hidden = true; }
+
+  document.getElementById("check").addEventListener("click", checkLadder);
+  document.getElementById("reset").addEventListener("click", function(){ resetBoard(); say("Board reset."); });
+
+  function checkLadder(){
+    if(!current) return;
+    var items = current.items;
+    var unplaced = items.filter(function(it){ return !placement[it.id]; });
+    if(unplaced.length){
+      renderFeedback("w", "Not finished",
+        [{m:"mid", t:"<b>"+unplaced.length+" item(s) still in the pool.</b> Place every item in a band so the ladder is complete, then check again."}],
+        null);
+      say("Place all items before checking.");
+      return;
+    }
+
+    // Score: correct band per item
+    var correct=0, perBand={guided:[],support:[],independent:[]};
+    items.forEach(function(it){
+      var ok = placement[it.id]===it.band;
+      if(ok) correct++;
+      perBand[placement[it.id]].push({it:it, ok:ok});
+    });
+
+    // Build targeted lines
+    var lines = [];
+    var misplaced = items.filter(function(it){ return placement[it.id]!==it.band; });
+
+    // 1) overall direction check: does help fade as you go down the bands?
+    misplaced.slice(0,4).forEach(function(it){
+      var got = placement[it.id], want = it.band;
+      var why;
+      if(BANDS.indexOf(got) < BANDS.indexOf(want)){
+        why = "This item carries <b>"+HELP_LABEL[it.help].toLowerCase()+"</b>, so pupils could do more of it themselves. It belongs lower, in <b>"+bandName(want)+"</b>: leaving too much scaffold here wastes effort and hides whether they have actually learned it.";
+      } else {
+        why = "This item gives <b>"+HELP_LABEL[it.help].toLowerCase()+"</b>. Placed in <b>"+bandName(got)+"</b> it removes support too early, so pupils are likely to practise errors. Move it up to <b>"+bandName(want)+"</b> so help is faded gradually.";
+      }
+      lines.push({m:"no", t:'<b>'+shortText(it)+'</b> '+why});
+    });
+
+    // 2) within-band difficulty order (only for correctly-banded items)
+    BANDS.forEach(function(band){
+      var inBand = perBand[band].filter(function(x){ return x.ok; }).map(function(x){ return x.it; });
+      // order as they appear in the DOM
+      var domOrder = [].slice.call(zones[band].querySelectorAll(".item")).map(function(el){ return el.dataset.item; });
+      var ordered = domOrder.map(function(id){ return inBand.filter(function(it){return it.id===id;})[0]; }).filter(Boolean);
+      if(ordered.length>=2){
+        var ascending = true;
+        for(var i=1;i<ordered.length;i++){ if(ordered[i].diff < ordered[i-1].diff) ascending=false; }
+        if(!ascending){
+          lines.push({m:"mid", t:'In <b>'+bandName(band)+'</b>, the two items are out of difficulty order. Within a band, sequence the easier item first so each attempt is slightly harder than the last.'});
+        }
+      }
+    });
+
+    // verdict
+    var verdict, cls, head;
+    var orderPerfect = lines.filter(function(l){return l.m==="no";}).length===0;
+    var allPerfect = orderPerfect && lines.filter(function(l){return l.m==="mid";}).length===0;
+    if(allPerfect){
+      cls="g"; head="Strong practice ladder";
+      lines = [{m:"ok", t:"<b>Help fades cleanly from guided to independent.</b> Every item sits in the right band and the difficulty rises step by step within each band."}].concat(lines);
+      lines.push({m:"ok", t:"This is <b>minimal effective help</b> in action: pupils get just enough scaffold to stay accurate, then it is removed deliberately rather than all at once."});
+    } else if(orderPerfect){
+      cls="g"; head="Right shape, tidy the order";
+      lines = [{m:"ok", t:"<b>Bands are all correct: support fades the right way.</b> Just fix the difficulty order noted below."}].concat(lines);
+    } else if(correct>=4){
+      cls="w"; head="Close: fix the support levels";
+    } else {
+      cls="b"; head="Rebuild the support sequence";
+      lines.unshift({m:"tip", t:"<b>Read the ‘help’ tag on each card.</b> Full help belongs at the top (guided), some help in the middle, no help at the bottom (independent)."});
+    }
+
+    renderFeedback(cls, head, lines, correct+" of "+items.length+" items in the right band");
+    showPrinciple(current, allPerfect);
+    say(head+". "+correct+" of "+items.length+" items correctly banded.");
+  }
+
+  function shortText(it){
+    var t = it.text.replace(/\s+/g," ").trim();
+    return t.length>56 ? t.slice(0,54)+"…" : t;
+  }
+
+  function renderFeedback(cls, head, lines, score){
+    var bandHtml = '<div class="fb-band '+cls+'">'+
+        '<span aria-hidden="true">'+(cls==="g"?"✔":cls==="b"?"⚠":"✎")+'</span>'+
+        '<span>'+head+'</span>'+
+        (score? '<span class="score" style="margin-left:auto">'+score+'</span>':'')+
+      '</div>';
+    var body = '<div class="fb-body"><ul class="fb-list">'+
+      lines.map(function(l){ return '<li><span class="fb-mark '+l.m+'" aria-hidden="true">'+markGlyph(l.m)+'</span><span>'+l.t+'</span></li>'; }).join("")+
+      '</ul></div>';
+    fb.innerHTML = bandHtml + body;
+    fb.classList.add("show");
+  }
+  function markGlyph(m){ return m==="ok"?"✓":m==="no"?"✗":m==="mid"?"!":"i"; }
+
+  function showPrinciple(scn, perfect){
+    var p = document.getElementById("principle");
+    var txt = document.getElementById("principle-text");
+    var lead = perfect
+      ? "You have built a guided-to-independent sequence. "
+      : "Aim for a guided-to-independent sequence. ";
+    txt.innerHTML = lead +
+      "<span class=\"miss\">Deliberate practice for <b>"+scn.obj.toLowerCase()+"</b> works best when each item is only slightly harder than the last, and when help is the <b>minimum that keeps pupils accurate</b>. Start with a worked example, fade to hints and stems, then withdraw the scaffold so independent practice reveals genuine retention. Too much help for too long, or its sudden removal, both stall learning.</span>";
+    p.hidden = false;
+  }
+
+})();
+</script>
+</body>
+</html>

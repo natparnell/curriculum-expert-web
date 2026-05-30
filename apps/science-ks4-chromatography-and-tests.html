@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chromatography and Tests</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e1622;--panel:#16212f;--panel2:#1d2c3e;--border:#2b4058;
+  --accent:#34d399;--accent2:#6ee7b7;--accent-glow:rgba(52,211,153,.25);
+  --blue:#60a5fa;--text:#e8eef5;--text2:#9fb1c4;--muted:#6f8298;
+  --danger:#f87171;--success:#4ade80;--warn:#fbbf24;
+  --paper:#f5efe2;--paper-edge:#d8cfb8;--solvent:#bfe0ef;
+}
+html,body{min-height:100%;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+body{padding:0 0 40px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+header{background:linear-gradient(135deg,#16212f,#0e1622);border-bottom:1px solid var(--border);padding:16px 20px 14px;position:sticky;top:0;z-index:20}
+header h1{font-size:1.4rem;font-weight:700;background:linear-gradient(135deg,var(--accent2),var(--blue));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+header .aim{font-size:.82rem;color:var(--text2);margin-top:3px;max-width:760px}
+header .aim strong{color:var(--accent2)}
+
+.wrap{max-width:1180px;margin:0 auto;padding:18px 16px 0}
+
+/* Stepper */
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.step-btn{flex:1 1 130px;min-width:120px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;text-align:left;color:var(--text2);transition:all .15s;font-size:.78rem}
+.step-btn:hover{border-color:var(--accent)}
+.step-btn.active{background:var(--panel2);border-color:var(--accent);color:var(--text);box-shadow:0 0 0 1px var(--accent-glow)}
+.step-btn .num{display:inline-flex;width:20px;height:20px;border-radius:50%;background:var(--border);color:var(--text);align-items:center;justify-content:center;font-size:.7rem;font-weight:700;margin-right:6px}
+.step-btn.active .num{background:var(--accent);color:#06281d}
+.step-btn .lbl{font-weight:600;display:block;margin-top:2px;font-size:.84rem;color:inherit}
+.step-btn.done .num{background:var(--success);color:#063318}
+
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:18px}
+.panel h2{font-size:1.05rem;color:var(--accent2);margin-bottom:4px}
+.panel .sub{font-size:.82rem;color:var(--text2);margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 320px;gap:18px}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+
+.scene{display:none}
+.scene.active{display:block}
+
+/* Buttons */
+.btn{padding:9px 16px;border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:8px;cursor:pointer;font-size:.84rem;font-weight:600;transition:all .15s}
+.btn:hover:not(:disabled){border-color:var(--accent);background:rgba(52,211,153,.1)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#06281d}
+.btn.primary:hover:not(:disabled){background:var(--accent2)}
+.btn.ghost{background:transparent}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+
+/* Chromatography tank */
+.tank-area{display:flex;flex-direction:column;align-items:center}
+#chromCanvas{width:100%;max-width:420px;height:auto;background:#0a121d;border:1px solid var(--border);border-radius:10px;touch-action:none;display:block}
+.tank-controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+
+.readout{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:.85rem}
+.readout h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+.readout table{width:100%;border-collapse:collapse;font-size:.82rem}
+.readout th,.readout td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--border)}
+.readout th{color:var(--text2);font-weight:600}
+.readout .rf{font-family:'Consolas',monospace;color:var(--accent2)}
+.measure-help{font-size:.76rem;color:var(--text2);margin-top:10px;line-height:1.5}
+
+.feedback{margin-top:14px;border-radius:10px;padding:12px 14px;font-size:.86rem;border:1px solid var(--border);background:var(--panel2);min-height:48px;transition:all .2s}
+.feedback.good{border-color:var(--success);background:rgba(74,222,128,.08)}
+.feedback.bad{border-color:var(--danger);background:rgba(248,113,113,.08)}
+.feedback.info{border-color:var(--blue);background:rgba(96,165,250,.08)}
+.feedback strong{color:var(--accent2)}
+.feedback.bad strong{color:var(--danger)}
+
+/* Rf calculator */
+.rf-calc{display:flex;flex-direction:column;gap:10px}
+.field{display:flex;align-items:center;gap:8px;font-size:.85rem;flex-wrap:wrap}
+.field label{min-width:170px;color:var(--text2)}
+.field input{width:90px;padding:7px 9px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:7px;font-size:.9rem;font-family:'Consolas',monospace}
+.field input:focus{outline:none;border-color:var(--accent)}
+.eq{font-family:'Consolas',monospace;font-size:.9rem;background:var(--bg);padding:10px 12px;border-radius:8px;border:1px solid var(--border);color:var(--text2)}
+.eq b{color:var(--accent2)}
+
+/* Test bench */
+.bench{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.sample-card{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}
+.sample-card .vial{font-size:2rem;line-height:1}
+.sample-card h4{font-size:.92rem;margin:8px 0 2px}
+.sample-card .hint{font-size:.74rem;color:var(--text2);min-height:30px}
+.test-buttons{display:flex;gap:6px;justify-content:center;margin-top:8px}
+.tbtn{padding:6px 8px;font-size:.72rem;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:7px;cursor:pointer;font-weight:600}
+.tbtn:hover{border-color:var(--accent)}
+.flame-result{margin-top:8px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.74rem;font-weight:700;color:#06281d;background:var(--border);transition:all .3s}
+.guess-row{display:flex;gap:6px;align-items:center;margin-top:8px;justify-content:center}
+.guess-row select{flex:1;padding:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:7px;font-size:.78rem}
+
+.gas-bench{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.gas-card{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:14px}
+.gas-card h4{font-size:.9rem;color:var(--accent2);margin-bottom:6px}
+.gas-card p{font-size:.78rem;color:var(--text2);margin-bottom:8px}
+.gas-card .obs{font-size:.78rem;min-height:36px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px;margin-bottom:8px}
+
+.chip{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:600;background:var(--border);color:var(--text)}
+.chip.ok{background:rgba(74,222,128,.18);color:var(--success)}
+.chip.no{background:rgba(248,113,113,.18);color:var(--danger)}
+
+/* Atmosphere */
+.atmo-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:680px){.atmo-grid{grid-template-columns:1fr}}
+#atmoCanvas{width:100%;height:auto;background:#0a121d;border:1px solid var(--border);border-radius:10px;display:block}
+.slider-row{margin:12px 0}
+.slider-row label{display:flex;justify-content:space-between;font-size:.82rem;color:var(--text2);margin-bottom:5px}
+.slider-row label span{color:var(--accent2);font-family:'Consolas',monospace}
+input[type=range]{width:100%;accent-color:var(--accent)}
+
+.score-pill{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:.8rem;font-weight:600}
+.score-pill b{color:var(--accent2)}
+
+footer{max-width:1180px;margin:24px auto 0;padding:0 16px;font-size:.74rem;color:var(--muted);text-align:center}
+.k{font-family:'Consolas',monospace;background:var(--bg);padding:1px 5px;border-radius:4px;border:1px solid var(--border);font-size:.78rem}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header>
+  <h1>Chromatography and Tests</h1>
+  <p class="aim"><strong>Teacher aim:</strong> Pupils run a paper chromatogram, measure spots to calculate <strong>R<sub>f</sub></strong> values, then use flame and gas tests to identify four unknown samples. KS4 Chemistry: chemical analysis, the atmosphere and using resources.</p>
+</header>
+
+<div class="wrap">
+  <nav class="steps" aria-label="Lab stages">
+    <button class="step-btn active" data-step="0"><span class="num">1</span><span class="lbl">Run the chromatogram</span></button>
+    <button class="step-btn" data-step="1"><span class="num">2</span><span class="lbl">Calculate R<sub>f</sub></span></button>
+    <button class="step-btn" data-step="2"><span class="num">3</span><span class="lbl">Flame tests</span></button>
+    <button class="step-btn" data-step="3"><span class="num">4</span><span class="lbl">Gas tests</span></button>
+    <button class="step-btn" data-step="4"><span class="num">5</span><span class="lbl">The atmosphere</span></button>
+  </nav>
+
+  <!-- STEP 1: CHROMATOGRAPHY -->
+  <section class="scene active" id="scene0" aria-labelledby="h0">
+    <div class="panel">
+      <h2 id="h0">1. Run the paper chromatogram</h2>
+      <p class="sub">A food technician at Brookfield Academy has a mystery green sweet dye. Lower the paper into the solvent, run the chromatogram, then drag the ruler line to measure each spot. Keep the start (pencil) line above the solvent.</p>
+      <div class="grid2">
+        <div class="tank-area">
+          <canvas id="chromCanvas" width="420" height="460" role="img"
+            aria-label="Chromatography tank with paper. Use Run to develop the chromatogram, then use the measurement controls."></canvas>
+          <div class="tank-controls">
+            <button class="btn primary" id="runChrom">Lower paper &amp; run</button>
+            <button class="btn ghost" id="resetChrom">Reset paper</button>
+          </div>
+          <p class="measure-help">Measurement line: <span class="k">&uarr;</span> / <span class="k">&darr;</span> arrow keys move it, or drag it on the canvas. Press <span class="k">M</span> to lock the line onto the nearest feature (solvent front or a spot).</p>
+        </div>
+        <div>
+          <div class="readout" aria-live="polite">
+            <h3>Measurements (cm)</h3>
+            <table id="measTable">
+              <tr><th>Feature</th><th>Distance</th></tr>
+              <tr><td>Solvent front</td><td id="mFront">&ndash;</td></tr>
+              <tr><td>Spot A (yellow)</td><td id="mA">&ndash;</td></tr>
+              <tr><td>Spot B (blue)</td><td id="mB">&ndash;</td></tr>
+            </table>
+            <p class="measure-help">Drag the line to each coloured spot centre and the solvent front. Distances are measured from the pencil start line.</p>
+          </div>
+          <div class="feedback info" id="chromFb" role="status" aria-live="polite">
+            Press <strong>Lower paper &amp; run</strong> to start. Notice the dye separates into two pigments: it was a mixture, not a single pure substance.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2: Rf -->
+  <section class="scene" id="scene1" aria-labelledby="h1">
+    <div class="panel">
+      <h2 id="h1">2. Calculate the R<sub>f</sub> values</h2>
+      <p class="sub">R<sub>f</sub> is a ratio with no units. It is always between 0 and 1. Use your measurements from Step 1, or type your own, then calculate.</p>
+      <div class="grid2">
+        <div class="rf-calc">
+          <div class="eq">R<sub>f</sub> = <b>distance moved by spot</b> &divide; <b>distance moved by solvent</b></div>
+          <div class="field">
+            <label for="inFront">Solvent front (cm)</label>
+            <input id="inFront" type="number" min="0" step="0.1" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="inA">Spot A distance (cm)</label>
+            <input id="inA" type="number" min="0" step="0.1" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="inB">Spot B distance (cm)</label>
+            <input id="inB" type="number" min="0" step="0.1" inputmode="decimal">
+          </div>
+          <div class="btnrow">
+            <button class="btn" id="useMeas">Use Step 1 measurements</button>
+            <button class="btn primary" id="calcRf">Calculate R<sub>f</sub></button>
+          </div>
+        </div>
+        <div>
+          <div class="readout" aria-live="polite">
+            <h3>Results</h3>
+            <table>
+              <tr><th>Spot</th><th>R<sub>f</sub></th><th>Match?</th></tr>
+              <tr><td>A (yellow)</td><td class="rf" id="rfA">&ndash;</td><td id="matchA">&ndash;</td></tr>
+              <tr><td>B (blue)</td><td class="rf" id="rfB">&ndash;</td><td id="matchB">&ndash;</td></tr>
+            </table>
+            <p class="measure-help">Reference R<sub>f</sub> in this solvent: <b>Tartrazine (yellow) = 0.65</b>, <b>Brilliant blue = 0.30</b>.</p>
+          </div>
+          <div class="feedback info" id="rfFb" role="status" aria-live="polite">
+            Enter your distances and calculate. A correct R<sub>f</sub> identifies which known dyes made the green colour.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: FLAME TESTS -->
+  <section class="scene" id="scene2" aria-labelledby="h2t">
+    <div class="panel">
+      <h2 id="h2t">3. Flame tests for metal ions</h2>
+      <p class="sub">Four unknown salt solutions, labelled by fictional pupils, are waiting. Click <strong>Flame test</strong> to see the colour, then identify the metal ion from the menu. Each card gives instant feedback.</p>
+      <div class="bench" id="flameBench" aria-live="polite"></div>
+      <div class="feedback info" id="flameFb" role="status" aria-live="polite" style="margin-top:16px">
+        Flame test colours: lithium = crimson red, sodium = yellow, potassium = lilac, calcium = orange-red, copper = green.
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 4: GAS TESTS -->
+  <section class="scene" id="scene3" aria-labelledby="h3t">
+    <div class="panel">
+      <h2 id="h3t">4. Gas tests</h2>
+      <p class="sub">Choose the correct test for each gas. The card shows the observation; pick the gas it identifies.</p>
+      <div class="gas-bench" id="gasBench" aria-live="polite"></div>
+      <div class="feedback info" id="gasFb" role="status" aria-live="polite" style="margin-top:16px">
+        Reminders: hydrogen gives a squeaky pop with a lit splint; oxygen relights a glowing splint; carbon dioxide turns limewater cloudy; chlorine bleaches damp litmus paper.
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 5: ATMOSPHERE -->
+  <section class="scene" id="scene4" aria-labelledby="h4t">
+    <div class="panel">
+      <h2 id="h4t">5. The changing atmosphere</h2>
+      <p class="sub">Today's air is about 78% nitrogen, 21% oxygen and 0.04% carbon dioxide. Build the early atmosphere and watch how oxygen rose and carbon dioxide fell. Then explore one greenhouse gas link to climate change.</p>
+      <div class="atmo-grid">
+        <div>
+          <canvas id="atmoCanvas" width="380" height="300" role="img" aria-label="Bar chart of atmospheric gas percentages that updates with the slider."></canvas>
+        </div>
+        <div>
+          <div class="slider-row">
+            <label for="timeSlider"><span id="eraLabel">Today</span><span id="timeVal">present day</span></label>
+            <input id="timeSlider" type="range" min="0" max="3" step="1" value="3" aria-describedby="atmoFb">
+          </div>
+          <div class="feedback info" id="atmoFb" role="status" aria-live="polite"></div>
+          <div class="slider-row" style="margin-top:18px">
+            <label for="coSlider">Atmospheric CO<sub>2</sub> (ppm)<span id="coVal">420 ppm</span></label>
+            <input id="coSlider" type="range" min="280" max="600" step="10" value="420">
+          </div>
+          <div class="feedback info" id="ghgFb" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+    <span class="score-pill">Identifications correct: <b id="scoreText">0 / 8</b></span>
+    <button class="btn ghost" id="resetAll">Reset all progress</button>
+  </div>
+</div>
+
+<footer>
+  Demonstration data only. Pupil names and samples are fictional. Built for WeST classroom use.
+</footer>
+
+<script>
+/* ============== STATE ============== */
+const state={
+  scaleCmPerPx:0.05,          // canvas scale for chromatography
+  developed:false,
+  lineY:0,                    // measurement line y (px)
+  spots:{front:null,A:null,B:null}, // measured cm distances
+  flameDone:{},
+  gasDone:{},
+  scoreSet:new Set()          // unique ids of correct identifications
+};
+
+/* ============== STEPPER ============== */
+const stepBtns=[...document.querySelectorAll('.step-btn')];
+const scenes=[...document.querySelectorAll('.scene')];
+function showStep(i){
+  scenes.forEach((s,idx)=>s.classList.toggle('active',idx===i));
+  stepBtns.forEach((b,idx)=>b.classList.toggle('active',idx===i));
+  if(i===4)drawAtmo();
+  if(i===0)drawChrom();
+}
+stepBtns.forEach(b=>b.addEventListener('click',()=>showStep(+b.dataset.step)));
+
+function markDone(i){stepBtns[i].classList.add('done');}
+
+/* ============== SCORE ============== */
+function updateScore(){
+  document.getElementById('scoreText').textContent=state.scoreSet.size+' / 8';
+}
+
+/* ============== CHROMATOGRAPHY CANVAS ============== */
+const cc=document.getElementById('chromCanvas');
+const cx=cc.getContext('2d');
+const W=cc.width,H=cc.height;
+// Geometry in px (logical canvas units)
+const startLineY=380;          // pencil start line
+const solventStartY=400;       // initial solvent level
+// "True" spot final distances in cm (from start line) -> px = cm/scale
+const SCALE=state.scaleCmPerPx; // 0.05 cm/px => 20px = 1cm
+const trueFront_cm=8.0, trueA_cm=5.2, trueB_cm=2.4; // yellow Rf~0.65, blue Rf~0.30
+function cmToY(cm){return startLineY-(cm/SCALE);}
+const frontY=cmToY(trueFront_cm), spotAY=cmToY(trueA_cm), spotBY=cmToY(trueB_cm);
+
+let devProgress=0; // 0..1 animation
+function drawChrom(){
+  cx.clearRect(0,0,W,H);
+  // tank glass
+  cx.fillStyle='#0a121d';cx.fillRect(0,0,W,H);
+  // paper strip
+  const px=140,pw=140,ptop=40,pbot=420;
+  cx.fillStyle='#f5efe2';cx.fillRect(px,ptop,pw,pbot-ptop);
+  cx.strokeStyle='#d8cfb8';cx.lineWidth=2;cx.strokeRect(px,ptop,pw,pbot-ptop);
+  // solvent rising on paper
+  const solY=solventStartY-(solventStartY-(frontY-6))*devProgress;
+  cx.fillStyle='rgba(191,224,239,.45)';
+  cx.fillRect(px,solY,pw,pbot-solY);
+  // pencil start line
+  cx.strokeStyle='#555';cx.setLineDash([4,3]);cx.lineWidth=1;
+  cx.beginPath();cx.moveTo(px-6,startLineY);cx.lineTo(px+pw+6,startLineY);cx.stroke();
+  cx.setLineDash([]);
+  cx.fillStyle='#888';cx.font='11px Segoe UI';cx.fillText('start line (pencil)',px-2,startLineY+16);
+  // solvent in tank base
+  cx.fillStyle='rgba(120,190,220,.30)';cx.fillRect(20,solventStartY,W-40,H-solventStartY);
+  cx.strokeStyle='#3a6f86';cx.beginPath();cx.moveTo(20,solventStartY);cx.lineTo(W-20,solventStartY);cx.stroke();
+  cx.fillStyle='#7fb8cf';cx.fillText('solvent',26,solventStartY+22);
+  // original spot at start (mixture green) before run
+  const cxCenter=px+pw/2;
+  if(devProgress<0.04){
+    cx.fillStyle='#3aa563';cx.beginPath();cx.arc(cxCenter,startLineY-2,9,0,7);cx.fill();
+  } else {
+    // separated spots move up with progress
+    const aY=startLineY-(startLineY-spotAY)*devProgress;
+    const bY=startLineY-(startLineY-spotBY)*devProgress;
+    cx.fillStyle='rgba(245,200,40,.92)';cx.beginPath();cx.ellipse(cxCenter,aY,11,8,0,0,7);cx.fill();
+    cx.fillStyle='rgba(60,120,220,.92)';cx.beginPath();cx.ellipse(cxCenter,bY,11,8,0,0,7);cx.fill();
+    // solvent front faint line
+    if(devProgress>0.2){cx.strokeStyle='rgba(120,200,230,.6)';cx.setLineDash([3,3]);
+      cx.beginPath();cx.moveTo(px,solY);cx.lineTo(px+pw,solY);cx.stroke();cx.setLineDash([]);}
+  }
+  // measurement line
+  if(state.developed){
+    cx.strokeStyle='#fbbf24';cx.lineWidth=2;
+    cx.beginPath();cx.moveTo(40,state.lineY);cx.lineTo(W-40,state.lineY);cx.stroke();
+    // handle
+    cx.fillStyle='#fbbf24';cx.beginPath();cx.arc(W-40,state.lineY,7,0,7);cx.fill();
+    // distance label from start line
+    const cm=Math.max(0,(startLineY-state.lineY)*SCALE);
+    cx.fillStyle='#fbbf24';cx.font='bold 12px Consolas';
+    cx.fillText(cm.toFixed(1)+' cm',44,state.lineY-6);
+  }
+}
+
+function runChrom(){
+  if(state.developed)return;
+  document.getElementById('runChrom').disabled=true;
+  const fb=document.getElementById('chromFb');
+  fb.className='feedback info';
+  fb.innerHTML='Solvent is rising up the paper by capillary action, carrying the dyes with it...';
+  const t0=performance.now();const dur=2600;
+  function anim(t){
+    devProgress=Math.min(1,(t-t0)/dur);
+    drawChrom();
+    if(devProgress<1)requestAnimationFrame(anim);
+    else{
+      state.developed=true;
+      state.lineY=frontY;
+      drawChrom();
+      fb.className='feedback good';
+      fb.innerHTML='<strong>Separated.</strong> The green dye split into a yellow pigment and a blue pigment, so it was a <strong>mixture</strong>. Now drag the yellow line (or press M) to each feature to measure it. Measure the solvent front and both spots.';
+      document.getElementById('runChrom').disabled=false;
+      document.getElementById('runChrom').textContent='Run again';
+    }
+  }
+  requestAnimationFrame(anim);
+}
+
+function recordMeasurement(){
+  // snap line to nearest feature within tolerance, record cm
+  const feats=[{k:'front',y:frontY,el:'mFront'},{k:'A',y:spotAY,el:'mA'},{k:'B',y:spotBY,el:'mB'}];
+  let best=null,bd=1e9;
+  feats.forEach(f=>{const d=Math.abs(f.y-state.lineY);if(d<bd){bd=d;best=f;}});
+  const fb=document.getElementById('chromFb');
+  if(best&&bd<14){
+    state.lineY=best.y;
+    const cm=(startLineY-best.y)*SCALE;
+    state.spots[best.k]=+cm.toFixed(1);
+    document.getElementById(best.el).textContent=cm.toFixed(1)+' cm';
+    drawChrom();
+    fb.className='feedback good';
+    const names={front:'solvent front',A:'yellow spot (A)',B:'blue spot (B)'};
+    fb.innerHTML='<strong>Measured the '+names[best.k]+':</strong> '+cm.toFixed(1)+' cm from the start line. '+
+      (state.spots.front&&state.spots.A&&state.spots.B?'All three measured. Go to Step 2 to calculate R<sub>f</sub>.':'Keep measuring the remaining features.');
+    if(state.spots.front&&state.spots.A&&state.spots.B)markDone(0);
+  } else {
+    fb.className='feedback bad';
+    fb.innerHTML='<strong>Not on a feature.</strong> Move the line nearer a coloured spot centre or the solvent front, then press M to lock and record.';
+  }
+}
+
+document.getElementById('runChrom').addEventListener('click',runChrom);
+document.getElementById('resetChrom').addEventListener('click',()=>{
+  state.developed=false;devProgress=0;state.lineY=0;
+  state.spots={front:null,A:null,B:null};
+  ['mFront','mA','mB'].forEach(id=>document.getElementById(id).innerHTML='&ndash;');
+  document.getElementById('runChrom').disabled=false;
+  document.getElementById('runChrom').textContent='Lower paper & run';
+  const fb=document.getElementById('chromFb');fb.className='feedback info';
+  fb.innerHTML='Paper reset. Press <strong>Lower paper &amp; run</strong> to develop the chromatogram again.';
+  drawChrom();
+});
+
+// pointer drag on measurement line
+function canvasY(e){const r=cc.getBoundingClientRect();return (e.clientY-r.top)*(H/r.height);}
+let dragging=false;
+cc.addEventListener('pointerdown',e=>{
+  if(!state.developed)return;
+  cc.setPointerCapture(e.pointerId);dragging=true;
+  state.lineY=Math.max(40,Math.min(380,canvasY(e)));drawChrom();
+});
+cc.addEventListener('pointermove',e=>{
+  if(!dragging)return;
+  state.lineY=Math.max(40,Math.min(380,canvasY(e)));drawChrom();
+});
+cc.addEventListener('pointerup',e=>{dragging=false;});
+cc.setAttribute('tabindex','0');
+cc.addEventListener('keydown',e=>{
+  if(!state.developed)return;
+  if(e.key==='ArrowUp'){state.lineY=Math.max(40,state.lineY-3);drawChrom();e.preventDefault();}
+  else if(e.key==='ArrowDown'){state.lineY=Math.min(380,state.lineY+3);drawChrom();e.preventDefault();}
+  else if(e.key==='m'||e.key==='M'){recordMeasurement();e.preventDefault();}
+});
+
+/* ============== Rf CALCULATOR ============== */
+const REF={A:0.65,B:0.30};
+document.getElementById('useMeas').addEventListener('click',()=>{
+  if(state.spots.front!=null)document.getElementById('inFront').value=state.spots.front;
+  if(state.spots.A!=null)document.getElementById('inA').value=state.spots.A;
+  if(state.spots.B!=null)document.getElementById('inB').value=state.spots.B;
+  const fb=document.getElementById('rfFb');fb.className='feedback info';
+  fb.innerHTML='Measurements copied in. Press <strong>Calculate R<sub>f</sub></strong>.';
+});
+document.getElementById('calcRf').addEventListener('click',()=>{
+  const front=parseFloat(document.getElementById('inFront').value);
+  const a=parseFloat(document.getElementById('inA').value);
+  const b=parseFloat(document.getElementById('inB').value);
+  const fb=document.getElementById('rfFb');
+  if(!(front>0)){fb.className='feedback bad';fb.innerHTML='<strong>Need the solvent front.</strong> Enter a positive solvent-front distance (it must be the largest value).';return;}
+  if(!(a>=0)||!(b>=0)){fb.className='feedback bad';fb.innerHTML='<strong>Enter both spot distances.</strong>';return;}
+  if(a>front||b>front){fb.className='feedback bad';fb.innerHTML='<strong>Check your data.</strong> A spot cannot travel further than the solvent front, so R<sub>f</sub> cannot be above 1. Re-measure: the solvent front should be the highest mark.';return;}
+  const rfA=a/front, rfB=b/front;
+  document.getElementById('rfA').textContent=rfA.toFixed(2);
+  document.getElementById('rfB').textContent=rfB.toFixed(2);
+  const okA=Math.abs(rfA-REF.A)<=0.07, okB=Math.abs(rfB-REF.B)<=0.07;
+  document.getElementById('matchA').innerHTML=okA?'<span class="chip ok">Tartrazine</span>':'<span class="chip no">no match</span>';
+  document.getElementById('matchB').innerHTML=okB?'<span class="chip ok">Brilliant blue</span>':'<span class="chip no">no match</span>';
+  if(okA&&okB){
+    fb.className='feedback good';
+    fb.innerHTML='<strong>Identified.</strong> R<sub>f</sub> A = '+rfA.toFixed(2)+' matches tartrazine (0.65) and R<sub>f</sub> B = '+rfB.toFixed(2)+' matches brilliant blue (0.30). The green sweet dye is a mixture of these two permitted food colours.';
+    state.scoreSet.add('rf');markDone(1);updateScore();
+  } else {
+    fb.className='feedback bad';
+    let msg='<strong>Calculated, but not a clean match.</strong> ';
+    if(rfA>1||rfB>1)msg+='An R<sub>f</sub> above 1 is impossible. ';
+    msg+='Re-check your distances from Step 1. R<sub>f</sub> should be near 0.65 (yellow) and 0.30 (blue).';
+    fb.innerHTML=msg;
+  }
+});
+
+/* ============== FLAME TESTS ============== */
+const flameSamples=[
+  {id:'f1',pupil:"Priya's sample",ion:'lithium',colour:'#e23a4a',label:'crimson red'},
+  {id:'f2',pupil:"Marcus's sample",ion:'sodium',colour:'#f5d020',label:'yellow'},
+  {id:'f3',pupil:"Ada's sample",ion:'copper',colour:'#3fbf6f',label:'green'},
+  {id:'f4',pupil:"Olu's sample",ion:'potassium',colour:'#b07ad6',label:'lilac'}
+];
+const ionOptions=['lithium','sodium','potassium','calcium','copper'];
+function buildFlame(){
+  const bench=document.getElementById('flameBench');bench.innerHTML='';
+  flameSamples.forEach(s=>{
+    const card=document.createElement('div');card.className='sample-card';
+    card.innerHTML=
+      '<div class="vial">&#x1F9EA;</div>'+
+      '<h4>'+s.pupil+'</h4>'+
+      '<p class="hint" id="hint-'+s.id+'">Unknown salt solution.</p>'+
+      '<div class="test-buttons"><button class="tbtn" data-flame="'+s.id+'">Flame test</button></div>'+
+      '<div class="flame-result" id="flame-'+s.id+'">colour: not tested</div>'+
+      '<div class="guess-row"><select id="guess-'+s.id+'" aria-label="Identify metal ion for '+s.pupil+'"><option value="">identify ion...</option>'+
+        ionOptions.map(o=>'<option value="'+o+'">'+o+'</option>').join('')+'</select>'+
+        '<button class="tbtn" data-check="'+s.id+'">Check</button></div>';
+    bench.appendChild(card);
+  });
+  bench.querySelectorAll('[data-flame]').forEach(btn=>btn.addEventListener('click',()=>{
+    const s=flameSamples.find(x=>x.id===btn.dataset.flame);
+    const r=document.getElementById('flame-'+s.id);
+    r.style.background=s.colour;r.style.color='#1a1206';r.textContent='flame: '+s.label;
+    state.flameDone[s.id]=true;
+    document.getElementById('hint-'+s.id).textContent='Flame burned '+s.label+'. Now identify the ion.';
+  }));
+  bench.querySelectorAll('[data-check]').forEach(btn=>btn.addEventListener('click',()=>{
+    const s=flameSamples.find(x=>x.id===btn.dataset.check);
+    const guess=document.getElementById('guess-'+s.id).value;
+    const fb=document.getElementById('flameFb');
+    if(!state.flameDone[s.id]){fb.className='feedback bad';fb.innerHTML='<strong>Do the flame test first</strong> for '+s.pupil+', then judge the colour.';return;}
+    if(!guess){fb.className='feedback bad';fb.innerHTML='<strong>Choose an ion</strong> from the menu for '+s.pupil+'.';return;}
+    if(guess===s.ion){
+      fb.className='feedback good';
+      fb.innerHTML='<strong>Correct.</strong> '+s.pupil+' burned '+s.label+', which is the '+s.ion+' ion.';
+      state.scoreSet.add(s.id);updateScore();
+      document.getElementById('guess-'+s.id).disabled=true;btn.disabled=true;
+      document.getElementById('hint-'+s.id).innerHTML='<span class="chip ok">'+s.ion+'</span> identified';
+      if(flameSamples.every(x=>state.scoreSet.has(x.id)))markDone(2);
+    } else {
+      fb.className='feedback bad';
+      fb.innerHTML='<strong>Not quite.</strong> A '+s.label+' flame is not '+guess+'. Match the colour: crimson = lithium, yellow = sodium, lilac = potassium, orange-red = calcium, green = copper.';
+    }
+  }));
+}
+buildFlame();
+
+/* ============== GAS TESTS ============== */
+const gasItems=[
+  {id:'g1',obs:'A lit splint makes a squeaky pop.',answer:'hydrogen'},
+  {id:'g2',obs:'A glowing splint relights.',answer:'oxygen'},
+  {id:'g3',obs:'Limewater turns milky / cloudy white.',answer:'carbon dioxide'},
+  {id:'g4',obs:'Damp blue litmus paper is bleached white.',answer:'chlorine'}
+];
+const gasOpts=['hydrogen','oxygen','carbon dioxide','chlorine'];
+function buildGas(){
+  const bench=document.getElementById('gasBench');bench.innerHTML='';
+  gasItems.forEach((g,i)=>{
+    const card=document.createElement('div');card.className='gas-card';
+    card.innerHTML='<h4>Test tube '+(i+1)+'</h4><p>Observation:</p>'+
+      '<div class="obs">'+g.obs+'</div>'+
+      '<div class="guess-row"><select id="gg-'+g.id+'" aria-label="Identify gas in test tube '+(i+1)+'"><option value="">identify gas...</option>'+
+      gasOpts.map(o=>'<option value="'+o+'">'+o+'</option>').join('')+'</select>'+
+      '<button class="tbtn" data-gcheck="'+g.id+'">Check</button></div>';
+    bench.appendChild(card);
+  });
+  bench.querySelectorAll('[data-gcheck]').forEach(btn=>btn.addEventListener('click',()=>{
+    const g=gasItems.find(x=>x.id===btn.dataset.gcheck);
+    const guess=document.getElementById('gg-'+g.id).value;
+    const fb=document.getElementById('gasFb');
+    if(!guess){fb.className='feedback bad';fb.innerHTML='<strong>Pick a gas</strong> for this observation.';return;}
+    if(guess===g.answer){
+      fb.className='feedback good';
+      fb.innerHTML='<strong>Correct.</strong> "'+g.obs+'" is the test for <strong>'+g.answer+'</strong>.';
+      state.scoreSet.add(g.id);updateScore();
+      document.getElementById('gg-'+g.id).disabled=true;btn.disabled=true;
+      if(gasItems.every(x=>state.scoreSet.has(x.id)))markDone(3);
+    } else {
+      fb.className='feedback bad';
+      fb.innerHTML='<strong>Not that one.</strong> "'+g.obs+'" is not the test for '+guess+'. Re-read the reminders below.';
+    }
+  }));
+}
+buildGas();
+
+/* ============== ATMOSPHERE ============== */
+const ac=document.getElementById('atmoCanvas');
+const ax=ac.getContext('2d');
+const eras=[
+  {name:'4.6 billion years ago',desc:'mostly carbon dioxide from volcanoes, almost no oxygen',n2:5,o2:0,co2:90,note:'Early Earth: intense volcanic activity released mostly CO<sub>2</sub> and water vapour. There was virtually no oxygen.'},
+  {name:'3 billion years ago',desc:'oceans formed, CO2 dissolving, algae starting photosynthesis',n2:35,o2:2,co2:35,note:'Oceans formed and dissolved CO<sub>2</sub>. Early algae began photosynthesis, slowly releasing oxygen.'},
+  {name:'1 billion years ago',desc:'oxygen rising, CO2 locked in rocks and fossils',n2:70,o2:14,co2:1,note:'Photosynthesis raised oxygen. CO<sub>2</sub> was locked away in sedimentary rocks and fossil fuels, and nitrogen built up.'},
+  {name:'Today',desc:'78% nitrogen, 21% oxygen, 0.04% CO2',n2:78,o2:21,co2:0.04,note:'Today: about 78% nitrogen, 21% oxygen and only 0.04% carbon dioxide. A stable, oxygen-rich atmosphere.'}
+];
+function drawAtmo(){
+  const e=eras[+document.getElementById('timeSlider').value];
+  const w=ac.width,h=ac.height;
+  ax.clearRect(0,0,w,h);
+  ax.fillStyle='#0a121d';ax.fillRect(0,0,w,h);
+  const gases=[{n:'N₂',v:e.n2,c:'#60a5fa'},{n:'O₂',v:e.o2,c:'#34d399'},{n:'CO₂',v:e.co2,c:'#fbbf24'}];
+  const baseY=h-46,maxH=h-90,bw=70,gap=40,x0=42;
+  ax.strokeStyle='#2b4058';ax.beginPath();ax.moveTo(20,baseY);ax.lineTo(w-10,baseY);ax.stroke();
+  gases.forEach((g,i)=>{
+    const x=x0+i*(bw+gap);
+    const bh=Math.max(2,(g.v/100)*maxH);
+    ax.fillStyle=g.c;ax.fillRect(x,baseY-bh,bw,bh);
+    ax.fillStyle='#e8eef5';ax.font='bold 13px Segoe UI';ax.textAlign='center';
+    ax.fillText(g.n,x+bw/2,baseY+18);
+    ax.fillStyle=g.c;ax.font='bold 12px Consolas';
+    const lbl=g.v<1?g.v+'%':g.v+'%';
+    ax.fillText(lbl,x+bw/2,baseY-bh-6);
+  });
+  ax.textAlign='left';
+  ax.fillStyle='#9fb1c4';ax.font='12px Segoe UI';ax.fillText(e.name,14,20);
+}
+document.getElementById('timeSlider').addEventListener('input',()=>{
+  const e=eras[+document.getElementById('timeSlider').value];
+  document.getElementById('eraLabel').textContent=e.name;
+  document.getElementById('timeVal').textContent=e.desc;
+  document.getElementById('atmoFb').className='feedback info';
+  document.getElementById('atmoFb').innerHTML=e.note;
+  drawAtmo();
+  state.scoreSet.add('atmo');updateScore();markDone(4);
+});
+document.getElementById('coSlider').addEventListener('input',()=>{
+  const ppm=+document.getElementById('coSlider').value;
+  document.getElementById('coVal').textContent=ppm+' ppm';
+  const fb=document.getElementById('ghgFb');fb.className='feedback info';
+  let msg;
+  if(ppm<=300)msg='Around <strong>'+ppm+' ppm</strong> is close to pre-industrial levels (about 280 ppm). Less heat is trapped, so global temperatures are lower.';
+  else if(ppm<=420)msg='Around <strong>'+ppm+' ppm</strong> is near present-day levels. CO<sub>2</sub> absorbs and re-emits infrared, trapping more heat: this is the enhanced greenhouse effect.';
+  else msg='At <strong>'+ppm+' ppm</strong>, much more infrared is trapped. Models link rising CO<sub>2</sub> from burning fossil fuels to higher mean global temperature and climate change.';
+  fb.innerHTML=msg;
+});
+
+/* ============== RESET ALL ============== */
+document.getElementById('resetAll').addEventListener('click',()=>{
+  state.scoreSet.clear();state.flameDone={};state.gasDone={};
+  state.developed=false;devProgress=0;state.spots={front:null,A:null,B:null};
+  stepBtns.forEach(b=>b.classList.remove('done'));
+  ['mFront','mA','mB'].forEach(id=>document.getElementById(id).innerHTML='&ndash;');
+  ['inFront','inA','inB'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('rfA').innerHTML='&ndash;';document.getElementById('rfB').innerHTML='&ndash;';
+  document.getElementById('matchA').innerHTML='&ndash;';document.getElementById('matchB').innerHTML='&ndash;';
+  document.getElementById('runChrom').disabled=false;document.getElementById('runChrom').textContent='Lower paper & run';
+  buildFlame();buildGas();updateScore();drawChrom();
+  showStep(0);
+});
+
+/* ============== INIT ============== */
+drawChrom();
+// initialise atmosphere labels
+(function(){const e=eras[3];document.getElementById('eraLabel').textContent=e.name;
+  document.getElementById('timeVal').textContent=e.desc;
+  document.getElementById('atmoFb').innerHTML=e.note;
+  document.getElementById('ghgFb').innerHTML='Drag to change CO<sub>2</sub> concentration and read how it affects heat trapping.';})();
+updateScore();
+</script>
+</body>
+</html>

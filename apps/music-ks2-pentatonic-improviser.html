@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pentatonic Improviser</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --panel: #ffffff;
+    --ink: #1c2233;
+    --muted: #5a6275;
+    --line: #dde2ec;
+    --accent: #2b50c4;
+    --accent2: #6a3fd0;
+    --accent-ink: #ffffff;
+    --shadow: 0 6px 24px rgba(28,34,51,0.10);
+    --good: #2c8a4a;
+    --warn: #c77400;
+    /* five pentatonic pad colours, low to high */
+    --p1: #e23b3b;
+    --p2: #f08a1d;
+    --p3: #5bb24a;
+    --p4: #2fa3c9;
+    --p5: #8b54d6;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 70px; }
+  header.app {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    color: #fff;
+    border-radius: 18px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  header.app h1 {
+    margin: 0 0 4px;
+    font-size: clamp(1.6rem, 4vw, 2.3rem);
+    letter-spacing: 0.4px;
+  }
+  header.app .aim {
+    margin: 6px 0 0; font-size: 0.98rem; opacity: 0.96; max-width: 72ch;
+  }
+  header.app .tags { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  header.app .tags span {
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 4px 10px; border-radius: 999px; font-size: 0.8rem;
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 16px; padding: 18px; margin-top: 18px; box-shadow: var(--shadow);
+  }
+  .panel h2 {
+    margin: 0 0 4px; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;
+  }
+  .panel .sub { margin: 0 0 14px; color: var(--muted); font-size: 0.92rem; }
+
+  /* Transport / controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  button.btn {
+    font: inherit; font-weight: 600; cursor: pointer;
+    border-radius: 10px; padding: 10px 16px; border: 1px solid var(--line);
+    background: #fff; color: var(--ink); transition: transform .05s, background .15s;
+  }
+  button.btn:hover { background: #eef1f9; }
+  button.btn:active { transform: translateY(1px); }
+  button.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.btn.primary:hover { background: #2342a8; }
+  button.btn.danger { background: #fff; color: var(--p1); border-color: #f0c2c2; }
+  button.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.btn[aria-pressed="true"] {
+    background: var(--accent2); color: #fff; border-color: var(--accent2);
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+  .field select, .field input[type="range"] { font: inherit; }
+  .field select {
+    padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: #fff; color: var(--ink);
+  }
+  .tempo-row { display: flex; align-items: center; gap: 10px; min-width: 200px; }
+  .tempo-row input[type="range"] { flex: 1; touch-action: manipulation; }
+  .tempo-val { font-weight: 700; color: var(--ink); min-width: 60px; text-align: right; }
+
+  /* Pad grid */
+  .pads {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 4px;
+    touch-action: none;
+  }
+  .pad {
+    position: relative; border: none; border-radius: 16px; cursor: pointer;
+    color: #fff; min-height: 120px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px;
+    font-weight: 700; box-shadow: var(--shadow);
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    transition: transform .06s, filter .06s, box-shadow .06s;
+    outline-offset: 3px;
+  }
+  .pad .note-name { font-size: 1.5rem; letter-spacing: 0.5px; }
+  .pad .degree { font-size: 0.82rem; font-weight: 600; opacity: 0.92; }
+  .pad:focus-visible { outline: 3px solid var(--ink); }
+  .pad.lit { transform: translateY(-4px) scale(1.03); filter: brightness(1.18); box-shadow: 0 10px 26px rgba(28,34,51,0.28); }
+  .pad.p1 { background: var(--p1); } .pad.p2 { background: var(--p2); }
+  .pad.p3 { background: var(--p3); } .pad.p4 { background: var(--p4); }
+  .pad.p5 { background: var(--p5); }
+
+  .hint { margin-top: 12px; color: var(--muted); font-size: 0.86rem; }
+
+  /* Live region / feedback */
+  .feedback {
+    margin-top: 14px; border-radius: 12px; padding: 12px 14px;
+    background: #eef6f0; border: 1px solid #cfe6d6; color: var(--ink);
+    font-size: 0.95rem; min-height: 1.4em;
+  }
+  .feedback strong { color: var(--good); }
+  .feedback.warn { background: #fdf3e4; border-color: #f3dcb6; }
+  .feedback.warn strong { color: var(--warn); }
+
+  /* Melody Sketchpad */
+  .sketch-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .steps {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; min-height: 54px;
+    padding: 10px; border: 1px dashed var(--line); border-radius: 12px; background: #fafbfe;
+  }
+  .step {
+    min-width: 46px; height: 46px; border-radius: 10px; display: flex;
+    align-items: center; justify-content: center; color: #fff; font-weight: 700;
+    font-size: 1.05rem; box-shadow: 0 2px 6px rgba(28,34,51,0.15);
+  }
+  .step.rest { background: #c2c8d6 !important; color: #4a4f5e; }
+  .step.playing { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .step.empty { color: var(--muted); font-weight: 500; font-style: italic; background: transparent !important; box-shadow: none; min-width: 100%; justify-content: flex-start; padding-left: 6px; }
+
+  .reflect ul { margin: 6px 0 0; padding-left: 20px; color: var(--muted); font-size: 0.92rem; }
+  .reflect li { margin-bottom: 6px; }
+
+  .footnote { margin-top: 22px; color: var(--muted); font-size: 0.82rem; text-align: center; }
+
+  @media (max-width: 620px) {
+    .pad { min-height: 96px; }
+    .pad .note-name { font-size: 1.25rem; }
+    .pads { gap: 8px; }
+  }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <h1>Pentatonic Improviser &#x1F3B9;</h1>
+    <p class="aim"><strong>Teaching aim:</strong> pupils improvise and compose short melodies for a purpose, using the dimensions of music (pitch, dynamics, tempo, duration). The five pads use a pentatonic scale, so any combination sounds good over the groove. That confidence frees pupils to listen, experiment and shape their ideas.</p>
+    <div class="tags">
+      <span>Music</span><span>Key Stage 2</span><span>Composing &amp; improvising</span><span>Works offline</span>
+    </div>
+  </header>
+
+  <!-- TRANSPORT / GROOVE -->
+  <section class="panel" aria-labelledby="groove-h">
+    <h2 id="groove-h">&#x1F941; The backing groove</h2>
+    <p class="sub">Start the groove, choose how it feels, then improvise on the pads below.</p>
+    <div class="controls">
+      <button class="btn primary" id="grooveBtn" aria-pressed="false">&#x25B6; Start groove</button>
+
+      <label class="field">Scale (key)
+        <select id="keySelect" aria-label="Choose the pentatonic key">
+          <option value="C" selected>C major pentatonic</option>
+          <option value="G">G major pentatonic</option>
+          <option value="F">F major pentatonic</option>
+          <option value="A">A minor pentatonic</option>
+        </select>
+      </label>
+
+      <label class="field">Mood
+        <select id="moodSelect" aria-label="Choose the groove mood">
+          <option value="calm">Calm and gentle</option>
+          <option value="bright" selected>Bright and bouncy</option>
+          <option value="mysterious">Mysterious</option>
+        </select>
+      </label>
+
+      <div class="field" style="flex:1; min-width:220px;">Tempo (speed)
+        <div class="tempo-row">
+          <input type="range" id="tempo" min="60" max="140" step="2" value="96"
+                 aria-label="Tempo in beats per minute" aria-describedby="tempoVal">
+          <span class="tempo-val" id="tempoVal">96 bpm</span>
+        </div>
+      </div>
+    </div>
+    <p class="hint">Tip: tempo is one of the dimensions of music. A slower tempo can feel calmer; a faster tempo can feel more excited.</p>
+  </section>
+
+  <!-- PADS -->
+  <section class="panel" aria-labelledby="pads-h">
+    <h2 id="pads-h">&#x1F3B5; Improvise on the pentatonic pads</h2>
+    <p class="sub">Tap, click or use the keyboard keys <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>G</kbd>. Every choice fits the groove, so play freely and listen.</p>
+
+    <div class="controls" style="margin-bottom:12px;">
+      <button class="btn" id="recordBtn" aria-pressed="false">&#x23FA; Record my idea</button>
+      <button class="btn" id="playBackBtn" disabled>&#x25B6; Play it back</button>
+      <button class="btn danger" id="clearBtn" disabled>&#x1F5D1; Clear</button>
+      <label class="field" style="margin-left:auto;">Dynamics (loud or quiet)
+        <select id="dynSelect" aria-label="Choose how loud the notes are">
+          <option value="soft">Quiet (piano)</option>
+          <option value="medium" selected>Medium (mezzo)</option>
+          <option value="loud">Loud (forte)</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="pads" id="pads" role="group" aria-label="Five pentatonic note pads"></div>
+
+    <div class="feedback" id="feedback" role="status" aria-live="polite">
+      Press <strong>Start groove</strong>, then play a pad. I will give you a tip after each idea.
+    </div>
+    <p class="hint">Idea: try a short pattern, leave a gap (a rest), then answer it. Question and answer is a great way to compose.</p>
+  </section>
+
+  <!-- MELODY SKETCHPAD -->
+  <section class="panel" aria-labelledby="sketch-h">
+    <h2 id="sketch-h">&#x1F4DD; Melody Sketchpad</h2>
+    <p class="sub">When you record, your notes appear here as a melody you can play back, refine and perform.</p>
+    <div class="sketch-row">
+      <button class="btn" id="addRestBtn" disabled>&#x1F910; Add a rest (silence)</button>
+      <button class="btn" id="undoBtn" disabled>&#x21A9; Undo last note</button>
+      <span class="hint" id="countLabel" style="margin-left:auto;">0 notes recorded.</span>
+    </div>
+    <div class="steps" id="steps" aria-label="Your recorded melody" aria-live="polite">
+      <span class="step empty">Your recorded melody will show here, low notes in warm colours, high notes in cool colours.</span>
+    </div>
+  </section>
+
+  <!-- REFLECT -->
+  <section class="panel reflect" aria-labelledby="reflect-h">
+    <h2 id="reflect-h">&#x1F914; Listen and improve</h2>
+    <p class="sub">Composers always go back and improve. Use these prompts with a partner (for example Priya and Marcus).</p>
+    <ul>
+      <li>Did your melody have a clear <strong>shape</strong>? Many tunes step up then settle back down.</li>
+      <li>Where could a <strong>rest</strong> give the listener a moment to breathe?</li>
+      <li>Try the same melody at a <strong>different tempo</strong> or <strong>dynamic</strong>. How does the feeling change?</li>
+      <li>Can you end on the <strong>home note</strong> (pad 1) so it sounds finished?</li>
+    </ul>
+  </section>
+
+  <p class="footnote">Pentatonic Improviser. A WeST classroom demonstration. Sounds are generated in your browser; no recordings or pupil data are stored.</p>
+  <div class="sr-only" id="liveExtra" aria-live="assertive"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Audio engine (Web Audio, no external files) ---------- */
+  var AudioCtx = window.AudioContext || window.webkitAudioContext;
+  var ctx = null;
+  function ensureCtx() {
+    if (!ctx && AudioCtx) { ctx = new AudioCtx(); }
+    if (ctx && ctx.state === "suspended") { ctx.resume(); }
+    return ctx;
+  }
+
+  // Note name to frequency (equal temperament, A4 = 440)
+  var SEMI = { C:0, "C#":1, D:2, "D#":3, E:4, F:5, "F#":6, G:7, "G#":8, A:9, "A#":10, B:11 };
+  function freq(name, octave) {
+    var n = SEMI[name] + (octave - 4) * 12 - 9; // semitones from A4
+    return 440 * Math.pow(2, n / 12);
+  }
+
+  // Pentatonic scales: five degrees, with note name + octave
+  var SCALES = {
+    C: { label: "C major", degrees: ["do","re","mi","sol","la"], notes: [["C",4],["D",4],["E",4],["G",4],["A",4]], home: ["C",4], chord: [["C",3],["E",3],["G",3]] },
+    G: { label: "G major", degrees: ["do","re","mi","sol","la"], notes: [["G",3],["A",3],["B",3],["D",4],["E",4]], home: ["G",3], chord: [["G",2],["B",2],["D",3]] },
+    F: { label: "F major", degrees: ["do","re","mi","sol","la"], notes: [["F",3],["G",3],["A",3],["C",4],["D",4]], home: ["F",3], chord: [["F",2],["A",2],["C",3]] },
+    A: { label: "A minor", degrees: ["la","do","re","mi","sol"], notes: [["A",3],["C",4],["D",4],["E",4],["G",4]], home: ["A",3], chord: [["A",2],["C",3],["E",3]] }
+  };
+
+  var DYN = { soft: 0.16, medium: 0.30, loud: 0.5 };
+
+  function playTone(f, when, dur, peak, type) {
+    var c = ensureCtx();
+    if (!c) return;
+    var osc = c.createOscillator();
+    var gain = c.createGain();
+    osc.type = type || "triangle";
+    osc.frequency.value = f;
+    var t = when;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(peak, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(c.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+  }
+
+  function playNote(degIndex, dur) {
+    var c = ensureCtx();
+    if (!c) return;
+    var sc = SCALES[currentKey];
+    var nt = sc.notes[degIndex];
+    var f = freq(nt[0], nt[1]);
+    var peak = DYN[dynSelect.value] || 0.3;
+    playTone(f, c.currentTime, dur || 0.55, peak, "triangle");
+  }
+
+  /* ---------- Groove (bass + chord pulse + soft hat) ---------- */
+  var grooveTimer = null;
+  var grooveStep = 0;
+  var grooveOn = false;
+
+  function grooveTick() {
+    var c = ensureCtx();
+    if (!c) return;
+    var sc = SCALES[currentKey];
+    var t = c.currentTime + 0.02;
+    var mood = moodSelect.value;
+    var beat = grooveStep % 4;
+
+    // Bass note on beats 1 and 3 (and a passing note for bright)
+    if (beat === 0 || beat === 2) {
+      var bassNt = sc.chord[0];
+      playTone(freq(bassNt[0], bassNt[1]), t, 0.4, 0.22, "sine");
+    } else if (mood === "bright" && beat === 3) {
+      var bn = sc.chord[2];
+      playTone(freq(bn[0], bn[1]), t, 0.3, 0.16, "sine");
+    }
+
+    // Chord pad swell on beat 1 only
+    if (beat === 0) {
+      sc.chord.forEach(function (n) {
+        var p = mood === "calm" ? 0.05 : 0.07;
+        playTone(freq(n[0], n[1]) * 2, t, 0.9, p, mood === "mysterious" ? "sine" : "triangle");
+      });
+    }
+
+    // Soft percussive click on off-beats (filtered noise via short high tone)
+    if (mood !== "calm" && (beat === 1 || beat === 3)) {
+      playTone(2400, t, 0.04, 0.05, "square");
+    }
+
+    grooveStep++;
+  }
+
+  function beatMs() { return 60000 / parseInt(tempo.value, 10); }
+
+  function startGroove() {
+    ensureCtx();
+    grooveOn = true;
+    grooveStep = 0;
+    grooveBtn.setAttribute("aria-pressed", "true");
+    grooveBtn.innerHTML = "&#x23F8; Stop groove";
+    grooveTick();
+    grooveTimer = setInterval(grooveTick, beatMs());
+    setFeedback("Groove is playing. Tap a pad. Everything you play will fit.", false);
+  }
+  function stopGroove() {
+    grooveOn = false;
+    if (grooveTimer) { clearInterval(grooveTimer); grooveTimer = null; }
+    grooveBtn.setAttribute("aria-pressed", "false");
+    grooveBtn.innerHTML = "&#x25B6; Start groove";
+  }
+  function restartGrooveTempo() {
+    if (grooveOn) { clearInterval(grooveTimer); grooveTimer = setInterval(grooveTick, beatMs()); }
+  }
+
+  /* ---------- State ---------- */
+  var currentKey = "C";
+  var melody = []; // {deg: 0-4 or -1 for rest}
+  var lastPlayTimes = [];
+  var lastDegreesPlayed = [];
+
+  /* ---------- DOM ---------- */
+  var padsEl = document.getElementById("pads");
+  var feedbackEl = document.getElementById("feedback");
+  var liveExtra = document.getElementById("liveExtra");
+  var grooveBtn = document.getElementById("grooveBtn");
+  var keySelect = document.getElementById("keySelect");
+  var moodSelect = document.getElementById("moodSelect");
+  var dynSelect = document.getElementById("dynSelect");
+  var tempo = document.getElementById("tempo");
+  var tempoVal = document.getElementById("tempoVal");
+  var recordBtn = document.getElementById("recordBtn");
+  var playBackBtn = document.getElementById("playBackBtn");
+  var clearBtn = document.getElementById("clearBtn");
+  var addRestBtn = document.getElementById("addRestBtn");
+  var undoBtn = document.getElementById("undoBtn");
+  var stepsEl = document.getElementById("steps");
+  var countLabel = document.getElementById("countLabel");
+
+  var KEY_LETTERS = ["a", "s", "d", "f", "g"];
+  var recording = false;
+
+  function setFeedback(msg, warn) {
+    feedbackEl.innerHTML = msg;
+    feedbackEl.className = "feedback" + (warn ? " warn" : "");
+  }
+
+  /* ---------- Build pads ---------- */
+  function buildPads() {
+    padsEl.innerHTML = "";
+    var sc = SCALES[currentKey];
+    sc.notes.forEach(function (nt, i) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pad p" + (i + 1);
+      btn.setAttribute("data-deg", i);
+      btn.setAttribute("aria-label",
+        "Pad " + (i + 1) + ", note " + nt[0] + ", keyboard key " + KEY_LETTERS[i].toUpperCase());
+      btn.innerHTML =
+        '<span class="note-name">' + nt[0] + '</span>' +
+        '<span class="degree">Pad ' + (i + 1) + ' &middot; key ' + KEY_LETTERS[i].toUpperCase() + '</span>';
+      padsEl.appendChild(btn);
+    });
+  }
+
+  function litPad(i) {
+    var pad = padsEl.querySelector('[data-deg="' + i + '"]');
+    if (!pad) return;
+    pad.classList.add("lit");
+    setTimeout(function () { pad.classList.remove("lit"); }, 230);
+  }
+
+  /* ---------- Improvisation feedback ---------- */
+  var FB_FIRST = [
+    "Nice. Listen to how that note sits on the groove.",
+    "Good start. Try another pad and hear the two notes together.",
+    "That fits perfectly. Pentatonic notes always do."
+  ];
+
+  function noteFeedback(deg) {
+    var now = (ctx ? ctx.currentTime : performance.now() / 1000);
+    lastDegreesPlayed.push(deg);
+    lastPlayTimes.push(now);
+    if (lastDegreesPlayed.length > 6) { lastDegreesPlayed.shift(); lastPlayTimes.shift(); }
+
+    if (!grooveOn) {
+      setFeedback("Sounds good. Press <strong>Start groove</strong> to hear your notes over a backing.", true);
+      return;
+    }
+    if (lastDegreesPlayed.length === 1) {
+      setFeedback(FB_FIRST[Math.floor(Math.random() * FB_FIRST.length)], false);
+      return;
+    }
+
+    // Analyse the last two and the recent shape
+    var n = lastDegreesPlayed.length;
+    var prev = lastDegreesPlayed[n - 2];
+    var move = deg - prev;
+    var msg;
+
+    if (move === 0) {
+      msg = "You repeated the same note. Repeating a note can give a tune a strong, steady feel.";
+    } else if (Math.abs(move) === 1) {
+      msg = "That was a small <strong>step</strong> to the next pad. Steps make a melody sound smooth.";
+    } else {
+      msg = "That was a bigger <strong>leap</strong> across pads. Leaps add energy and surprise.";
+    }
+
+    // Direction over last 3
+    if (n >= 3) {
+      var a = lastDegreesPlayed[n - 3], b = lastDegreesPlayed[n - 2], cc = lastDegreesPlayed[n - 1];
+      if (a < b && b < cc) { msg += " You are climbing higher: the melody is rising. &#x2B06;"; }
+      else if (a > b && b > cc) { msg += " You are stepping lower: the melody is falling. &#x2B07;"; }
+    }
+
+    // Rhythm: detect even vs varied timing
+    if (lastPlayTimes.length >= 4) {
+      var gaps = [];
+      for (var g = 1; g < lastPlayTimes.length; g++) { gaps.push(lastPlayTimes[g] - lastPlayTimes[g - 1]); }
+      var mean = gaps.reduce(function (s, x) { return s + x; }, 0) / gaps.length;
+      var varied = gaps.some(function (x) { return Math.abs(x - mean) > mean * 0.5; });
+      if (varied) { msg += " Your rhythm is varied, which keeps it interesting."; }
+    }
+
+    // Home note ending nudge
+    if (deg === 0) { msg += " Pad 1 is the <strong>home note</strong>: a great place to finish."; }
+
+    setFeedback(msg, false);
+  }
+
+  /* ---------- Trigger a pad ---------- */
+  function triggerPad(deg) {
+    if (deg < 0 || deg > 4) return;
+    ensureCtx();
+    playNote(deg, 0.55);
+    litPad(deg);
+    noteFeedback(deg);
+    if (recording) { addToMelody(deg); }
+  }
+
+  /* ---------- Melody Sketchpad ---------- */
+  function addToMelody(deg) {
+    melody.push({ deg: deg });
+    renderSteps();
+    updateMelodyButtons();
+  }
+  function addRest() {
+    melody.push({ deg: -1 });
+    renderSteps();
+    updateMelodyButtons();
+    setFeedback("You added a <strong>rest</strong>. Silence is part of music too; it gives the listener space.", false);
+  }
+  function undoNote() {
+    if (!melody.length) return;
+    melody.pop();
+    renderSteps();
+    updateMelodyButtons();
+  }
+  function clearMelody() {
+    melody = [];
+    renderSteps();
+    updateMelodyButtons();
+    setFeedback("Sketchpad cleared. Ready for a fresh idea.", false);
+  }
+
+  function renderSteps() {
+    stepsEl.innerHTML = "";
+    if (!melody.length) {
+      var e = document.createElement("span");
+      e.className = "step empty";
+      e.textContent = "Your recorded melody will show here, low notes in warm colours, high notes in cool colours.";
+      stepsEl.appendChild(e);
+      countLabel.textContent = "0 notes recorded.";
+      return;
+    }
+    var sc = SCALES[currentKey];
+    var noteCount = 0;
+    melody.forEach(function (m, idx) {
+      var s = document.createElement("span");
+      if (m.deg === -1) {
+        s.className = "step rest";
+        s.textContent = "rest";
+        s.setAttribute("aria-label", "rest");
+      } else {
+        s.className = "step";
+        s.style.background = "var(--p" + (m.deg + 1) + ")";
+        s.textContent = sc.notes[m.deg][0];
+        s.setAttribute("aria-label", "note " + sc.notes[m.deg][0]);
+        noteCount++;
+      }
+      s.setAttribute("data-idx", idx);
+      stepsEl.appendChild(s);
+    });
+    countLabel.textContent = noteCount + " note" + (noteCount === 1 ? "" : "s") + " recorded (" + melody.length + " step" + (melody.length === 1 ? "" : "s") + " with rests).";
+  }
+
+  function updateMelodyButtons() {
+    var has = melody.length > 0;
+    playBackBtn.disabled = !has;
+    clearBtn.disabled = !has;
+    undoBtn.disabled = !has;
+  }
+
+  /* ---------- Play back the melody in time ---------- */
+  var playbackTimers = [];
+  function playMelody() {
+    if (!melody.length) return;
+    cancelPlayback();
+    var stepDur = beatMs() / 2; // eighth-note feel
+    var i = 0;
+    function stepThrough() {
+      // clear previous highlight
+      var prev = stepsEl.querySelector(".step.playing");
+      if (prev) prev.classList.remove("playing");
+      if (i >= melody.length) {
+        setFeedback("That is your composition. Listen back: what would you change to improve it?", false);
+        return;
+      }
+      var m = melody[i];
+      var el = stepsEl.querySelector('[data-idx="' + i + '"]');
+      if (el) el.classList.add("playing");
+      if (m.deg >= 0) { playNote(m.deg, stepDur / 1000 * 0.9); litPad(m.deg); }
+      i++;
+      playbackTimers.push(setTimeout(stepThrough, stepDur));
+    }
+    setFeedback("Playing your melody back &#x1F3A7; follow the highlighted steps.", false);
+    stepThrough();
+  }
+  function cancelPlayback() {
+    playbackTimers.forEach(clearTimeout);
+    playbackTimers = [];
+    var prev = stepsEl.querySelector(".step.playing");
+    if (prev) prev.classList.remove("playing");
+  }
+
+  /* ---------- Recording toggle ---------- */
+  function toggleRecord() {
+    recording = !recording;
+    recordBtn.setAttribute("aria-pressed", recording ? "true" : "false");
+    addRestBtn.disabled = !recording;
+    if (recording) {
+      recordBtn.innerHTML = "&#x23F9; Stop recording";
+      setFeedback("Recording. Every pad you play is added to your Melody Sketchpad below.", false);
+      liveExtra.textContent = "Recording started.";
+    } else {
+      recordBtn.innerHTML = "&#x23FA; Record my idea";
+      setFeedback("Recording stopped. Press <strong>Play it back</strong> to hear your composition.", false);
+      liveExtra.textContent = "Recording stopped.";
+    }
+  }
+
+  /* ---------- Pointer input on pads (drag-friendly, touch-ready) ---------- */
+  var activePointers = {};
+  padsEl.addEventListener("pointerdown", function (e) {
+    var pad = e.target.closest(".pad");
+    if (!pad) return;
+    e.preventDefault();
+    try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+    var deg = parseInt(pad.getAttribute("data-deg"), 10);
+    activePointers[e.pointerId] = deg;
+    triggerPad(deg);
+  });
+  // Allow sliding across pads to retrigger
+  padsEl.addEventListener("pointermove", function (e) {
+    if (!(e.pointerId in activePointers)) return;
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    var pad = el ? el.closest(".pad") : null;
+    if (!pad) return;
+    var deg = parseInt(pad.getAttribute("data-deg"), 10);
+    if (activePointers[e.pointerId] !== deg) {
+      activePointers[e.pointerId] = deg;
+      triggerPad(deg);
+    }
+  });
+  function releasePointer(e) { delete activePointers[e.pointerId]; }
+  padsEl.addEventListener("pointerup", releasePointer);
+  padsEl.addEventListener("pointercancel", releasePointer);
+
+  /* ---------- Keyboard input ---------- */
+  document.addEventListener("keydown", function (e) {
+    if (e.repeat) return;
+    var tag = (e.target.tagName || "").toLowerCase();
+    if (tag === "select" || tag === "input" || tag === "textarea") return;
+    var idx = KEY_LETTERS.indexOf(e.key.toLowerCase());
+    if (idx !== -1) {
+      e.preventDefault();
+      triggerPad(idx);
+    }
+  });
+  // Pads themselves are buttons: Enter/Space handled natively, but route to triggerPad
+  padsEl.addEventListener("keydown", function (e) {
+    var pad = e.target.closest(".pad");
+    if (!pad) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      triggerPad(parseInt(pad.getAttribute("data-deg"), 10));
+    }
+  });
+
+  /* ---------- Controls wiring ---------- */
+  grooveBtn.addEventListener("click", function () {
+    if (grooveOn) { stopGroove(); } else { startGroove(); }
+  });
+  keySelect.addEventListener("change", function () {
+    currentKey = keySelect.value;
+    buildPads();
+    melody = [];
+    renderSteps();
+    updateMelodyButtons();
+    lastDegreesPlayed = []; lastPlayTimes = [];
+    setFeedback("Scale changed to <strong>" + SCALES[currentKey].label + " pentatonic</strong>. The pads still all fit the groove.", false);
+  });
+  moodSelect.addEventListener("change", function () {
+    setFeedback("Mood set to <strong>" + moodSelect.options[moodSelect.selectedIndex].text.toLowerCase() + "</strong>. Listen to how the groove changes the feeling.", false);
+  });
+  tempo.addEventListener("input", function () {
+    tempoVal.textContent = tempo.value + " bpm";
+    restartGrooveTempo();
+  });
+  recordBtn.addEventListener("click", toggleRecord);
+  playBackBtn.addEventListener("click", playMelody);
+  clearBtn.addEventListener("click", clearMelody);
+  addRestBtn.addEventListener("click", addRest);
+  undoBtn.addEventListener("click", undoNote);
+
+  /* ---------- Init ---------- */
+  buildPads();
+  renderSteps();
+  updateMelodyButtons();
+})();
+</script>
+</body>
+</html>

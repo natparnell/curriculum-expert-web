@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Newton-Raphson Visualiser</title>
+<style>
+  :root {
+    --ink: #1a2230;
+    --muted: #5a667a;
+    --line: #d8dee9;
+    --paper: #ffffff;
+    --wash: #f4f6fb;
+    --accent: #2f5fd0;
+    --accent-soft: #e8eefc;
+    --tangent: #d4541e;
+    --secant: #1f8a55;
+    --trap: #7a4fc4;
+    --root: #c41e58;
+    --good: #1f8a55;
+    --warn: #c4781e;
+    --shadow: 0 2px 14px rgba(26,34,48,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--wash);
+    line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 18px 16px 56px; }
+  header.app-head {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .eyebrow {
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 4px;
+  }
+  h1 { font-size: 1.55rem; margin: 0 0 6px; line-height: 1.15; }
+  .aim {
+    margin: 8px 0 0; font-size: 0.95rem; color: var(--muted);
+    border-left: 3px solid var(--accent-soft); padding-left: 12px;
+  }
+  .aim strong { color: var(--ink); }
+
+  .layout { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 940px) {
+    .layout { grid-template-columns: minmax(0,1.55fr) minmax(300px,1fr); align-items: start; }
+  }
+
+  .panel {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 12px; font-weight: 700;
+  }
+
+  .modebar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .modebar button {
+    flex: 1 1 auto; min-width: 130px;
+    font: inherit; font-size: 0.86rem; font-weight: 600;
+    padding: 9px 10px; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--wash); color: var(--muted);
+    transition: all 0.12s;
+  }
+  .modebar button[aria-pressed="true"] {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+    box-shadow: 0 2px 8px rgba(47,95,208,0.28);
+  }
+  .modebar button:focus-visible { outline: 3px solid #9bb6f0; outline-offset: 2px; }
+
+  .canvas-shell {
+    position: relative;
+    border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+    background: #fcfdff;
+  }
+  canvas { display: block; width: 100%; height: auto; touch-action: none; cursor: crosshair; }
+  canvas:focus-visible { outline: 3px solid #9bb6f0; outline-offset: -3px; }
+
+  .hint {
+    font-size: 0.82rem; color: var(--muted); margin: 10px 2px 0;
+  }
+  .funcrow {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin-bottom: 12px;
+  }
+  .funcrow label { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
+  select, .ctrl {
+    font: inherit; font-size: 0.88rem; padding: 7px 9px;
+    border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+  }
+  select:focus-visible, .ctrl:focus-visible { outline: 3px solid #9bb6f0; outline-offset: 1px; }
+
+  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .btn {
+    font: inherit; font-size: 0.86rem; font-weight: 600; cursor: pointer;
+    padding: 9px 14px; border-radius: 9px; border: 1px solid var(--accent);
+    background: var(--accent); color: #fff; transition: background 0.12s;
+  }
+  .btn:hover { background: #2750b4; }
+  .btn.ghost { background: #fff; color: var(--accent); }
+  .btn.ghost:hover { background: var(--accent-soft); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn:focus-visible { outline: 3px solid #9bb6f0; outline-offset: 2px; }
+
+  .readout {
+    background: var(--wash); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px; margin-top: 14px; font-size: 0.9rem;
+  }
+  .readout .big { font-size: 1.18rem; font-weight: 700; }
+  .readout .label { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+
+  table.iter { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin-top: 10px; }
+  table.iter th, table.iter td { text-align: right; padding: 5px 7px; border-bottom: 1px solid var(--line); }
+  table.iter th { color: var(--muted); font-weight: 700; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  table.iter td:first-child, table.iter th:first-child { text-align: left; }
+  table.iter tr:last-child td { border-bottom: none; }
+  .converged td { color: var(--good); font-weight: 700; }
+
+  .feedback {
+    border-radius: 10px; padding: 12px 14px; margin-top: 14px; font-size: 0.9rem;
+    border: 1px solid var(--line); background: var(--wash);
+  }
+  .feedback.good { border-color: #b7e0c8; background: #ecf8f1; color: #155f3a; }
+  .feedback.warn { border-color: #f0d8b0; background: #fcf4e6; color: #8a5a14; }
+  .feedback.info { border-color: #bcd0f4; background: var(--accent-soft); color: #1f3d86; }
+  .feedback strong { display: block; margin-bottom: 3px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 12px; font-size: 0.8rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 16px; height: 4px; border-radius: 2px; display: inline-block; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .sliderrow { margin-top: 12px; }
+  .sliderrow label { font-size: 0.82rem; color: var(--muted); font-weight: 600; display: block; margin-bottom: 4px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); touch-action: none; }
+  .stepval { font-weight: 700; color: var(--ink); }
+
+  footer.foot { margin-top: 22px; font-size: 0.78rem; color: var(--muted); text-align: center; }
+  .modehelp { font-size: 0.85rem; color: var(--muted); margin: -2px 0 12px; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app-head">
+    <p class="eyebrow">Maths &middot; KS5 Pure &middot; Numerical Methods</p>
+    <h1>Newton-Raphson Visualiser</h1>
+    <p class="aim">
+      <strong>Teaching aim:</strong> see how the Newton-Raphson iteration uses a tangent at
+      x&#8345; to reach the next estimate x&#8345;&#8330;&#8321;, why a change of sign locates a root in an interval,
+      and how the trapezium rule approximates the area under the same curve. Tap, drag or use the keyboard.
+    </p>
+  </header>
+
+  <div class="layout">
+
+    <!-- LEFT: interactive canvas -->
+    <section class="panel" aria-labelledby="vis-h">
+      <h2 id="vis-h">Interactive graph</h2>
+
+      <div class="modebar" role="group" aria-label="Choose method">
+        <button id="m-newton" aria-pressed="true">Newton-Raphson</button>
+        <button id="m-sign" aria-pressed="false">Change of sign</button>
+        <button id="m-trap" aria-pressed="false">Trapezium rule</button>
+      </div>
+
+      <p class="modehelp" id="modehelp">
+        Tap or click the graph to set a starting estimate x&#8320;, then press <em>Iterate</em> to drop the tangent.
+        You can also drag the blue point.
+      </p>
+
+      <div class="funcrow">
+        <label for="func">Function f(x) =</label>
+        <select id="func" class="ctrl">
+          <option value="0">x&#179; &minus; 2x &minus; 5</option>
+          <option value="1">x&#179; &minus; x &minus; 1</option>
+          <option value="2">cos(x) &minus; x</option>
+          <option value="3">x&#179; + 2x&#178; &minus; 7</option>
+        </select>
+      </div>
+
+      <div class="canvas-shell">
+        <canvas id="cv" width="720" height="480"
+          role="img" tabindex="0"
+          aria-label="Graph of the selected function. Use the arrow keys to move the starting estimate, then press Enter to iterate."></canvas>
+      </div>
+
+      <div class="legend" aria-hidden="true">
+        <span><i class="swatch" style="background:var(--accent)"></i> curve f(x)</span>
+        <span><i class="swatch" style="background:var(--tangent)"></i> tangent</span>
+        <span><i class="dot" style="background:var(--accent)"></i> estimate x&#8345;</span>
+        <span><i class="dot" style="background:var(--root)"></i> true root</span>
+        <span><i class="swatch" style="background:var(--trap)"></i> trapezium</span>
+      </div>
+
+      <p class="hint" id="kbhint">
+        Keyboard: focus the graph, use <strong>Left/Right arrows</strong> to move x, hold
+        <strong>Shift</strong> for fine steps, press <strong>Enter</strong> to iterate, press <strong>R</strong> to reset.
+      </p>
+
+      <div aria-live="polite" class="sr-only" id="live"></div>
+    </section>
+
+    <!-- RIGHT: controls + readout -->
+    <aside>
+      <section class="panel" aria-labelledby="ctl-h">
+        <h2 id="ctl-h">Controls</h2>
+
+        <div id="newton-ctl">
+          <div class="readout">
+            <div class="label">Current estimate</div>
+            <div class="big" id="xval">x&#8320; = &mdash;</div>
+            <div class="label" style="margin-top:8px">f(x) at estimate</div>
+            <div id="fxval">&mdash;</div>
+          </div>
+          <div class="btnrow">
+            <button class="btn" id="iterate">Iterate &#8594;</button>
+            <button class="btn ghost" id="reset">Reset</button>
+          </div>
+          <div class="feedback info" id="fb" role="status">
+            <strong>Pick a start.</strong>
+            Tap near a place where the curve crosses zero. A good x&#8320; speeds convergence; a poor one can shoot away.
+          </div>
+          <table class="iter" id="itertab" aria-label="Iteration history">
+            <thead>
+              <tr><th>n</th><th>x&#8345;</th><th>f(x&#8345;)</th></tr>
+            </thead>
+            <tbody id="itbody"></tbody>
+          </table>
+        </div>
+
+        <div id="sign-ctl" hidden>
+          <div class="readout">
+            <div class="label">Interval [a, b]</div>
+            <div class="big" id="intval">a = &mdash;, b = &mdash;</div>
+          </div>
+          <p class="modehelp" style="margin-top:10px">
+            Tap once to set <strong>a</strong>, tap again to set <strong>b</strong>. The app checks whether f(a) and f(b)
+            have opposite signs.
+          </p>
+          <div class="feedback info" id="signfb" role="status">
+            <strong>Bracket a root.</strong>
+            Choose two x values either side of a crossing point.
+          </div>
+        </div>
+
+        <div id="trap-ctl" hidden>
+          <div class="readout">
+            <div class="label">Strips (n)</div>
+            <div class="big"><span id="trapn">4</span> strips on [a, b]</div>
+            <div class="label" style="margin-top:8px">Estimate vs exact (signed area)</div>
+            <div id="trapval">&mdash;</div>
+          </div>
+          <div class="sliderrow">
+            <label for="strips">Number of strips: <span class="stepval" id="stripslabel">4</span></label>
+            <input type="range" id="strips" min="1" max="20" value="4"
+              aria-label="Number of trapezium strips" aria-valuemin="1" aria-valuemax="20" aria-valuenow="4">
+          </div>
+          <p class="modehelp" style="margin-top:10px">
+            The shaded region is the area under the curve between fixed limits. More strips means the straight tops
+            hug the curve more closely, so the error shrinks.
+          </p>
+          <div class="feedback info" id="trapfb" role="status">
+            <strong>Approximating area.</strong>
+            Drag the slider and watch the percentage error fall.
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="note-h" style="margin-top:16px">
+        <h2 id="note-h">The method</h2>
+        <p style="font-size:0.88rem; margin:0 0 10px" id="formula">
+          Newton-Raphson: x&#8345;&#8330;&#8321; = x&#8345; &minus; f(x&#8345;) / f&#8242;(x&#8345;).
+          Each step follows the tangent at x&#8345; down to the x-axis.
+        </p>
+        <p style="font-size:0.84rem; color:var(--muted); margin:0">
+          Watch for the failure cases: a turning point where f&#8242;(x&#8345;) is near zero throws the tangent
+          almost flat, and the next estimate can leap far away.
+        </p>
+      </section>
+    </aside>
+  </div>
+
+  <footer class="foot">
+    Newton-Raphson Visualiser &middot; KS5 Pure: numerical methods &middot; Demonstration tool, fictional context only.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- function library: f, f', exact integral, and a window ---------- */
+  var FUNCS = [
+    {
+      name: "x³ − 2x − 5",
+      f: function (x) { return x*x*x - 2*x - 5; },
+      df: function (x) { return 3*x*x - 2; },
+      F: function (x) { return x*x*x*x/4 - x*x - 5*x; },   // integral
+      xmin: -1, xmax: 4, root: 2.0945514815, traploA: 1, traphiB: 3
+    },
+    {
+      name: "x³ − x − 1",
+      f: function (x) { return x*x*x - x - 1; },
+      df: function (x) { return 3*x*x - 1; },
+      F: function (x) { return x*x*x*x/4 - x*x/2 - x; },
+      xmin: -2, xmax: 2.5, root: 1.3247179572, traploA: 0, traphiB: 2
+    },
+    {
+      name: "cos(x) − x",
+      f: function (x) { return Math.cos(x) - x; },
+      df: function (x) { return -Math.sin(x) - 1; },
+      F: function (x) { return Math.sin(x) - x*x/2; },
+      xmin: -1, xmax: 3, root: 0.7390851332, traploA: 0, traphiB: 1.5
+    },
+    {
+      name: "x³ + 2x² − 7",
+      f: function (x) { return x*x*x + 2*x*x - 7; },
+      df: function (x) { return 3*x*x + 4*x; },
+      F: function (x) { return x*x*x*x/4 + 2*x*x*x/3 - 7*x; },
+      xmin: -3.2, xmax: 3, root: 1.4288690166, traploA: 0.5, traphiB: 2.5
+    }
+  ];
+
+  var fi = 0;                 // current function index
+  var F = FUNCS[0];
+  var mode = "newton";        // newton | sign | trap
+
+  /* ---------- canvas + coordinate mapping ---------- */
+  var cv = document.getElementById("cv");
+  var ctx = cv.getContext("2d");
+  var W = cv.width, H = cv.height;
+  var pad = { l: 46, r: 18, t: 18, b: 36 };
+
+  function yRange() {
+    // sample f over window to choose a sensible y window
+    var lo = Infinity, hi = -Infinity;
+    for (var i = 0; i <= 200; i++) {
+      var x = F.xmin + (F.xmax - F.xmin) * i / 200;
+      var y = F.f(x);
+      if (isFinite(y)) { if (y < lo) lo = y; if (y > hi) hi = y; }
+    }
+    var span = hi - lo || 1;
+    return { lo: lo - span * 0.12, hi: hi + span * 0.12 };
+  }
+  var yr = yRange();
+
+  function X2px(x) { return pad.l + (x - F.xmin) / (F.xmax - F.xmin) * (W - pad.l - pad.r); }
+  function Y2px(y) { return pad.t + (yr.hi - y) / (yr.hi - yr.lo) * (H - pad.t - pad.b); }
+  function px2X(px) { return F.xmin + (px - pad.l) / (W - pad.l - pad.r) * (F.xmax - F.xmin); }
+
+  /* ---------- Newton-Raphson state ---------- */
+  var x0 = null;              // chosen start
+  var history = [];           // list of x estimates
+  var converged = false;
+
+  /* ---------- change-of-sign state ---------- */
+  var sa = null, sb = null;
+
+  /* ---------- live region ---------- */
+  var live = document.getElementById("live");
+  function announce(t) { live.textContent = t; }
+
+  /* ---------- formatting ---------- */
+  function fmt(v, dp) { dp = dp == null ? 4 : dp; return (Math.round(v * Math.pow(10, dp)) / Math.pow(10, dp)).toFixed(dp); }
+
+  /* =========================================================
+     DRAWING
+     ========================================================= */
+  function clear() { ctx.clearRect(0, 0, W, H); ctx.fillStyle = "#fcfdff"; ctx.fillRect(0, 0, W, H); }
+
+  function drawAxes() {
+    ctx.save();
+    ctx.strokeStyle = "#eef1f6"; ctx.lineWidth = 1;
+    // vertical grid
+    var step = niceStep((F.xmax - F.xmin) / 8);
+    var gx = Math.ceil(F.xmin / step) * step;
+    ctx.fillStyle = "#8893a6"; ctx.font = "12px system-ui, sans-serif"; ctx.textAlign = "center";
+    for (var x = gx; x <= F.xmax + 1e-9; x += step) {
+      var px = X2px(x);
+      ctx.beginPath(); ctx.moveTo(px, pad.t); ctx.lineTo(px, H - pad.b); ctx.stroke();
+      ctx.fillText(fmt(x, (step < 1 ? 1 : 0)), px, H - pad.b + 16);
+    }
+    // horizontal grid
+    var stepY = niceStep((yr.hi - yr.lo) / 6);
+    var gy = Math.ceil(yr.lo / stepY) * stepY;
+    ctx.textAlign = "right";
+    for (var y = gy; y <= yr.hi + 1e-9; y += stepY) {
+      var py = Y2px(y);
+      ctx.beginPath(); ctx.moveTo(pad.l, py); ctx.lineTo(W - pad.r, py); ctx.stroke();
+      ctx.fillText(fmt(y, (stepY < 1 ? 1 : 0)), pad.l - 6, py + 4);
+    }
+    // axes (x-axis y=0, y-axis x=0)
+    ctx.strokeStyle = "#aeb7c6"; ctx.lineWidth = 1.4;
+    if (yr.lo < 0 && yr.hi > 0) { var y0 = Y2px(0); ctx.beginPath(); ctx.moveTo(pad.l, y0); ctx.lineTo(W - pad.r, y0); ctx.stroke(); }
+    if (F.xmin < 0 && F.xmax > 0) { var x0p = X2px(0); ctx.beginPath(); ctx.moveTo(x0p, pad.t); ctx.lineTo(x0p, H - pad.b); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function niceStep(raw) {
+    var p = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+    var n = raw / p;
+    if (n < 1.5) return p; if (n < 3) return 2 * p; if (n < 7) return 5 * p; return 10 * p;
+  }
+
+  function drawCurve() {
+    ctx.save();
+    ctx.strokeStyle = "#2f5fd0"; ctx.lineWidth = 2.4; ctx.beginPath();
+    var started = false;
+    for (var i = 0; i <= 600; i++) {
+      var x = F.xmin + (F.xmax - F.xmin) * i / 600;
+      var y = F.f(x);
+      var px = X2px(x), py = Y2px(y);
+      if (py < pad.t - 200 || py > H - pad.b + 200) { started = false; continue; }
+      if (!started) { ctx.moveTo(px, py); started = true; } else { ctx.lineTo(px, py); }
+    }
+    ctx.stroke();
+    // true root marker
+    if (F.root >= F.xmin && F.root <= F.xmax) {
+      ctx.fillStyle = "#c41e58";
+      ctx.beginPath(); ctx.arc(X2px(F.root), Y2px(0), 5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawPoint(x, colour, label) {
+    var px = X2px(x), py = Y2px(F.f(x));
+    ctx.save();
+    // drop line to axis
+    ctx.strokeStyle = "rgba(47,95,208,0.35)"; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, Y2px(0)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = colour;
+    ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+    if (label) {
+      ctx.fillStyle = "#1a2230"; ctx.font = "bold 12px system-ui, sans-serif"; ctx.textAlign = "left";
+      ctx.fillText(label, px + 9, py - 8);
+    }
+    ctx.restore();
+  }
+
+  function drawTangent(x) {
+    var slope = F.df(x);
+    if (Math.abs(slope) < 1e-9) return null;
+    var y0 = F.f(x);
+    var xn = x - y0 / slope;       // root of tangent
+    ctx.save();
+    ctx.strokeStyle = "#d4541e"; ctx.lineWidth = 2;
+    // draw tangent across visible window
+    var xa = F.xmin, xb = F.xmax;
+    var ya = slope * (xa - x) + y0, yb = slope * (xb - x) + y0;
+    ctx.beginPath(); ctx.moveTo(X2px(xa), Y2px(ya)); ctx.lineTo(X2px(xb), Y2px(yb)); ctx.stroke();
+    // mark where it hits axis
+    ctx.fillStyle = "#d4541e";
+    ctx.beginPath(); ctx.arc(X2px(xn), Y2px(0), 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    return xn;
+  }
+
+  function drawNewton() {
+    if (x0 == null) return;
+    // tangents for each step in history (except the very last estimate which has no tangent yet drawn forward)
+    for (var i = 0; i < history.length; i++) {
+      // faint earlier tangents, bold latest
+      var x = history[i];
+      ctx.globalAlpha = (i === history.length - 1) ? 1 : 0.32;
+      drawTangent(x);
+      ctx.globalAlpha = 1;
+    }
+    // estimate points
+    for (var j = 0; j < history.length; j++) {
+      var lab = (j === history.length - 1) ? ("x" + sub(j)) : "";
+      drawPoint(history[j], (j === history.length - 1 ? "#2f5fd0" : "#7f93bd"), lab);
+    }
+  }
+
+  function sub(n) {
+    var s = "₀₁₂₃₄₅₆₇₈₉";
+    return String(n).split("").map(function (d) { return s[+d]; }).join("");
+  }
+
+  function drawSign() {
+    if (sa != null) drawVbar(sa, "a", F.f(sa));
+    if (sb != null) drawVbar(sb, "b", F.f(sb));
+    if (sa != null && sb != null) {
+      // shade interval band
+      ctx.save();
+      ctx.fillStyle = "rgba(31,138,85,0.10)";
+      var l = Math.min(X2px(sa), X2px(sb)), r = Math.max(X2px(sa), X2px(sb));
+      ctx.fillRect(l, pad.t, r - l, H - pad.t - pad.b);
+      ctx.restore();
+    }
+  }
+  function drawVbar(x, label, fx) {
+    ctx.save();
+    var px = X2px(x);
+    ctx.strokeStyle = fx >= 0 ? "#1f8a55" : "#c41e58"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(px, pad.t); ctx.lineTo(px, H - pad.b); ctx.stroke();
+    drawPoint(x, fx >= 0 ? "#1f8a55" : "#c41e58", label + " (" + (fx >= 0 ? "+" : "−") + ")");
+    ctx.restore();
+  }
+
+  function drawTrap() {
+    var a = F.traploA, b = F.traphiB;
+    var n = +document.getElementById("strips").value;
+    var h = (b - a) / n;
+    ctx.save();
+    // shade actual area under curve (light)
+    ctx.fillStyle = "rgba(122,79,196,0.10)";
+    ctx.beginPath();
+    ctx.moveTo(X2px(a), Y2px(0));
+    for (var i = 0; i <= 120; i++) { var x = a + (b - a) * i / 120; ctx.lineTo(X2px(x), Y2px(F.f(x))); }
+    ctx.lineTo(X2px(b), Y2px(0)); ctx.closePath(); ctx.fill();
+    // trapezium strips
+    ctx.strokeStyle = "#7a4fc4"; ctx.fillStyle = "rgba(122,79,196,0.16)"; ctx.lineWidth = 1.4;
+    for (var k = 0; k < n; k++) {
+      var xl = a + k * h, xr = xl + h;
+      ctx.beginPath();
+      ctx.moveTo(X2px(xl), Y2px(0));
+      ctx.lineTo(X2px(xl), Y2px(F.f(xl)));
+      ctx.lineTo(X2px(xr), Y2px(F.f(xr)));
+      ctx.lineTo(X2px(xr), Y2px(0));
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function render() {
+    clear(); drawAxes(); drawCurve();
+    if (mode === "newton") drawNewton();
+    else if (mode === "sign") drawSign();
+    else drawTrap();
+  }
+
+  /* =========================================================
+     NEWTON LOGIC
+     ========================================================= */
+  function setStart(x) {
+    x0 = x; history = [x]; converged = false;
+    updateNewtonReadout();
+    feedbackStart();
+    render();
+    announce("Start set at x equals " + fmt(x, 3) + ". f of x is " + fmt(F.f(x), 3) + ". Press Enter to iterate.");
+  }
+
+  function iterate() {
+    if (x0 == null) { setStart((F.xmin + F.xmax) / 2); return; }
+    if (converged) { feedback("good", "Converged.", "x has settled on the root to 5 decimal places. Reset to try another start or function."); return; }
+    var x = history[history.length - 1];
+    var slope = F.df(x);
+    if (Math.abs(slope) < 1e-6) {
+      feedback("warn", "Tangent almost flat.", "f′(x) is near zero here, so x" + sub(history.length - 1) + " sits close to a turning point. The tangent barely tilts and the next estimate flies off. This is a classic Newton-Raphson failure. Reset and start nearer the root.");
+      announce("Warning: derivative near zero. The method may diverge.");
+      return;
+    }
+    var fx = F.f(x);
+    var xn = x - fx / slope;
+    history.push(xn);
+    var diff = Math.abs(xn - x);
+    if (Math.abs(F.f(xn)) < 1e-7 || diff < 5e-6) converged = true;
+    updateNewtonReadout();
+    judgeNewton(diff);
+    render();
+    announce("Iteration " + (history.length - 1) + ". New estimate x equals " + fmt(xn, 5) + ". f of x is " + fmt(F.f(xn), 6) + (converged ? ". Converged." : "."));
+  }
+
+  function judgeNewton(diff) {
+    var n = history.length - 1;
+    var xn = history[history.length - 1];
+    var errToRoot = Math.abs(xn - F.root);
+    if (converged) {
+      feedback("good", "Root found: x ≈ " + fmt(xn, 5),
+        "After " + n + " iteration" + (n === 1 ? "" : "s") + " the estimate has stabilised. f(x) is essentially zero. Notice how each correction shrank quickly once you were near the root.");
+    } else if (errToRoot > Math.abs(history[Math.max(0, n - 1)] - F.root)) {
+      feedback("warn", "Moving away.", "The new estimate is further from the root than the last one. A poor starting point or a nearby turning point can send Newton-Raphson the wrong way. Try resetting closer to where the curve crosses zero.");
+    } else {
+      feedback("info", "Step " + n + ": x = " + fmt(xn, 5),
+        "The tangent at the previous point met the x-axis here. The correction this step was " + fmt(diff, 6) + ". Keep iterating to watch it shrink.");
+    }
+  }
+
+  function feedbackStart() {
+    if (x0 == null) return;
+    var slope = F.df(x0);
+    if (Math.abs(slope) < 0.25) {
+      feedback("warn", "Risky start.", "You picked a spot where the curve is nearly flat (f′(x) ≈ " + fmt(slope, 3) + "). The first tangent will be shallow and the next estimate may jump a long way. Watch what happens, then compare with a steeper start.");
+    } else {
+      feedback("info", "Start x₀ = " + fmt(x0, 4),
+        "f(x₀) = " + fmt(F.f(x0), 4) + ", gradient f′(x₀) = " + fmt(slope, 3) + ". Press Iterate to drop the tangent to the axis.");
+    }
+  }
+
+  function updateNewtonReadout() {
+    var x = history[history.length - 1];
+    document.getElementById("xval").innerHTML = "x" + sub(history.length - 1) + " = " + fmt(x, 5);
+    document.getElementById("fxval").textContent = "f(x) = " + fmt(F.f(x), 6);
+    var tb = document.getElementById("itbody");
+    tb.innerHTML = "";
+    for (var i = 0; i < history.length; i++) {
+      var tr = document.createElement("tr");
+      if (converged && i === history.length - 1) tr.className = "converged";
+      tr.innerHTML = "<td>" + i + "</td><td>" + fmt(history[i], 6) + "</td><td>" + fmt(F.f(history[i]), 6) + "</td>";
+      tb.appendChild(tr);
+    }
+  }
+
+  function feedback(kind, head, body) {
+    var el = document.getElementById("fb");
+    el.className = "feedback " + kind;
+    el.innerHTML = "<strong>" + head + "</strong>" + body;
+  }
+
+  /* =========================================================
+     CHANGE OF SIGN LOGIC
+     ========================================================= */
+  function setSignPoint(x) {
+    if (sa == null || (sa != null && sb != null)) { sa = x; sb = null; }
+    else { sb = x; }
+    var el = document.getElementById("intval");
+    el.innerHTML = "a = " + (sa == null ? "—" : fmt(sa, 3)) + ", b = " + (sb == null ? "—" : fmt(sb, 3));
+    var fbe = document.getElementById("signfb");
+    if (sa != null && sb != null) {
+      var fa = F.f(sa), fb = F.f(sb);
+      var opp = (fa * fb) < 0;
+      if (opp) {
+        fbe.className = "feedback good";
+        fbe.innerHTML = "<strong>Root bracketed.</strong> f(a) = " + fmt(fa, 3) + " and f(b) = " + fmt(fb, 3) +
+          " have opposite signs, and f is continuous here, so by the change-of-sign rule there is at least one root between a and b.";
+        announce("Opposite signs found. A root lies in this interval.");
+      } else {
+        fbe.className = "feedback warn";
+        fbe.innerHTML = "<strong>No sign change.</strong> f(a) = " + fmt(fa, 3) + " and f(b) = " + fmt(fb, 3) +
+          " share the same sign, so this test does not confirm a root in the interval. There could still be an even number of roots, or none. Try points either side of a crossing.";
+        announce("Same sign. The interval does not bracket a root by this test.");
+      }
+    } else {
+      fbe.className = "feedback info";
+      fbe.innerHTML = "<strong>Now set b.</strong> a = " + fmt(sa, 3) + " gives f(a) = " + fmt(F.f(sa), 3) + ". Tap a second x on the other side of a crossing.";
+      announce("Point a set. Tap again for b.");
+    }
+    render();
+  }
+
+  /* =========================================================
+     TRAPEZIUM LOGIC
+     ========================================================= */
+  function trapEstimate(n) {
+    var a = F.traploA, b = F.traphiB, h = (b - a) / n, s = (F.f(a) + F.f(b)) / 2;
+    for (var i = 1; i < n; i++) s += F.f(a + i * h);
+    return h * s;
+  }
+  function updateTrap() {
+    var n = +document.getElementById("strips").value;
+    document.getElementById("strips").setAttribute("aria-valuenow", n);
+    document.getElementById("stripslabel").textContent = n;
+    document.getElementById("trapn").textContent = n;
+    var est = trapEstimate(n);
+    var exact = F.F(F.traphiB) - F.F(F.traploA);
+    var err = est - exact;
+    var pct = exact !== 0 ? Math.abs(err / exact) * 100 : 0;
+    document.getElementById("trapval").innerHTML =
+      "estimate = " + fmt(est, 4) + ", exact = " + fmt(exact, 4) + "<br>error = " + fmt(err, 4) + " (" + fmt(pct, 2) + "%)";
+    var fbe = document.getElementById("trapfb");
+    if (n === 1) {
+      fbe.className = "feedback info";
+      fbe.innerHTML = "<strong>One strip.</strong> A single trapezium is a crude fit. Increase the strips and watch the error fall.";
+    } else if (pct < 0.5) {
+      fbe.className = "feedback good";
+      fbe.innerHTML = "<strong>Close fit.</strong> With " + n + " strips the error is just " + fmt(pct, 2) + "%. Halving the strip width roughly quarters the error for this rule.";
+    } else {
+      fbe.className = "feedback info";
+      fbe.innerHTML = "<strong>" + n + " strips.</strong> Error is " + fmt(pct, 2) + "%. The straight tops over- or under-shoot where the curve bends; more strips reduces that.";
+    }
+    announce(n + " strips. Estimate " + fmt(est, 3) + ", error " + fmt(pct, 2) + " percent.");
+    render();
+  }
+
+  /* =========================================================
+     POINTER + KEYBOARD INPUT
+     ========================================================= */
+  function evtX(e) {
+    var r = cv.getBoundingClientRect();
+    var px = (e.clientX - r.left) * (W / r.width);
+    var x = px2X(px);
+    return Math.max(F.xmin, Math.min(F.xmax, x));
+  }
+
+  var dragging = false;
+  cv.addEventListener("pointerdown", function (e) {
+    cv.focus();
+    cv.setPointerCapture(e.pointerId);
+    var x = evtX(e);
+    if (mode === "newton") { dragging = true; setStart(x); }
+    else if (mode === "sign") { setSignPoint(x); }
+    e.preventDefault();
+  });
+  cv.addEventListener("pointermove", function (e) {
+    if (!dragging || mode !== "newton") return;
+    setStart(evtX(e));
+    e.preventDefault();
+  });
+  cv.addEventListener("pointerup", function (e) {
+    dragging = false;
+    try { cv.releasePointerCapture(e.pointerId); } catch (err) {}
+  });
+
+  cv.addEventListener("keydown", function (e) {
+    var k = e.key;
+    if (mode === "newton") {
+      var stepUnit = (e.shiftKey ? 0.02 : 0.1) * (F.xmax - F.xmin) / 5;
+      if (k === "ArrowLeft") { setStart(Math.max(F.xmin, (x0 == null ? (F.xmin + F.xmax) / 2 : x0) - stepUnit)); e.preventDefault(); }
+      else if (k === "ArrowRight") { setStart(Math.min(F.xmax, (x0 == null ? (F.xmin + F.xmax) / 2 : x0) + stepUnit)); e.preventDefault(); }
+      else if (k === "Enter" || k === " ") { iterate(); e.preventDefault(); }
+      else if (k === "r" || k === "R") { resetNewton(); e.preventDefault(); }
+    } else if (mode === "sign") {
+      var su = (e.shiftKey ? 0.02 : 0.1) * (F.xmax - F.xmin) / 5;
+      var cur = (sb != null ? sb : (sa != null ? sa : (F.xmin + F.xmax) / 2));
+      if (k === "ArrowLeft") { tmpSign = Math.max(F.xmin, cur - su); previewSign(); e.preventDefault(); }
+      else if (k === "ArrowRight") { tmpSign = Math.min(F.xmax, cur + su); previewSign(); e.preventDefault(); }
+      else if (k === "Enter" || k === " ") { setSignPoint(tmpSign != null ? tmpSign : cur); e.preventDefault(); }
+    } else if (mode === "trap") {
+      var sl = document.getElementById("strips");
+      if (k === "ArrowLeft") { sl.value = Math.max(1, +sl.value - 1); updateTrap(); e.preventDefault(); }
+      else if (k === "ArrowRight") { sl.value = Math.min(20, +sl.value + 1); updateTrap(); e.preventDefault(); }
+    }
+  });
+  var tmpSign = null;
+  function previewSign() {
+    // show a moving marker for keyboard users without committing
+    render();
+    if (tmpSign != null) {
+      var px = X2px(tmpSign), py = Y2px(F.f(tmpSign));
+      ctx.save();
+      ctx.strokeStyle = "#5a667a"; ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(px, pad.t); ctx.lineTo(px, H - pad.b); ctx.stroke();
+      ctx.restore();
+      announce("Marker at x equals " + fmt(tmpSign, 3) + ". Press Enter to set this point.");
+    }
+  }
+
+  /* =========================================================
+     MODE + FUNCTION SWITCHING
+     ========================================================= */
+  function resetNewton() {
+    x0 = null; history = []; converged = false;
+    document.getElementById("xval").innerHTML = "x₀ = —";
+    document.getElementById("fxval").textContent = "—";
+    document.getElementById("itbody").innerHTML = "";
+    feedback("info", "Pick a start.", "Tap near a place where the curve crosses zero. A good x₀ speeds convergence; a poor one can shoot away.");
+    render();
+    announce("Reset. Choose a new starting estimate.");
+  }
+
+  function setMode(m) {
+    mode = m;
+    document.getElementById("m-newton").setAttribute("aria-pressed", m === "newton");
+    document.getElementById("m-sign").setAttribute("aria-pressed", m === "sign");
+    document.getElementById("m-trap").setAttribute("aria-pressed", m === "trap");
+    document.getElementById("newton-ctl").hidden = m !== "newton";
+    document.getElementById("sign-ctl").hidden = m !== "sign";
+    document.getElementById("trap-ctl").hidden = m !== "trap";
+
+    var help = document.getElementById("modehelp");
+    var fcell = document.getElementById("formula");
+    if (m === "newton") {
+      help.innerHTML = "Tap or click the graph to set a starting estimate x₀, then press <em>Iterate</em> to drop the tangent. You can also drag the blue point.";
+      fcell.innerHTML = "Newton-Raphson: xₙ₊₁ = xₙ − f(xₙ) / f′(xₙ). Each step follows the tangent at xₙ down to the x-axis.";
+      cv.setAttribute("aria-label", "Graph of " + F.name + ". Arrow keys move the starting estimate; press Enter to iterate Newton-Raphson; press R to reset.");
+    } else if (m === "sign") {
+      help.innerHTML = "Tap once to set <strong>a</strong>, tap again to set <strong>b</strong>. The app checks whether f(a) and f(b) change sign.";
+      fcell.innerHTML = "Change-of-sign rule: if f is continuous on [a, b] and f(a) and f(b) have opposite signs, then f has at least one root in (a, b).";
+      sa = null; sb = null; tmpSign = null;
+      document.getElementById("intval").innerHTML = "a = —, b = —";
+      cv.setAttribute("aria-label", "Graph of " + F.name + ". Arrow keys move a marker; press Enter to set point a then b for the change-of-sign test.");
+    } else {
+      help.innerHTML = "Adjust the number of strips with the slider and watch the trapezium estimate of the area close in on the exact value.";
+      fcell.innerHTML = "Trapezium rule: ∫ f dx ≈ (h/2)[f₀ + 2(f₁ + ... + fₙ₋₁) + fₙ], with strip width h = (b − a)/n.";
+      cv.setAttribute("aria-label", "Graph of " + F.name + " with trapezium strips. Arrow keys change the number of strips.");
+      updateTrap();
+    }
+    render();
+    announce("Mode: " + (m === "newton" ? "Newton-Raphson" : m === "sign" ? "change of sign" : "trapezium rule") + ".");
+  }
+
+  function setFunction(idx) {
+    fi = idx; F = FUNCS[idx]; yr = yRange();
+    resetNewton(); sa = null; sb = null; tmpSign = null;
+    document.getElementById("intval").innerHTML = "a = —, b = —";
+    setMode(mode);
+  }
+
+  /* ---------- wiring ---------- */
+  document.getElementById("m-newton").addEventListener("click", function () { setMode("newton"); });
+  document.getElementById("m-sign").addEventListener("click", function () { setMode("sign"); });
+  document.getElementById("m-trap").addEventListener("click", function () { setMode("trap"); });
+  document.getElementById("iterate").addEventListener("click", iterate);
+  document.getElementById("reset").addEventListener("click", resetNewton);
+  document.getElementById("func").addEventListener("change", function (e) { setFunction(+e.target.value); });
+  document.getElementById("strips").addEventListener("input", updateTrap);
+
+  /* ---------- responsive canvas scaling for crisp rendering ---------- */
+  function fitCanvas() {
+    var shell = cv.parentElement;
+    var cssW = shell.clientWidth;
+    var ratio = H / W;
+    cv.style.height = (cssW * ratio) + "px";
+  }
+  window.addEventListener("resize", fitCanvas);
+
+  /* ---------- init ---------- */
+  fitCanvas();
+  setMode("newton");
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Listening Detectives</title>
+<style>
+  :root {
+    --ink: #1d2433;
+    --muted: #5a6478;
+    --paper: #f4f1ea;
+    --card: #ffffff;
+    --line: #d9d3c6;
+    --accent: #5b3fb8;
+    --accent-soft: #efeaff;
+    --good: #1f8a4c;
+    --good-soft: #e2f5e9;
+    --warn: #c25e00;
+    --warn-soft: #fdeede;
+    --gold: #c79a16;
+    --shadow: 0 6px 22px rgba(29,36,51,.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 18px 16px 64px; }
+
+  header.app { text-align: center; padding: 8px 0 4px; }
+  .badge {
+    display: inline-block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; background: var(--accent-soft);
+    padding: 4px 12px; border-radius: 999px;
+  }
+  h1 { font-size: clamp(28px, 6vw, 44px); margin: 10px 0 2px; letter-spacing: -.5px; }
+  .tagline { font-size: clamp(15px, 3.4vw, 18px); color: var(--muted); margin: 0 auto; max-width: 560px; }
+  .aim {
+    margin: 14px auto 0; max-width: 620px; font-size: 14px; color: var(--muted);
+    background: #fff; border: 1px dashed var(--line); border-radius: 12px; padding: 10px 14px;
+  }
+  .aim strong { color: var(--ink); }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    box-shadow: var(--shadow); padding: 18px; margin-top: 18px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 19px; }
+  .card .sub { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+
+  /* Setup chooser */
+  .clip-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .clip-btn {
+    text-align: left; border: 2px solid var(--line); background: #fff; border-radius: 14px;
+    padding: 14px; cursor: pointer; font: inherit; color: inherit; transition: transform .08s, border-color .12s, box-shadow .12s;
+  }
+  .clip-btn:hover { border-color: var(--accent); }
+  .clip-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .clip-btn.sel { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); transform: translateY(-1px); }
+  .clip-emoji { font-size: 30px; line-height: 1; }
+  .clip-name { font-weight: 700; margin: 8px 0 2px; }
+  .clip-desc { font-size: 13px; color: var(--muted); }
+
+  .mission-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 16px; }
+  .mission-label { font-weight: 700; font-size: 14px; }
+  .chip {
+    border: 2px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 14px;
+    cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; color: var(--ink); transition: .12s;
+  }
+  .chip:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .chip.sel { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .btn {
+    font: inherit; font-weight: 700; border: none; border-radius: 14px; padding: 14px 22px;
+    cursor: pointer; font-size: 17px; transition: transform .08s, filter .12s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { filter: brightness(1.06); }
+  .btn-ghost { background: #fff; color: var(--ink); border: 2px solid var(--line); }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+  /* Listening stage */
+  #stage { display: none; }
+  .stage-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+  .now-playing { font-size: 14px; color: var(--muted); }
+  .now-playing b { color: var(--ink); }
+
+  .meter-zone { margin: 16px 0 6px; }
+  .timebar-wrap { background: #ece7dd; border-radius: 999px; height: 14px; overflow: hidden; border: 1px solid var(--line); }
+  .timebar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #8a6ee0); border-radius: 999px; transition: width .1s linear; }
+  .timebar-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* Speed visual */
+  .pulse-zone { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 18px 0; min-height: 96px; }
+  .pulse-dot {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff, var(--accent));
+    box-shadow: 0 4px 16px rgba(91,63,184,.35);
+  }
+  .pulse-dot.beat { animation: pop .18s ease; }
+  @keyframes pop { 0%{ transform: scale(1);} 40%{ transform: scale(1.35);} 100%{ transform: scale(1);} }
+  .speed-read { text-align: center; }
+  .speed-word { font-size: 22px; font-weight: 800; }
+  .speed-word.fast { color: var(--warn); }
+  .speed-word.slow { color: var(--accent); }
+  .speed-sub { font-size: 13px; color: var(--muted); }
+
+  /* Big tap button */
+  .tap-btn {
+    display: block; width: 100%; border: none; border-radius: 22px; padding: 28px 18px;
+    background: linear-gradient(160deg, #6a4cd0, #4a2fa0); color: #fff; cursor: pointer;
+    font: inherit; font-weight: 800; font-size: 24px; letter-spacing: .02em;
+    box-shadow: 0 8px 0 #361f78; touch-action: manipulation; user-select: none; -webkit-user-select: none;
+    transition: transform .06s, box-shadow .06s;
+  }
+  .tap-btn .hint { display: block; font-size: 14px; font-weight: 600; opacity: .9; margin-top: 6px; }
+  .tap-btn:active, .tap-btn.flash { transform: translateY(6px); box-shadow: 0 2px 0 #361f78; }
+  .tap-btn:focus-visible { outline: 4px solid var(--gold); outline-offset: 4px; }
+  .tap-btn.hit { background: linear-gradient(160deg, #28a35d, #1c7d46); box-shadow: 0 8px 0 #145c33; }
+
+  .live-feedback {
+    margin-top: 14px; min-height: 30px; text-align: center; font-weight: 700; font-size: 17px;
+  }
+  .live-feedback.good { color: var(--good); }
+  .live-feedback.miss { color: var(--warn); }
+  .live-feedback.neutral { color: var(--muted); }
+
+  .counters { display: flex; gap: 12px; margin-top: 12px; justify-content: center; flex-wrap: wrap; }
+  .counter { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 8px 16px; text-align: center; min-width: 96px; }
+  .counter .n { font-size: 24px; font-weight: 800; }
+  .counter .l { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+
+  /* Results */
+  #results { display: none; }
+  .score-hero { text-align: center; padding: 8px 0 4px; }
+  .score-big { font-size: clamp(44px, 12vw, 72px); font-weight: 900; line-height: 1; color: var(--accent); }
+  .rank { font-size: 20px; font-weight: 800; margin: 6px 0 2px; }
+  .rank-emoji { font-size: 40px; }
+
+  .scoreboard { margin-top: 16px; }
+  .scoreboard h3 { font-size: 16px; margin: 0 0 8px; }
+  table.board { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.board th, table.board td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  table.board th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  table.board tr.you { background: var(--accent-soft); font-weight: 700; }
+  table.board td.sc { text-align: right; font-weight: 700; }
+  .rank-pill { display: inline-block; width: 22px; }
+
+  .review-list { margin-top: 14px; }
+  .review-item {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px;
+    font-size: 14px; margin-bottom: 6px; border: 1px solid var(--line);
+  }
+  .review-item.ok { background: var(--good-soft); }
+  .review-item.no { background: var(--warn-soft); }
+  .review-item .ico { font-size: 18px; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  footer.app { text-align: center; color: var(--muted); font-size: 12px; margin-top: 26px; }
+  .audio-note { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: center; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <span class="badge">Music &middot; Key Stage 1</span>
+    <h1>Listening Detectives</h1>
+    <p class="tagline">Press play, listen carefully, and tap the moment you spot your clue.</p>
+    <p class="aim"><strong>Teacher aim:</strong> pupils listen with concentration to a range of music and respond to instruments and changes in speed (National Curriculum: listen with concentration to a range of high-quality music).</p>
+  </header>
+
+  <!-- ============ SETUP ============ -->
+  <section class="card" id="setup">
+    <h2>1. Choose a piece to listen to</h2>
+    <p class="sub">Each piece is built from sounds your tablet makes on its own. Pop your headphones or speakers on first.</p>
+    <div class="clip-grid" id="clipGrid" role="radiogroup" aria-label="Choose a piece of music"></div>
+
+    <div class="mission-row" role="radiogroup" aria-label="Choose your listening mission">
+      <span class="mission-label">2. Your detective mission:</span>
+      <button class="chip" data-mission="drum" role="radio" aria-checked="false">Tap when you hear the <b>drum</b></button>
+      <button class="chip sel" data-mission="speed" role="radio" aria-checked="true">Tap when the music <b>speeds up or slows down</b></button>
+      <button class="chip" data-mission="flute" role="radio" aria-checked="false">Tap when you hear the <b>flute</b></button>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="startBtn">Start listening &#x1F50D;</button>
+    </div>
+    <p class="audio-note">Sound is made live by your device. If you hear nothing, turn the volume up and tap Start again.</p>
+  </section>
+
+  <!-- ============ STAGE ============ -->
+  <section class="card" id="stage" aria-live="off">
+    <div class="stage-top">
+      <div class="now-playing">Now playing: <b id="npName">-</b></div>
+      <div class="now-playing">Mission: <b id="npMission">-</b></div>
+    </div>
+
+    <div class="meter-zone">
+      <div class="timebar-wrap" aria-hidden="true"><div class="timebar" id="timebar"></div></div>
+      <div class="timebar-labels"><span>Start</span><span id="timeLeft">12s left</span></div>
+    </div>
+
+    <div class="pulse-zone">
+      <div class="pulse-dot" id="pulseDot" aria-hidden="true"></div>
+      <div class="speed-read">
+        <div class="speed-word" id="speedWord">Steady</div>
+        <div class="speed-sub">the music's speed right now</div>
+      </div>
+    </div>
+
+    <button class="tap-btn" id="tapBtn" aria-label="Tap when you spot your clue">
+      TAP!
+      <span class="hint" id="tapHint">Spotted your clue? Tap here</span>
+    </button>
+
+    <div class="live-feedback neutral" id="liveFb" role="status" aria-live="assertive">Listen carefully...</div>
+
+    <div class="counters">
+      <div class="counter"><div class="n" id="hitsN">0</div><div class="l">Good spots</div></div>
+      <div class="counter"><div class="n" id="streakN">0</div><div class="l">In a row</div></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="stopBtn">Stop early</button>
+    </div>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section class="card" id="results">
+    <div class="score-hero">
+      <div class="rank-emoji" id="rankEmoji">&#x1F575;</div>
+      <div class="score-big" id="scoreBig">0</div>
+      <div class="rank" id="rankWord">Detective points</div>
+      <p class="sub" id="resultMsg" style="margin-top:6px;"></p>
+    </div>
+
+    <div class="review-list" id="reviewList" aria-label="What you spotted"></div>
+
+    <div class="scoreboard">
+      <h3>&#x1F3C6; Careful Listeners scoreboard</h3>
+      <table class="board" id="boardTable">
+        <thead><tr><th>#</th><th>Detective</th><th style="text-align:right;">Points</th></tr></thead>
+        <tbody id="boardBody"></tbody>
+      </table>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="againBtn">Listen again &#x1F501;</button>
+      <button class="btn btn-ghost" id="changeBtn">Change piece or mission</button>
+    </div>
+  </section>
+
+  <footer class="app">Listening Detectives &middot; a WeST classroom demo &middot; all sounds generated on your device, all names are pretend.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Clip definitions ----------
+     Each clip is a timeline of "events". An event is a moment a target
+     instrument plays, or a moment the tempo changes. Pupils should tap
+     within a window around these moments. */
+
+  var CLIPS = {
+    seaside: {
+      name: "Seaside Stroll",
+      emoji: "\u{1F30A}",
+      desc: "Gentle waves with a sunny tune.",
+      duration: 13,
+      baseTempo: 92,
+      // melody pattern (note frequencies) looped underneath
+      melody: [392, 440, 494, 440, 392, 330, 392, 0],
+      // scheduled events: {t: seconds, type:'drum'|'flute'|'speed', detail}
+      events: [
+        { t: 2.0,  type: "flute" },
+        { t: 3.5,  type: "drum" },
+        { t: 5.0,  type: "speed", to: 138, word: "Faster" },
+        { t: 6.5,  type: "flute" },
+        { t: 8.0,  type: "drum" },
+        { t: 9.5,  type: "speed", to: 80, word: "Slower" },
+        { t: 11.0, type: "flute" }
+      ]
+    },
+    jungle: {
+      name: "Jungle March",
+      emoji: "\u{1F33F}",
+      desc: "Bouncy drums and chirpy birds.",
+      duration: 13,
+      baseTempo: 108,
+      melody: [262, 330, 392, 330, 294, 349, 294, 0],
+      events: [
+        { t: 1.5,  type: "drum" },
+        { t: 3.0,  type: "flute" },
+        { t: 4.5,  type: "drum" },
+        { t: 6.0,  type: "speed", to: 150, word: "Faster" },
+        { t: 7.5,  type: "drum" },
+        { t: 9.0,  type: "flute" },
+        { t: 10.5, type: "speed", to: 76, word: "Slower" },
+        { t: 12.0, type: "drum" }
+      ]
+    },
+    spaceship: {
+      name: "Starlight Drift",
+      emoji: "\u{1F680}",
+      desc: "Floaty space sounds and gentle taps.",
+      duration: 13,
+      baseTempo: 84,
+      melody: [349, 440, 523, 587, 523, 440, 349, 0],
+      events: [
+        { t: 2.0,  type: "flute" },
+        { t: 3.5,  type: "speed", to: 132, word: "Faster" },
+        { t: 5.0,  type: "drum" },
+        { t: 6.5,  type: "flute" },
+        { t: 8.0,  type: "speed", to: 72, word: "Slower" },
+        { t: 9.5,  type: "drum" },
+        { t: 11.0, type: "flute" }
+      ]
+    }
+  };
+
+  var MISSION_LABEL = {
+    drum:  "Tap on every drum",
+    flute: "Tap on every flute",
+    speed: "Tap when the speed changes"
+  };
+
+  // Fictional demo scoreboard
+  var DEMO_BOARD = [
+    { name: "Robo Robin", score: 9 },
+    { name: "Captain Echo", score: 8 },
+    { name: "Detective Daisy", score: 7 },
+    { name: "Sir Listenalot", score: 6 },
+    { name: "Pixel Pip", score: 5 }
+  ];
+
+  // -------------- State --------------
+  var state = {
+    clipKey: "seaside",
+    mission: "speed",
+    running: false,
+    audioCtx: null,
+    masterGain: null,
+    startTime: 0,
+    rafId: null,
+    schedTimers: [],
+    targets: [],     // event objects matching current mission (for scoring)
+    tapped: [],      // booleans per target
+    extraTaps: 0,    // taps that didn't match anything
+    hits: 0,
+    streak: 0,
+    bestStreak: 0,
+    lastBeatVisual: 0,
+    currentTempo: 0
+  };
+
+  // -------------- DOM --------------
+  var $ = function (id) { return document.getElementById(id); };
+  var clipGrid = $("clipGrid");
+  var setupEl = $("setup"), stageEl = $("stage"), resultsEl = $("results");
+
+  // -------------- Build clip chooser --------------
+  Object.keys(CLIPS).forEach(function (key, i) {
+    var c = CLIPS[key];
+    var b = document.createElement("button");
+    b.className = "clip-btn" + (key === state.clipKey ? " sel" : "");
+    b.type = "button";
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", key === state.clipKey ? "true" : "false");
+    b.dataset.key = key;
+    b.innerHTML =
+      '<div class="clip-emoji" aria-hidden="true">' + c.emoji + '</div>' +
+      '<div class="clip-name">' + c.name + '</div>' +
+      '<div class="clip-desc">' + c.desc + '</div>';
+    b.addEventListener("click", function () { selectClip(key); });
+    clipGrid.appendChild(b);
+  });
+
+  function selectClip(key) {
+    state.clipKey = key;
+    Array.prototype.forEach.call(clipGrid.children, function (el) {
+      var on = el.dataset.key === key;
+      el.classList.toggle("sel", on);
+      el.setAttribute("aria-checked", on ? "true" : "false");
+    });
+  }
+
+  // Mission chips
+  Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (chip) {
+    chip.addEventListener("click", function () {
+      state.mission = chip.dataset.mission;
+      document.querySelectorAll(".chip").forEach(function (c) {
+        var on = c === chip;
+        c.classList.toggle("sel", on);
+        c.setAttribute("aria-checked", on ? "true" : "false");
+      });
+    });
+  });
+
+  // -------------- Audio engine (Web Audio API) --------------
+  function ensureAudio() {
+    if (!state.audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      state.audioCtx = new AC();
+      state.masterGain = state.audioCtx.createGain();
+      state.masterGain.gain.value = 0.9;
+      state.masterGain.connect(state.audioCtx.destination);
+    }
+    if (state.audioCtx.state === "suspended") { state.audioCtx.resume(); }
+  }
+
+  // a short tone with an envelope
+  function playTone(freq, startAt, dur, type, vol) {
+    var ctx = state.audioCtx;
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    osc.type = type || "sine";
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, startAt);
+    g.gain.exponentialRampToValueAtTime(vol || 0.25, startAt + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, startAt + dur);
+    osc.connect(g); g.connect(state.masterGain);
+    osc.start(startAt); osc.stop(startAt + dur + 0.05);
+  }
+
+  // drum = short noise burst + low thump
+  function playDrum(startAt) {
+    var ctx = state.audioCtx;
+    // low thump
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(160, startAt);
+    osc.frequency.exponentialRampToValueAtTime(55, startAt + 0.18);
+    g.gain.setValueAtTime(0.6, startAt);
+    g.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.22);
+    osc.connect(g); g.connect(state.masterGain);
+    osc.start(startAt); osc.stop(startAt + 0.25);
+    // noise click
+    var bufferSize = Math.floor(ctx.sampleRate * 0.12);
+    var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    var data = buffer.getChannelData(0);
+    for (var i = 0; i < bufferSize; i++) { data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize); }
+    var noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    var ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.25, startAt);
+    ng.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.1);
+    noise.connect(ng); ng.connect(state.masterGain);
+    noise.start(startAt); noise.stop(startAt + 0.12);
+  }
+
+  // flute = soft breathy sustained note (triangle + slight vibrato feel via two notes)
+  function playFlute(startAt) {
+    playTone(784, startAt, 0.55, "triangle", 0.22);
+    playTone(1175, startAt + 0.05, 0.4, "sine", 0.08);
+  }
+
+  // -------------- Sequencer --------------
+  // Plays a looping melody at the clip tempo, scheduling the marker events.
+  function startSequence() {
+    var ctx = state.audioCtx;
+    var clip = CLIPS[state.clipKey];
+    var now = ctx.currentTime + 0.15;
+    state.startTime = now;
+    state.currentTempo = clip.baseTempo;
+
+    // Schedule the melody bed using setTimeout-driven note steps so tempo can change.
+    var tempo = clip.baseTempo;
+    var step = 0;
+    var noteIndex = 0;
+
+    // Build a tempo lookup from speed events so the bed matches the change moments
+    var tempoChanges = clip.events.filter(function (e) { return e.type === "speed"; })
+                                  .map(function (e) { return { t: e.t, to: e.to }; });
+
+    function tempoAt(tSec) {
+      var tp = clip.baseTempo;
+      for (var i = 0; i < tempoChanges.length; i++) {
+        if (tSec >= tempoChanges[i].t) tp = tempoChanges[i].to;
+      }
+      return tp;
+    }
+
+    // melody bed: schedule notes one at a time, recomputing the gap from current tempo
+    function scheduleNextNote() {
+      if (!state.running) return;
+      var elapsed = ctx.currentTime - state.startTime;
+      if (elapsed >= clip.duration) return;
+      var tp = tempoAt(elapsed);
+      state.currentTempo = tp;
+      var beatLen = 60 / tp;
+      var f = clip.melody[noteIndex % clip.melody.length];
+      if (f > 0) { playTone(f, ctx.currentTime + 0.01, beatLen * 0.8, "sine", 0.12); }
+      noteIndex++;
+      var ms = beatLen * 1000;
+      state.schedTimers.push(setTimeout(scheduleNextNote, ms));
+    }
+    scheduleNextNote();
+
+    // Schedule the marker events (audio) at their times
+    clip.events.forEach(function (ev) {
+      var when = now + ev.t;
+      var delay = (ev.t) * 1000;
+      var timer = setTimeout(function () {
+        if (!state.running) return;
+        if (ev.type === "drum") playDrum(state.audioCtx.currentTime + 0.01);
+        if (ev.type === "flute") playFlute(state.audioCtx.currentTime + 0.01);
+        if (ev.type === "speed") {
+          // a little glissando "whoosh" to signal change, plus update display
+          var dir = ev.to > state.currentTempo ? 1 : -1;
+          playTone(dir > 0 ? 523 : 392, state.audioCtx.currentTime + 0.01, 0.3, "sawtooth", 0.12);
+          showSpeed(ev.word);
+        }
+        flashPulse();
+      }, delay);
+      state.schedTimers.push(timer);
+    });
+
+    // End of clip
+    var endTimer = setTimeout(function () { if (state.running) finish(); }, clip.duration * 1000 + 400);
+    state.schedTimers.push(endTimer);
+  }
+
+  function clearTimers() {
+    state.schedTimers.forEach(function (t) { clearTimeout(t); });
+    state.schedTimers = [];
+  }
+
+  // -------------- Visuals --------------
+  function flashPulse() {
+    var d = $("pulseDot");
+    d.classList.remove("beat");
+    void d.offsetWidth;
+    d.classList.add("beat");
+  }
+
+  function showSpeed(word) {
+    var w = $("speedWord");
+    w.textContent = word;
+    w.className = "speed-word " + (word === "Faster" ? "fast" : word === "Slower" ? "slow" : "");
+    // reset to "Steady" after a moment
+    clearTimeout(showSpeed._t);
+    showSpeed._t = setTimeout(function () {
+      w.textContent = "Steady"; w.className = "speed-word";
+    }, 1600);
+  }
+
+  // animate timebar + the pulse dot beating to the tempo
+  function tick() {
+    if (!state.running) return;
+    var ctx = state.audioCtx;
+    var clip = CLIPS[state.clipKey];
+    var elapsed = ctx.currentTime - state.startTime;
+    var pct = Math.min(100, (elapsed / clip.duration) * 100);
+    $("timebar").style.width = pct + "%";
+    var left = Math.max(0, Math.ceil(clip.duration - elapsed));
+    $("timeLeft").textContent = left + "s left";
+
+    // steady visual beat at current tempo
+    var beatLen = 60 / (state.currentTempo || clip.baseTempo);
+    if (elapsed - state.lastBeatVisual >= beatLen) {
+      state.lastBeatVisual = elapsed;
+      // small idle pulse (separate from event flash)
+      var d = $("pulseDot");
+      d.style.transform = "scale(1.12)";
+      setTimeout(function () { d.style.transform = "scale(1)"; }, 90);
+    }
+
+    state.rafId = requestAnimationFrame(tick);
+  }
+
+  // -------------- Scoring --------------
+  var HIT_WINDOW = 1.1; // seconds either side of an event counts as a spot
+
+  function buildTargets() {
+    var clip = CLIPS[state.clipKey];
+    state.targets = clip.events.filter(function (e) {
+      if (state.mission === "speed") return e.type === "speed";
+      return e.type === state.mission;
+    });
+    state.tapped = state.targets.map(function () { return false; });
+  }
+
+  function handleTap() {
+    if (!state.running) return;
+    var elapsed = state.audioCtx.currentTime - state.startTime;
+
+    // find nearest unclaimed target within window
+    var bestIdx = -1, bestDist = HIT_WINDOW + 1;
+    for (var i = 0; i < state.targets.length; i++) {
+      if (state.tapped[i]) continue;
+      var d = Math.abs(state.targets[i].t - elapsed);
+      if (d <= HIT_WINDOW && d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+
+    var btn = $("tapBtn");
+    btn.classList.add("flash");
+    setTimeout(function () { btn.classList.remove("flash"); }, 120);
+
+    if (bestIdx >= 0) {
+      state.tapped[bestIdx] = true;
+      state.hits++;
+      state.streak++;
+      state.bestStreak = Math.max(state.bestStreak, state.streak);
+      var precise = bestDist < 0.4;
+      flashHit();
+      setFeedback(precise ? "good" : "good",
+        precise ? "Spot on! Right on the sound. \u{1F3AF}" : "Good spot, well listened! ✅");
+      $("hitsN").textContent = state.hits;
+      $("streakN").textContent = state.streak;
+    } else {
+      state.extraTaps++;
+      state.streak = 0;
+      $("streakN").textContent = 0;
+      setFeedback("miss", missMessage());
+    }
+  }
+
+  function missMessage() {
+    if (state.mission === "drum") return "Not a drum there. Keep your ears ready. \u{1F941}";
+    if (state.mission === "flute") return "No flute just then. Listen for the high, airy sound. \u{1FA88}";
+    return "The speed stayed the same. Wait for it to change. ⏱";
+  }
+
+  function setFeedback(kind, msg) {
+    var fb = $("liveFb");
+    fb.className = "live-feedback " + kind;
+    fb.textContent = msg;
+  }
+
+  function flashHit() {
+    var btn = $("tapBtn");
+    btn.classList.add("hit");
+    setTimeout(function () { btn.classList.remove("hit"); }, 350);
+  }
+
+  // -------------- Flow --------------
+  function start() {
+    ensureAudio();
+    buildTargets();
+    state.running = true;
+    state.hits = 0; state.streak = 0; state.bestStreak = 0;
+    state.extraTaps = 0; state.lastBeatVisual = 0;
+
+    $("hitsN").textContent = "0";
+    $("streakN").textContent = "0";
+    $("npName").textContent = CLIPS[state.clipKey].name;
+    $("npMission").textContent = MISSION_LABEL[state.mission];
+    $("tapHint").textContent = tapHintText();
+    $("speedWord").textContent = "Steady"; $("speedWord").className = "speed-word";
+    setFeedback("neutral", "Listen carefully...");
+    $("timebar").style.width = "0%";
+
+    setupEl.style.display = "none";
+    resultsEl.style.display = "none";
+    stageEl.style.display = "block";
+    stageEl.setAttribute("aria-live", "polite");
+
+    startSequence();
+    state.rafId = requestAnimationFrame(tick);
+    $("tapBtn").focus();
+  }
+
+  function tapHintText() {
+    if (state.mission === "drum") return "Spotted the drum? Tap here";
+    if (state.mission === "flute") return "Heard the flute? Tap here";
+    return "Speed changed? Tap here";
+  }
+
+  function stopAudio() {
+    state.running = false;
+    clearTimers();
+    if (state.rafId) cancelAnimationFrame(state.rafId);
+    if (state.masterGain) {
+      // quick fade to silence to avoid clicks
+      try {
+        var ctx = state.audioCtx;
+        state.masterGain.gain.cancelScheduledValues(ctx.currentTime);
+        state.masterGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.05);
+        setTimeout(function () { if (state.masterGain) state.masterGain.gain.value = 0.9; }, 250);
+      } catch (e) {}
+    }
+  }
+
+  function finish() {
+    stopAudio();
+    showResults();
+  }
+
+  function showResults() {
+    var total = state.targets.length;
+    var spotted = state.hits;
+    // score: 1 point per spot, bonus for full streak, small penalty for wild taps
+    var base = spotted * 2;
+    var streakBonus = state.bestStreak >= total && total > 0 ? 3 : 0;
+    var penalty = Math.min(spotted, state.extraTaps); // never below the honest spots
+    var score = Math.max(0, base + streakBonus - penalty);
+
+    $("scoreBig").textContent = score;
+    var rank = rankFor(spotted, total);
+    $("rankEmoji").innerHTML = rank.emoji;
+    $("rankWord").textContent = rank.word;
+    $("resultMsg").textContent = rank.msg + " You spotted " + spotted + " of " + total +
+      (state.extraTaps ? ", with " + state.extraTaps + " early tap" + (state.extraTaps === 1 ? "" : "s") + "." : ".");
+
+    buildReview();
+    buildBoard(score);
+
+    stageEl.style.display = "none";
+    resultsEl.style.display = "block";
+    $("againBtn").focus();
+  }
+
+  function rankFor(spotted, total) {
+    var ratio = total ? spotted / total : 0;
+    if (ratio >= 1)   return { emoji: "\u{1F3C6}", word: "Super Sleuth!", msg: "You caught every single clue." };
+    if (ratio >= 0.7) return { emoji: "\u{1F50E}", word: "Sharp Detective", msg: "Brilliant careful listening." };
+    if (ratio >= 0.4) return { emoji: "\u{1F442}", word: "Good Listener", msg: "Nice work, keep those ears open." };
+    return { emoji: "\u{1F575}", word: "Trainee Detective", msg: "Let's listen again and catch more." };
+  }
+
+  function buildReview() {
+    var list = $("reviewList");
+    list.innerHTML = "";
+    var heading = document.createElement("div");
+    heading.style.fontWeight = "700";
+    heading.style.margin = "0 0 8px";
+    heading.textContent = "Your clue check:";
+    list.appendChild(heading);
+
+    state.targets.forEach(function (ev, i) {
+      var ok = state.tapped[i];
+      var row = document.createElement("div");
+      row.className = "review-item " + (ok ? "ok" : "no");
+      var what = ev.type === "speed" ? ("Music got " + (ev.word || "different").toLowerCase()) :
+                 ev.type === "drum" ? "Drum played" : "Flute played";
+      row.innerHTML =
+        '<span class="ico" aria-hidden="true">' + (ok ? "✅" : "❌") + '</span>' +
+        '<span>At ' + ev.t.toFixed(0) + 's: ' + what + ' &middot; <b>' + (ok ? "you spotted it" : "missed this one") + '</b></span>';
+      list.appendChild(row);
+    });
+  }
+
+  function buildBoard(yourScore) {
+    var body = $("boardBody");
+    body.innerHTML = "";
+    var rows = DEMO_BOARD.slice();
+    rows.push({ name: "You", score: yourScore, you: true });
+    rows.sort(function (a, b) { return b.score - a.score; });
+    rows.forEach(function (r, i) {
+      var tr = document.createElement("tr");
+      if (r.you) tr.className = "you";
+      var medal = i === 0 ? "\u{1F947}" : i === 1 ? "\u{1F948}" : i === 2 ? "\u{1F949}" : (i + 1);
+      tr.innerHTML =
+        '<td><span class="rank-pill">' + medal + '</span></td>' +
+        '<td>' + r.name + (r.you ? " (you)" : "") + '</td>' +
+        '<td class="sc">' + r.score + '</td>';
+      body.appendChild(tr);
+    });
+  }
+
+  // -------------- Wire up buttons --------------
+  $("startBtn").addEventListener("click", start);
+  $("stopBtn").addEventListener("click", finish);
+  $("againBtn").addEventListener("click", start);
+  $("changeBtn").addEventListener("click", function () {
+    resultsEl.style.display = "none";
+    setupEl.style.display = "block";
+    $("startBtn").focus();
+  });
+
+  // Tap button: Pointer Events for touch + mouse + pen
+  var tapBtn = $("tapBtn");
+  tapBtn.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    handleTap();
+  });
+  // Keyboard: space / enter already trigger click on a button; route click too
+  tapBtn.addEventListener("keydown", function (e) {
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      handleTap();
+    }
+  });
+
+  // Allow whole-window spacebar to tap while listening (whiteboard friendly)
+  document.addEventListener("keydown", function (e) {
+    if (state.running && (e.code === "Space") && document.activeElement !== tapBtn) {
+      e.preventDefault();
+      handleTap();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python Trace Theatre</title>
+<style>
+  :root {
+    --bg: #0f1226;
+    --panel: #1a1f3d;
+    --panel-2: #232a52;
+    --ink: #eef1ff;
+    --muted: #aab1d8;
+    --line: #353d6e;
+    --accent: #ffd166;
+    --accent-2: #4cc9f0;
+    --ok: #57e389;
+    --warn: #ff6b6b;
+    --run: #b794f6;
+    --shadow: 0 8px 28px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, system-ui, sans-serif;
+    line-height: 1.45;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app-head {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px;
+    border-bottom: 2px solid var(--line); padding-bottom: 12px; margin-bottom: 6px;
+  }
+  header.app-head h1 {
+    font-size: clamp(1.4rem, 3.2vw, 2.1rem); margin: 0; letter-spacing: .3px;
+  }
+  .curtain { color: var(--accent); }
+  .aim {
+    font-size: .95rem; color: var(--muted); background: var(--panel);
+    border: 1px solid var(--line); border-left: 4px solid var(--accent-2);
+    padding: 8px 12px; border-radius: 8px; margin: 10px 0 16px;
+  }
+  .aim strong { color: var(--ink); }
+
+  .program-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .program-bar label { font-size: .85rem; color: var(--muted); }
+  select, button {
+    font-family: inherit; font-size: .95rem; border-radius: 8px; cursor: pointer;
+  }
+  select {
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+    padding: 8px 10px;
+  }
+  .btn {
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+    padding: 9px 14px; font-weight: 600; transition: transform .08s, background .15s;
+  }
+  .btn:hover { background: #2c3568; }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-primary { background: var(--accent-2); color: #062235; border-color: var(--accent-2); }
+  .btn-primary:hover { background: #6fd6f5; }
+  .btn-ghost { background: transparent; }
+
+  .stage {
+    display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px;
+  }
+  @media (max-width: 820px) { .stage { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .panel-title {
+    font-size: .8rem; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--muted); padding: 10px 14px; border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  /* Code listing */
+  .code { padding: 6px 0 10px; font-family: "Consolas", "SF Mono", "Courier New", monospace; font-size: clamp(.85rem, 1.8vw, 1.02rem); }
+  .code-line {
+    display: grid; grid-template-columns: 40px 1fr; align-items: start;
+    padding: 3px 14px; white-space: pre; position: relative; transition: background .15s;
+  }
+  .code-line .ln { color: #5a648f; text-align: right; padding-right: 12px; user-select: none; }
+  .code-line.done { color: #8f9bd0; }
+  .code-line.next {
+    background: rgba(76,201,240,.13); border-radius: 6px;
+  }
+  .code-line.next::after {
+    content: '\25C0'; color: var(--accent-2); position: absolute; right: 12px; top: 3px;
+    font-size: .9rem;
+  }
+  .code-line.flash-run { background: rgba(183,148,246,.28) !important; }
+
+  /* Variable boxes */
+  .vars { padding: 12px 14px 16px; display: flex; flex-wrap: wrap; gap: 12px; min-height: 70px; align-content: flex-start; }
+  .var-box {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 12px; min-width: 88px; text-align: center; transition: transform .12s, box-shadow .2s, border-color .2s;
+  }
+  .var-box.changed {
+    border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,209,102,.35);
+    transform: translateY(-3px);
+  }
+  .var-name { font-family: "Consolas", monospace; color: var(--accent-2); font-weight: 700; font-size: .95rem; }
+  .var-val { font-family: "Consolas", monospace; font-size: 1.15rem; margin-top: 2px; word-break: break-word; }
+  .var-type { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .vars-empty { color: var(--muted); font-style: italic; font-size: .9rem; }
+
+  /* Output console */
+  .console {
+    padding: 10px 14px; font-family: "Consolas", monospace; font-size: .92rem;
+    background: #0a0d1f; min-height: 56px; color: #d7f7e0; white-space: pre-wrap; word-break: break-word;
+  }
+  .console .empty { color: #50607f; font-style: italic; }
+
+  /* Prediction quiz */
+  .predict {
+    margin-top: 16px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; box-shadow: var(--shadow); padding: 14px 16px 18px;
+  }
+  .predict h2 { margin: 0 0 4px; font-size: 1.05rem; }
+  .predict .q { color: var(--muted); font-size: .9rem; margin-bottom: 10px; }
+  .predict .target-line {
+    font-family: "Consolas", monospace; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 10px; display: inline-block; margin-bottom: 12px; color: var(--accent);
+  }
+  .options { display: flex; flex-direction: column; gap: 9px; }
+  .opt {
+    text-align: left; background: var(--panel-2); border: 1px solid var(--line); color: var(--ink);
+    padding: 11px 14px; border-radius: 9px; font-size: .98rem; transition: background .15s, border-color .15s;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .opt .tag { font-family: "Consolas", monospace; font-weight: 700; color: var(--accent-2); flex-shrink: 0; }
+  .opt:hover:not(:disabled) { background: #2c3568; }
+  .opt.correct { border-color: var(--ok); background: rgba(87,227,137,.16); }
+  .opt.wrong { border-color: var(--warn); background: rgba(255,107,107,.16); }
+  .feedback {
+    margin-top: 12px; padding: 10px 14px; border-radius: 9px; font-size: .94rem;
+    display: none;
+  }
+  .feedback.show { display: block; }
+  .feedback.good { background: rgba(87,227,137,.14); border: 1px solid var(--ok); }
+  .feedback.bad { background: rgba(255,107,107,.14); border: 1px solid var(--warn); }
+  .feedback strong { display: block; margin-bottom: 3px; }
+
+  .score-row { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: .9rem; color: var(--muted); }
+  .score-row b { color: var(--ink); }
+
+  .legend { font-size: .8rem; color: var(--muted); margin-top: 14px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+
+  .end-banner {
+    display: none; margin-top: 14px; padding: 12px 16px; border-radius: 10px;
+    background: rgba(183,148,246,.16); border: 1px solid var(--run); font-size: .95rem;
+  }
+  .end-banner.show { display: block; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  footer { margin-top: 26px; font-size: .8rem; color: var(--muted); text-align: center; }
+  kbd {
+    background: var(--panel-2); border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 6px; font-family: "Consolas", monospace; font-size: .8rem;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <h1>&#x1F3AD; Python <span class="curtain">Trace Theatre</span></h1>
+  </header>
+
+  <p class="aim">
+    <strong>Teacher aim:</strong> Pupils trace a short Python program one line at a time, predicting the effect of each
+    line before it runs, while variable boxes and the output console update live. Covers sequence, selection, iteration,
+    functions and data structures (lists).
+  </p>
+
+  <div class="program-bar">
+    <label for="progSelect">Choose a program:</label>
+    <select id="progSelect" aria-label="Choose a Python program to trace"></select>
+    <button class="btn btn-ghost" id="resetBtn" type="button">&#x21BA; Reset trace</button>
+  </div>
+
+  <div class="stage">
+    <!-- LEFT: code + step controls -->
+    <section class="panel" aria-label="Python program listing">
+      <div class="panel-title">
+        <span>Program</span>
+        <span id="lineCounter">line 0 of 0</span>
+      </div>
+      <div class="code" id="codeBox" role="list" aria-label="Program lines, the highlighted line runs next"></div>
+      <div style="padding: 0 14px 14px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="stepBtn" type="button">&#x25B6; Run next line</button>
+        <button class="btn" id="runAllBtn" type="button">&#x23E9; Run to end</button>
+      </div>
+    </section>
+
+    <!-- RIGHT: state -->
+    <section>
+      <div class="panel" aria-label="Variable state">
+        <div class="panel-title"><span>Variables (memory)</span><span id="callDepth"></span></div>
+        <div class="vars" id="varsBox" aria-live="polite"></div>
+      </div>
+      <div class="panel" style="margin-top:16px;" aria-label="Program output">
+        <div class="panel-title"><span>Output console (print)</span></div>
+        <div class="console" id="consoleBox" aria-live="polite"><span class="empty">No output yet. Step through the program.</span></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- PREDICTION QUIZ -->
+  <div class="predict" id="predictPanel">
+    <h2>&#x1F3B2; Predict the next line</h2>
+    <div class="q">Before you run the highlighted line, decide what it does. Pick one answer, then run the line to check.</div>
+    <div class="target-line" id="targetLine">&mdash;</div>
+    <div class="options" id="optionsBox" role="group" aria-label="Prediction choices"></div>
+    <div class="feedback" id="feedbackBox" role="alert"></div>
+    <div class="score-row">
+      <span>Correct predictions: <b id="scoreCorrect">0</b></span>
+      <span>Attempts: <b id="scoreTotal">0</b></span>
+      <span>Lines traced: <b id="linesTraced">0</b></span>
+    </div>
+    <div class="end-banner" id="endBanner"></div>
+  </div>
+
+  <div class="legend" aria-hidden="true">
+    <span><span class="swatch" style="background:rgba(76,201,240,.5)"></span> next line to run</span>
+    <span><span class="swatch" style="background:#ffd166"></span> variable just changed</span>
+    <span><span class="swatch" style="background:rgba(183,148,246,.6)"></span> line running</span>
+  </div>
+
+  <footer>
+    Keyboard: <kbd>Enter</kbd> or <kbd>N</kbd> runs the next line. Numbers <kbd>1</kbd>&ndash;<kbd>4</kbd> choose a prediction.
+    Demonstration data only: all names are fictional.
+  </footer>
+</div>
+
+<div class="sr-only" id="liveStatus" aria-live="assertive"></div>
+
+<script>
+"use strict";
+
+/*
+  Python Trace Theatre
+  --------------------
+  Each program is modelled as a flat list of "steps". A step represents one
+  executed line. Because real Python control flow jumps around (loops, ifs,
+  function calls), each step records:
+    - line:   1-based source line number to highlight (for display)
+    - effect: a function that mutates the running state (vars / output / call depth)
+    - desc:   plain-English description of what the line does (the correct answer)
+    - distractors: 3 plausible-but-wrong descriptions for the quiz
+  The "step list" is the authoritative execution trace, hand-authored so the
+  app never needs a real interpreter (fully offline, deterministic, KS3 safe).
+*/
+
+/* ---------- Helpers to build state-mutating effects ---------- */
+function setVar(name, value, type) {
+  return function (st) { st.vars[name] = { value: value, type: type }; st.changed = [name]; };
+}
+function setVars(pairs) {
+  return function (st) {
+    var keys = [];
+    pairs.forEach(function (p) { st.vars[p[0]] = { value: p[1], type: p[2] }; keys.push(p[0]); });
+    st.changed = keys;
+  };
+}
+function printOut(line) {
+  return function (st) { st.output.push(line); st.changed = []; };
+}
+function noChange() { return function (st) { st.changed = []; }; }
+function delVar(name) { return function (st) { delete st.vars[name]; st.changed = []; }; }
+
+/* ---------- The programs ---------- */
+var PROGRAMS = {
+
+  /* 1. SEQUENCE + SELECTION */
+  selection: {
+    title: "1. Sequence & Selection (login check)",
+    source: [
+      "age = 13",                                  // 1
+      "ticket = \"child\"",                        // 2
+      "if age >= 12:",                             // 3
+      "    ticket = \"teen\"",                     // 4
+      "else:",                                     // 5
+      "    ticket = \"child\"",                    // 6
+      "print(\"Ticket type:\", ticket)"           // 7
+    ],
+    steps: [
+      { line:1, effect:setVar("age",13,"int"),
+        desc:'Stores the integer 13 in a variable called age.',
+        distractors:['Asks the user to type their age.','Compares age with 13.','Prints the number 13 to the screen.'] },
+      { line:2, effect:setVar("ticket","\"child\"","str"),
+        desc:'Stores the text "child" in a variable called ticket.',
+        distractors:['Changes age into the word "child".','Prints "child" to the screen.','Checks whether the ticket is a child ticket.'] },
+      { line:3, effect:noChange(),
+        desc:'Tests the condition age >= 12. As age is 13, this is True, so the indented line below runs.',
+        distractors:['Sets age to 12.','Always runs the else block.','Is True only when age is exactly 12.'] },
+      { line:4, effect:setVar("ticket","\"teen\"","str"),
+        desc:'Because the condition was True, ticket is changed to "teen".',
+        distractors:['Runs only if the condition was False.','Adds "teen" onto the end of "child".','Creates a brand new variable called teen.'] },
+      { line:7, effect:printOut('Ticket type: teen'),
+        desc:'Prints the label and the final value of ticket, which is "teen".',
+        distractors:['Prints "Ticket type: child".','Prints the value of age.','Changes ticket back to "child".'] }
+    ]
+  },
+
+  /* 2. ITERATION (for loop) */
+  loop: {
+    title: "2. Iteration (for loop sum)",
+    source: [
+      "total = 0",                                 // 1
+      "for n in range(1, 4):",                     // 2
+      "    total = total + n",                     // 3
+      "print(\"Sum:\", total)"                     // 4
+    ],
+    steps: [
+      { line:1, effect:setVar("total",0,"int"),
+        desc:'Sets up a running total and starts it at 0.',
+        distractors:['Counts how many numbers there are.','Prints 0 to the screen.','Creates a list of totals.'] },
+      { line:2, effect:setVar("n",1,"int"),
+        desc:'Starts the loop. n takes the first value in range(1, 4), which is 1.',
+        distractors:['n becomes 4 straight away.','The loop runs exactly 4 times.','n is set to 0 first.'] },
+      { line:3, effect:setVar("total",1,"int"),
+        desc:'Adds n (1) to total. total becomes 0 + 1 = 1.',
+        distractors:['total becomes just n, losing the old value.','total becomes 4.','Prints the value of total.'] },
+      { line:2, effect:setVar("n",2,"int"),
+        desc:'Loop repeats. n takes the next value, 2.',
+        distractors:['The loop has finished.','n stays at 1.','n jumps to 3.'] },
+      { line:3, effect:setVar("total",3,"int"),
+        desc:'Adds n (2) to total. total becomes 1 + 2 = 3.',
+        distractors:['total becomes 2.','total resets to 0.','total becomes 5.'] },
+      { line:2, effect:setVar("n",3,"int"),
+        desc:'Loop repeats again. n takes the last value, 3.',
+        distractors:['n becomes 4.','The loop stops because total is big enough.','n stays at 2.'] },
+      { line:3, effect:setVar("total",6,"int"),
+        desc:'Adds n (3) to total. total becomes 3 + 3 = 6.',
+        distractors:['total becomes 3.','total becomes 9.','total doubles to 6 by chance only.'] },
+      { line:4, effect:printOut('Sum: 6'),
+        desc:'The loop is finished (range(1, 4) gives 1, 2, 3). Prints the final total, 6.',
+        distractors:['Prints "Sum: 9".','Runs the loop one more time.','Prints the value of n.'] }
+    ]
+  },
+
+  /* 3. FUNCTIONS (Function Factory) */
+  functions: {
+    title: "3. Functions (Function Factory)",
+    source: [
+      "def area(width, height):",                  // 1
+      "    a = width * height",                     // 2
+      "    return a",                               // 3
+      "",                                           // 4
+      "result = area(4, 3)",                        // 5
+      "print(\"Area is\", result)"                  // 6
+    ],
+    steps: [
+      { line:1, effect:noChange(),
+        desc:'Defines a function called area, but does not run it yet. Python remembers it for later.',
+        distractors:['Calculates the area straight away.','Sets width to 4 and height to 3.','Prints the word "area".'] },
+      { line:5, effect:setVars([["width",4,"int"],["height",3,"int"]]),
+        desc:'Calls area(4, 3). Control jumps into the function with width = 4 and height = 3.',
+        distractors:['Stores the text "area(4, 3)" in result.','Multiplies 4 by 3 and prints it.','Defines a second function.'] },
+      { line:2, effect:setVar("a",12,"int"),
+        desc:'Inside the function: a = width * height = 4 * 3 = 12.',
+        distractors:['a becomes 7 (4 + 3).','a becomes the text "12".','a is the same as result.'] },
+      { line:3, effect:setVar("result",12,"int"),
+        desc:'return sends 12 back to where the function was called. result now holds 12.',
+        distractors:['Prints 12 to the screen.','Sends back the variable name a, not its value.','Ends the whole program.'] },
+      { line:6, effect:printOut('Area is 12'),
+        desc:'Back in the main program, prints the label and result (12).',
+        distractors:['Prints "Area is a".','Calls the function a second time.','Prints "Area is 7".'] }
+    ]
+  },
+
+  /* 4. DATA STRUCTURES (list) */
+  list: {
+    title: "4. Data structures (a list of scores)",
+    source: [
+      "scores = [7, 5, 9]",                        // 1
+      "scores.append(8)",                          // 2
+      "first = scores[0]",                         // 3
+      "count = len(scores)",                       // 4
+      "print(first, count)"                        // 5
+    ],
+    steps: [
+      { line:1, effect:setVar("scores","[7, 5, 9]","list"),
+        desc:'Creates a list called scores holding three numbers: 7, 5 and 9.',
+        distractors:['Adds 7, 5 and 9 together to make 21.','Creates three separate variables.','Sorts the numbers into order.'] },
+      { line:2, effect:setVar("scores","[7, 5, 9, 8]","list"),
+        desc:'append adds 8 to the end of the list. scores is now [7, 5, 9, 8].',
+        distractors:['Puts 8 at the start of the list.','Replaces the list with just [8].','Adds 8 to every item in the list.'] },
+      { line:3, effect:setVar("first",7,"int"),
+        desc:'Index [0] reads the first item. In Python, counting starts at 0, so first = 7.',
+        distractors:['first becomes 8 (the newest item).','first becomes 5 (the second item).','first becomes the whole list.'] },
+      { line:4, effect:setVar("count",4,"int"),
+        desc:'len() counts the items in the list. There are 4, so count = 4.',
+        distractors:['count becomes 3 (the original size).','count adds the numbers up to 29.','count becomes the last item, 8.'] },
+      { line:5, effect:printOut('7 4'),
+        desc:'Prints first then count, separated by a space: 7 4.',
+        distractors:['Prints "first count".','Prints the whole list.','Prints "7, 4" with a comma.'] }
+    ]
+  }
+};
+
+/* ---------- App state ---------- */
+var state = {
+  key: "selection",
+  prog: null,
+  pc: 0,            // program counter: index of NEXT step to run
+  vars: {},         // live variables
+  output: [],
+  changed: [],
+  predicted: false, // has the user answered the current prediction?
+  scoreCorrect: 0,
+  scoreTotal: 0,
+  linesTraced: 0
+};
+
+/* ---------- DOM refs ---------- */
+var $ = function (id) { return document.getElementById(id); };
+var els = {
+  progSelect: $("progSelect"),
+  codeBox: $("codeBox"),
+  varsBox: $("varsBox"),
+  consoleBox: $("consoleBox"),
+  stepBtn: $("stepBtn"),
+  runAllBtn: $("runAllBtn"),
+  resetBtn: $("resetBtn"),
+  lineCounter: $("lineCounter"),
+  targetLine: $("targetLine"),
+  optionsBox: $("optionsBox"),
+  feedbackBox: $("feedbackBox"),
+  scoreCorrect: $("scoreCorrect"),
+  scoreTotal: $("scoreTotal"),
+  linesTraced: $("linesTraced"),
+  endBanner: $("endBanner"),
+  live: $("liveStatus"),
+  callDepth: $("callDepth")
+};
+
+/* ---------- Init dropdown ---------- */
+Object.keys(PROGRAMS).forEach(function (k) {
+  var o = document.createElement("option");
+  o.value = k; o.textContent = PROGRAMS[k].title;
+  els.progSelect.appendChild(o);
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+/* ---------- Load a program ---------- */
+function loadProgram(key) {
+  state.key = key;
+  state.prog = PROGRAMS[key];
+  resetTrace(false);
+  renderCode();
+}
+
+function resetTrace(announce) {
+  state.pc = 0;
+  state.vars = {};
+  state.output = [];
+  state.changed = [];
+  state.predicted = false;
+  state.linesTraced = 0;
+  // score persists across resets within a session? We reset per program for clarity.
+  els.endBanner.classList.remove("show");
+  renderAll();
+  if (announce) say("Trace reset. Ready to run line " + nextLineNumber() + ".");
+}
+
+function nextLineNumber() {
+  if (state.pc < state.prog.steps.length) return state.prog.steps[state.pc].line;
+  return null;
+}
+
+/* ---------- Rendering ---------- */
+function renderCode() {
+  var src = state.prog.source;
+  var nextLn = nextLineNumber();
+  // which source lines have already executed (for "done" styling): collect lines run so far
+  var executed = {};
+  for (var i = 0; i < state.pc; i++) { executed[state.prog.steps[i].line] = true; }
+
+  els.codeBox.innerHTML = "";
+  src.forEach(function (text, idx) {
+    var ln = idx + 1;
+    var div = document.createElement("div");
+    div.className = "code-line";
+    div.setAttribute("role", "listitem");
+    if (executed[ln]) div.classList.add("done");
+    if (ln === nextLn) {
+      div.classList.add("next");
+      div.setAttribute("aria-current", "true");
+    }
+    div.innerHTML = '<span class="ln">' + ln + '</span><span>' + escapeHtml(text || " ") + '</span>';
+    els.codeBox.appendChild(div);
+  });
+  els.lineCounter.textContent = "line " + Math.min(state.pc, state.prog.steps.length) +
+    " of " + state.prog.steps.length;
+}
+
+function renderVars() {
+  els.varsBox.innerHTML = "";
+  var names = Object.keys(state.vars);
+  if (names.length === 0) {
+    els.varsBox.innerHTML = '<span class="vars-empty">No variables yet. Run the first line.</span>';
+    return;
+  }
+  names.forEach(function (name) {
+    var v = state.vars[name];
+    var box = document.createElement("div");
+    box.className = "var-box" + (state.changed.indexOf(name) >= 0 ? " changed" : "");
+    var val = v.value;
+    if (v.type === "str") val = String(val); // already includes quotes in source
+    box.innerHTML =
+      '<div class="var-name">' + escapeHtml(name) + '</div>' +
+      '<div class="var-val">' + escapeHtml(val) + '</div>' +
+      '<div class="var-type">' + escapeHtml(v.type) + '</div>';
+    els.varsBox.appendChild(box);
+  });
+}
+
+function renderConsole() {
+  if (state.output.length === 0) {
+    els.consoleBox.innerHTML = '<span class="empty">No output yet. Step through the program.</span>';
+    return;
+  }
+  els.consoleBox.textContent = state.output.join("\n");
+}
+
+function renderPredict() {
+  els.feedbackBox.classList.remove("show", "good", "bad");
+  els.optionsBox.innerHTML = "";
+
+  if (state.pc >= state.prog.steps.length) {
+    els.targetLine.textContent = "Program finished.";
+    els.optionsBox.innerHTML = '<div class="vars-empty" style="padding:6px 2px;">All lines traced. Reset to run again, or pick another program.</div>';
+    return;
+  }
+
+  var step = state.prog.steps[state.pc];
+  var srcText = state.prog.source[step.line - 1].trim();
+  els.targetLine.textContent = "line " + step.line + ":  " + srcText;
+
+  // Build shuffled options (1 correct + 3 distractors)
+  var opts = [{ text: step.desc, correct: true }];
+  step.distractors.forEach(function (d) { opts.push({ text: d, correct: false }); });
+  shuffle(opts);
+
+  var tags = ["A", "B", "C", "D"];
+  opts.forEach(function (opt, i) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "opt";
+    b.setAttribute("data-correct", opt.correct ? "1" : "0");
+    b.innerHTML = '<span class="tag">' + tags[i] + '</span><span>' + escapeHtml(opt.text) + '</span>';
+    b.addEventListener("click", function () { answerPrediction(b, opt.correct, step); });
+    els.optionsBox.appendChild(b);
+  });
+  state.predicted = false;
+}
+
+function renderAll() {
+  renderCode();
+  renderVars();
+  renderConsole();
+  renderPredict();
+  els.scoreCorrect.textContent = state.scoreCorrect;
+  els.scoreTotal.textContent = state.scoreTotal;
+  els.linesTraced.textContent = state.linesTraced;
+  var finished = state.pc >= state.prog.steps.length;
+  els.stepBtn.disabled = finished;
+  els.runAllBtn.disabled = finished;
+  els.callDepth.textContent = ("a" in state.vars || "width" in state.vars) && state.key === "functions"
+    ? "inside function" : "";
+}
+
+/* ---------- Prediction handling ---------- */
+function answerPrediction(btn, correct, step) {
+  if (state.predicted) return;
+  state.predicted = true;
+  state.scoreTotal++;
+
+  // disable all options, mark correct one
+  var all = els.optionsBox.querySelectorAll(".opt");
+  all.forEach(function (b) {
+    b.disabled = true;
+    if (b.getAttribute("data-correct") === "1") b.classList.add("correct");
+  });
+
+  if (correct) {
+    state.scoreCorrect++;
+    btn.classList.add("correct");
+    showFeedback(true, "Correct prediction.", step.desc + " Now run the line to see it happen.");
+    say("Correct. " + step.desc);
+  } else {
+    btn.classList.add("wrong");
+    showFeedback(false, "Not quite.", "What actually happens: " + step.desc);
+    say("Not quite. " + step.desc);
+  }
+  els.scoreCorrect.textContent = state.scoreCorrect;
+  els.scoreTotal.textContent = state.scoreTotal;
+}
+
+function showFeedback(good, title, body) {
+  els.feedbackBox.className = "feedback show " + (good ? "good" : "bad");
+  els.feedbackBox.innerHTML = "<strong>" + escapeHtml(title) + "</strong>" + escapeHtml(body);
+}
+
+/* ---------- Stepping ---------- */
+function step() {
+  if (state.pc >= state.prog.steps.length) return;
+  var s = state.prog.steps[state.pc];
+
+  // flash the running line briefly
+  flashRunningLine(s.line);
+
+  // apply effect
+  s.effect(state);
+  state.pc++;
+  state.linesTraced++;
+
+  // build a spoken summary of what changed / printed
+  var summary;
+  if (state.changed.length > 0) {
+    summary = "Line " + s.line + " ran. " + state.changed.map(function (n) {
+      return n + " is now " + state.vars[n].value;
+    }).join(", ") + ".";
+  } else if (state.output.length > 0) {
+    summary = "Line " + s.line + " ran and printed: " + state.output[state.output.length - 1] + ".";
+  } else {
+    summary = "Line " + s.line + " ran.";
+  }
+
+  renderAll();
+
+  if (state.pc >= state.prog.steps.length) {
+    showEndBanner();
+    say(summary + " Program finished.");
+  } else {
+    say(summary + " Next, predict line " + nextLineNumber() + ".");
+  }
+}
+
+function flashRunningLine(ln) {
+  var lines = els.codeBox.querySelectorAll(".code-line");
+  if (lines[ln - 1]) {
+    lines[ln - 1].classList.add("flash-run");
+    setTimeout(function () { if (lines[ln - 1]) lines[ln - 1].classList.remove("flash-run"); }, 320);
+  }
+}
+
+function runAll() {
+  // step quickly to the end
+  function loop() {
+    if (state.pc < state.prog.steps.length) {
+      step();
+      setTimeout(loop, 420);
+    }
+  }
+  loop();
+}
+
+function showEndBanner() {
+  var pct = state.scoreTotal > 0 ? Math.round((state.scoreCorrect / state.scoreTotal) * 100) : 0;
+  var msg = "&#x1F3C1; Trace complete. You traced " + state.linesTraced + " lines.";
+  if (state.scoreTotal > 0) {
+    msg += " You predicted " + state.scoreCorrect + " of " + state.scoreTotal + " lines correctly (" + pct + "%).";
+  }
+  msg += " Reset to try again, or choose another program to explore a new idea.";
+  els.endBanner.innerHTML = msg;
+  els.endBanner.classList.add("show");
+}
+
+/* ---------- Utilities ---------- */
+function shuffle(a) {
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function say(msg) { els.live.textContent = msg; }
+
+/* ---------- Events ---------- */
+els.progSelect.addEventListener("change", function () { loadProgram(this.value); });
+els.stepBtn.addEventListener("click", step);
+els.runAllBtn.addEventListener("click", runAll);
+els.resetBtn.addEventListener("click", function () { resetTrace(true); });
+
+document.addEventListener("keydown", function (e) {
+  var tag = (e.target && e.target.tagName) || "";
+  if (tag === "SELECT") return;
+  if (e.key === "Enter" || e.key === "n" || e.key === "N") {
+    if (!els.stepBtn.disabled) { e.preventDefault(); step(); }
+  } else if (["1","2","3","4"].indexOf(e.key) >= 0) {
+    var idx = parseInt(e.key, 10) - 1;
+    var btns = els.optionsBox.querySelectorAll(".opt");
+    if (btns[idx] && !btns[idx].disabled) { e.preventDefault(); btns[idx].click(); }
+  }
+});
+
+/* ---------- Boot ---------- */
+loadProgram("selection");
+</script>
+</body>
+</html>

@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recorder Trainer</title>
+<style>
+  :root{
+    --ink:#1c2333; --paper:#f6f4ee; --card:#ffffff; --line:#dfdad0;
+    --brand:#3a5a9b; --brand-dark:#28406f; --accent:#c9742b;
+    --good:#2f8f5b; --good-soft:#e4f3ea; --warn:#c4651f; --bad:#c23b3b;
+    --muted:#5d6577; --shadow:0 6px 22px rgba(20,30,55,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper); color:var(--ink); line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  header.page{
+    background:linear-gradient(135deg,var(--brand) 0%,var(--brand-dark) 100%);
+    color:#fff; padding:18px 20px 16px;
+  }
+  header.page .wrap{max-width:1080px;margin:0 auto}
+  header.page h1{margin:0;font-size:1.55rem;letter-spacing:.2px}
+  header.page .sub{margin:4px 0 0;font-size:.95rem;opacity:.92}
+  .aim{
+    max-width:1080px;margin:14px auto 0;padding:0 20px;
+  }
+  .aim .aimcard{
+    background:#fff;border-left:5px solid var(--accent);border-radius:10px;
+    padding:12px 16px;box-shadow:var(--shadow);font-size:.95rem;
+  }
+  .aim .aimcard strong{color:var(--brand-dark)}
+  main{max-width:1080px;margin:0 auto;padding:18px 20px 60px}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 18px}
+  .tab{
+    border:1px solid var(--line);background:#fff;color:var(--brand-dark);
+    padding:9px 16px;border-radius:999px;font-size:.95rem;cursor:pointer;
+    font-weight:600;
+  }
+  .tab[aria-selected="true"]{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .tab:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .panel{display:none}
+  .panel.active{display:block}
+  .grid{display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start}
+  @media (max-width:820px){.grid{grid-template-columns:1fr}}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:16px;box-shadow:var(--shadow);
+  }
+  h2{font-size:1.15rem;margin:.1rem 0 .6rem}
+  h3{font-size:1rem;margin:.2rem 0 .5rem;color:var(--brand-dark)}
+  p.note{color:var(--muted);font-size:.9rem;margin:.3rem 0}
+
+  /* note picker */
+  .notebar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+  .notebtn{
+    min-width:54px;border:1px solid var(--line);background:#fff;border-radius:10px;
+    padding:10px 6px;font-size:1.1rem;font-weight:700;cursor:pointer;color:var(--brand-dark);
+    text-align:center;
+  }
+  .notebtn small{display:block;font-weight:500;font-size:.7rem;color:var(--muted)}
+  .notebtn[aria-pressed="true"]{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .notebtn[aria-pressed="true"] small{color:#dce6f7}
+  .notebtn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+  /* fingering diagram */
+  .fingerwrap{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+  .recorder-svg{flex:0 0 auto}
+  .legend{font-size:.85rem;color:var(--muted);max-width:240px}
+  .legend ul{margin:.3rem 0;padding-left:18px}
+  .pillrow{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .pill{font-size:.8rem;padding:3px 10px;border-radius:999px;background:#eef1f7;color:var(--brand-dark);border:1px solid #d7deec}
+  .pill.tip{background:#fbeede;color:#8a521c;border-color:#f0d8b6}
+
+  /* tuner */
+  .tuner-display{
+    text-align:center;padding:10px 6px 4px;border-radius:12px;background:#fbfaf6;
+    border:1px dashed var(--line);
+  }
+  .detected{font-size:2.4rem;font-weight:800;margin:2px 0;color:var(--brand-dark);min-height:2.6rem}
+  .freqline{font-size:.85rem;color:var(--muted)}
+  .meter{
+    position:relative;height:30px;border-radius:999px;margin:14px 8px 6px;
+    background:linear-gradient(90deg,#f2d2c6 0%,#f6efbf 35%,#cdeed8 50%,#f6efbf 65%,#f2d2c6 100%);
+    border:1px solid var(--line);
+  }
+  .meter .centre{position:absolute;left:50%;top:-4px;bottom:-4px;width:2px;background:var(--brand-dark);transform:translateX(-1px)}
+  .meter .needle{
+    position:absolute;top:-7px;bottom:-7px;width:6px;border-radius:4px;background:var(--brand);
+    left:50%;transform:translateX(-3px);transition:left .07s linear,background .1s;
+    box-shadow:0 2px 6px rgba(0,0,0,.2);
+  }
+  .meter .needle.on{background:var(--good)}
+  .scaleends{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);padding:0 8px}
+  .verdict{
+    margin-top:12px;text-align:center;font-weight:700;font-size:1.05rem;
+    padding:10px;border-radius:10px;background:#f0f2f6;color:var(--brand-dark);min-height:1.4rem;
+  }
+  .verdict.good{background:var(--good-soft);color:var(--good)}
+  .verdict.flat{background:#fdeee2;color:var(--warn)}
+  .verdict.sharp{background:#fdeee2;color:var(--warn)}
+  .verdict.wrong{background:#fbe7e7;color:var(--bad)}
+
+  .btn{
+    border:0;border-radius:10px;padding:11px 18px;font-size:.98rem;font-weight:700;
+    cursor:pointer;background:var(--brand);color:#fff;
+  }
+  .btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .btn.secondary{background:#fff;color:var(--brand-dark);border:1px solid var(--line)}
+  .btn.ghost{background:transparent;color:var(--brand);text-decoration:underline;padding:6px 4px}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:center}
+
+  .status{font-size:.85rem;color:var(--muted);margin-top:8px}
+  .status.live{color:var(--good);font-weight:600}
+  .status.err{color:var(--bad);font-weight:600}
+
+  /* riff builder */
+  .riff-track{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0;min-height:60px}
+  .slot{
+    width:56px;height:56px;border:2px dashed var(--line);border-radius:10px;
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;
+    background:#fff;color:var(--brand-dark);position:relative;
+  }
+  .slot.filled{border-style:solid;border-color:var(--brand);background:#eef3fb}
+  .slot.playing{outline:3px solid var(--accent);outline-offset:2px}
+  .slot.target{box-shadow:inset 0 0 0 3px #f0d8b6}
+  .slot .x{position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;
+    background:var(--bad);color:#fff;border:0;font-size:.8rem;cursor:pointer;line-height:1}
+  .palette{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .pal{
+    width:50px;height:50px;border:1px solid var(--line);border-radius:10px;background:#fff;
+    font-weight:700;cursor:pointer;color:var(--brand-dark);font-size:1.05rem;
+  }
+  .pal:focus-visible,.notebtn:focus-visible{outline:3px solid var(--accent)}
+  .challenge-line{font-size:.95rem;margin:6px 0}
+  .target-note{font-weight:800;color:var(--accent)}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  footer{max-width:1080px;margin:0 auto;padding:0 20px 40px;color:var(--muted);font-size:.82rem}
+  kbd{background:#eef1f7;border:1px solid #d7deec;border-radius:5px;padding:1px 6px;font-size:.8rem}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="page">
+  <div class="wrap">
+    <h1>&#x1F3B5; Recorder Trainer</h1>
+    <p class="sub">Learn the fingering, then play and let the app check your note is in tune.</p>
+  </div>
+</header>
+
+<div class="aim">
+  <div class="aimcard">
+    <strong>Teacher aim:</strong> KS2 Music, performing. Pupils develop accuracy and control on the descant recorder by reading a fingering chart, playing the note, and using the live tuner for instant feedback on pitch. Suitable for whole-class instrumental teaching on a whiteboard or tablet.
+  </div>
+</div>
+
+<main>
+  <div class="tabs" role="tablist" aria-label="Recorder Trainer sections">
+    <button class="tab" role="tab" id="tab-learn" aria-controls="panel-learn" aria-selected="true">1. Learn a note</button>
+    <button class="tab" role="tab" id="tab-tune" aria-controls="panel-tune" aria-selected="false">2. Play and tune</button>
+    <button class="tab" role="tab" id="tab-riff" aria-controls="panel-riff" aria-selected="false">3. Riff Builder</button>
+  </div>
+
+  <!-- PANEL 1: LEARN -->
+  <section class="panel active" id="panel-learn" role="tabpanel" aria-labelledby="tab-learn">
+    <div class="grid">
+      <div class="card">
+        <h2>Pick a note</h2>
+        <p class="note">Descant (soprano) recorder. Tap a note to see how to hold the recorder.</p>
+        <div class="notebar" id="learnNotes" role="group" aria-label="Choose a recorder note"></div>
+        <div class="pillrow">
+          <span class="pill tip">Start with B, A, G</span>
+          <span class="pill">Thumb covers the back hole</span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Fingering chart: <span id="learnNoteName">B</span></h2>
+        <div class="fingerwrap">
+          <div class="recorder-svg" id="learnDiagram" aria-hidden="true"></div>
+          <div class="legend" aria-live="polite" id="learnLegend">
+            <h3>How to play it</h3>
+            <p id="learnDesc"></p>
+            <ul>
+              <li><strong>Filled circle</strong> = cover the hole.</li>
+              <li><strong>Open circle</strong> = leave it uncovered.</li>
+              <li><strong>Half circle</strong> = cover only half.</li>
+            </ul>
+            <p class="note">Blow gently and steadily. Tongue each note with a soft "doo".</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PANEL 2: TUNE -->
+  <section class="panel" id="panel-tune" role="tabpanel" aria-labelledby="tab-tune">
+    <div class="grid">
+      <div class="card">
+        <h2>Target note</h2>
+        <p class="note">Choose the note you want to play. The tuner listens through the microphone and tells you if you are in tune.</p>
+        <div class="notebar" id="tuneNotes" role="group" aria-label="Choose target note"></div>
+        <div class="fingerwrap" style="margin-top:6px">
+          <div class="recorder-svg" id="tuneDiagram" aria-hidden="true"></div>
+          <div class="legend">
+            <h3>Fingering: <span id="tuneNoteName">A</span></h3>
+            <p id="tuneDesc" class="note"></p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Live tuner</h2>
+        <div class="btnrow">
+          <button class="btn" id="micBtn">&#x1F3A4; Start listening</button>
+          <button class="btn secondary" id="stopBtn" disabled>Stop</button>
+        </div>
+        <p class="status" id="micStatus" aria-live="polite" role="status">Microphone is off. Press start, then play your target note.</p>
+
+        <div class="tuner-display" style="margin-top:12px">
+          <div class="detected" id="detectedNote" aria-hidden="true">--</div>
+          <div class="freqline" id="freqLine">listening for a steady note...</div>
+          <div class="meter" aria-hidden="true">
+            <div class="centre"></div>
+            <div class="needle" id="needle"></div>
+          </div>
+          <div class="scaleends"><span>flat &#x2193;</span><span>in tune</span><span>sharp &#x2191;</span></div>
+        </div>
+        <div class="verdict" id="verdict" aria-live="assertive" role="status">Pick a target note and start the tuner.</div>
+        <p class="note">No sound is recorded or sent anywhere. The microphone is used only to detect pitch on this device.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PANEL 3: RIFF -->
+  <section class="panel" id="panel-riff" role="tabpanel" aria-labelledby="tab-riff">
+    <div class="card">
+      <h2>Riff Builder</h2>
+      <p class="note">Build a short four-note riff using B, A and G, then play it back to hear the tune. Try to copy the challenge riff below.</p>
+
+      <div class="challenge-line">Challenge riff to copy: <span id="challengeText" class="target-note"></span>
+        <button class="btn ghost" id="newChallenge">New challenge</button></div>
+
+      <h3>Your riff</h3>
+      <div class="riff-track" id="riffTrack" aria-label="Your riff, four slots" role="list"></div>
+
+      <h3>Add notes</h3>
+      <div class="palette" id="riffPalette" role="group" aria-label="Note palette"></div>
+
+      <div class="btnrow">
+        <button class="btn" id="playRiff">&#x25B6; Play my riff</button>
+        <button class="btn secondary" id="playChallenge">&#x1F50A; Hear the challenge</button>
+        <button class="btn secondary" id="clearRiff">Clear</button>
+        <button class="btn" id="checkRiff" style="background:var(--accent)">Check my riff</button>
+      </div>
+      <div class="verdict" id="riffVerdict" aria-live="assertive" role="status">Add four notes, then play or check.</div>
+      <p class="note">Tip: use the keyboard. Tab to a palette note and press <kbd>Enter</kbd> to add it to the next empty slot.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Recorder Trainer uses concert (A = 440 Hz) tuning for a standard descant recorder. Fingerings shown are baroque (English) fingering, the most common in UK schools. Demonstration tool for classroom use.
+</footer>
+
+<script>
+"use strict";
+
+/* ---------- Note data: descant recorder, baroque fingering ----------
+   Holes order: [thumb(back), 1, 2, 3, 4, 5, 6, 7]
+   value: 1 = closed, 0 = open, 0.5 = half hole
+   freq = concert pitch in Hz (A4=440) */
+const NOTES = {
+  "C": { label:"C", oct:"5", freq:523.25, holes:[1,1,1,0,0,0,0,0], desc:"Thumb and top finger only. A bright high note." },
+  "B": { label:"B", oct:"4", freq:493.88, holes:[1,1,0,0,0,0,0,0], desc:"Thumb at the back, plus the very first finger on top." },
+  "A": { label:"A", oct:"4", freq:440.00, holes:[1,1,1,0,0,0,0,0], desc:"Thumb plus the first two top fingers." },
+  "G": { label:"G", oct:"4", freq:392.00, holes:[1,1,1,1,0,0,0,0], desc:"Thumb plus the first three fingers of the top hand." },
+  "E": { label:"E", oct:"4", freq:329.63, holes:[1,1,1,1,1,1,0,0], desc:"Both hands, all holes covered except the last two." },
+  "D": { label:"D", oct:"4", freq:293.66, holes:[1,1,1,1,1,1,1,0], desc:"Almost every hole covered. Leave only the bottom hole open." },
+  "C2":{ label:"C", oct:"4", freq:261.63, holes:[1,1,1,1,1,1,1,1], desc:"Low C: cover every single hole. Blow very gently." }
+};
+const LEARN_ORDER = ["B","A","G","E","D","C2","C"];
+
+/* ---------- Fingering diagram (SVG) ---------- */
+function fingeringSVG(note){
+  const h = NOTES[note].holes;
+  const w=70, top=14, gap=30;
+  // thumb hole drawn to the left, finger holes stacked vertically
+  const cx=w/2;
+  let parts=[];
+  // recorder body
+  parts.push('<rect x="'+(cx-16)+'" y="2" width="32" height="'+(top+gap*7+18)+'" rx="16" fill="#f3ead7" stroke="#cbb98f" stroke-width="2"/>');
+  // mouthpiece bevel
+  parts.push('<rect x="'+(cx-16)+'" y="2" width="32" height="18" rx="9" fill="#e7d6ad" stroke="#cbb98f" stroke-width="2"/>');
+  // thumb hole (back) shown to the side with a 'T'
+  const thumbState=h[0];
+  parts.push(holeCircle(cx-30, top+gap, thumbState, true));
+  parts.push('<text x="'+(cx-30)+'" y="'+(top+gap-12)+'" font-size="10" text-anchor="middle" fill="#8a7a55">T</text>');
+  // 7 front holes
+  for(let i=1;i<=7;i++){
+    parts.push(holeCircle(cx, top+gap*i, h[i], false));
+  }
+  return '<svg width="'+(w+20)+'" height="'+(top+gap*7+26)+'" viewBox="0 0 '+(w+20)+' '+(top+gap*7+26)+'" role="img">'+parts.join('')+'</svg>';
+}
+function holeCircle(cx,cy,state,isThumb){
+  const r=9;
+  if(state===0){
+    return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="#fff" stroke="#3a3a3a" stroke-width="2"/>';
+  } else if(state===1){
+    return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="#27324a" stroke="#27324a" stroke-width="2"/>';
+  } else {
+    // half: left half filled
+    return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="#fff" stroke="#3a3a3a" stroke-width="2"/>'+
+           '<path d="M '+cx+' '+(cy-r)+' A '+r+' '+r+' 0 0 0 '+cx+' '+(cy+r)+' Z" fill="#27324a"/>';
+  }
+}
+
+/* ---------- Tabs ---------- */
+const tabs=[...document.querySelectorAll('.tab')];
+const panels={ 'tab-learn':'panel-learn','tab-tune':'panel-tune','tab-riff':'panel-riff' };
+tabs.forEach(t=>{
+  t.addEventListener('click',()=>selectTab(t));
+  t.addEventListener('keydown',e=>{
+    const i=tabs.indexOf(t);
+    if(e.key==='ArrowRight'){tabs[(i+1)%tabs.length].focus();selectTab(tabs[(i+1)%tabs.length]);}
+    if(e.key==='ArrowLeft'){tabs[(i-1+tabs.length)%tabs.length].focus();selectTab(tabs[(i-1+tabs.length)%tabs.length]);}
+  });
+});
+function selectTab(t){
+  tabs.forEach(x=>{
+    const on=x===t;
+    x.setAttribute('aria-selected',on?'true':'false');
+    document.getElementById(panels[x.id]).classList.toggle('active',on);
+  });
+  // stop the mic if we leave the tuner tab
+  if(t.id!=='tab-tune') stopMic();
+}
+
+/* ---------- Build note buttons ---------- */
+function noteButtonLabel(key){
+  const n=NOTES[key];
+  return '<span>'+n.label+'</span><small>'+(key==='C2'?'low':'')+'</small>';
+}
+function buildNotePicker(containerId, onPick, initial){
+  const c=document.getElementById(containerId);
+  c.innerHTML='';
+  LEARN_ORDER.forEach(key=>{
+    const b=document.createElement('button');
+    b.className='notebtn';
+    b.type='button';
+    b.innerHTML=noteButtonLabel(key);
+    b.setAttribute('aria-pressed', key===initial?'true':'false');
+    b.setAttribute('aria-label','Note '+NOTES[key].label+(key==='C2'?' low':''));
+    b.addEventListener('click',()=>{
+      [...c.children].forEach(ch=>ch.setAttribute('aria-pressed','false'));
+      b.setAttribute('aria-pressed','true');
+      onPick(key);
+    });
+    c.appendChild(b);
+  });
+}
+
+/* ---------- Panel 1 ---------- */
+let learnNote='B';
+function renderLearn(key){
+  learnNote=key;
+  document.getElementById('learnDiagram').innerHTML=fingeringSVG(key);
+  document.getElementById('learnNoteName').textContent=NOTES[key].label+(key==='C2'?' (low)':'');
+  document.getElementById('learnDesc').textContent=NOTES[key].desc;
+}
+buildNotePicker('learnNotes',renderLearn,'B');
+renderLearn('B');
+
+/* ---------- Panel 2 ---------- */
+let tuneNote='A';
+function renderTune(key){
+  tuneNote=key;
+  document.getElementById('tuneDiagram').innerHTML=fingeringSVG(key);
+  document.getElementById('tuneNoteName').textContent=NOTES[key].label+(key==='C2'?' (low)':'');
+  document.getElementById('tuneDesc').textContent=NOTES[key].desc;
+  resetVerdict();
+}
+buildNotePicker('tuneNotes',renderTune,'A');
+renderTune('A');
+
+function resetVerdict(){
+  const v=document.getElementById('verdict');
+  v.className='verdict';
+  v.textContent = micRunning ? 'Play '+NOTES[tuneNote].label+(tuneNote==='C2'?' (low)':'')+' and hold it steady.' : 'Pick a target note and start the tuner.';
+}
+
+/* ---------- Pitch detection (autocorrelation) ---------- */
+let audioCtx=null, analyser=null, micStream=null, rafId=null, micRunning=false;
+let buf=null;
+
+const micBtn=document.getElementById('micBtn');
+const stopBtn=document.getElementById('stopBtn');
+const micStatus=document.getElementById('micStatus');
+
+micBtn.addEventListener('click',startMic);
+stopBtn.addEventListener('click',stopMic);
+
+async function startMic(){
+  if(micRunning) return;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    setStatus('This browser does not allow microphone access. Try Chrome or Edge.','err'); return;
+  }
+  try{
+    setStatus('Requesting microphone permission...');
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const src=audioCtx.createMediaStreamSource(micStream);
+    analyser=audioCtx.createAnalyser();
+    analyser.fftSize=2048;
+    buf=new Float32Array(analyser.fftSize);
+    src.connect(analyser);
+    micRunning=true;
+    micBtn.disabled=true; stopBtn.disabled=false;
+    setStatus('Listening. Play '+NOTES[tuneNote].label+' on your recorder.','live');
+    resetVerdict();
+    loop();
+  }catch(err){
+    setStatus('Microphone permission was blocked. Allow it in your browser settings, then try again.','err');
+  }
+}
+function stopMic(){
+  if(!micRunning && !micStream) { return; }
+  micRunning=false;
+  if(rafId) cancelAnimationFrame(rafId);
+  if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
+  if(audioCtx){ audioCtx.close(); audioCtx=null; }
+  micBtn.disabled=false; stopBtn.disabled=true;
+  setStatus('Microphone is off. Press start, then play your target note.');
+  document.getElementById('detectedNote').textContent='--';
+  document.getElementById('freqLine').textContent='listening for a steady note...';
+  setNeedle(0,false);
+  resetVerdict();
+}
+function setStatus(txt,cls){
+  micStatus.textContent=txt;
+  micStatus.className='status'+(cls?' '+cls:'');
+}
+
+/* names for nearest-note readout, two octaves around recorder range */
+const NAME_TABLE=(function(){
+  const names=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  const arr=[];
+  for(let midi=55; midi<=84; midi++){ // G3 to C6
+    const f=440*Math.pow(2,(midi-69)/12);
+    arr.push({midi,name:names[midi%12],freq:f});
+  }
+  return arr;
+})();
+function nearestName(freq){
+  let best=NAME_TABLE[0],bd=1e9;
+  for(const n of NAME_TABLE){ const d=Math.abs(Math.log2(n.freq/freq)); if(d<bd){bd=d;best=n;} }
+  return best;
+}
+
+function autoCorrelate(buffer, sampleRate){
+  let SIZE=buffer.length;
+  let rms=0;
+  for(let i=0;i<SIZE;i++){ rms+=buffer[i]*buffer[i]; }
+  rms=Math.sqrt(rms/SIZE);
+  if(rms<0.01) return -1; // too quiet
+  let r1=0,r2=SIZE-1,thres=0.2;
+  for(let i=0;i<SIZE/2;i++){ if(Math.abs(buffer[i])<thres){r1=i;break;} }
+  for(let i=1;i<SIZE/2;i++){ if(Math.abs(buffer[SIZE-i])<thres){r2=SIZE-i;break;} }
+  const b2=buffer.slice(r1,r2);
+  SIZE=b2.length;
+  const c=new Array(SIZE).fill(0);
+  for(let i=0;i<SIZE;i++){ for(let j=0;j<SIZE-i;j++){ c[i]+=b2[j]*b2[j+i]; } }
+  let d=0; while(d<SIZE-1 && c[d]>c[d+1]) d++;
+  let maxval=-1,maxpos=-1;
+  for(let i=d;i<SIZE;i++){ if(c[i]>maxval){maxval=c[i];maxpos=i;} }
+  let T0=maxpos;
+  if(T0<=0) return -1;
+  // parabolic interpolation
+  const x1=c[T0-1]||0,x2=c[T0],x3=c[T0+1]||0;
+  const a=(x1+x3-2*x2)/2, b=(x3-x1)/2;
+  if(a) T0=T0-b/(2*a);
+  const freq=sampleRate/T0;
+  if(freq<150||freq>1200) return -1;
+  return freq;
+}
+
+let smooth=null;
+function loop(){
+  if(!micRunning) return;
+  analyser.getFloatTimeDomainData(buf);
+  const f=autoCorrelate(buf,audioCtx.sampleRate);
+  if(f<0){
+    document.getElementById('freqLine').textContent='listening for a steady note...';
+    setNeedle(0,false);
+  } else {
+    smooth = smooth==null ? f : smooth*0.6 + f*0.4;
+    updateTuner(smooth);
+  }
+  rafId=requestAnimationFrame(loop);
+}
+
+function setNeedle(cents,on){
+  const n=document.getElementById('needle');
+  const clamped=Math.max(-50,Math.min(50,cents));
+  n.style.left=(50 + clamped)+'%';
+  n.classList.toggle('on',!!on);
+}
+
+function updateTuner(freq){
+  const near=nearestName(freq);
+  const cents=1200*Math.log2(freq/near.freq);
+  document.getElementById('detectedNote').textContent=near.name;
+  document.getElementById('freqLine').textContent=Math.round(freq)+' Hz';
+
+  const target=NOTES[tuneNote];
+  const targetNear=nearestName(target.freq);
+  const isTargetName = near.name===targetNear.name;
+  const targetCents=1200*Math.log2(freq/target.freq);
+
+  setNeedle(targetCents/1, Math.abs(targetCents)<15 && isTargetName);
+
+  const v=document.getElementById('verdict');
+  if(!isTargetName){
+    // wrong note: how far in semitones
+    const semis = Math.round(12*Math.log2(freq/target.freq));
+    v.className='verdict wrong';
+    if(semis>0) v.textContent='That is '+near.name+', a bit too high. Aim for '+target.label+'. Check your fingering.';
+    else v.textContent='That is '+near.name+', a bit too low. Aim for '+target.label+'. Check your fingering.';
+  } else if(Math.abs(targetCents)<12){
+    v.className='verdict good';
+    v.textContent='In tune! That is a lovely '+target.label+'. '+(targetCents>0?'(just a touch sharp)':targetCents<-1?'(just a touch flat)':'(spot on)');
+  } else if(targetCents<0){
+    v.className='verdict flat';
+    v.textContent='Almost. '+target.label+' is a little flat (low). Blow slightly firmer to lift the pitch.';
+  } else {
+    v.className='verdict sharp';
+    v.textContent='Almost. '+target.label+' is a little sharp (high). Blow a touch more gently.';
+  }
+}
+
+/* ---------- Tone playback (riff + challenge) using oscillator ---------- */
+let playCtx=null;
+function ensurePlayCtx(){
+  if(!playCtx) playCtx=new (window.AudioContext||window.webkitAudioContext)();
+  return playCtx;
+}
+function playTone(freq,when,dur){
+  const ctx=ensurePlayCtx();
+  const osc=ctx.createOscillator();
+  const gain=ctx.createGain();
+  osc.type='triangle';
+  osc.frequency.value=freq;
+  // gentle envelope, recorder-ish
+  gain.gain.setValueAtTime(0,when);
+  gain.gain.linearRampToValueAtTime(0.25,when+0.03);
+  gain.gain.setValueAtTime(0.25,when+dur-0.05);
+  gain.gain.linearRampToValueAtTime(0,when+dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(when);
+  osc.stop(when+dur+0.02);
+}
+
+/* ---------- Panel 3: Riff Builder ---------- */
+const RIFF_NOTES=["B","A","G"];
+const SLOTS=4;
+let riff=[null,null,null,null];
+let challenge=[];
+
+const riffTrack=document.getElementById('riffTrack');
+const riffPalette=document.getElementById('riffPalette');
+const riffVerdict=document.getElementById('riffVerdict');
+
+function renderRiff(){
+  riffTrack.innerHTML='';
+  for(let i=0;i<SLOTS;i++){
+    const s=document.createElement('div');
+    s.className='slot'+(riff[i]?' filled':'');
+    s.setAttribute('role','listitem');
+    s.dataset.index=i;
+    if(riff[i]){
+      s.textContent=NOTES[riff[i]].label;
+      s.setAttribute('aria-label','Slot '+(i+1)+': '+NOTES[riff[i]].label);
+      const x=document.createElement('button');
+      x.className='x'; x.type='button'; x.textContent='×';
+      x.setAttribute('aria-label','Remove note from slot '+(i+1));
+      x.addEventListener('click',(e)=>{e.stopPropagation();riff[i]=null;renderRiff();});
+      s.appendChild(x);
+    } else {
+      s.textContent='';
+      s.setAttribute('aria-label','Slot '+(i+1)+': empty');
+    }
+    riffTrack.appendChild(s);
+  }
+}
+function buildPalette(){
+  riffPalette.innerHTML='';
+  RIFF_NOTES.forEach(key=>{
+    const b=document.createElement('button');
+    b.className='pal'; b.type='button'; b.textContent=NOTES[key].label;
+    b.setAttribute('aria-label','Add note '+NOTES[key].label+' to the next empty slot');
+    b.addEventListener('click',()=>addNote(key));
+    riffPalette.appendChild(b);
+  });
+}
+function addNote(key){
+  const empty=riff.indexOf(null);
+  if(empty===-1){ flashRiff('Your riff is full. Remove a note or clear it first.'); return; }
+  riff[empty]=key;
+  renderRiff();
+  // little audible confirmation
+  const ctx=ensurePlayCtx();
+  playTone(NOTES[key].freq, ctx.currentTime, 0.3);
+}
+function flashRiff(msg,cls){
+  riffVerdict.className='verdict'+(cls?' '+cls:'');
+  riffVerdict.textContent=msg;
+}
+
+document.getElementById('playRiff').addEventListener('click',()=>{
+  const filled=riff.filter(Boolean);
+  if(filled.length===0){ flashRiff('Add some notes first.'); return; }
+  playSequence(riff, 'riff');
+  flashRiff('Playing your riff...');
+});
+document.getElementById('playChallenge').addEventListener('click',()=>{
+  playSequence(challenge,'challenge');
+  flashRiff('Listen to the challenge riff, then copy it.');
+});
+document.getElementById('clearRiff').addEventListener('click',()=>{
+  riff=[null,null,null,null]; renderRiff(); flashRiff('Cleared. Add four notes.');
+});
+document.getElementById('checkRiff').addEventListener('click',checkRiff);
+document.getElementById('newChallenge').addEventListener('click',newChallenge);
+
+function playSequence(seq,which){
+  const ctx=ensurePlayCtx();
+  let t=ctx.currentTime+0.05;
+  const dur=0.5;
+  const slots=riffTrack.children;
+  seq.forEach((key,i)=>{
+    if(!key) { t+=dur; return; }
+    playTone(NOTES[key].freq,t,dur);
+    if(which==='riff'){
+      const idx=i;
+      setTimeout(()=>{
+        [...slots].forEach(s=>s.classList.remove('playing'));
+        if(slots[idx]) slots[idx].classList.add('playing');
+      }, (t-ctx.currentTime)*1000);
+    }
+    t+=dur;
+  });
+  if(which==='riff'){
+    setTimeout(()=>{ [...slots].forEach(s=>s.classList.remove('playing')); }, (t-ctx.currentTime)*1000);
+  }
+}
+
+function checkRiff(){
+  if(riff.indexOf(null)!==-1){ flashRiff('Fill all four slots first.','flat'); return; }
+  let correct=0;
+  for(let i=0;i<SLOTS;i++){ if(riff[i]===challenge[i]) correct++; }
+  if(correct===SLOTS){
+    flashRiff('Brilliant! Your riff matches the challenge exactly. Now play it on your recorder.','good');
+  } else if(correct===0){
+    flashRiff('Not yet. None of the four notes match. Press "Hear the challenge" and listen again.','wrong');
+  } else {
+    // give specific positional feedback
+    let detail=[];
+    for(let i=0;i<SLOTS;i++){ if(riff[i]!==challenge[i]) detail.push('note '+(i+1)); }
+    flashRiff(correct+' of 4 correct. Check '+detail.join(', ')+' and try again.','flat');
+  }
+}
+
+function newChallenge(){
+  challenge=[];
+  for(let i=0;i<SLOTS;i++){ challenge.push(RIFF_NOTES[Math.floor(Math.random()*RIFF_NOTES.length)]); }
+  document.getElementById('challengeText').textContent=challenge.map(k=>NOTES[k].label).join(' - ');
+  flashRiff('New challenge ready. Press "Hear the challenge", then copy it.');
+}
+
+buildPalette();
+renderRiff();
+newChallenge();
+
+/* clean up mic if the page is hidden/closed */
+window.addEventListener('pagehide',stopMic);
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) stopMic(); });
+</script>
+</body>
+</html>

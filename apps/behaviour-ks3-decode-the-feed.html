@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decode the Feed</title>
+<style>
+  :root {
+    --ink: #15202b;
+    --muted: #54616e;
+    --line: #d9e0e6;
+    --bg: #f3f6f9;
+    --card: #ffffff;
+    --brand: #1f6feb;
+    --brand-dark: #134a9e;
+    --good: #1a8754;
+    --good-bg: #e4f4ec;
+    --bad: #c0392b;
+    --bad-bg: #fbeae8;
+    --warn: #b7791f;
+    --warn-bg: #fbf3e2;
+    --accent: #7b3fe4;
+    --shadow: 0 2px 10px rgba(21,32,43,.08);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 18px 16px 64px; }
+  header.app {
+    background: linear-gradient(135deg, #1f6feb, #7b3fe4);
+    color: #fff;
+    border-radius: var(--radius);
+    padding: 22px 22px 20px;
+    box-shadow: var(--shadow);
+  }
+  header.app h1 { margin: 0 0 4px; font-size: clamp(1.5rem, 3.6vw, 2.2rem); letter-spacing: -.02em; }
+  header.app .tag { font-size: .9rem; opacity: .95; font-weight: 600; }
+  .aim {
+    margin-top: 14px;
+    background: rgba(255,255,255,.16);
+    border: 1px solid rgba(255,255,255,.28);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: .95rem;
+  }
+  .aim strong { font-weight: 700; }
+
+  .scorebar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch;
+    margin: 16px 0 8px;
+  }
+  .stat {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 14px; box-shadow: var(--shadow); flex: 1 1 130px; min-width: 120px;
+  }
+  .stat .k { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+  .stat .v { font-size: 1.5rem; font-weight: 800; line-height: 1.1; }
+  .stat .v small { font-size: .9rem; font-weight: 600; color: var(--muted); }
+
+  .progress-track {
+    flex: 2 1 220px; min-width: 200px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: center;
+  }
+  .progress-track .k { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+  .bar { height: 12px; border-radius: 8px; background: #e7edf2; overflow: hidden; margin-top: 6px; }
+  .bar > span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #1f6feb, #7b3fe4); transition: width .35s ease; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px; margin-top: 18px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 1.15rem; }
+  .card .sub { color: var(--muted); font-size: .92rem; margin: 0 0 6px; }
+
+  /* The post being analysed */
+  .post {
+    border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff;
+  }
+  .post-top { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .avatar {
+    width: 42px; height: 42px; border-radius: 50%; flex: 0 0 auto;
+    display: grid; place-items: center; font-size: 1.3rem; color: #fff; font-weight: 800;
+  }
+  .post-handle { font-weight: 800; font-size: .98rem; }
+  .post-meta { color: var(--muted); font-size: .8rem; }
+  .post-badge {
+    margin-left: auto; font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+    padding: 3px 8px; border-radius: 999px; background: #eef2f6; color: var(--muted); border: 1px solid var(--line);
+  }
+  .post-visual {
+    padding: 18px 16px; background: linear-gradient(160deg, #eef3fb, #f6f0ff);
+    font-size: 1rem; text-align: center; color: #2b3640; min-height: 96px;
+    display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px;
+  }
+  .post-visual .big { font-size: 2.1rem; }
+  .post-body { padding: 14px 16px; font-size: 1rem; }
+  .post-body .caption { margin: 0 0 8px; }
+  .post-stats { color: var(--muted); font-size: .85rem; display: flex; gap: 16px; flex-wrap: wrap; padding: 0 16px 14px; }
+
+  /* Claim chips */
+  .claims-intro { font-weight: 700; margin: 16px 0 6px; }
+  .claims {
+    display: grid; gap: 12px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 720px) { .claims { grid-template-columns: 1fr 1fr; } }
+  .claim {
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px 12px 10px; background: #fbfdff;
+  }
+  .claim .ctext { font-weight: 600; margin: 0 0 10px; }
+  .claim .ctext em { font-style: normal; background: #fff3cd; padding: 0 3px; border-radius: 3px; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .verdict-btn {
+    flex: 1 1 0; min-width: 0; cursor: pointer; border: 2px solid var(--line); background: #fff;
+    border-radius: 10px; padding: 9px 8px; font-weight: 800; font-size: .9rem; color: var(--ink);
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: transform .08s ease, border-color .15s, background .15s;
+    touch-action: manipulation;
+  }
+  .verdict-btn:hover { border-color: var(--brand); }
+  .verdict-btn:active { transform: scale(.97); }
+  .verdict-btn:focus-visible { outline: 3px solid #1f6feb55; outline-offset: 2px; }
+  .verdict-btn.sel-real { border-color: var(--good); background: var(--good-bg); }
+  .verdict-btn.sel-fake { border-color: var(--bad); background: var(--bad-bg); }
+  .verdict-btn.sel-tactic { border-color: var(--accent); background: #f0e9fc; }
+  .verdict-btn[disabled] { cursor: default; opacity: .85; }
+  .verdict-btn .ic { font-size: 1.05rem; }
+
+  .feedback {
+    margin-top: 10px; border-radius: 10px; padding: 10px 12px; font-size: .9rem; display: none;
+    border: 1px solid var(--line);
+  }
+  .feedback.show { display: block; }
+  .feedback.ok { background: var(--good-bg); border-color: #aedcc4; }
+  .feedback.no { background: var(--bad-bg); border-color: #efc0b9; }
+  .feedback .lead { font-weight: 800; }
+  .feedback .tactic-tag {
+    display: inline-block; margin-top: 6px; font-size: .76rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .04em; background: #efe6fd; color: #5a2db3; padding: 2px 8px; border-radius: 999px;
+  }
+
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; align-items: center; }
+  button.primary {
+    background: var(--brand); color: #fff; border: none; border-radius: 10px; padding: 12px 20px;
+    font-weight: 800; font-size: 1rem; cursor: pointer; box-shadow: var(--shadow); touch-action: manipulation;
+  }
+  button.primary:hover { background: var(--brand-dark); }
+  button.primary:disabled { background: #9fb4cf; cursor: not-allowed; box-shadow: none; }
+  button.ghost {
+    background: #fff; color: var(--brand-dark); border: 2px solid var(--line); border-radius: 10px;
+    padding: 10px 16px; font-weight: 700; cursor: pointer; touch-action: manipulation;
+  }
+  button.ghost:hover { border-color: var(--brand); }
+  .hint { color: var(--muted); font-size: .88rem; }
+
+  /* Decision wall */
+  .wall { display: grid; gap: 10px; grid-template-columns: 1fr; }
+  @media (min-width: 600px) { .wall { grid-template-columns: 1fr 1fr; } }
+  .wall .post-mini {
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fbfdff; font-size: .9rem;
+    border-left: 6px solid var(--line);
+  }
+  .wall .post-mini.real { border-left-color: var(--good); }
+  .wall .post-mini.fake { border-left-color: var(--bad); }
+  .wall .post-mini b { display: block; }
+
+  .badge-line { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .skill-badge {
+    font-size: .78rem; font-weight: 800; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line);
+    background: #f1f4f8; color: var(--muted);
+  }
+  .skill-badge.lit { background: #e9f7ef; border-color: #aedcc4; color: var(--good); }
+
+  .result-box { display: none; }
+  .result-box.show { display: block; }
+  .result-box .score-headline { font-size: 1.6rem; font-weight: 900; margin: 0 0 4px; }
+  .takeaways { margin: 10px 0 0; padding-left: 20px; }
+  .takeaways li { margin: 6px 0; }
+
+  .legend { font-size: .82rem; color: var(--muted); margin-top: 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; margin-right: 14px; }
+  .dot { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+
+  footer.foot { color: var(--muted); font-size: .8rem; margin-top: 26px; text-align: center; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .speak-btn {
+    background: #fff; border: 2px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer;
+    font-weight: 700; font-size: .82rem; color: var(--brand-dark); touch-action: manipulation;
+  }
+  .speak-btn:hover { border-color: var(--brand); }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <div class="tag">Behaviour &amp; Pastoral &middot; KS3 &middot; Digital Wellbeing</div>
+    <h1>Decode the Feed</h1>
+    <div class="aim">
+      <strong>Teacher aim:</strong> pupils dissect real-style social posts, adverts and edited images, naming the
+      tactics that shape body image and belief, and scoring their media-literacy judgements. Project it, work through
+      a post together, then let pupils call the next ones. Covers online harms, misinformation, body image and
+      pornography myths at a KS3-appropriate level.
+    </div>
+  </header>
+
+  <div class="scorebar" role="region" aria-label="Your media literacy score">
+    <div class="stat">
+      <div class="k">Posts decoded</div>
+      <div class="v"><span id="postsDone">0</span><small> / <span id="postsTotal">5</span></small></div>
+    </div>
+    <div class="stat">
+      <div class="k">Literacy score</div>
+      <div class="v"><span id="score">0</span><small> pts</small></div>
+    </div>
+    <div class="stat">
+      <div class="k">Best streak</div>
+      <div class="v"><span id="streak">0</span><small> &#x2713;</small></div>
+    </div>
+    <div class="progress-track">
+      <div class="k">Calls made this post</div>
+      <div class="bar"><span id="progFill"></span></div>
+    </div>
+  </div>
+
+  <!-- The active post -->
+  <section class="card" id="postCard" aria-live="polite">
+    <h2 id="postTitle">Post 1 of 5</h2>
+    <p class="sub" id="postSub">Read the post. For each claim or feature, make your call.</p>
+
+    <div class="post">
+      <div class="post-top">
+        <div class="avatar" id="avatar" aria-hidden="true">?</div>
+        <div>
+          <div class="post-handle" id="handle">@handle</div>
+          <div class="post-meta" id="meta">Sponsored &middot; 2h</div>
+        </div>
+        <div class="post-badge" id="typeBadge">Post</div>
+      </div>
+      <div class="post-visual" id="visual">
+        <div class="big" aria-hidden="true">&#x1F4F8;</div>
+        <div id="visualText">Image</div>
+      </div>
+      <div class="post-body">
+        <p class="caption" id="caption">Caption goes here.</p>
+        <button class="speak-btn" id="readBtn" type="button">&#x1F50A; Read post aloud</button>
+      </div>
+      <div class="post-stats" id="postStats">
+        <span>&#x2764; many likes</span><span>&#x1F4AC; comments</span><span>&#x21BB; shares</span>
+      </div>
+    </div>
+
+    <p class="claims-intro">Your media-literacy calls</p>
+    <p class="hint" id="claimHint">Decide whether each highlighted claim or feature is trustworthy, misleading, or a known persuasion tactic.</p>
+    <div class="claims" id="claims"></div>
+
+    <div class="legend">
+      <span><span class="dot" style="background:var(--good)"></span> Trustworthy / true</span>
+      <span><span class="dot" style="background:var(--bad)"></span> Misleading / false</span>
+      <span><span class="dot" style="background:var(--accent)"></span> Persuasion tactic</span>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="nextBtn" disabled>Next post &#x2192;</button>
+      <span class="hint" id="actionHint">Make a call on every claim to unlock the next post.</span>
+    </div>
+  </section>
+
+  <!-- Final results + decision wall -->
+  <section class="card result-box" id="resultBox" aria-live="polite">
+    <p class="score-headline" id="resultHeadline">Feed decoded.</p>
+    <p class="sub" id="resultSub"></p>
+
+    <div class="badge-line" id="badgeLine"></div>
+
+    <h2 style="margin-top:18px">Online Harm Decision Wall</h2>
+    <p class="sub">Where would your class pin each post? Green means safe to trust and share; red means flag, question, or do not share.</p>
+    <div class="wall" id="wall"></div>
+
+    <h2 style="margin-top:18px">What to take into the real world</h2>
+    <ul class="takeaways" id="takeaways"></ul>
+
+    <div class="actions">
+      <button class="primary" id="restartBtn">Decode the feed again &#x21BB;</button>
+    </div>
+  </section>
+
+  <footer class="foot">
+    Decode the Feed &middot; WeST digital wellbeing teaching tool. All accounts, posts and statistics are invented for teaching. No real person is shown.
+  </footer>
+</div>
+
+<div class="sr-only" id="live" role="status" aria-live="assertive"></div>
+
+<script>
+/* ============================================================
+   Decode the Feed — KS3 media literacy
+   Data is fully fictional. Each post has 2-3 "calls" pupils make.
+   verdict types: 'real' (trustworthy/true), 'fake' (misleading/false),
+                  'tactic' (a named persuasion technique).
+   ============================================================ */
+
+var POSTS = [
+  {
+    handle: "@GlowUpGemma",
+    meta: "Sponsored · 2h",
+    type: "Influencer advert",
+    badge: "Sponsored",
+    avatarColor: "#e84393",
+    avatarChar: "G",
+    visualIcon: "🧴",
+    visualText: "Smiling, perfectly lit selfie holding a tube of “LumiSkin” gel",
+    caption: "Babes, my skin CLEARED in 3 days with LumiSkin ✨ 100% natural, doctors hate it. Code GEMMA20 for 20% off. Trust me, it changed my life!!",
+    stats: ["❤ 48.2k", "💬 1,120", "↻ 6.4k"],
+    calls: [
+      {
+        text: "Skin “cleared in 3 days” and it “changed my life”",
+        answer: "fake",
+        tactic: "Miracle claim",
+        feedback: {
+          real: "Have another look. Real skincare results take weeks, not 3 days, and no single product changes a life. A dramatic time-limited promise like this is an exaggeration designed to make you buy fast.",
+          fake: "Spot on. “Cleared in 3 days” is a miracle claim. Real results take weeks, and the dramatic story is there to rush you into buying.",
+          tactic: "Close. It is a tactic, but here we want you to judge the truth: the claim itself is misleading. Treat overnight transformations as a red flag."
+        }
+      },
+      {
+        text: "“Doctors hate it” and “100% natural”",
+        answer: "tactic",
+        tactic: "Fake authority + natural-is-better myth",
+        feedback: {
+          real: "Not quite. “Doctors hate it” is a slogan, not evidence, and “natural” does not mean safe or effective. These are persuasion tricks, not facts.",
+          fake: "You are right to distrust it. More precisely, this is a persuasion tactic: it borrows fake medical authority and the myth that “natural” always equals better.",
+          tactic: "Exactly. “Doctors hate it” fakes authority, and “100% natural” uses the myth that natural always means safe. Neither is proof the product works."
+        }
+      },
+      {
+        text: "“Code GEMMA20 for 20% off”",
+        answer: "tactic",
+        tactic: "Paid promotion / affiliate",
+        feedback: {
+          real: "Look again. A personal discount code usually means the influencer earns money on every sale. That is a financial reason to praise the product, not an honest review.",
+          fake: "Almost. The code is not a false claim by itself, but it is a tactic: it signals a paid partnership, so the praise is not neutral.",
+          tactic: "Yes. A named discount code is an affiliate link. Gemma likely earns money per sale, so this is an advert dressed up as advice."
+        }
+      }
+    ]
+  },
+  {
+    handle: "@RealTalkRyan",
+    meta: "Posted · 5h",
+    type: "Opinion post",
+    badge: "Opinion",
+    avatarColor: "#0984e3",
+    avatarChar: "R",
+    visualIcon: "💪",
+    visualText: "Gym mirror photo with very defined muscles and harsh contrast lighting",
+    caption: "Real men don’t cry and real men have abs by 14. If you don’t look like this you’re not trying hard enough. No excuses. Soft = weak.",
+    stats: ["❤ 12.0k", "💬 3,400", "↻ 880"],
+    calls: [
+      {
+        text: "“Real men have abs by 14”",
+        answer: "fake",
+        tactic: "Unrealistic body standard",
+        feedback: {
+          real: "Reconsider. Bodies grow at very different rates in your teens, and visible abs depend on genetics and body fat, not effort or worth. This is a false standard.",
+          fake: "Correct. There is no single “right” teenage body. This sets an unrealistic standard that can damage how young people feel about themselves.",
+          tactic: "It does work as a tactic, but the key point is that the claim is simply false: there is no correct body for a 14 year old."
+        }
+      },
+      {
+        text: "“Real men don’t cry” and “soft = weak”",
+        answer: "tactic",
+        tactic: "Shame and pressure",
+        feedback: {
+          real: "Have another think. Telling people they are weak for having feelings is not a fact; it is pressure used to control how they behave online.",
+          fake: "Close. It is harmful, and it works as a persuasion tactic: shaming people for emotions to make them feel they must agree.",
+          tactic: "Yes. This uses shame and pressure. Naming the tactic helps you step back instead of feeling judged by a stranger online."
+        }
+      }
+    ]
+  },
+  {
+    handle: "@CheckItChloe",
+    meta: "Posted · 1d",
+    type: "Information post",
+    badge: "Info",
+    avatarColor: "#00b894",
+    avatarChar: "C",
+    visualIcon: "📘",
+    visualText: "Plain graphic citing the NHS and a school counselling service",
+    caption: "Reminder: if something online makes you feel rubbish about your body, you can talk to a trusted adult or the school pastoral team. Sources linked below. No product, no code, just support.",
+    stats: ["❤ 2.1k", "💬 210", "↻ 540"],
+    calls: [
+      {
+        text: "Advice to talk to a trusted adult or pastoral team",
+        answer: "real",
+        tactic: "",
+        feedback: {
+          real: "Yes. This is genuinely helpful, safe advice. Notice there is nothing to buy and the post points to support, not pressure.",
+          fake: "Look again. This post is not trying to sell you anything and it points you to real support. Not every post is a trick; some are trustworthy.",
+          tactic: "Not a tactic here. There is no hidden persuasion: the post simply offers honest, safe support."
+        }
+      },
+      {
+        text: "“Sources linked below”, no product and no discount code",
+        answer: "real",
+        tactic: "",
+        feedback: {
+          real: "Exactly. Citing sources and selling nothing are signs of a more trustworthy post. Always check the sources are real, but this is the right instinct.",
+          fake: "Reconsider. Naming sources and having nothing to sell are signs of trustworthiness, not deceit.",
+          tactic: "Not a tactic. This is the opposite of the sales posts: transparent, with no product to push."
+        }
+      }
+    ]
+  },
+  {
+    handle: "@FitFamFinn",
+    meta: "Sponsored · 8h",
+    type: "Edited image advert",
+    badge: "Sponsored",
+    avatarColor: "#6c5ce7",
+    avatarChar: "F",
+    visualIcon: "✂️",
+    visualText: "“Before and after” photos: same person, but the “after” has smoother skin, brighter light and a slimmer waist",
+    caption: "30 days on the FinnFuel plan! Same lighting, no edits, 100% real results. You can look like this too, link in bio. Only 5 spots left today!",
+    stats: ["❤ 27.7k", "💬 990", "↻ 2.2k"],
+    calls: [
+      {
+        text: "“Same lighting, no edits, 100% real results”",
+        answer: "fake",
+        tactic: "Edited / staged image",
+        feedback: {
+          real: "Look more closely. The “after” has different lighting, smoother skin and a changed waist. Claiming “no edits” while the images clearly differ is misleading.",
+          fake: "Right. The two photos use different lighting and likely editing, so “no edits, 100% real” is false. Before-and-after shots are easy to fake.",
+          tactic: "It is staged, which is a tactic, but the headline here is that the claim is false: the images plainly differ."
+        }
+      },
+      {
+        text: "“Only 5 spots left today!”",
+        answer: "tactic",
+        tactic: "False scarcity / urgency",
+        feedback: {
+          real: "Reconsider. “Only 5 spots left” almost never changes whatever you do; it is there to make you panic-buy before you can think.",
+          fake: "Close. It is not a body claim, it is a pressure tactic: false scarcity invented to rush your decision.",
+          tactic: "Yes. “Only 5 spots left today” is false scarcity, designed to create urgency so you buy before you check the facts."
+        }
+      }
+    ]
+  },
+  {
+    handle: "@NoFilterNadia",
+    meta: "Posted · 3h",
+    type: "Myth-busting post",
+    badge: "Myth-bust",
+    avatarColor: "#d63031",
+    avatarChar: "N",
+    visualIcon: "🚫",
+    visualText: "Text graphic: “What you see online is not real life”",
+    caption: "Honesty time: a lot of “perfect” content online, including pornography, is acted, edited and staged. It is not what real bodies or real relationships look like, and treating it as a how-to guide can give you a totally false picture.",
+    stats: ["❤ 5.8k", "💬 760", "↻ 1.5k"],
+    calls: [
+      {
+        text: "“Much ‘perfect’ content, including pornography, is acted, edited and staged”",
+        answer: "real",
+        tactic: "",
+        feedback: {
+          real: "Correct, and this is an important truth. Pornography is performance made for profit. It is scripted and edited, not a realistic guide to real bodies, consent or relationships.",
+          fake: "Reconsider. This statement is actually true and helpful: such content is staged and edited, so it is not a realistic picture of real life.",
+          tactic: "Not a tactic; it is an honest correction. The myth is believing staged content shows real life; this post busts that myth."
+        }
+      },
+      {
+        text: "“Treating it as a how-to guide gives you a false picture”",
+        answer: "real",
+        tactic: "",
+        feedback: {
+          real: "Yes. Because it is staged for an audience, it misrepresents real bodies, consent and relationships. A trusted adult or RSE lessons give a far more accurate picture.",
+          fake: "Look again. This is sound guidance: staged content is a poor and misleading guide to real relationships.",
+          tactic: "Not a persuasion trick. It is accurate media literacy advice worth remembering."
+        }
+      }
+    ]
+  }
+];
+
+/* ---------- State ---------- */
+var idx = 0;
+var score = 0;
+var streak = 0;
+var bestStreak = 0;
+var postCorrect = []; // per-post: was every call answered correctly?
+var callsAnsweredThisPost = 0;
+var callsCorrectThisPost = 0;
+var POINTS_RIGHT = 10;
+var POINTS_PARTIAL = 4;
+
+/* ---------- Elements ---------- */
+var el = function (id) { return document.getElementById(id); };
+var postsTotalEl = el('postsTotal');
+var postsDoneEl = el('postsDone');
+var scoreEl = el('score');
+var streakEl = el('streak');
+var progFill = el('progFill');
+var live = el('live');
+
+postsTotalEl.textContent = POSTS.length;
+
+/* ---------- Render a post ---------- */
+function renderPost() {
+  var p = POSTS[idx];
+  callsAnsweredThisPost = 0;
+  callsCorrectThisPost = 0;
+
+  el('postTitle').textContent = 'Post ' + (idx + 1) + ' of ' + POSTS.length;
+  el('postSub').textContent = p.type + '. Read it, then make your call on each highlighted part.';
+  el('handle').textContent = p.handle;
+  el('meta').textContent = p.meta;
+  el('typeBadge').textContent = p.badge;
+  var av = el('avatar');
+  av.textContent = p.avatarChar;
+  av.style.background = p.avatarColor;
+  el('visual').firstElementChild.textContent = ''; // big icon span; set via innerHTML below
+  el('visual').innerHTML = '<div class="big" aria-hidden="true">' + p.visualIcon + '</div><div>' + escapeHtml(p.visualText) + '</div>';
+  el('caption').textContent = p.caption;
+  el('postStats').innerHTML = p.stats.map(function (s) { return '<span>' + s + '</span>'; }).join('');
+
+  // Build call cards
+  var box = el('claims');
+  box.innerHTML = '';
+  p.calls.forEach(function (call, ci) {
+    var card = document.createElement('div');
+    card.className = 'claim';
+
+    var ctext = document.createElement('p');
+    ctext.className = 'ctext';
+    ctext.innerHTML = '<em>' + escapeHtml(call.text) + '</em>';
+    card.appendChild(ctext);
+
+    var btns = document.createElement('div');
+    btns.className = 'btns';
+    btns.setAttribute('role', 'group');
+    btns.setAttribute('aria-label', 'Your call for: ' + call.text);
+
+    [['real', 'Trustworthy', '✔', 'sel-real'],
+     ['fake', 'Misleading', '✖', 'sel-fake'],
+     ['tactic', 'Tactic', '⚠', 'sel-tactic']].forEach(function (opt) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'verdict-btn';
+      b.innerHTML = '<span class="ic" aria-hidden="true">' + opt[2] + '</span><span>' + opt[1] + '</span>';
+      b.setAttribute('aria-label', opt[1] + ' for claim: ' + call.text);
+      b.dataset.verdict = opt[0];
+      b.dataset.selclass = opt[3];
+      b.addEventListener('click', function () { handleCall(card, call, opt[0], btns, opt[3]); });
+      btns.appendChild(b);
+    });
+    card.appendChild(btns);
+
+    var fb = document.createElement('div');
+    fb.className = 'feedback';
+    fb.setAttribute('aria-live', 'polite');
+    card.appendChild(fb);
+
+    box.appendChild(card);
+  });
+
+  updateProgress();
+  el('nextBtn').disabled = true;
+  el('nextBtn').textContent = (idx + 1 < POSTS.length) ? 'Next post →' : 'See your results →';
+  el('actionHint').textContent = 'Make a call on every claim to unlock the next post.';
+  el('postCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ---------- Handle a single call ---------- */
+function handleCall(card, call, verdict, btns, selclass) {
+  if (card.dataset.answered === 'yes') return; // lock after first answer
+  card.dataset.answered = 'yes';
+
+  var correct = (verdict === call.answer);
+  callsAnsweredThisPost++;
+  if (correct) {
+    callsCorrectThisPost++;
+    score += POINTS_RIGHT;
+  } else {
+    score += POINTS_PARTIAL; // reward the attempt and the reasoning they read
+  }
+  scoreEl.textContent = score;
+
+  // Mark buttons
+  var allBtns = btns.querySelectorAll('.verdict-btn');
+  allBtns.forEach(function (b) {
+    b.disabled = true;
+    if (b.dataset.verdict === verdict) b.classList.add(selclass);
+    // Reveal the correct one if the pupil missed it
+    if (!correct && b.dataset.verdict === call.answer) {
+      b.style.borderColor = 'var(--good)';
+      b.style.background = 'var(--good-bg)';
+    }
+  });
+
+  // Feedback
+  var fb = card.querySelector('.feedback');
+  fb.classList.add('show');
+  fb.classList.add(correct ? 'ok' : 'no');
+  var lead = correct ? 'Good call.' : 'Not the strongest call.';
+  var tacticTag = call.tactic ? '<span class="tactic-tag">Tactic: ' + escapeHtml(call.tactic) + '</span>' : '';
+  fb.innerHTML = '<span class="lead">' + lead + '</span> ' + escapeHtml(call.feedback[verdict]) + '<br>' + tacticTag;
+
+  live.textContent = (correct ? 'Correct. ' : 'Reconsider. ') + call.feedback[verdict];
+
+  updateProgress();
+  maybeUnlockNext();
+}
+
+function totalCallsThisPost() { return POSTS[idx].calls.length; }
+
+function updateProgress() {
+  var pct = Math.round((callsAnsweredThisPost / totalCallsThisPost()) * 100);
+  progFill.style.width = pct + '%';
+}
+
+function maybeUnlockNext() {
+  if (callsAnsweredThisPost >= totalCallsThisPost()) {
+    var allRight = (callsCorrectThisPost === totalCallsThisPost());
+    if (allRight) {
+      streak++;
+      if (streak > bestStreak) bestStreak = streak;
+    } else {
+      streak = 0;
+    }
+    streakEl.textContent = bestStreak;
+    postCorrect[idx] = allRight;
+
+    el('nextBtn').disabled = false;
+    el('actionHint').textContent = allRight
+      ? 'Every call correct on this post. Nice decoding.'
+      : 'All calls made. Read the feedback, then move on.';
+    el('nextBtn').focus();
+  }
+}
+
+/* ---------- Next / finish ---------- */
+el('nextBtn').addEventListener('click', function () {
+  westTTS.cancel();
+  if (idx + 1 < POSTS.length) {
+    idx++;
+    postsDoneEl.textContent = idx;
+    renderPost();
+  } else {
+    postsDoneEl.textContent = POSTS.length;
+    showResults();
+  }
+});
+
+/* ---------- Read aloud ---------- */
+el('readBtn').addEventListener('click', function () {
+  var p = POSTS[idx];
+  var text = p.handle + ' posted: ' + p.caption;
+  if (westTTS.ready()) {
+    westTTS.speak(text, { lang: 'en-GB', rate: 0.85, pitch: 1.1 });
+  }
+});
+
+/* ---------- Results + decision wall ---------- */
+function showResults() {
+  el('postCard').style.display = 'none';
+  var box = el('resultBox');
+  box.classList.add('show');
+
+  var maxScore = POSTS.reduce(function (sum, p) { return sum + p.calls.length * POINTS_RIGHT; }, 0);
+  el('resultHeadline').textContent = 'Feed decoded: ' + score + ' / ' + maxScore + ' points';
+
+  var perfectPosts = postCorrect.filter(Boolean).length;
+  el('resultSub').textContent = 'You made every correct call on ' + perfectPosts + ' of ' + POSTS.length +
+    ' posts. The aim is not a perfect score; it is to notice the tactics and slow down before you trust or share.';
+
+  // Skill badges
+  var skills = [
+    { name: 'Spots fake authority', got: score >= 30 },
+    { name: 'Sees edited images', got: postCorrect[3] },
+    { name: 'Resists urgency', got: score >= 60 },
+    { name: 'Knows staged content', got: postCorrect[4] },
+    { name: 'Trusts real support', got: postCorrect[2] }
+  ];
+  el('badgeLine').innerHTML = skills.map(function (s) {
+    return '<span class="skill-badge ' + (s.got ? 'lit' : '') + '">' + (s.got ? '✓ ' : '') + escapeHtml(s.name) + '</span>';
+  }).join('');
+
+  // Decision wall: classify each post as safe-to-trust (green) or flag (red)
+  var wall = el('wall');
+  var classify = [
+    { safe: false, why: 'Advert with a miracle claim and a discount code. Flag and do not buy on impulse.' },
+    { safe: false, why: 'Pushes a harmful, unrealistic body standard with shame. Flag and report if it targets others.' },
+    { safe: true, why: 'Honest support with sources and nothing to sell. Safe to trust and share.' },
+    { safe: false, why: 'Edited before-and-after with false scarcity. Flag and question the “no edits” claim.' },
+    { safe: true, why: 'Accurate myth-busting about staged content. Safe to share; talk it through with a trusted adult.' }
+  ];
+  wall.innerHTML = POSTS.map(function (p, i) {
+    var c = classify[i];
+    return '<div class="post-mini ' + (c.safe ? 'real' : 'fake') + '">' +
+      '<b>' + escapeHtml(p.handle) + ' &middot; ' + (c.safe ? 'SAFE TO TRUST' : 'FLAG IT') + '</b>' +
+      escapeHtml(c.why) + '</div>';
+  }).join('');
+
+  // Takeaways
+  var tk = [
+    'Discount codes and “link in bio” usually mean someone earns money from your click. Treat praise as an advert.',
+    '“Doctors hate it”, “100% natural” and “miracle in 3 days” are slogans, not evidence.',
+    'Before-and-after photos are easy to fake with lighting, angles and editing. “No edits” is a claim, not proof.',
+    '“Only 5 left today” is false urgency. Real choices do not vanish if you pause to think.',
+    'Pornography and “perfect” content are acted and edited. They are not a guide to real bodies, consent or relationships.',
+    'If a post makes you feel bad about your body, that feeling is worth talking about with a trusted adult or the pastoral team.'
+  ];
+  el('takeaways').innerHTML = tk.map(function (t) { return '<li>' + escapeHtml(t) + '</li>'; }).join('');
+
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  live.textContent = 'Feed decoded. Your score is ' + score + ' out of ' + maxScore + '. Decision wall and takeaways are ready.';
+}
+
+/* ---------- Restart ---------- */
+el('restartBtn').addEventListener('click', function () {
+  westTTS.cancel();
+  idx = 0; score = 0; streak = 0; bestStreak = 0; postCorrect = [];
+  postsDoneEl.textContent = 0;
+  scoreEl.textContent = 0;
+  streakEl.textContent = 0;
+  el('resultBox').classList.remove('show');
+  el('postCard').style.display = '';
+  renderPost();
+  el('postCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+/* ---------- Utility ---------- */
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* ---------- Go ---------- */
+renderPost();
+</script>
+</body>
+</html>

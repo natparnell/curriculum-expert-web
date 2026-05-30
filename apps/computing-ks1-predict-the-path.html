@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Predict the Path | KS1 Computing</title>
+<style>
+  :root {
+    --ink: #1d2433;
+    --muted: #5a6478;
+    --line: #d9deea;
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --brand: #2b58d4;
+    --brand-dark: #1d3fa0;
+    --grid-line: #c3cbe0;
+    --start: #ffd76a;
+    --goal: #7fd6a3;
+    --robot: #2b58d4;
+    --correct: #1d9a5e;
+    --correct-bg: #e6f7ee;
+    --wrong: #d04848;
+    --wrong-bg: #fdeaea;
+    --focus: #ff8a00;
+    --shadow: 0 6px 22px rgba(29,36,51,0.10);
+    --radius: 16px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Trebuchet MS", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  header.app-head {
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
+    color: #fff;
+    padding: 22px 18px 24px;
+  }
+  .head-inner { max-width: 960px; margin: 0 auto; }
+  header.app-head h1 {
+    margin: 0 0 4px;
+    font-size: clamp(1.5rem, 4.2vw, 2.3rem);
+    letter-spacing: 0.5px;
+  }
+  .subject-tag {
+    display: inline-block;
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.35);
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: 0.4px;
+  }
+  .aim {
+    margin: 8px 0 0;
+    font-size: 0.95rem;
+    max-width: 640px;
+    color: #eaf0ff;
+  }
+  .aim strong { color: #fff; }
+
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 18px 16px 60px;
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+    margin-bottom: 18px;
+  }
+  .panel h2 {
+    margin: 0 0 4px;
+    font-size: 1.15rem;
+    color: var(--brand-dark);
+  }
+  .panel .hint { margin: 0 0 14px; color: var(--muted); font-size: 0.92rem; }
+
+  /* Command strip */
+  .commands {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .cmd {
+    flex: 1 1 0;
+    min-width: 64px;
+    background: #eef2fc;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 6px;
+    text-align: center;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .cmd .cmd-num {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .cmd .cmd-arrow {
+    font-size: 1.7rem;
+    line-height: 1;
+    display: block;
+  }
+  .cmd .cmd-word {
+    display: block;
+    font-size: 0.78rem;
+    margin-top: 2px;
+    color: var(--brand-dark);
+  }
+  .cmd.active {
+    border-color: var(--focus);
+    background: #fff4e6;
+    box-shadow: 0 0 0 3px rgba(255,138,0,0.25);
+  }
+  .cmd.done {
+    opacity: 0.55;
+  }
+
+  /* Grid */
+  .grid-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .grid {
+    display: grid;
+    gap: 5px;
+    background: #eef1f8;
+    padding: 8px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    touch-action: none;
+    width: 100%;
+    max-width: 420px;
+    aspect-ratio: 1 / 1;
+  }
+  .cell {
+    position: relative;
+    background: #fff;
+    border: 1px solid var(--grid-line);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.4rem;
+    user-select: none;
+    transition: transform 0.08s ease, box-shadow 0.12s ease;
+    aspect-ratio: 1 / 1;
+  }
+  .cell:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+    z-index: 3;
+  }
+  .cell .corner-label {
+    position: absolute;
+    top: 3px;
+    left: 5px;
+    font-size: 0.62rem;
+    color: #aab2c6;
+    font-weight: 700;
+  }
+  .cell.start { background: var(--start); }
+  .cell.goal {
+    background: var(--goal);
+    box-shadow: inset 0 0 0 2px #3fae73;
+  }
+  .cell.guess-pick {
+    box-shadow: inset 0 0 0 4px var(--brand);
+    background: #e3eafd;
+  }
+  .cell.guess-correct {
+    box-shadow: inset 0 0 0 4px var(--correct);
+    background: var(--correct-bg);
+  }
+  .cell.guess-wrong {
+    box-shadow: inset 0 0 0 4px var(--wrong);
+    background: var(--wrong-bg);
+  }
+  .cell.path-trail::after {
+    content: "";
+    position: absolute;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: rgba(43,88,212,0.35);
+  }
+  .cell.actual-end {
+    box-shadow: inset 0 0 0 4px var(--correct);
+  }
+
+  .robot {
+    font-size: 1.9rem;
+    transition: transform 0.45s cubic-bezier(.34,1.2,.64,1);
+    transform-origin: center;
+    will-change: transform;
+  }
+
+  .coord-key {
+    margin-top: 10px;
+    font-size: 0.82rem;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* Voting */
+  .vote-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .btn {
+    border: none;
+    border-radius: 12px;
+    padding: 12px 18px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.06s ease, background 0.15s ease;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .btn-primary { background: var(--brand); color: #fff; }
+  .btn-primary:hover { background: var(--brand-dark); }
+  .btn-primary:disabled { background: #b9c2db; cursor: not-allowed; }
+  .btn-ghost {
+    background: #eef2fc;
+    color: var(--brand-dark);
+    border: 1px solid var(--line);
+  }
+  .btn-ghost:hover { background: #e2e9fb; }
+
+  .feedback {
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 1rem;
+    margin-top: 8px;
+    border: 1px solid transparent;
+    min-height: 10px;
+  }
+  .feedback.info { background: #eef2fc; border-color: var(--line); color: var(--ink); }
+  .feedback.good { background: var(--correct-bg); border-color: #9bdcb9; color: #155b38; }
+  .feedback.near { background: #fff4e6; border-color: #f6d49b; color: #7a4a00; }
+  .feedback.bad  { background: var(--wrong-bg); border-color: #f0b4b4; color: #8a2727; }
+  .feedback strong { display: block; margin-bottom: 2px; }
+
+  .pill-status {
+    display: inline-block;
+    background: #eef2fc;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--brand-dark);
+    margin-left: auto;
+  }
+
+  .scoreline {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  .scoreline b { color: var(--ink); }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .teacher-note {
+    font-size: 0.82rem;
+    color: var(--muted);
+    border-top: 1px dashed var(--line);
+    padding-top: 12px;
+    margin-top: 4px;
+  }
+
+  @media (max-width: 560px) {
+    .cmd .cmd-arrow { font-size: 1.4rem; }
+    .cmd .cmd-word { display: none; }
+    .vote-row .btn { flex: 1 1 auto; }
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+
+<header class="app-head">
+  <div class="head-inner">
+    <span class="subject-tag">Computing &#x2022; KS1 &#x2022; Logical reasoning</span>
+    <h1>Predict the Path</h1>
+    <p class="aim"><strong>Teacher aim:</strong> pupils read a short command sequence and predict where the robot will stop, then check by running it. Builds logical reasoning: a program does the same thing every time it runs.</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- PROGRAM -->
+  <section class="panel" aria-labelledby="prog-h">
+    <h2 id="prog-h">1. Read the program</h2>
+    <p class="hint">Robi the robot starts on the yellow square facing the way the arrow points. Read each command in order.</p>
+    <div class="commands" id="commandStrip" aria-label="Robot program, list of commands in order"></div>
+  </section>
+
+  <!-- GRID + GUESS -->
+  <section class="panel" aria-labelledby="grid-h">
+    <h2 id="grid-h">2. Predict the end square</h2>
+    <p class="hint">Tap the square where you think Robi will stop. You can change your mind until you press Run. Use arrow keys to move the highlight, then press Enter to choose.</p>
+    <div class="grid-wrap">
+      <div class="grid" id="grid" role="grid" aria-label="4 by 4 robot grid"></div>
+      <p class="coord-key">Squares are named by column then row, for example B3.</p>
+    </div>
+  </section>
+
+  <!-- VOTE + RUN -->
+  <section class="panel" aria-labelledby="run-h">
+    <h2 id="run-h">3. Vote, then run</h2>
+    <div class="vote-row">
+      <button class="btn btn-primary" id="runBtn" disabled>Run the program</button>
+      <button class="btn btn-ghost" id="nextBtn" hidden>New challenge</button>
+      <span class="pill-status" id="phasePill" aria-hidden="true">Pick a square first</span>
+    </div>
+
+    <div class="feedback info" id="feedback" role="status" aria-live="polite">
+      Choose where Robi will stop, then press Run to find out.
+    </div>
+
+    <div class="scoreline" aria-live="polite">
+      <span>Spot on: <b id="scoreRight">0</b></span>
+      <span>Tried: <b id="scoreTotal">0</b></span>
+      <span>Challenge: <b id="challengeNo">1</b></span>
+    </div>
+
+    <p class="teacher-note">
+      Teacher tip: pause on the prediction and ask "why there?" before running. When the reveal differs, replay it one step at a time and talk through the command that surprised them. Same program, same start = same finish, every time.
+    </p>
+  </section>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- Grid model: 4x4. Columns A..D (x: 0..3), Rows 1..4 (y from bottom).
+  var COLS = 4, ROWS = 4;
+  var COL_LETTERS = ["A", "B", "C", "D"];
+  // Directions: 0=North(up), 1=East(right), 2=South(down), 3=West(left)
+  var DIR_NAME = ["up", "right", "down", "left"];
+  var DIR_ARROW = ["↑", "→", "↓", "←"]; // up right down left
+  var DIR_DELTA = [ {x:0,y:1}, {x:1,y:0}, {x:0,y:-1}, {x:-1,y:0} ];
+
+  // Command types: "forward", "left" (turn), "right" (turn)
+  var els = {
+    strip: document.getElementById("commandStrip"),
+    grid: document.getElementById("grid"),
+    runBtn: document.getElementById("runBtn"),
+    nextBtn: document.getElementById("nextBtn"),
+    feedback: document.getElementById("feedback"),
+    phasePill: document.getElementById("phasePill"),
+    scoreRight: document.getElementById("scoreRight"),
+    scoreTotal: document.getElementById("scoreTotal"),
+    challengeNo: document.getElementById("challengeNo")
+  };
+
+  var state = {
+    start: null,        // {x,y}
+    startDir: 0,
+    program: [],        // array of command strings
+    path: [],           // computed list of {x,y} squares occupied (including start and end)
+    endSquare: null,    // {x,y}
+    guess: null,        // {x,y}
+    focusIndex: 0,      // for keyboard nav over cells
+    phase: "predict",   // predict | revealed
+    challenge: 1,
+    scoreRight: 0,
+    scoreTotal: 0,
+    cells: []           // DOM cells indexed by x + y*COLS
+  };
+
+  function cellName(x, y) {
+    // row label is y+1 (row 1 at bottom)
+    return COL_LETTERS[x] + (y + 1);
+  }
+
+  function inBounds(x, y) {
+    return x >= 0 && x < COLS && y >= 0 && y < ROWS;
+  }
+
+  function idx(x, y) { return x + y * COLS; }
+
+  // ---- Simulate a program, return list of squares visited (clamped at walls).
+  function simulate(start, startDir, program) {
+    var x = start.x, y = start.y, dir = startDir;
+    var visited = [{x:x, y:y}];
+    for (var i = 0; i < program.length; i++) {
+      var cmd = program[i];
+      if (cmd === "left") {
+        dir = (dir + 3) % 4;
+      } else if (cmd === "right") {
+        dir = (dir + 1) % 4;
+      } else if (cmd === "forward") {
+        var d = DIR_DELTA[dir];
+        var nx = x + d.x, ny = y + d.y;
+        if (inBounds(nx, ny)) { x = nx; y = ny; }
+        // if blocked by wall, Robi stays put (still record the square so animation pauses)
+        visited.push({x:x, y:y});
+      }
+    }
+    return visited;
+  }
+
+  // ---- Build a fresh solvable challenge (end must differ from start, stays on board).
+  function makeChallenge() {
+    var attempts = 0;
+    while (attempts < 200) {
+      attempts++;
+      var start = { x: Math.floor(Math.random()*COLS), y: Math.floor(Math.random()*ROWS) };
+      var startDir = Math.floor(Math.random()*4);
+      var len = 3 + Math.floor(Math.random()*3); // 3..5 commands
+      var program = [];
+      // bias toward forwards so the robot actually moves
+      for (var i = 0; i < len; i++) {
+        var r = Math.random();
+        if (r < 0.6) program.push("forward");
+        else if (r < 0.8) program.push("left");
+        else program.push("right");
+      }
+      // ensure at least 2 forwards and at least one turn for interest
+      var fwd = program.filter(function(c){return c==="forward";}).length;
+      var turns = program.length - fwd;
+      if (fwd < 2 || turns < 1) continue;
+
+      var visited = simulate(start, startDir, program);
+      var end = visited[visited.length - 1];
+      // require movement and end != start
+      if (end.x === start.x && end.y === start.y) continue;
+      // require the robot did not just sit against a wall the whole time
+      var distinct = {};
+      visited.forEach(function(p){ distinct[idx(p.x,p.y)] = true; });
+      if (Object.keys(distinct).length < 2) continue;
+
+      return { start: start, startDir: startDir, program: program, path: visited, end: end };
+    }
+    // fallback deterministic challenge
+    return {
+      start: {x:0,y:0}, startDir: 0,
+      program: ["forward","forward","right","forward"],
+      path: simulate({x:0,y:0},0,["forward","forward","right","forward"]),
+      end: simulate({x:0,y:0},0,["forward","forward","right","forward"]).slice(-1)[0]
+    };
+  }
+
+  // ---- Render command strip
+  function renderStrip() {
+    els.strip.innerHTML = "";
+    state.program.forEach(function (cmd, i) {
+      var div = document.createElement("div");
+      div.className = "cmd";
+      div.dataset.step = i;
+      var label, arrow;
+      if (cmd === "forward") { arrow = "⬆"; label = "Forward"; } // up arrow as "go forward"
+      else if (cmd === "left") { arrow = "↰"; label = "Turn left"; }
+      else { arrow = "↱"; label = "Turn right"; }
+      div.innerHTML =
+        '<span class="cmd-num">Step ' + (i+1) + '</span>' +
+        '<span class="cmd-arrow" aria-hidden="true">' + arrow + '</span>' +
+        '<span class="cmd-word">' + label + '</span>';
+      div.setAttribute("role", "listitem");
+      div.setAttribute("aria-label", "Step " + (i+1) + ", " + label);
+      els.strip.appendChild(div);
+    });
+    els.strip.setAttribute("role", "list");
+  }
+
+  // ---- Render grid
+  function renderGrid() {
+    els.grid.innerHTML = "";
+    els.grid.style.gridTemplateColumns = "repeat(" + COLS + ", 1fr)";
+    state.cells = [];
+    // build top row first visually (row index high at top)
+    for (var row = ROWS - 1; row >= 0; row--) {
+      for (var col = 0; col < COLS; col++) {
+        var cell = document.createElement("div");
+        cell.className = "cell";
+        cell.dataset.x = col;
+        cell.dataset.y = row;
+        cell.setAttribute("role", "gridcell");
+        cell.tabIndex = -1;
+        var name = cellName(col, row);
+        var label = document.createElement("span");
+        label.className = "corner-label";
+        label.textContent = name;
+        cell.appendChild(label);
+        cell.setAttribute("aria-label", "Square " + name);
+        state.cells[idx(col, row)] = cell;
+        els.grid.appendChild(cell);
+      }
+    }
+    // mark start
+    var s = state.cells[idx(state.start.x, state.start.y)];
+    s.classList.add("start");
+    placeRobot(state.start.x, state.start.y, state.startDir);
+    // first focusable cell = start
+    state.focusIndex = idx(state.start.x, state.start.y);
+    updateRovingTabindex();
+  }
+
+  function placeRobot(x, y, dir) {
+    // remove any existing robot
+    var existing = els.grid.querySelector(".robot");
+    if (existing) existing.parentNode.removeChild(existing);
+    var cell = state.cells[idx(x, y)];
+    var robot = document.createElement("span");
+    robot.className = "robot";
+    robot.id = "robot";
+    robot.textContent = "🤖"; // robot face
+    robot.setAttribute("aria-hidden", "true");
+    robot.style.transform = "rotate(" + dirToDeg(dir) + "deg)";
+    cell.appendChild(robot);
+  }
+
+  function dirToDeg(dir) {
+    // robot emoji "faces" sideways; we rotate so a visible arrow sense is given.
+    // Use 0=up:0, right:90, down:180, left:270 for a faint orientation cue.
+    return [0, 90, 180, 270][dir];
+  }
+
+  function updateRovingTabindex() {
+    state.cells.forEach(function (c, i) {
+      c.tabIndex = (i === state.focusIndex) ? 0 : -1;
+    });
+  }
+
+  function clearGuessMarks() {
+    state.cells.forEach(function (c) {
+      c.classList.remove("guess-pick", "guess-correct", "guess-wrong", "path-trail", "actual-end");
+    });
+    // restore start/goal styling stays
+  }
+
+  // ---- Pick / guess handling
+  function chooseGuess(x, y) {
+    if (state.phase !== "predict") return;
+    state.guess = { x: x, y: y };
+    clearGuessMarks();
+    var c = state.cells[idx(x, y)];
+    c.classList.add("guess-pick");
+    els.runBtn.disabled = false;
+    els.phasePill.textContent = "Ready: you chose " + cellName(x, y);
+    setFeedback("info",
+      "You predict Robi stops on " + cellName(x, y) + ".",
+      "Happy with that? Press Run to check, or tap another square.");
+  }
+
+  function setFeedback(kind, head, body) {
+    els.feedback.className = "feedback " + kind;
+    els.feedback.innerHTML = "<strong>" + head + "</strong>" + (body ? body : "");
+  }
+
+  // ---- Run / reveal with animation
+  function runProgram() {
+    if (state.phase !== "predict" || !state.guess) return;
+    state.phase = "revealed";
+    els.runBtn.disabled = true;
+    els.phasePill.textContent = "Running...";
+    setFeedback("info", "Watch Robi follow the program...", "");
+
+    // disable cell choosing during animation
+    var path = state.path;
+    var stepDelay = 600;
+
+    // We animate by walking through the program, highlighting each command,
+    // and moving the robot square by square. Turns rotate; forwards move.
+    var x = state.start.x, y = state.start.y, dir = state.startDir;
+    var cmdEls = els.strip.querySelectorAll(".cmd");
+
+    function highlightCmd(i) {
+      cmdEls.forEach(function (e, j) {
+        e.classList.toggle("active", j === i);
+        e.classList.toggle("done", j < i);
+      });
+    }
+
+    var step = 0;
+    function tick() {
+      if (step >= state.program.length) {
+        cmdEls.forEach(function (e) { e.classList.remove("active"); e.classList.add("done"); });
+        finishReveal();
+        return;
+      }
+      highlightCmd(step);
+      var cmd = state.program[step];
+      if (cmd === "left") {
+        dir = (dir + 3) % 4;
+        animateRotate(x, y, dir);
+      } else if (cmd === "right") {
+        dir = (dir + 1) % 4;
+        animateRotate(x, y, dir);
+      } else {
+        var d = DIR_DELTA[dir];
+        var nx = x + d.x, ny = y + d.y;
+        if (inBounds(nx, ny)) {
+          // leave a trail on the square we are leaving
+          var leaving = state.cells[idx(x, y)];
+          if (!(x === state.start.x && y === state.start.y)) leaving.classList.add("path-trail");
+          x = nx; y = ny;
+          placeRobot(x, y, dir);
+        } else {
+          // bumped a wall: stay, give a wobble cue via feedback later
+          flashBump(x, y);
+        }
+      }
+      step++;
+      window.setTimeout(tick, stepDelay);
+    }
+    window.setTimeout(tick, 350);
+  }
+
+  function animateRotate(x, y, dir) {
+    var robot = document.getElementById("robot");
+    if (robot) robot.style.transform = "rotate(" + dirToDeg(dir) + "deg)";
+  }
+
+  function flashBump(x, y) {
+    var cell = state.cells[idx(x, y)];
+    cell.animate(
+      [{ transform: "translateX(0)" }, { transform: "translateX(-4px)" },
+       { transform: "translateX(4px)" }, { transform: "translateX(0)" }],
+      { duration: 260 }
+    );
+  }
+
+  function finishReveal() {
+    els.phasePill.textContent = "Revealed";
+    els.nextBtn.hidden = false;
+    els.nextBtn.focus();
+
+    var end = state.endSquare;
+    var guess = state.guess;
+    var endName = cellName(end.x, end.y);
+    var guessName = cellName(guess.x, guess.y);
+
+    // mark actual end
+    state.cells[idx(end.x, end.y)].classList.add("actual-end");
+
+    state.scoreTotal++;
+    var correct = (end.x === guess.x && end.y === guess.y);
+
+    if (correct) {
+      state.scoreRight++;
+      state.cells[idx(guess.x, guess.y)].classList.remove("guess-pick");
+      state.cells[idx(guess.x, guess.y)].classList.add("guess-correct");
+      setFeedback("good",
+        "Spot on! Robi stopped on " + endName + ".",
+        " You read the program correctly. A program does the same thing every time it runs.");
+    } else {
+      state.cells[idx(guess.x, guess.y)].classList.remove("guess-pick");
+      state.cells[idx(guess.x, guess.y)].classList.add("guess-wrong");
+      // distance to give a "near" vs "off" message
+      var dist = Math.abs(end.x - guess.x) + Math.abs(end.y - guess.y);
+      var firstCmd = state.program[0];
+      var firstTip;
+      if (firstCmd === "forward") firstTip = "The first command was Forward, so Robi moved before any turn.";
+      else firstTip = "The first command was a turn, so Robi changed direction before moving.";
+      if (dist === 1) {
+        setFeedback("near",
+          "So close! You picked " + guessName + ", Robi stopped on " + endName + " (just one square away).",
+          " " + firstTip + " Trace it again, one command at a time.");
+      } else {
+        setFeedback("bad",
+          "Not this time. You picked " + guessName + ", Robi stopped on " + endName + ".",
+          " " + firstTip + " Watch again and count each Forward step in the direction Robi is facing.");
+      }
+    }
+
+    els.scoreRight.textContent = state.scoreRight;
+    els.scoreTotal.textContent = state.scoreTotal;
+  }
+
+  // ---- New challenge
+  function newChallenge(advance) {
+    if (advance) state.challenge++;
+    var ch = makeChallenge();
+    state.start = ch.start;
+    state.startDir = ch.startDir;
+    state.program = ch.program;
+    state.path = ch.path;
+    state.endSquare = ch.end;
+    state.guess = null;
+    state.phase = "predict";
+
+    renderStrip();
+    renderGrid();
+    els.runBtn.disabled = true;
+    els.nextBtn.hidden = true;
+    els.phasePill.textContent = "Pick a square first";
+    els.challengeNo.textContent = state.challenge;
+    setFeedback("info",
+      "Robi starts on " + cellName(state.start.x, state.start.y) +
+      " facing " + DIR_NAME[state.startDir] + ".",
+      " Read the program, then tap where Robi will stop.");
+  }
+
+  // ---- Events: pointer + keyboard on grid
+  els.grid.addEventListener("pointerdown", function (e) {
+    var cell = e.target.closest(".cell");
+    if (!cell) return;
+    var x = parseInt(cell.dataset.x, 10);
+    var y = parseInt(cell.dataset.y, 10);
+    state.focusIndex = idx(x, y);
+    updateRovingTabindex();
+    chooseGuess(x, y);
+  });
+
+  els.grid.addEventListener("keydown", function (e) {
+    var cell = e.target.closest(".cell");
+    if (!cell) return;
+    var x = parseInt(cell.dataset.x, 10);
+    var y = parseInt(cell.dataset.y, 10);
+    var handled = true;
+    if (e.key === "ArrowRight") x = Math.min(COLS - 1, x + 1);
+    else if (e.key === "ArrowLeft") x = Math.max(0, x - 1);
+    else if (e.key === "ArrowUp") y = Math.min(ROWS - 1, y + 1);
+    else if (e.key === "ArrowDown") y = Math.max(0, y - 1);
+    else if (e.key === "Enter" || e.key === " ") { chooseGuess(x, y); handled = true; }
+    else handled = false;
+
+    if (handled) {
+      e.preventDefault();
+      state.focusIndex = idx(x, y);
+      updateRovingTabindex();
+      state.cells[state.focusIndex].focus();
+    }
+  });
+
+  els.runBtn.addEventListener("click", runProgram);
+  els.nextBtn.addEventListener("click", function () { newChallenge(true); });
+
+  // ---- Init
+  newChallenge(false);
+
+})();
+</script>
+
+</body>
+</html>

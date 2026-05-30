@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Behaviour Referral Analyser</title>
+<style>
+  :root{
+    --bg:#0f1724;
+    --panel:#ffffff;
+    --ink:#1b2536;
+    --muted:#5d6b82;
+    --line:#e3e8f0;
+    --accent:#2f5fd6;
+    --accent-dark:#1f3f96;
+    --good:#1f9d6b;
+    --warn:#e8a33d;
+    --hot:#d94a3d;
+    --soft:#f4f7fc;
+    --focus:#ffb000;
+    --shadow:0 8px 24px rgba(20,33,61,.10);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg,#eef2f9 0%,#e6ecf6 100%);
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 16px 64px;}
+  header.app{
+    background:linear-gradient(135deg,#1f3f96,#2f5fd6);
+    color:#fff;border-radius:16px;padding:22px 22px 18px;box-shadow:var(--shadow);
+  }
+  header.app h1{margin:0 0 4px;font-size:1.6rem;letter-spacing:.2px;}
+  header.app .tag{font-size:.82rem;text-transform:uppercase;letter-spacing:1.4px;opacity:.85;font-weight:600;}
+  header.app p.aim{margin:10px 0 0;font-size:.98rem;max-width:760px;opacity:.96;}
+  header.app .meta{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;}
+  header.app .meta span{
+    background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);
+    padding:4px 10px;border-radius:999px;font-size:.78rem;font-weight:600;
+  }
+  .panel{
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:18px;margin-top:18px;box-shadow:var(--shadow);
+  }
+  .panel h2{margin:0 0 4px;font-size:1.18rem;}
+  .panel .lead{margin:0 0 14px;color:var(--muted);font-size:.95rem;}
+
+  .controls{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;}
+  .ctrl{display:flex;flex-direction:column;gap:5px;}
+  .ctrl label{font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;}
+  select,button{font-family:inherit;font-size:.95rem;}
+  select{
+    padding:9px 12px;border:1.5px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);
+    min-width:170px;cursor:pointer;
+  }
+  select:focus-visible,button:focus-visible,td.cell:focus-visible,.legend-chip:focus-visible{
+    outline:3px solid var(--focus);outline-offset:2px;
+  }
+  .btn{
+    padding:9px 16px;border:none;border-radius:9px;background:var(--accent);color:#fff;
+    font-weight:700;cursor:pointer;transition:background .15s;
+  }
+  .btn:hover{background:var(--accent-dark);}
+  .btn.ghost{background:#eef2fb;color:var(--accent-dark);}
+  .btn.ghost:hover{background:#dde6fb;}
+
+  /* heatmap */
+  .grid-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:6px;}
+  table.heat{border-collapse:separate;border-spacing:4px;width:100%;min-width:560px;}
+  table.heat th{
+    font-size:.78rem;color:var(--muted);font-weight:700;text-align:center;padding:4px 2px;
+    text-transform:uppercase;letter-spacing:.4px;
+  }
+  table.heat th.row-h{text-align:right;padding-right:8px;white-space:nowrap;min-width:84px;}
+  td.cell{
+    text-align:center;border-radius:8px;cursor:pointer;color:#11223a;
+    font-weight:700;font-size:.92rem;height:46px;min-width:46px;position:relative;
+    border:2px solid transparent;transition:transform .08s;user-select:none;
+    touch-action:manipulation;
+  }
+  td.cell:hover{transform:scale(1.04);}
+  td.cell.sel{border-color:#11223a;box-shadow:0 0 0 2px #fff inset;}
+  td.cell.dim{opacity:.32;}
+  .axis-cap{font-size:.78rem;color:var(--muted);font-weight:700;text-align:center;padding-bottom:4px;}
+
+  .legend{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px;}
+  .legend .scale{display:flex;align-items:center;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--line);}
+  .legend .swatch{width:30px;height:18px;}
+  .legend .ends{font-size:.78rem;color:var(--muted);font-weight:600;}
+  .legend-chip{
+    border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;
+    font-size:.82rem;font-weight:700;cursor:pointer;color:var(--ink);
+  }
+  .legend-chip[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+  .readout{
+    margin-top:16px;border:1.5px dashed var(--line);border-radius:12px;padding:16px;background:var(--soft);
+    min-height:90px;
+  }
+  .readout h3{margin:0 0 6px;font-size:1.04rem;}
+  .readout .big{font-size:1.05rem;}
+  .readout .hot-flag{color:var(--hot);font-weight:800;}
+  .readout ul{margin:8px 0 0;padding-left:20px;}
+  .readout li{margin:3px 0;}
+  .readout .breakdown{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .bk{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:.85rem;}
+  .bk b{color:var(--accent-dark);}
+
+  /* challenge */
+  .challenge .q{font-size:1.02rem;font-weight:600;margin:0 0 12px;}
+  .opt-grid{display:flex;flex-wrap:wrap;gap:10px;}
+  .opt{
+    border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:11px 14px;cursor:pointer;
+    font-weight:600;font-size:.92rem;flex:1 1 200px;text-align:left;transition:.12s;color:var(--ink);
+  }
+  .opt:hover{border-color:var(--accent);}
+  .opt.correct{background:#e8f7f0;border-color:var(--good);color:#0c6a47;}
+  .opt.wrong{background:#fdeceb;border-color:var(--hot);color:#9c2b22;}
+  .opt:disabled{cursor:default;}
+  .feedback{margin-top:12px;font-size:.95rem;font-weight:600;min-height:24px;}
+  .feedback.ok{color:var(--good);}
+  .feedback.no{color:var(--hot);}
+  .score-line{margin-top:10px;font-size:.88rem;color:var(--muted);font-weight:700;}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;}
+  .foot{margin-top:24px;text-align:center;font-size:.8rem;color:var(--muted);}
+  .pill-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+  @media (max-width:560px){
+    header.app h1{font-size:1.32rem;}
+    .controls{gap:10px;}
+    select{min-width:140px;}
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <div class="tag">Data &amp; Analytics &bull; Attendance and Behaviour</div>
+    <h1>Behaviour Referral Analyser</h1>
+    <p class="aim"><strong>Teacher aim:</strong> use a heatmap of behaviour points and removal-room referrals to find hotspots by lesson period, subject, year group and pupil, then decide where pastoral attention should go first.</p>
+    <div class="meta">
+      <span>Strand: Behaviour, sanctions &amp; on-call data</span>
+      <span>Skill: reading a heatmap</span>
+      <span>Half-term sample week</span>
+    </div>
+  </header>
+
+  <!-- ANALYSER -->
+  <section class="panel" aria-labelledby="an-h">
+    <h2 id="an-h">1. Find the hotspots</h2>
+    <p class="lead">Choose what to compare. The darker red a square, the more incidents were logged. Tap, click or use arrow keys then Enter to inspect any square.</p>
+
+    <div class="controls" role="group" aria-label="Heatmap controls">
+      <div class="ctrl">
+        <label for="rowSel">Rows (down the side)</label>
+        <select id="rowSel" aria-label="Choose the dimension for heatmap rows">
+          <option value="subject" selected>Subject</option>
+          <option value="year">Year group</option>
+          <option value="pupil">Pupil (demo)</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label for="colSel">Columns (across the top)</label>
+        <select id="colSel" aria-label="Choose the dimension for heatmap columns">
+          <option value="period" selected>Lesson period</option>
+          <option value="day">Day of week</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label for="metricSel">Measure</label>
+        <select id="metricSel" aria-label="Choose which incident type to map">
+          <option value="points" selected>Behaviour points</option>
+          <option value="removal">Removal-room referrals</option>
+          <option value="oncall">On-call requests</option>
+        </select>
+      </div>
+      <button class="btn ghost" id="resetBtn" type="button">Reset view</button>
+    </div>
+
+    <div class="grid-scroll">
+      <p class="axis-cap" id="colCap">Lesson period</p>
+      <table class="heat" id="heat" aria-describedby="heatHelp">
+        <caption class="sr-only" id="heatHelp">Heatmap. Each cell shows the number of incidents. Use Tab to reach the grid, arrow keys to move between cells, and Enter or Space to inspect a cell.</caption>
+        <thead><tr id="headRow"></tr></thead>
+        <tbody id="heatBody"></tbody>
+      </table>
+    </div>
+
+    <div class="legend" aria-hidden="false">
+      <span class="ends">Fewer</span>
+      <div class="scale" id="scaleStrip" aria-hidden="true"></div>
+      <span class="ends">More</span>
+      <button class="legend-chip" id="peakChip" type="button" aria-pressed="false">Highlight the single biggest hotspot</button>
+    </div>
+
+    <div class="readout" id="readout" aria-live="polite">
+      <h3>Inspector</h3>
+      <p class="big" id="readoutText">Select a square to see what is driving the numbers there.</p>
+    </div>
+  </section>
+
+  <!-- CHALLENGE -->
+  <section class="panel challenge" aria-labelledby="ch-h">
+    <h2 id="ch-h">2. Analyst challenge</h2>
+    <p class="lead">Read the heatmap above to answer. Change the controls if you need to. Each question targets a real on-call decision.</p>
+    <p class="q" id="qText"></p>
+    <div class="opt-grid" id="optGrid" role="group" aria-label="Answer options"></div>
+    <p class="feedback" id="qFeedback" aria-live="polite"></p>
+    <div class="score-line" id="scoreLine">Score: 0 / 0</div>
+    <div class="pill-row">
+      <button class="btn" id="nextQ" type="button" disabled>Next question</button>
+    </div>
+  </section>
+
+  <p class="foot">Demonstration data only. All names and figures are fictional and represent no real pupil or staff member.</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- Fictional demo dataset ----------
+     Each incident: {subject, year, pupil, period, day, points, removal, oncall}
+     We store raw counts directly per combination to keep it deterministic. */
+
+  const SUBJECTS = ["Maths","English","Science","History","PE"];
+  const YEARS    = ["Year 7","Year 8","Year 9","Year 10","Year 11"];
+  const PUPILS   = ["A. Marsh","B. Okoro","C. Pendry","D. Vine","E. Quill","F. Rowe"];
+  const PERIODS  = ["P1","P2","P3","P4","P5"];
+  const DAYS     = ["Mon","Tue","Wed","Thu","Fri"];
+
+  // Deterministic pseudo-data generator so the heatmap has believable hotspots.
+  // A small seeded function; not random at runtime.
+  function seeded(a,b,c){
+    let x = (a*73856093) ^ (b*19349663) ^ (c*83492791);
+    x = (x ^ (x>>>13)) >>> 0;
+    return x % 1000;
+  }
+
+  // Build the incident store. Hotspots are baked in:
+  //  - Period P4 and P5 (after lunch / end of day) run hotter
+  //  - PE and Maths run hotter than History
+  //  - Year 9 runs hottest
+  //  - Pupil "B. Okoro" and "E. Quill" are elevated
+  const store = [];
+  function pupilFactor(p){
+    if(p==="B. Okoro") return 2.4;
+    if(p==="E. Quill") return 1.9;
+    if(p==="D. Vine")  return 0.6;
+    return 1;
+  }
+  function subjFactor(s){
+    if(s==="PE") return 1.7;
+    if(s==="Maths") return 1.5;
+    if(s==="History") return 0.5;
+    if(s==="Science") return 1.1;
+    return 1;
+  }
+  function yearFactor(y){
+    if(y==="Year 9") return 1.8;
+    if(y==="Year 10") return 1.3;
+    if(y==="Year 7") return 0.7;
+    return 1;
+  }
+  function periodFactor(p){
+    if(p==="P4") return 1.8;
+    if(p==="P5") return 1.6;
+    if(p==="P1") return 0.7;
+    return 1;
+  }
+  function dayFactor(d){
+    if(d==="Fri") return 1.5;
+    if(d==="Mon") return 1.2;
+    if(d==="Wed") return 0.8;
+    return 1;
+  }
+
+  let id=0;
+  SUBJECTS.forEach((s,si)=>{
+    YEARS.forEach((y,yi)=>{
+      PERIODS.forEach((p,pi)=>{
+        DAYS.forEach((d,di)=>{
+          // base intensity for this slot
+          const base = (seeded(si*7+pi, yi*5+di, id)%6); // 0..5 noise
+          const intensity = base * subjFactor(s) * yearFactor(y) * periodFactor(p) * dayFactor(d);
+          // distribute among pupils
+          PUPILS.forEach((pu,ui)=>{
+            const slot = (seeded(si+ui, yi+pi, di*3+ui)%100)/100; // 0..1
+            const pf = pupilFactor(pu);
+            const raw = intensity * pf * (0.15 + slot*0.6);
+            const points = Math.round(raw);
+            if(points<=0) return;
+            // removals are a fraction of points; on-call rarer still
+            const removal = (seeded(points, ui+pi, si+di)%100) < (18+pf*8) ? Math.max(1,Math.round(points*0.28)) : 0;
+            const oncall  = (seeded(points*2, ui, pi+di)%100) < (8+pf*5) ? Math.max(1,Math.round(points*0.12)) : 0;
+            store.push({subject:s,year:y,pupil:pu,period:p,day:d,points:points,removal:removal,oncall:oncall});
+            id++;
+          });
+        });
+      });
+    });
+  });
+
+  const dimValues = {
+    subject:SUBJECTS, year:YEARS, pupil:PUPILS, period:PERIODS, day:DAYS
+  };
+  const dimLabel = {
+    subject:"Subject", year:"Year group", pupil:"Pupil",
+    period:"Lesson period", day:"Day of week"
+  };
+  const metricLabel = {
+    points:"behaviour points", removal:"removal-room referrals", oncall:"on-call requests"
+  };
+
+  // ---------- Aggregation ----------
+  function aggregate(rowDim,colDim,metric){
+    const rows = dimValues[rowDim], cols = dimValues[colDim];
+    const grid = rows.map(()=>cols.map(()=>0));
+    let max=0,total=0;
+    store.forEach(r=>{
+      const ri = rows.indexOf(r[rowDim]);
+      const ci = cols.indexOf(r[colDim]);
+      if(ri<0||ci<0) return;
+      const v = r[metric];
+      grid[ri][ci]+=v;
+      total+=v;
+      if(grid[ri][ci]>max) max=grid[ri][ci];
+    });
+    return {grid,max,total,rows,cols};
+  }
+
+  // Detail for a single cell: top contributing pupil + period etc.
+  function cellDetail(rowDim,colDim,rowVal,colVal,metric){
+    const matched = store.filter(r=>r[rowDim]===rowVal && r[colDim]===colVal);
+    let sum=0; matched.forEach(r=>sum+=r[metric]);
+    // top pupil
+    const byPupil={};
+    matched.forEach(r=>{ byPupil[r.pupil]=(byPupil[r.pupil]||0)+r[metric]; });
+    let topP=null,topV=-1;
+    Object.keys(byPupil).forEach(k=>{ if(byPupil[k]>topV){topV=byPupil[k];topP=k;} });
+    // also count removals/oncall alongside for context
+    let rem=0,onc=0,pts=0;
+    matched.forEach(r=>{ rem+=r.removal; onc+=r.oncall; pts+=r.points; });
+    return {sum,topP,topV,rem,onc,pts,count:matched.length};
+  }
+
+  // ---------- Colour ----------
+  function heatColour(v,max){
+    if(max<=0||v<=0) return "#f4f7fc";
+    const t = Math.min(1, v/max);
+    // interpolate cool -> warm: from #eef4ff to #d94a3d via amber
+    // three-stop ramp
+    const stops=[
+      [238,244,255],[255,239,204],[232,163,61],[217,74,61],[140,28,22]
+    ];
+    const seg = t* (stops.length-1);
+    const i = Math.min(stops.length-2, Math.floor(seg));
+    const f = seg - i;
+    const a=stops[i], b=stops[i+1];
+    const ch=k=>Math.round(a[k]+(b[k]-a[k])*f);
+    return "rgb("+ch(0)+","+ch(1)+","+ch(2)+")";
+  }
+  function textColourFor(v,max){
+    const t = max>0 ? v/max : 0;
+    return t>0.62 ? "#fff" : "#11223a";
+  }
+
+  // ---------- State ----------
+  const state = {row:"subject", col:"period", metric:"points",
+                 selR:-1, selC:-1, peak:false, current:null};
+
+  const els = {
+    rowSel:document.getElementById("rowSel"),
+    colSel:document.getElementById("colSel"),
+    metricSel:document.getElementById("metricSel"),
+    headRow:document.getElementById("headRow"),
+    body:document.getElementById("heatBody"),
+    readout:document.getElementById("readoutText"),
+    colCap:document.getElementById("colCap"),
+    scale:document.getElementById("scaleStrip"),
+    peakChip:document.getElementById("peakChip"),
+    reset:document.getElementById("resetBtn")
+  };
+
+  // build legend strip once
+  (function(){
+    for(let i=0;i<6;i++){
+      const sw=document.createElement("div");
+      sw.className="swatch";
+      sw.style.background=heatColour(i,5);
+      els.scale.appendChild(sw);
+    }
+  })();
+
+  function peakCell(agg){
+    let best={r:-1,c:-1,v:-1};
+    agg.grid.forEach((row,ri)=>row.forEach((v,ci)=>{ if(v>best.v){best={r:ri,c:ci,v:v};} }));
+    return best;
+  }
+
+  function render(){
+    const agg = aggregate(state.row,state.col,state.metric);
+    state.current = agg;
+    els.colCap.textContent = dimLabel[state.col];
+
+    // header
+    els.headRow.innerHTML="";
+    const corner=document.createElement("th");
+    corner.className="row-h";
+    corner.scope="col";
+    corner.textContent=dimLabel[state.row];
+    els.headRow.appendChild(corner);
+    agg.cols.forEach(c=>{
+      const th=document.createElement("th");
+      th.scope="col"; th.textContent=c;
+      els.headRow.appendChild(th);
+    });
+
+    // body
+    els.body.innerHTML="";
+    const peak = state.peak ? peakCell(agg) : null;
+    agg.rows.forEach((rname,ri)=>{
+      const tr=document.createElement("tr");
+      const rh=document.createElement("th");
+      rh.className="row-h"; rh.scope="row"; rh.textContent=rname;
+      tr.appendChild(rh);
+      agg.cols.forEach((cname,ci)=>{
+        const v=agg.grid[ri][ci];
+        const td=document.createElement("td");
+        td.className="cell";
+        td.tabIndex = (ri===0&&ci===0)?0:-1;
+        td.dataset.r=ri; td.dataset.c=ci;
+        td.style.background=heatColour(v,agg.max);
+        td.style.color=textColourFor(v,agg.max);
+        td.textContent=v;
+        const aria = rname+", "+cname+", "+v+" "+metricLabel[state.metric];
+        td.setAttribute("role","gridcell");
+        td.setAttribute("aria-label",aria);
+        if(peak){
+          if(peak.r===ri&&peak.c===ci){ td.classList.add("sel"); }
+          else { td.classList.add("dim"); }
+        }
+        if(state.selR===ri&&state.selC===ci) td.classList.add("sel");
+        tr.appendChild(td);
+      });
+      els.body.appendChild(tr);
+    });
+
+    if(peak){ inspect(peak.r,peak.c,true); }
+  }
+
+  function inspect(ri,ci,fromPeak){
+    const agg=state.current;
+    if(!agg) return;
+    state.selR=ri; state.selC=ci;
+    const rname=agg.rows[ri], cname=agg.cols[ci];
+    const v=agg.grid[ri][ci];
+    const det=cellDetail(state.row,state.col,rname,cname,state.metric);
+
+    // is this a hotspot? compare to mean
+    let sum=0,n=0; agg.grid.forEach(row=>row.forEach(x=>{sum+=x;n++;}));
+    const mean = n? sum/n : 0;
+    const ratio = mean>0 ? v/mean : 0;
+    let band="quiet", flag="";
+    if(v===0){ band="no incidents logged"; }
+    else if(ratio>=2){ band="a clear hotspot"; flag=" hot-flag"; }
+    else if(ratio>=1.3){ band="busier than average"; }
+    else if(ratio>=0.7){ band="around average"; }
+    else { band="quieter than average"; }
+
+    let html="<h3>Inspector: "+rname+" &times; "+cname+"</h3>";
+    html+="<p class='big'><b>"+v+"</b> "+metricLabel[state.metric]+" logged here. ";
+    if(v>0){
+      html+="This square is <span class='"+(flag.trim()||"")+"'>"+band+"</span> ";
+      html+="("+ratio.toFixed(1)+"&times; the grid average).</p>";
+      if(det.topP){
+        html+="<ul><li>Biggest contributor: <b>"+det.topP+"</b> with "+det.topV+" "+metricLabel[state.metric]+".</li></ul>";
+      }
+      html+="<div class='breakdown'>";
+      html+="<span class='bk'>Points: <b>"+det.pts+"</b></span>";
+      html+="<span class='bk'>Removals: <b>"+det.rem+"</b></span>";
+      html+="<span class='bk'>On-call: <b>"+det.onc+"</b></span>";
+      html+="</div>";
+      if(ratio>=2){
+        html+="<p style='margin:10px 0 0;font-weight:600'>Action prompt: this is where on-call pressure concentrates. Worth a conversation with the "+ (state.row==="pupil" ? "pupil's tutor" : rname+" team") +" before next week.</p>";
+      }
+    } else {
+      html+="No referrals to investigate in this slot.</p>";
+    }
+    els.readout.parentElement.innerHTML = "<h3 class='sr-only'>Inspector</h3>"+html;
+
+    if(!fromPeak && state.peak){
+      // manual click cancels peak-only highlight
+      state.peak=false; els.peakChip.setAttribute("aria-pressed","false");
+      render();
+      // re-find the readout element reference after render rebuilds nothing (readout stays)
+    }
+    refreshSelection();
+  }
+
+  function refreshSelection(){
+    document.querySelectorAll("#heatBody td.cell").forEach(td=>{
+      const ri=+td.dataset.r, ci=+td.dataset.c;
+      td.classList.toggle("sel", ri===state.selR && ci===state.selC && !state.peak);
+      if(!state.peak) td.classList.remove("dim");
+    });
+  }
+
+  // ---------- Events ----------
+  els.body.addEventListener("pointerdown",e=>{
+    const td=e.target.closest("td.cell");
+    if(!td) return;
+    focusCell(+td.dataset.r,+td.dataset.c);
+    inspect(+td.dataset.r,+td.dataset.c,false);
+  });
+
+  // keyboard grid navigation
+  els.body.addEventListener("keydown",e=>{
+    const td=e.target.closest("td.cell");
+    if(!td) return;
+    let ri=+td.dataset.r, ci=+td.dataset.c;
+    const agg=state.current;
+    const maxR=agg.rows.length-1, maxC=agg.cols.length-1;
+    let handled=true;
+    switch(e.key){
+      case "ArrowRight": ci=Math.min(maxC,ci+1); break;
+      case "ArrowLeft":  ci=Math.max(0,ci-1); break;
+      case "ArrowDown":  ri=Math.min(maxR,ri+1); break;
+      case "ArrowUp":    ri=Math.max(0,ri-1); break;
+      case "Home":       ci=0; break;
+      case "End":        ci=maxC; break;
+      case "Enter": case " ":
+        inspect(ri,ci,false); e.preventDefault(); return;
+      default: handled=false;
+    }
+    if(handled){ e.preventDefault(); focusCell(ri,ci); }
+  });
+
+  function focusCell(ri,ci){
+    const sel="#heatBody td.cell[data-r='"+ri+"'][data-c='"+ci+"']";
+    const td=document.querySelector(sel);
+    if(!td) return;
+    document.querySelectorAll("#heatBody td.cell").forEach(c=>c.tabIndex=-1);
+    td.tabIndex=0; td.focus();
+  }
+
+  els.rowSel.addEventListener("change",()=>{
+    state.row=els.rowSel.value;
+    // prevent identical row/col on the two genuine col options is impossible (different sets), safe
+    state.selR=-1;state.selC=-1;state.peak=false;els.peakChip.setAttribute("aria-pressed","false");
+    render(); resetReadout(); newQuestion();
+  });
+  els.colSel.addEventListener("change",()=>{
+    state.col=els.colSel.value; state.selR=-1;state.selC=-1;
+    state.peak=false;els.peakChip.setAttribute("aria-pressed","false");
+    render(); resetReadout(); newQuestion();
+  });
+  els.metricSel.addEventListener("change",()=>{
+    state.metric=els.metricSel.value; state.selR=-1;state.selC=-1;
+    state.peak=false;els.peakChip.setAttribute("aria-pressed","false");
+    render(); resetReadout(); newQuestion();
+  });
+  els.peakChip.addEventListener("click",()=>{
+    state.peak=!state.peak;
+    els.peakChip.setAttribute("aria-pressed",state.peak?"true":"false");
+    if(!state.peak){ state.selR=-1;state.selC=-1; render(); resetReadout(); }
+    else { render(); }
+  });
+  els.reset.addEventListener("click",()=>{
+    state.row="subject";state.col="period";state.metric="points";
+    state.selR=-1;state.selC=-1;state.peak=false;
+    els.rowSel.value="subject";els.colSel.value="period";els.metricSel.value="points";
+    els.peakChip.setAttribute("aria-pressed","false");
+    render(); resetReadout(); newQuestion();
+  });
+
+  function resetReadout(){
+    els.readout.parentElement.innerHTML =
+      "<h3>Inspector</h3><p class='big' id='readoutText'>Select a square to see what is driving the numbers there.</p>";
+  }
+
+  // ---------- Analyst challenge ----------
+  const scoreEl=document.getElementById("scoreLine");
+  const qText=document.getElementById("qText");
+  const optGrid=document.getElementById("optGrid");
+  const qFeedback=document.getElementById("qFeedback");
+  const nextBtn=document.getElementById("nextQ");
+  let score=0, asked=0, answered=false;
+
+  // Question generators read the LIVE data, so answers are always correct.
+  function buildQuestions(){
+    const qs=[];
+
+    // Q type 1: which lesson period has most behaviour points overall?
+    qs.push(()=>{
+      const agg=aggregate("subject","period","points");
+      const totals=agg.cols.map((c,ci)=>{
+        let s=0; agg.grid.forEach(row=>s+=row[ci]); return {label:c,v:s};
+      });
+      totals.sort((a,b)=>b.v-a.v);
+      const correct=totals[0].label;
+      return {
+        q:"Across all subjects, which lesson period logs the most behaviour points? Set Rows to Subject, Columns to Lesson period if you want to check.",
+        opts:shuffle(PERIODS.slice()),
+        correct:correct,
+        why:correct+" carries the heaviest behaviour-point load, the right-hand columns run hottest as the day goes on."
+      };
+    });
+
+    // Q type 2: which subject is the hotspot for removals?
+    qs.push(()=>{
+      const agg=aggregate("subject","period","removal");
+      const totals=agg.rows.map((r,ri)=>{
+        let s=0; agg.grid[ri].forEach(v=>s+=v); return {label:r,v:s};
+      });
+      totals.sort((a,b)=>b.v-a.v);
+      return {
+        q:"Switch the Measure to removal-room referrals. Which subject sends the most pupils to the removal room?",
+        opts:shuffle(SUBJECTS.slice()),
+        correct:totals[0].label,
+        why:totals[0].label+" generates the most removal-room referrals in this sample week."
+      };
+    });
+
+    // Q type 3: which year group is the overall hotspot for on-call?
+    qs.push(()=>{
+      const agg=aggregate("year","period","oncall");
+      const totals=agg.rows.map((r,ri)=>{
+        let s=0; agg.grid[ri].forEach(v=>s+=v); return {label:r,v:s};
+      });
+      totals.sort((a,b)=>b.v-a.v);
+      return {
+        q:"Set Rows to Year group and Measure to on-call requests. Which year group triggers on-call most often?",
+        opts:shuffle(YEARS.slice()),
+        correct:totals[0].label,
+        why:totals[0].label+" pulls staff to on-call most often, a clear cohort to prioritise."
+      };
+    });
+
+    // Q type 4: which pupil is the single biggest contributor to points?
+    qs.push(()=>{
+      const byP={};
+      store.forEach(r=>{byP[r.pupil]=(byP[r.pupil]||0)+r.points;});
+      let top=null,tv=-1;
+      Object.keys(byP).forEach(k=>{if(byP[k]>tv){tv=byP[k];top=k;}});
+      return {
+        q:"Set Rows to Pupil. Which pupil contributes the most behaviour points overall? (Demo names only.)",
+        opts:shuffle(PUPILS.slice()),
+        correct:top,
+        why:top+" stands out across the week, the strongest case for an individual pastoral plan."
+      };
+    });
+
+    // Q type 5: end of week vs start
+    qs.push(()=>{
+      const agg=aggregate("subject","day","points");
+      const totals=agg.cols.map((c,ci)=>{
+        let s=0; agg.grid.forEach(row=>s+=row[ci]); return {label:c,v:s};
+      });
+      totals.sort((a,b)=>b.v-a.v);
+      return {
+        q:"Set Columns to Day of week. Which day logs the most behaviour points?",
+        opts:shuffle(DAYS.slice()),
+        correct:totals[0].label,
+        why:totals[0].label+" is the busiest day for behaviour points in this dataset."
+      };
+    });
+
+    return qs;
+  }
+
+  function shuffle(a){
+    for(let i=a.length-1;i>0;i--){
+      // deterministic-ish but varied per call using time fraction not needed; simple Fisher-Yates
+      const j=Math.floor(Math.random()*(i+1));
+      [a[i],a[j]]=[a[j],a[i]];
+    }
+    return a;
+  }
+
+  const questionFns=buildQuestions();
+  let qOrder=[];
+  let qPtr=0;
+
+  function newQuestion(){
+    if(qPtr>=qOrder.length){ qOrder=shuffle([0,1,2,3,4]); qPtr=0; }
+    const fn=questionFns[qOrder[qPtr]]; qPtr++;
+    const data=fn();
+    answered=false;
+    qText.textContent=data.q;
+    optGrid.innerHTML="";
+    qFeedback.textContent=""; qFeedback.className="feedback";
+    nextBtn.disabled=true;
+    data.opts.forEach(o=>{
+      const b=document.createElement("button");
+      b.className="opt"; b.type="button"; b.textContent=o;
+      b.addEventListener("click",()=>answer(b,o,data));
+      optGrid.appendChild(b);
+    });
+  }
+
+  function answer(btn,choice,data){
+    if(answered) return;
+    answered=true; asked++;
+    const buttons=[...optGrid.querySelectorAll(".opt")];
+    buttons.forEach(b=>{
+      b.disabled=true;
+      if(b.textContent===data.correct) b.classList.add("correct");
+    });
+    if(choice===data.correct){
+      score++;
+      btn.classList.add("correct");
+      qFeedback.textContent="Correct. "+data.why;
+      qFeedback.className="feedback ok";
+    } else {
+      btn.classList.add("wrong");
+      qFeedback.textContent="Not quite. The answer is "+data.correct+". "+data.why;
+      qFeedback.className="feedback no";
+    }
+    scoreEl.textContent="Score: "+score+" / "+asked;
+    nextBtn.disabled=false;
+  }
+
+  nextBtn.addEventListener("click",newQuestion);
+
+  // ---------- Init ----------
+  render();
+  qOrder=shuffle([0,1,2,3,4]);
+  newQuestion();
+
+})();
+</script>
+</body>
+</html>

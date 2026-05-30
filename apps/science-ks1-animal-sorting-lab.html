@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Animal Sorting Lab</title>
+<style>
+  :root {
+    --ink: #1f2937;
+    --muted: #5b6573;
+    --line: #d7dde6;
+    --bg: #f4f7fb;
+    --card: #ffffff;
+    --accent: #2563a8;
+    --good: #1f8a4c;
+    --good-bg: #e4f5ea;
+    --bad: #c0392b;
+    --bad-bg: #fbe7e4;
+    --warn: #b26a00;
+    --shadow: 0 2px 10px rgba(20,40,70,.08);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 56px; }
+
+  header.app-head {
+    background: linear-gradient(135deg, #2563a8, #1d4b86);
+    color: #fff;
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  header.app-head h1 { margin: 0 0 4px; font-size: 1.5rem; letter-spacing: .2px; }
+  header.app-head .strand { font-size: .85rem; opacity: .92; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; }
+  .aim {
+    background: #eef4fb;
+    border: 1px solid #cfe0f3;
+    border-left: 5px solid var(--accent);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin: 16px 0;
+    font-size: .95rem;
+    color: #20364f;
+  }
+  .aim strong { color: var(--accent); }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 18px;
+    margin-bottom: 18px;
+  }
+  .panel h2 { margin: 0 0 4px; font-size: 1.12rem; }
+  .panel .sub { margin: 0 0 12px; color: var(--muted); font-size: .9rem; }
+
+  /* Tray of animals to sort */
+  .tray {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    padding: 12px; border: 2px dashed #c4d0de; border-radius: 12px;
+    background: #fafcff; min-height: 96px; align-content: flex-start;
+  }
+  .tray.empty::after {
+    content: "Well done. Every animal has a home.";
+    color: var(--good); font-weight: 700; font-size: .95rem; margin: auto;
+  }
+
+  .animal {
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; width: 92px; padding: 8px 6px;
+    background: #fff; border: 2px solid var(--line); border-radius: 12px;
+    cursor: grab; user-select: none; touch-action: none;
+    box-shadow: 0 1px 4px rgba(20,40,70,.08);
+    transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+  }
+  .animal:focus-visible { outline: 3px solid #ffb020; outline-offset: 2px; }
+  .animal .emoji { font-size: 1.9rem; line-height: 1; }
+  .animal .name { font-size: .78rem; font-weight: 700; text-align: center; }
+  .animal.dragging { opacity: .55; transform: scale(.96); cursor: grabbing; }
+  .animal.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,168,.25); }
+
+  /* Pens grid */
+  .pens {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+  .pen {
+    border: 2px solid var(--line); border-radius: 14px; background: #fff;
+    padding: 10px 10px 12px; min-height: 150px; transition: border-color .12s, background .12s;
+  }
+  .pen .pen-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .pen .pen-head .badge { font-size: 1.4rem; }
+  .pen .pen-head .title { font-weight: 800; font-size: .98rem; }
+  .pen .pen-head .clue { font-size: .72rem; color: var(--muted); display: block; }
+  .pen.dropping { border-color: var(--accent); background: #eef4fb; }
+  .pen.flash-good { border-color: var(--good); background: var(--good-bg); }
+  .pen.flash-bad { border-color: var(--bad); background: var(--bad-bg); }
+  .pen-slot {
+    display: flex; flex-wrap: wrap; gap: 8px; min-height: 70px;
+    border-top: 1px dashed var(--line); padding-top: 8px; align-content: flex-start;
+  }
+  .pen .animal { width: 80px; }
+  .pen .animal .emoji { font-size: 1.5rem; }
+
+  /* diet toggle on placed animals */
+  .diet-row { display: flex; gap: 2px; margin-top: 4px; }
+  .diet-btn {
+    border: 1px solid var(--line); background: #f3f6fa; border-radius: 8px;
+    font-size: .92rem; padding: 1px 5px; cursor: pointer; line-height: 1.2;
+  }
+  .diet-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .diet-btn:focus-visible { outline: 2px solid #ffb020; outline-offset: 1px; }
+  .diet-tag { font-size: .68rem; color: var(--muted); margin-top: 2px; min-height: 1em; text-align: center; }
+  .diet-tag.right { color: var(--good); font-weight: 700; }
+  .diet-tag.wrong { color: var(--bad); font-weight: 700; }
+
+  /* live feedback */
+  .feedback {
+    margin-top: 12px; border-radius: 10px; padding: 10px 14px; font-size: .95rem;
+    background: #eef2f7; border: 1px solid var(--line); min-height: 1.4em;
+  }
+  .feedback.good { background: var(--good-bg); border-color: #aedcc0; color: #135c33; }
+  .feedback.bad { background: var(--bad-bg); border-color: #efb6ae; color: #8c241a; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+  button.btn {
+    font: inherit; font-weight: 700; border: 1px solid var(--accent); background: var(--accent);
+    color: #fff; border-radius: 10px; padding: 9px 16px; cursor: pointer;
+  }
+  button.btn.ghost { background: #fff; color: var(--accent); }
+  button.btn:focus-visible { outline: 3px solid #ffb020; outline-offset: 2px; }
+  button.btn:active { transform: translateY(1px); }
+  .score { font-weight: 800; color: var(--accent); margin-left: auto; }
+
+  /* Label the Body mini-task */
+  .body-task { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+  .body-figure { flex: 0 0 auto; }
+  svg.bodysvg { width: 150px; height: 280px; }
+  .hotspot { cursor: pointer; }
+  .hotspot circle { fill: rgba(37,99,168,.12); stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; }
+  .hotspot:hover circle, .hotspot:focus circle { fill: rgba(37,99,168,.28); }
+  .hotspot.solved circle { fill: var(--good-bg); stroke: var(--good); stroke-dasharray: none; }
+  .hotspot text { font-size: 13px; font-weight: 800; fill: var(--ink); }
+  .hotspot:focus-visible { outline: none; }
+  .hotspot:focus circle { stroke-width: 3; }
+  .part-words { display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; max-width: 360px; }
+  .word-chip {
+    border: 2px solid var(--line); background: #fff; border-radius: 999px;
+    padding: 6px 14px; font-weight: 700; cursor: pointer; font-size: .9rem; touch-action: none;
+  }
+  .word-chip.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,168,.25); }
+  .word-chip.used { opacity: .4; pointer-events: none; text-decoration: line-through; }
+  .word-chip:focus-visible { outline: 3px solid #ffb020; outline-offset: 2px; }
+
+  .needs-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); }
+  .needs-list li { background: #f3f7fc; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: .9rem; }
+  .needs-list li .ic { font-size: 1.2rem; margin-right: 6px; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .hint { font-size: .82rem; color: var(--muted); margin-top: 6px; }
+  footer.foot { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 24px; }
+  @media (max-width: 520px) {
+    .animal { width: 78px; }
+    .pen .animal { width: 72px; }
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app-head">
+    <span class="strand">Science &middot; KS1 &middot; Animals, including humans</span>
+    <h1>Animal Sorting Lab &#x1F52C;</h1>
+  </header>
+
+  <div class="aim">
+    <strong>Teacher aim:</strong> pupils sort animals into the five groups (fish, amphibian, reptile, bird, mammal), choose each animal's diet (herbivore, carnivore, omnivore), name human body parts and recall what animals need to live.
+  </div>
+
+  <!-- ============ SECTION 1: SORTING ============ -->
+  <section class="panel" aria-labelledby="sort-h">
+    <h2 id="sort-h">1. Sort the animals into their pens</h2>
+    <p class="sub">Drag an animal into the right pen. On a keyboard, press an animal to pick it up, then press a pen to drop it. After it lands, choose what it eats.</p>
+
+    <div class="tray" id="tray" role="list" aria-label="Animals waiting to be sorted"></div>
+
+    <div class="pens" id="pens" style="margin-top:14px"></div>
+
+    <p class="feedback" id="sortFeedback" role="status" aria-live="polite">Pick an animal to begin.</p>
+
+    <div class="controls">
+      <button class="btn" id="checkBtn" type="button">Check my pens</button>
+      <button class="btn ghost" id="resetBtn" type="button">Start again</button>
+      <span class="score" id="scoreLabel" aria-live="polite">Sorted: 0 of 10</span>
+    </div>
+    <p class="hint">Tip: mammals have fur or hair and feed milk to their babies. Birds have feathers. Fish live in water and have gills. Amphibians (like frogs) start in water. Reptiles have dry, scaly skin.</p>
+  </section>
+
+  <!-- ============ SECTION 2: LABEL THE BODY ============ -->
+  <section class="panel" aria-labelledby="body-h">
+    <h2 id="body-h">2. Label the body</h2>
+    <p class="sub">Pick a word, then press the matching dotted spot on the body. The spot turns green when it is correct.</p>
+    <div class="body-task">
+      <div class="body-figure">
+        <svg class="bodysvg" viewBox="0 0 150 280" role="img" aria-label="Outline of a child with dotted spots to label">
+          <!-- simple child body -->
+          <circle cx="75" cy="38" r="26" fill="#ffe0bd" stroke="#d9a066" stroke-width="2"/>
+          <rect x="50" y="62" width="50" height="78" rx="18" fill="#5b8def" stroke="#3a6bd0" stroke-width="2"/>
+          <rect x="22" y="70" width="20" height="68" rx="10" fill="#ffe0bd" stroke="#d9a066" stroke-width="2"/>
+          <rect x="108" y="70" width="20" height="68" rx="10" fill="#ffe0bd" stroke="#d9a066" stroke-width="2"/>
+          <rect x="55" y="138" width="18" height="84" rx="9" fill="#37456a" stroke="#26314d" stroke-width="2"/>
+          <rect x="77" y="138" width="18" height="84" rx="9" fill="#37456a" stroke="#26314d" stroke-width="2"/>
+          <ellipse cx="60" cy="232" rx="14" ry="8" fill="#222" />
+          <ellipse cx="90" cy="232" rx="14" ry="8" fill="#222" />
+          <!-- hotspots: g group attaches handlers in JS -->
+          <g class="hotspot" data-part="head" tabindex="0" role="button" aria-label="Spot near the head, no label yet">
+            <circle cx="75" cy="20" r="12"/>
+          </g>
+          <g class="hotspot" data-part="arm" tabindex="0" role="button" aria-label="Spot near the arm, no label yet">
+            <circle cx="120" cy="104" r="12"/>
+          </g>
+          <g class="hotspot" data-part="leg" tabindex="0" role="button" aria-label="Spot near the leg, no label yet">
+            <circle cx="64" cy="190" r="12"/>
+          </g>
+          <g class="hotspot" data-part="foot" tabindex="0" role="button" aria-label="Spot near the foot, no label yet">
+            <circle cx="60" cy="250" r="12"/>
+          </g>
+        </svg>
+      </div>
+      <div>
+        <div class="part-words" id="partWords" role="list" aria-label="Body part words"></div>
+        <p class="feedback" id="bodyFeedback" role="status" aria-live="polite" style="margin-top:12px">Choose a word to start.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 3: BASIC NEEDS ============ -->
+  <section class="panel" aria-labelledby="needs-h">
+    <h2 id="needs-h">3. What do animals need to live?</h2>
+    <p class="sub">Every animal, including you, needs these things to stay alive and healthy.</p>
+    <ul class="needs-list">
+      <li><span class="ic">&#x1F4A7;</span>Water to drink</li>
+      <li><span class="ic">&#x1F34E;</span>Food to eat</li>
+      <li><span class="ic">&#x1F4A8;</span>Air to breathe</li>
+      <li><span class="ic">&#x1F3E0;</span>Shelter and a safe home</li>
+    </ul>
+  </section>
+
+  <footer class="foot">Animal Sorting Lab &middot; Demonstration activity for WeST classrooms.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------- Data ---------------- */
+  var GROUPS = {
+    fish:      { label: "Fish",      emoji: "\u{1F41F}", clue: "Gills, fins, live in water" },
+    amphibian: { label: "Amphibian", emoji: "\u{1F438}", clue: "Moist skin, start in water" },
+    reptile:   { label: "Reptile",   emoji: "\u{1F98E}", clue: "Dry, scaly skin" },
+    bird:      { label: "Bird",      emoji: "\u{1F426}", clue: "Feathers, beak, lay eggs" },
+    mammal:    { label: "Mammal",    emoji: "\u{1F436}", clue: "Fur or hair, feed milk" }
+  };
+
+  // diet: 'herbivore' eats plants, 'carnivore' eats meat, 'omnivore' eats both
+  var ANIMALS = [
+    { id: "salmon",  name: "Salmon",   emoji: "\u{1F41F}", group: "fish",      diet: "carnivore" },
+    { id: "frog",    name: "Frog",     emoji: "\u{1F438}", group: "amphibian", diet: "carnivore" },
+    { id: "newt",    name: "Newt",     emoji: "\u{1F40A}", group: "amphibian", diet: "carnivore" },
+    { id: "snake",   name: "Snake",    emoji: "\u{1F40D}", group: "reptile",   diet: "carnivore" },
+    { id: "tortoise",name: "Tortoise", emoji: "\u{1F422}", group: "reptile",   diet: "herbivore" },
+    { id: "owl",     name: "Owl",      emoji: "\u{1F989}", group: "bird",      diet: "carnivore" },
+    { id: "parrot",  name: "Parrot",   emoji: "\u{1F99C}", group: "bird",      diet: "omnivore"  },
+    { id: "cow",     name: "Cow",      emoji: "\u{1F404}", group: "mammal",    diet: "herbivore" },
+    { id: "lion",    name: "Lion",     emoji: "\u{1F981}", group: "mammal",    diet: "carnivore" },
+    { id: "pig",     name: "Pig",      emoji: "\u{1F437}", group: "mammal",    diet: "omnivore"  }
+  ];
+
+  var DIETS = {
+    herbivore: { icon: "\u{1F33F}", label: "herbivore", help: "eats plants" },
+    carnivore: { icon: "\u{1F356}", label: "carnivore", help: "eats meat" },
+    omnivore:  { icon: "\u{1F37D}", label: "omnivore",  help: "eats both" }
+  };
+
+  /* state: where each animal currently is, and its chosen diet */
+  var placement = {}; // animalId -> groupKey or null
+  var chosenDiet = {}; // animalId -> dietKey or null
+  ANIMALS.forEach(function (a) { placement[a.id] = null; chosenDiet[a.id] = null; });
+
+  var picked = null; // currently selected animal id (keyboard / tap-to-place)
+
+  var tray = document.getElementById("tray");
+  var pensWrap = document.getElementById("pens");
+  var sortFeedback = document.getElementById("sortFeedback");
+  var scoreLabel = document.getElementById("scoreLabel");
+
+  /* ---------------- Build pens ---------------- */
+  Object.keys(GROUPS).forEach(function (key) {
+    var g = GROUPS[key];
+    var pen = document.createElement("div");
+    pen.className = "pen";
+    pen.dataset.group = key;
+    pen.setAttribute("role", "group");
+    pen.setAttribute("aria-label", g.label + " pen. " + g.clue);
+    pen.innerHTML =
+      '<div class="pen-head">' +
+        '<span class="badge" aria-hidden="true">' + g.emoji + '</span>' +
+        '<span><span class="title">' + g.label + '</span>' +
+        '<span class="clue">' + g.clue + '</span></span>' +
+      '</div>' +
+      '<div class="pen-slot" data-slot="' + key + '"></div>';
+    pen.tabIndex = 0;
+    pensWrap.appendChild(pen);
+
+    // keyboard / tap drop target
+    pen.addEventListener("click", function () { tryPlace(key); });
+    pen.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tryPlace(key); }
+    });
+  });
+
+  /* ---------------- Render functions ---------------- */
+  function makeAnimalEl(a, inPen) {
+    var el = document.createElement("div");
+    el.className = "animal";
+    el.dataset.id = a.id;
+    el.setAttribute("role", "listitem");
+    el.tabIndex = 0;
+    var label = a.name + ", a " + GROUPS[a.group].label.toLowerCase() + (placement[a.id] ? ". In a pen." : ". In the tray, press to pick up.");
+    el.setAttribute("aria-label", a.name + ". Press to pick up.");
+    var inner =
+      '<span class="emoji" aria-hidden="true">' + a.emoji + '</span>' +
+      '<span class="name">' + a.name + '</span>';
+    if (inPen) {
+      var d = chosenDiet[a.id];
+      inner +=
+        '<div class="diet-row" role="group" aria-label="Diet for ' + a.name + '">' +
+          dietBtn(a.id, "herbivore") + dietBtn(a.id, "carnivore") + dietBtn(a.id, "omnivore") +
+        '</div>' +
+        '<div class="diet-tag" id="diettag-' + a.id + '">' + dietTagText(a.id) + '</div>';
+    }
+    el.innerHTML = inner;
+    if (picked === a.id) el.classList.add("selected");
+
+    // pointer drag
+    el.addEventListener("pointerdown", onPointerDown);
+    // keyboard / tap pick-up (ignore clicks on diet buttons)
+    el.addEventListener("click", function (e) {
+      if (e.target.closest(".diet-btn")) return;
+      pickUp(a.id);
+    });
+    el.addEventListener("keydown", function (e) {
+      if (e.target.closest(".diet-btn")) return;
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickUp(a.id); }
+    });
+    return el;
+  }
+
+  function dietBtn(id, dietKey) {
+    var d = DIETS[dietKey];
+    var pressed = chosenDiet[id] === dietKey ? "true" : "false";
+    return '<button type="button" class="diet-btn" data-diet="' + dietKey + '" data-for="' + id + '" ' +
+           'aria-pressed="' + pressed + '" aria-label="' + d.label + ', ' + d.help + '" ' +
+           'title="' + d.label + ' (' + d.help + ')">' + d.icon + '</button>';
+  }
+
+  function dietTagText(id) {
+    var chosen = chosenDiet[id];
+    if (!chosen) return "Choose food";
+    return DIETS[chosen].label + " (" + DIETS[chosen].help + ")";
+  }
+
+  function render() {
+    // tray
+    tray.innerHTML = "";
+    var trayCount = 0;
+    ANIMALS.forEach(function (a) {
+      if (placement[a.id] === null) { tray.appendChild(makeAnimalEl(a, false)); trayCount++; }
+    });
+    tray.classList.toggle("empty", trayCount === 0);
+
+    // pens
+    Object.keys(GROUPS).forEach(function (key) {
+      var slot = pensWrap.querySelector('[data-slot="' + key + '"]');
+      slot.innerHTML = "";
+      ANIMALS.forEach(function (a) {
+        if (placement[a.id] === key) slot.appendChild(makeAnimalEl(a, true));
+      });
+    });
+
+    // wire diet buttons (after DOM build)
+    Array.prototype.forEach.call(document.querySelectorAll(".diet-btn"), function (b) {
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        setDiet(b.dataset.for, b.dataset.diet);
+      });
+    });
+
+    updateScore();
+  }
+
+  function updateScore() {
+    var placed = ANIMALS.filter(function (a) { return placement[a.id] !== null; }).length;
+    scoreLabel.textContent = "Sorted: " + placed + " of " + ANIMALS.length;
+  }
+
+  /* ---------------- Pick up / place logic ---------------- */
+  function pickUp(id) {
+    picked = (picked === id) ? null : id;
+    render();
+    var a = byId(id);
+    if (picked) {
+      say(a.name + " is ready. Now press a pen to drop it in.", null);
+    } else {
+      say("Put down. Pick an animal to begin.", null);
+    }
+  }
+
+  function tryPlace(groupKey) {
+    if (!picked) {
+      say("First press an animal to pick it up, then press a pen.", null);
+      return;
+    }
+    var a = byId(picked);
+    var correct = a.group === groupKey;
+    placement[a.id] = groupKey;
+    var pen = pensWrap.querySelector('[data-group="' + groupKey + '"]');
+
+    if (correct) {
+      flash(pen, "flash-good");
+      say("Yes. " + a.name + " is a " + GROUPS[a.group].label.toLowerCase() + ". " + capitalise(why(a)) , "good");
+    } else {
+      flash(pen, "flash-bad");
+      say("Not quite. " + a.name + " is a " + GROUPS[a.group].label.toLowerCase() + ", not a " + GROUPS[groupKey].label.toLowerCase() + ". " + capitalise(why(a)) + " Try moving it.", "bad");
+    }
+    picked = null;
+    render();
+    // keep keyboard focus useful: focus the moved animal
+    var moved = document.querySelector('.animal[data-id="' + a.id + '"]');
+    if (moved) moved.focus();
+  }
+
+  function why(a) {
+    var w = {
+      fish: "fish have gills and fins and live in water",
+      amphibian: "amphibians have moist skin and begin life in water",
+      reptile: "reptiles have dry, scaly skin",
+      bird: "birds have feathers and a beak",
+      mammal: "mammals have fur or hair and feed milk to their young"
+    };
+    return w[a.group] + ".";
+  }
+
+  /* ---------------- Diet ---------------- */
+  function setDiet(id, dietKey) {
+    chosenDiet[id] = dietKey;
+    var a = byId(id);
+    var tag = document.getElementById("diettag-" + id);
+    var correct = a.diet === dietKey;
+    if (tag) {
+      tag.textContent = dietTagText(id);
+      tag.className = "diet-tag " + (correct ? "right" : "wrong");
+    }
+    // update pressed states without full re-render to keep focus
+    Array.prototype.forEach.call(document.querySelectorAll('.diet-btn[data-for="' + id + '"]'), function (b) {
+      b.setAttribute("aria-pressed", b.dataset.diet === dietKey ? "true" : "false");
+    });
+    if (correct) {
+      say("Correct. A " + a.name.toLowerCase() + " is a " + DIETS[dietKey].label + ", it " + DIETS[dietKey].help + ".", "good");
+    } else {
+      say("Have another think. A " + a.name.toLowerCase() + " does not just " + (DIETS[dietKey].help) + ".", "bad");
+    }
+  }
+
+  /* ---------------- Pointer drag and drop ---------------- */
+  var dragInfo = null;
+
+  function onPointerDown(e) {
+    if (e.target.closest(".diet-btn")) return; // do not drag when toggling diet
+    var el = e.currentTarget;
+    var id = el.dataset.id;
+    el.setPointerCapture(e.pointerId);
+    el.classList.add("dragging");
+
+    var ghost = el.cloneNode(true);
+    ghost.style.position = "fixed";
+    ghost.style.pointerEvents = "none";
+    ghost.style.opacity = "0.9";
+    ghost.style.zIndex = "9999";
+    ghost.style.width = el.offsetWidth + "px";
+    ghost.style.margin = "0";
+    document.body.appendChild(ghost);
+
+    dragInfo = { id: id, el: el, ghost: ghost, pointerId: e.pointerId, moved: false };
+    moveGhost(e.clientX, e.clientY);
+
+    el.addEventListener("pointermove", onPointerMove);
+    el.addEventListener("pointerup", onPointerUp);
+    el.addEventListener("pointercancel", onPointerUp);
+  }
+
+  function moveGhost(x, y) {
+    if (!dragInfo) return;
+    dragInfo.ghost.style.left = (x - dragInfo.ghost.offsetWidth / 2) + "px";
+    dragInfo.ghost.style.top = (y - dragInfo.ghost.offsetHeight / 2) + "px";
+  }
+
+  function onPointerMove(e) {
+    if (!dragInfo) return;
+    dragInfo.moved = true;
+    moveGhost(e.clientX, e.clientY);
+    var pen = penAtPoint(e.clientX, e.clientY);
+    highlightPen(pen);
+  }
+
+  function onPointerUp(e) {
+    if (!dragInfo) return;
+    var info = dragInfo;
+    var pen = penAtPoint(e.clientX, e.clientY);
+    cleanupDrag();
+
+    if (pen) {
+      picked = info.id;
+      tryPlace(pen.dataset.group);
+    } else if (!info.moved) {
+      // treat as a tap pick-up
+      pickUp(info.id);
+    }
+  }
+
+  function cleanupDrag() {
+    if (!dragInfo) return;
+    var el = dragInfo.el;
+    el.classList.remove("dragging");
+    el.removeEventListener("pointermove", onPointerMove);
+    el.removeEventListener("pointerup", onPointerUp);
+    el.removeEventListener("pointercancel", onPointerUp);
+    if (dragInfo.ghost && dragInfo.ghost.parentNode) dragInfo.ghost.parentNode.removeChild(dragInfo.ghost);
+    clearPenHighlight();
+    dragInfo = null;
+  }
+
+  function penAtPoint(x, y) {
+    var els = document.elementsFromPoint(x, y);
+    for (var i = 0; i < els.length; i++) {
+      var p = els[i].closest && els[i].closest(".pen");
+      if (p) return p;
+    }
+    return null;
+  }
+  function highlightPen(pen) {
+    clearPenHighlight();
+    if (pen) pen.classList.add("dropping");
+  }
+  function clearPenHighlight() {
+    Array.prototype.forEach.call(document.querySelectorAll(".pen.dropping"), function (p) { p.classList.remove("dropping"); });
+  }
+
+  /* ---------------- Check button ---------------- */
+  document.getElementById("checkBtn").addEventListener("click", function () {
+    var placed = ANIMALS.filter(function (a) { return placement[a.id] !== null; });
+    if (placed.length === 0) { say("No animals are in a pen yet. Drag one in to start.", null); return; }
+
+    var groupRight = 0, groupWrong = [];
+    var dietRight = 0, dietMissing = 0, dietWrong = 0;
+    placed.forEach(function (a) {
+      if (placement[a.id] === a.group) groupRight++; else groupWrong.push(a.name);
+      if (chosenDiet[a.id] === null) dietMissing++;
+      else if (chosenDiet[a.id] === a.diet) dietRight++;
+      else dietWrong++;
+    });
+
+    var msg = "Groups: " + groupRight + " of " + placed.length + " correct. ";
+    if (groupWrong.length) msg += "Check these animals: " + groupWrong.join(", ") + ". ";
+    msg += "Diets: " + dietRight + " correct";
+    if (dietWrong) msg += ", " + dietWrong + " to fix";
+    if (dietMissing) msg += ", " + dietMissing + " still to choose";
+    msg += ".";
+
+    var allDone = (groupRight === ANIMALS.length) && (dietRight === ANIMALS.length);
+    if (allDone) {
+      say("Brilliant scientist! Every animal is in the right group with the right diet. \u{1F31F}", "good");
+    } else {
+      say(msg, groupWrong.length || dietWrong ? "bad" : "good");
+    }
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    ANIMALS.forEach(function (a) { placement[a.id] = null; chosenDiet[a.id] = null; });
+    picked = null;
+    render();
+    say("Cleared. Pick an animal to begin again.", null);
+  });
+
+  /* ---------------- Helpers ---------------- */
+  function byId(id) { for (var i = 0; i < ANIMALS.length; i++) if (ANIMALS[i].id === id) return ANIMALS[i]; return null; }
+  function capitalise(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function flash(el, cls) {
+    el.classList.add(cls);
+    setTimeout(function () { el.classList.remove(cls); }, 850);
+  }
+  function say(text, tone) {
+    sortFeedback.textContent = text;
+    sortFeedback.className = "feedback" + (tone ? " " + tone : "");
+  }
+
+  render();
+
+  /* ================= SECTION 2: Label the body ================= */
+  var BODY_PARTS = [
+    { key: "head", word: "head" },
+    { key: "arm",  word: "arm" },
+    { key: "leg",  word: "leg" },
+    { key: "foot", word: "foot" }
+  ];
+  var bodySolved = {};
+  var pickedWord = null;
+  var partWordsWrap = document.getElementById("partWords");
+  var bodyFeedback = document.getElementById("bodyFeedback");
+  var hotspots = Array.prototype.slice.call(document.querySelectorAll(".hotspot"));
+
+  // shuffle the word chips so position does not give the answer
+  var shuffled = BODY_PARTS.slice().sort(function () { return Math.random() - 0.5; });
+
+  function renderWords() {
+    partWordsWrap.innerHTML = "";
+    shuffled.forEach(function (p) {
+      var chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "word-chip";
+      chip.textContent = p.word;
+      chip.dataset.key = p.key;
+      chip.setAttribute("role", "listitem");
+      chip.setAttribute("aria-label", "Word " + p.word + ". Press to choose it.");
+      if (bodySolved[p.key]) chip.classList.add("used");
+      if (pickedWord === p.key) chip.classList.add("selected");
+      chip.addEventListener("click", function () { pickWord(p.key); });
+      partWordsWrap.appendChild(chip);
+    });
+  }
+
+  function pickWord(key) {
+    if (bodySolved[key]) return;
+    pickedWord = (pickedWord === key) ? null : key;
+    renderWords();
+    if (pickedWord) bodyFeedback.textContent = "You chose '" + key + "'. Now press the spot on the body.";
+    else bodyFeedback.textContent = "Choose a word to start.";
+    bodyFeedback.className = "feedback";
+  }
+
+  hotspots.forEach(function (g) {
+    function attempt() {
+      var part = g.dataset.part;
+      if (!pickedWord) {
+        bodyFeedback.textContent = "First choose a word, then press a spot.";
+        bodyFeedback.className = "feedback";
+        return;
+      }
+      if (pickedWord === part) {
+        bodySolved[part] = true;
+        g.classList.add("solved");
+        g.setAttribute("aria-label", "Labelled: " + part);
+        // add a text label inside the spot
+        var circle = g.querySelector("circle");
+        var t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", circle.getAttribute("cx"));
+        t.setAttribute("y", parseFloat(circle.getAttribute("cy")) + 4);
+        t.setAttribute("text-anchor", "middle");
+        t.textContent = part;
+        g.appendChild(t);
+        pickedWord = null;
+        renderWords();
+        var done = BODY_PARTS.every(function (p) { return bodySolved[p.key]; });
+        bodyFeedback.textContent = done ? "Super! You labelled every part of the body. \u{1F44F}" : "Yes, that is the " + part + ". Keep going.";
+        bodyFeedback.className = "feedback good";
+      } else {
+        bodyFeedback.textContent = "That spot is the " + part + ", not the " + pickedWord + ". Try again.";
+        bodyFeedback.className = "feedback bad";
+      }
+    }
+    g.addEventListener("click", attempt);
+    g.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); attempt(); }
+    });
+  });
+
+  renderWords();
+})();
+</script>
+</body>
+</html>

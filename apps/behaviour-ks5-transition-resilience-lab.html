@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transition Resilience Lab</title>
+<style>
+  :root {
+    --ink: #1c2230;
+    --muted: #5a6473;
+    --line: #dfe4ec;
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --accent: #2f6f6b;
+    --accent-soft: #e3f0ef;
+    --warm: #c0612b;
+    --warm-soft: #fbecdf;
+    --good: #2e7d54;
+    --good-soft: #e3f3ea;
+    --bad: #b3402f;
+    --bad-soft: #fbe6e2;
+    --gold: #b08400;
+    --gold-soft: #fbf2d4;
+    --shadow: 0 1px 2px rgba(20,30,50,.06), 0 8px 24px rgba(20,30,50,.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 20px 16px 64px; }
+  header.hero {
+    background: linear-gradient(135deg, #2f6f6b 0%, #284f63 100%);
+    color: #fff;
+    border-radius: 16px;
+    padding: 26px 24px;
+    box-shadow: var(--shadow);
+  }
+  .hero h1 { margin: 0 0 6px; font-size: clamp(1.5rem, 4vw, 2.1rem); letter-spacing: -.5px; }
+  .hero .strand { font-size: .82rem; text-transform: uppercase; letter-spacing: 1.2px; opacity: .9; font-weight: 600; }
+  .hero p.intro { margin: 12px 0 0; max-width: 70ch; opacity: .96; font-size: .98rem; }
+  .aim {
+    margin-top: 16px;
+    background: rgba(255,255,255,.14);
+    border: 1px solid rgba(255,255,255,.26);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: .9rem;
+  }
+  .aim strong { letter-spacing: .3px; }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 18px;
+    box-shadow: var(--shadow);
+  }
+  .panel h2 {
+    margin: 0 0 4px;
+    font-size: 1.18rem;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .panel h2 .step {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 8px;
+    font-size: .72rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+  }
+  .panel .lead { color: var(--muted); margin: 0 0 16px; font-size: .94rem; max-width: 78ch; }
+
+  /* Scenario selector */
+  .scenarios { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .scenario-btn {
+    text-align: left;
+    background: var(--card);
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 14px 12px;
+    cursor: pointer;
+    transition: border-color .15s, transform .1s, box-shadow .15s;
+    font: inherit;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .scenario-btn:hover { border-color: var(--accent); }
+  .scenario-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .scenario-btn[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow: var(--shadow);
+  }
+  .scenario-btn .icon { font-size: 1.5rem; }
+  .scenario-btn .name { font-weight: 700; font-size: 1rem; }
+  .scenario-btn .who { color: var(--muted); font-size: .84rem; }
+
+  /* Pressure dashboard */
+  .stage-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+  .stage-head .scen-title { font-weight: 700; font-size: 1.05rem; }
+  .week-tag {
+    background: var(--warm-soft); color: var(--warm);
+    font-weight: 700; font-size: .8rem;
+    border-radius: 20px; padding: 4px 12px;
+  }
+  .situation {
+    background: #fbfcfe;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--warm);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 4px 0 18px;
+    font-size: .95rem;
+  }
+  .meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .meter { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fff; }
+  .meter .mlabel { display: flex; justify-content: space-between; align-items: baseline; font-size: .84rem; font-weight: 600; margin-bottom: 7px; }
+  .meter .mval { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .bar { height: 12px; background: #eef1f6; border-radius: 8px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; border-radius: 8px; transition: width .45s cubic-bezier(.22,.61,.36,1), background .3s; }
+
+  /* Toolkit builder */
+  .builder { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 820px) { .builder { grid-template-columns: 1fr 320px; } }
+  .pool-title { font-weight: 700; font-size: .95rem; margin: 0 0 8px; }
+  .pool-hint { color: var(--muted); font-size: .85rem; margin: 0 0 12px; }
+  .cards { display: flex; flex-wrap: wrap; gap: 10px; }
+  .tool-card {
+    position: relative;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    padding: 11px 12px 10px;
+    background: #fff;
+    cursor: grab;
+    width: 100%;
+    max-width: 100%;
+    touch-action: none;
+    user-select: none;
+    transition: border-color .15s, box-shadow .15s, transform .08s;
+  }
+  @media (min-width: 560px){ .tool-card { width: calc(50% - 5px); } }
+  .tool-card:hover { border-color: var(--accent); box-shadow: var(--shadow); }
+  .tool-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .tool-card.dragging { opacity: .45; }
+  .tool-card .tc-cat { font-size: .68rem; text-transform: uppercase; letter-spacing: .6px; font-weight: 700; }
+  .tool-card .tc-name { font-weight: 700; font-size: .95rem; margin: 2px 0 1px; }
+  .tool-card .tc-desc { font-size: .8rem; color: var(--muted); }
+  .cat-self { color: var(--accent); }
+  .cat-help { color: var(--warm); }
+  .cat-plan { color: var(--gold); }
+  .tc-add {
+    position: absolute; top: 8px; right: 8px;
+    border: 1px solid var(--line); background: #fff; color: var(--accent);
+    border-radius: 7px; width: 26px; height: 26px; font-size: 1rem; cursor: pointer; line-height: 1;
+  }
+  .tc-add:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .plan-zone {
+    border: 2px dashed var(--accent);
+    background: var(--accent-soft);
+    border-radius: 12px;
+    padding: 14px;
+    min-height: 200px;
+    transition: background .15s, border-color .15s;
+  }
+  .plan-zone.over { background: #d3e8e6; border-color: var(--accent); }
+  .plan-zone h3 { margin: 0 0 4px; font-size: .98rem; }
+  .plan-zone .pz-hint { font-size: .82rem; color: var(--muted); margin: 0 0 12px; }
+  .plan-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .plan-item {
+    background: #fff; border: 1px solid var(--line); border-radius: 9px;
+    padding: 9px 10px; display: flex; align-items: center; gap: 8px; font-size: .88rem;
+  }
+  .plan-item .pi-cat { font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; padding: 2px 6px; border-radius: 6px; }
+  .pi-cat.cat-self { background: var(--accent-soft); }
+  .pi-cat.cat-help { background: var(--warm-soft); }
+  .pi-cat.cat-plan { background: var(--gold-soft); }
+  .plan-item .pi-name { flex: 1; font-weight: 600; }
+  .plan-item .pi-remove { border: none; background: none; color: var(--bad); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 2px 4px; border-radius: 6px; }
+  .plan-item .pi-remove:focus-visible { outline: 3px solid var(--bad); outline-offset: 2px; }
+  .empty-note { color: var(--muted); font-size: .85rem; font-style: italic; }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button.cta {
+    font: inherit; font-weight: 700; cursor: pointer;
+    border-radius: 10px; padding: 11px 18px; border: 2px solid transparent;
+  }
+  button.cta.primary { background: var(--accent); color: #fff; }
+  button.cta.primary:hover { background: #265854; }
+  button.cta.ghost { background: #fff; color: var(--accent); border-color: var(--accent); }
+  button.cta:disabled { opacity: .5; cursor: not-allowed; }
+  button.cta:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+  /* Feedback / stress test */
+  .feedback { margin-top: 18px; display: none; }
+  .feedback.show { display: block; animation: rise .35s ease; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .verdict {
+    border-radius: 12px; padding: 16px 18px; border: 1px solid var(--line);
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .verdict .vicon { font-size: 1.8rem; line-height: 1; }
+  .verdict.good { background: var(--good-soft); border-color: #bfe2cd; }
+  .verdict.warn { background: var(--gold-soft); border-color: #ecdca0; }
+  .verdict.poor { background: var(--bad-soft); border-color: #f0c4bc; }
+  .verdict h3 { margin: 0 0 3px; font-size: 1.05rem; }
+  .verdict p { margin: 0; font-size: .92rem; }
+  .scoreline { font-weight: 700; }
+
+  .fb-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 14px; }
+  @media (min-width: 720px){ .fb-grid { grid-template-columns: 1fr 1fr; } }
+  .fb-card { border: 1px solid var(--line); border-radius: 11px; padding: 13px 14px; background: #fff; }
+  .fb-card h4 { margin: 0 0 7px; font-size: .9rem; display: flex; align-items: center; gap: 7px; }
+  .fb-card ul { margin: 0; padding-left: 18px; font-size: .87rem; }
+  .fb-card ul li { margin-bottom: 5px; }
+  .tag { display: inline-block; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; padding: 2px 7px; border-radius: 6px; }
+  .tag.ok { background: var(--good-soft); color: var(--good); }
+  .tag.gap { background: var(--bad-soft); color: var(--bad); }
+
+  .balance-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .bchip { border: 1px solid var(--line); border-radius: 9px; padding: 8px 12px; font-size: .82rem; flex: 1; min-width: 130px; text-align: center; }
+  .bchip b { display: block; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+  .bchip.self b { color: var(--accent); }
+  .bchip.help b { color: var(--warm); }
+  .bchip.plan b { color: var(--gold); }
+
+  .speak-btn {
+    border: 1px solid var(--line); background: #fff; border-radius: 8px;
+    cursor: pointer; font: inherit; font-size: .8rem; padding: 6px 11px; color: var(--accent); font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .speak-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+  footer.note { margin-top: 24px; color: var(--muted); font-size: .82rem; text-align: center; }
+  .reveal-key { margin-top: 14px; background:#fbfcfe; border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:.87rem; }
+  .reveal-key summary { cursor: pointer; font-weight: 700; color: var(--accent); }
+  .reveal-key p { margin: 8px 0 0; color: var(--muted); }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="strand">Behaviour &amp; Pastoral &middot; KS5 &middot; Mental health, independence and life transitions</div>
+    <h1>Transition Resilience Lab</h1>
+    <p class="intro">You are about to live the first few weeks of independent life: managing money, fighting isolation and handling a workload with no one chasing you. Build a coping and help-seeking plan, then stress-test it against what really happens.</p>
+    <div class="aim"><strong>Teacher aim:</strong> students design and pressure-test a balanced plan that combines self-regulation, planning and (crucially) knowing where adults and services actually get help. Run live on a board, in pairs or solo.</div>
+  </header>
+
+  <!-- STEP 1: choose a transition -->
+  <section class="panel" aria-labelledby="s1h">
+    <h2 id="s1h"><span class="step">Step 1</span> Pick a transition to simulate</h2>
+    <p class="lead">Each fictional student is starting something new. Choose one to step into. You can come back and try the others.</p>
+    <div class="scenarios" id="scenarios" role="group" aria-label="Choose a transition scenario"></div>
+  </section>
+
+  <!-- STEP 2: the pressure dashboard + builder -->
+  <section class="panel" id="stagePanel" aria-labelledby="s2h" hidden>
+    <h2 id="s2h"><span class="step">Step 2</span> Build the coping &amp; help-seeking plan</h2>
+    <div class="stage-head">
+      <div class="scen-title" id="scenTitle">Scenario</div>
+      <div class="week-tag" id="weekTag">Weeks 1 to 3</div>
+    </div>
+    <div class="situation" id="situation"></div>
+
+    <div class="meters" id="meters" aria-label="Live pressure meters" role="group"></div>
+
+    <div style="margin-top:18px;" class="builder">
+      <div>
+        <p class="pool-title">Toolkit pool</p>
+        <p class="pool-hint">Drag a card into your plan, or press its <strong>+</strong> button (or Enter when focused). Pick a spread of types: a plan that is all calm-down tricks and no help-seeking will fail the stress test.</p>
+        <div class="cards" id="pool"></div>
+      </div>
+      <div>
+        <div class="plan-zone" id="planZone" aria-label="Your plan. Drop tools here.">
+          <h3>Your plan</h3>
+          <p class="pz-hint">Aim for 4 to 6 tools, balanced across the three colours.</p>
+          <ul class="plan-list" id="planList"></ul>
+          <p class="empty-note" id="emptyNote">No tools yet. Add some from the pool.</p>
+        </div>
+        <div class="balance-row" aria-hidden="true">
+          <div class="bchip self"><b id="cSelf">0</b>Self-regulation</div>
+          <div class="bchip plan"><b id="cPlan">0</b>Planning</div>
+          <div class="bchip help"><b id="cHelp">0</b>Help-seeking</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="cta primary" id="testBtn" disabled>Run the stress test &#x25B6;</button>
+      <button class="cta ghost" id="resetBtn">Clear plan</button>
+    </div>
+
+    <!-- STEP 3: feedback -->
+    <div class="feedback" id="feedback" aria-live="polite">
+      <div class="verdict" id="verdict">
+        <div class="vicon" id="vicon">&#x1F9E9;</div>
+        <div>
+          <h3 id="vtitle"></h3>
+          <p id="vbody"></p>
+          <p class="scoreline" id="vscore"></p>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <button class="speak-btn" id="speakBtn" type="button">&#x1F50A; <span>Read the feedback aloud</span></button>
+      </div>
+      <div class="fb-grid">
+        <div class="fb-card">
+          <h4>&#x2705; What held up</h4>
+          <ul id="fbStrong"><li class="empty-note">Run the test to see.</li></ul>
+        </div>
+        <div class="fb-card">
+          <h4>&#x26A0;&#xFE0F; Where it cracked</h4>
+          <ul id="fbWeak"><li class="empty-note">Run the test to see.</li></ul>
+        </div>
+      </div>
+      <details class="reveal-key">
+        <summary>Why help-seeking matters most (teacher prompt)</summary>
+        <p id="keyText"></p>
+      </details>
+    </div>
+  </section>
+
+  <footer class="note">Transition Resilience Lab &middot; Demonstration scenarios with fictional students. Not real student data. For PSHE and pastoral teaching at KS5.</footer>
+</div>
+
+<script>
+/* ============ DATA ============ */
+// Tool categories: self = self-regulation, plan = planning/structure, help = help-seeking/where adults get help
+var TOOLS = [
+  { id:'breath',  cat:'self', name:'Box breathing reset',      desc:'Four-count breathing to drop acute anxiety before a deadline.' },
+  { id:'sleep',   cat:'self', name:'Fixed sleep window',       desc:'Same bedtime and wake time to protect mood and focus.' },
+  { id:'move',    cat:'self', name:'Daily movement',           desc:'A walk or gym slot to burn off stress hormones.' },
+  { id:'journal', cat:'self', name:'Worry-dump journal',       desc:'Write the spiral down so it stops looping in your head.' },
+  { id:'budget',  cat:'plan', name:'Weekly budget sheet',      desc:'Plan spending so money stress does not ambush you.' },
+  { id:'timetbl', cat:'plan', name:'Workload timetable',       desc:'Block study time so nothing is left to the last night.' },
+  { id:'mealprep',cat:'plan', name:'Batch meal plan',          desc:'Cheap, repeatable meals so eating does not collapse.' },
+  { id:'checkin', cat:'plan', name:'Sunday self check-in',     desc:'A weekly review of how the week actually went.' },
+  { id:'gp',      cat:'help', name:'Register with a GP',       desc:'The route to NHS mental-health support near you.' },
+  { id:'wellserv',cat:'help', name:'Student wellbeing service',desc:'University or college counselling and drop-ins.' },
+  { id:'mentor',  cat:'help', name:'Named mentor or tutor',    desc:'One trusted adult who checks in and signposts on.' },
+  { id:'helpline',cat:'help', name:'Crisis text/helpline',     desc:'Free 24/7 line (e.g. text SHOUT to 85258) for low moments.' },
+  { id:'mate',    cat:'help', name:'Agree a check-in buddy',   desc:'A friend who notices when you go quiet and reaches out.' }
+];
+
+var SCENARIOS = [
+  {
+    id:'uni',
+    icon:'&#x1F393;',
+    name:'Moving to university',
+    who:'Priya, 18, first year away from home',
+    title:'Priya moves into halls 240 miles from home',
+    week:'Weeks 1 to 4',
+    situation:'Priya knows nobody in her flat. The student loan landed in one lump and the freshers spending is racing ahead of it. Lectures feel optional because no one takes a register. By week three she has skipped two seminars and stopped replying to the family group chat.',
+    pressures: { Loneliness:78, Money:64, Workload:55 },
+    // what this scenario most needs: heavy help-seeking + loneliness antidotes
+    needCats: { help:3, self:1, plan:1 },
+    cracks: [
+      { miss:'help', text:'With no one taking a register and family far away, the early-warning system is other people. A plan with no buddy, mentor or wellbeing service means low weeks go unnoticed.' },
+      { miss:'plan', text:'A lump-sum loan and no budget sheet is how week-four money panic starts.' }
+    ]
+  },
+  {
+    id:'work',
+    icon:'&#x1F6E0;&#xFE0F;',
+    name:'Starting an apprenticeship',
+    who:'Marcus, 17, first full-time job',
+    title:'Marcus starts a 09:00 to 17:30 apprenticeship',
+    week:'Weeks 1 to 5',
+    situation:'Marcus is suddenly working full days then doing college coursework in the evenings. His first pay packet felt huge and is already gone. He is the youngest on site, does not want to look like he cannot cope, and has started skipping breakfast and staying up gaming to decompress.',
+    pressures: { Workload:74, Money:58, Loneliness:46 },
+    needCats: { plan:2, help:2, self:1 },
+    cracks: [
+      { miss:'plan', text:'Full days plus evening coursework with no timetable is a burnout pipeline. Without planning tools the workload load wins.' },
+      { miss:'help', text:'Not wanting to look like he cannot cope is exactly why a named mentor matters: someone he can ask without it being a big deal.' }
+    ]
+  },
+  {
+    id:'commute',
+    icon:'&#x1F687;',
+    name:'Commuting to a city college',
+    who:'Aisha, 16, long daily commute',
+    title:'Aisha commutes 90 minutes each way to college',
+    week:'Weeks 1 to 4',
+    situation:'Aisha left her whole friendship group behind. Three hours of daily travel eats her budget and her evenings. She is exhausted, eating on the go, and the new college is big and impersonal. She has not spoken to a single member of staff outside lessons.',
+    pressures: { Loneliness:62, Money:60, Workload:66 },
+    needCats: { self:2, plan:2, help:1 },
+    cracks: [
+      { miss:'self', text:'Three hours of commuting with no fixed sleep or movement routine grinds mood down fast. Self-regulation anchors are not optional here.' },
+      { miss:'help', text:'A big, impersonal college only feels safe once she knows one adult to go to. With no named tutor link, problems stay invisible.' }
+    ]
+  }
+];
+
+/* ============ STATE ============ */
+var current = null;          // selected scenario
+var plan = [];               // array of tool ids
+var toolById = {};
+TOOLS.forEach(function(t){ toolById[t.id] = t; });
+var lastFeedbackText = '';
+
+/* ============ RENDER: scenarios ============ */
+var scenWrap = document.getElementById('scenarios');
+SCENARIOS.forEach(function(s){
+  var b = document.createElement('button');
+  b.className = 'scenario-btn';
+  b.type = 'button';
+  b.setAttribute('aria-pressed','false');
+  b.dataset.id = s.id;
+  b.innerHTML = '<span class="icon" aria-hidden="true">'+s.icon+'</span>'+
+                '<span class="name">'+s.name+'</span>'+
+                '<span class="who">'+s.who+'</span>';
+  b.addEventListener('click', function(){ selectScenario(s.id); });
+  scenWrap.appendChild(b);
+});
+
+function selectScenario(id){
+  current = SCENARIOS.filter(function(s){ return s.id===id; })[0];
+  plan = [];
+  // toggle pressed state
+  Array.prototype.forEach.call(scenWrap.children, function(c){
+    c.setAttribute('aria-pressed', c.dataset.id===id ? 'true':'false');
+  });
+  var panel = document.getElementById('stagePanel');
+  panel.hidden = false;
+  document.getElementById('scenTitle').textContent = current.title;
+  document.getElementById('weekTag').textContent = current.week;
+  document.getElementById('situation').textContent = current.situation;
+  renderMeters(current.pressures);
+  renderPool();
+  renderPlan();
+  hideFeedback();
+  panel.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+/* ============ RENDER: meters ============ */
+function barColour(v){
+  if (v >= 70) return '#b3402f';
+  if (v >= 45) return '#c0612b';
+  return '#2e7d54';
+}
+function renderMeters(pressures){
+  var box = document.getElementById('meters');
+  box.innerHTML = '';
+  Object.keys(pressures).forEach(function(k){
+    var v = pressures[k];
+    var d = document.createElement('div');
+    d.className = 'meter';
+    d.innerHTML =
+      '<div class="mlabel"><span>'+k+'</span><span class="mval">'+v+'</span></div>'+
+      '<div class="bar"><span style="width:'+v+'%;background:'+barColour(v)+'"></span></div>';
+    box.appendChild(d);
+  });
+}
+// recompute meters after a stress test: a balanced plan reduces pressures
+function renderMetersWithRelief(pressures, relief){
+  var box = document.getElementById('meters');
+  box.innerHTML = '';
+  Object.keys(pressures).forEach(function(k){
+    var before = pressures[k];
+    var after = Math.max(8, Math.round(before - relief));
+    var d = document.createElement('div');
+    d.className = 'meter';
+    d.innerHTML =
+      '<div class="mlabel"><span>'+k+'</span><span class="mval">'+before+' &#x2192; '+after+'</span></div>'+
+      '<div class="bar"><span style="width:'+after+'%;background:'+barColour(after)+'"></span></div>';
+    box.appendChild(d);
+  });
+}
+
+/* ============ RENDER: pool ============ */
+function catClass(cat){ return cat==='self'?'cat-self':cat==='help'?'cat-help':'cat-plan'; }
+function catLabel(cat){ return cat==='self'?'Self-regulation':cat==='help'?'Help-seeking':'Planning'; }
+
+function renderPool(){
+  var pool = document.getElementById('pool');
+  pool.innerHTML = '';
+  TOOLS.forEach(function(t){
+    var inPlan = plan.indexOf(t.id) >= 0;
+    var card = document.createElement('div');
+    card.className = 'tool-card';
+    card.tabIndex = 0;
+    card.setAttribute('role','button');
+    card.setAttribute('draggable','false');
+    card.dataset.id = t.id;
+    card.setAttribute('aria-label', t.name+'. Type: '+catLabel(t.cat)+'. '+t.desc+(inPlan?' Already in plan.':' Press Enter to add to plan.'));
+    card.style.display = inPlan ? 'none' : '';
+    card.innerHTML =
+      '<button class="tc-add" type="button" aria-hidden="true" tabindex="-1">+</button>'+
+      '<div class="tc-cat '+catClass(t.cat)+'">'+catLabel(t.cat)+'</div>'+
+      '<div class="tc-name">'+t.name+'</div>'+
+      '<div class="tc-desc">'+t.desc+'</div>';
+    card.querySelector('.tc-add').addEventListener('click', function(e){ e.stopPropagation(); addTool(t.id); });
+    card.addEventListener('keydown', function(e){
+      if (e.key==='Enter' || e.key===' ') { e.preventDefault(); addTool(t.id); }
+    });
+    attachDrag(card, t.id);
+    pool.appendChild(card);
+  });
+}
+
+/* ============ RENDER: plan ============ */
+function renderPlan(){
+  var list = document.getElementById('planList');
+  list.innerHTML = '';
+  plan.forEach(function(id){
+    var t = toolById[id];
+    var li = document.createElement('li');
+    li.className = 'plan-item';
+    li.innerHTML =
+      '<span class="pi-cat '+catClass(t.cat)+'">'+catLabel(t.cat)+'</span>'+
+      '<span class="pi-name">'+t.name+'</span>'+
+      '<button class="pi-remove" type="button" aria-label="Remove '+t.name+' from plan">&times;</button>';
+    li.querySelector('.pi-remove').addEventListener('click', function(){ removeTool(id); });
+    list.appendChild(li);
+  });
+  document.getElementById('emptyNote').style.display = plan.length ? 'none':'';
+  // counts
+  var c = { self:0, plan:0, help:0 };
+  plan.forEach(function(id){ c[toolById[id].cat]++; });
+  document.getElementById('cSelf').textContent = c.self;
+  document.getElementById('cPlan').textContent = c.plan;
+  document.getElementById('cHelp').textContent = c.help;
+  document.getElementById('testBtn').disabled = plan.length < 3;
+  // refresh pool visibility
+  Array.prototype.forEach.call(document.getElementById('pool').children, function(card){
+    var inPlan = plan.indexOf(card.dataset.id) >= 0;
+    card.style.display = inPlan ? 'none':'';
+  });
+}
+
+function addTool(id){
+  if (plan.indexOf(id) >= 0) return;
+  if (plan.length >= 6) {
+    announce('Plan is full at six tools. Remove one before adding another.');
+    return;
+  }
+  plan.push(id);
+  renderPlan();
+  hideFeedback();
+  announce(toolById[id].name + ' added. Plan now has ' + plan.length + ' tools.');
+}
+function removeTool(id){
+  plan = plan.filter(function(x){ return x!==id; });
+  renderPlan();
+  hideFeedback();
+  announce(toolById[id].name + ' removed.');
+}
+document.getElementById('resetBtn').addEventListener('click', function(){
+  plan = []; renderPlan(); hideFeedback(); announce('Plan cleared.');
+});
+
+/* ============ DRAG with Pointer Events ============ */
+var dragGhost = null, dragId = null;
+function attachDrag(card, id){
+  card.addEventListener('pointerdown', function(e){
+    if (e.target.classList.contains('tc-add')) return;
+    dragId = id;
+    card.classList.add('dragging');
+    try { card.setPointerCapture(e.pointerId); } catch(err){}
+    dragGhost = card.cloneNode(true);
+    dragGhost.style.position = 'fixed';
+    dragGhost.style.pointerEvents = 'none';
+    dragGhost.style.zIndex = '9999';
+    dragGhost.style.width = card.offsetWidth + 'px';
+    dragGhost.style.opacity = '.9';
+    dragGhost.style.boxShadow = '0 12px 30px rgba(0,0,0,.18)';
+    dragGhost.classList.remove('dragging');
+    moveGhost(e.clientX, e.clientY);
+    document.body.appendChild(dragGhost);
+  });
+  card.addEventListener('pointermove', function(e){
+    if (dragId !== id || !dragGhost) return;
+    moveGhost(e.clientX, e.clientY);
+    var zone = document.getElementById('planZone');
+    var r = zone.getBoundingClientRect();
+    var over = e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
+    zone.classList.toggle('over', over);
+  });
+  card.addEventListener('pointerup', function(e){
+    if (dragId !== id) return;
+    card.classList.remove('dragging');
+    var zone = document.getElementById('planZone');
+    var r = zone.getBoundingClientRect();
+    var over = e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
+    zone.classList.remove('over');
+    cleanupGhost();
+    if (over) addTool(id);
+    dragId = null;
+  });
+  card.addEventListener('pointercancel', function(){
+    card.classList.remove('dragging');
+    document.getElementById('planZone').classList.remove('over');
+    cleanupGhost();
+    dragId = null;
+  });
+}
+function moveGhost(x,y){
+  if (!dragGhost) return;
+  dragGhost.style.left = (x - dragGhost.offsetWidth/2) + 'px';
+  dragGhost.style.top = (y - 24) + 'px';
+}
+function cleanupGhost(){
+  if (dragGhost && dragGhost.parentNode) dragGhost.parentNode.removeChild(dragGhost);
+  dragGhost = null;
+}
+
+/* ============ STRESS TEST / FEEDBACK ============ */
+document.getElementById('testBtn').addEventListener('click', runStressTest);
+
+function runStressTest(){
+  var c = { self:0, plan:0, help:0 };
+  plan.forEach(function(id){ c[toolById[id].cat]++; });
+  var need = current.needCats;
+
+  // score each category: meeting the scenario's need fully = full marks, partial = proportional
+  function catScore(cat){
+    var got = c[cat], req = need[cat] || 0;
+    if (req === 0) return got > 0 ? 1 : 1; // not required, no penalty
+    return Math.min(1, got / req);
+  }
+  var sSelf = catScore('self'), sPlan = catScore('plan'), sHelp = catScore('help');
+
+  // help-seeking is weighted highest: this is the gap the strand exists to fill
+  var raw = (sHelp*0.45 + sPlan*0.30 + sSelf*0.25);
+  // balance bonus: penalise plans that are all one colour
+  var distinct = (c.self>0?1:0)+(c.plan>0?1:0)+(c.help>0?1:0);
+  var balanceFactor = distinct===3 ? 1 : distinct===2 ? 0.85 : 0.6;
+  var score = Math.round(raw * balanceFactor * 100);
+
+  // relief applied to meters scales with score
+  var relief = Math.round(score * 0.45); // up to ~45 points off pressures
+  renderMetersWithRelief(current.pressures, relief);
+
+  // verdict band
+  var v = document.getElementById('verdict');
+  var icon = document.getElementById('vicon');
+  var title = document.getElementById('vtitle');
+  var body = document.getElementById('vbody');
+  var scoreEl = document.getElementById('vscore');
+  v.classList.remove('good','warn','poor');
+
+  var headline, bodyText, iconChar;
+  if (score >= 78){
+    v.classList.add('good'); iconChar='&#x1F6E1;&#xFE0F;';
+    headline = 'Resilient plan: it bends but holds';
+    bodyText = 'When the hard weeks hit, '+firstName()+' has calm-down tools, structure AND a clear route to other people. That last part is what keeps a dip from becoming a crisis.';
+  } else if (score >= 55){
+    v.classList.add('warn'); iconChar='&#x26A0;&#xFE0F;';
+    headline = 'Partly resilient: one or two cracks';
+    bodyText = 'This plan copes with normal weeks but leaves '+firstName()+' exposed in the areas below. Patch the gaps and re-run.';
+  } else {
+    v.classList.add('poor'); iconChar='&#x1F9F1;';
+    headline = 'Fragile plan: it will not hold';
+    bodyText = 'Right now '+firstName()+' is mostly relying on self-soothing with no plan and no one to turn to. That works until the first bad week, then there is nothing underneath.';
+  }
+  icon.innerHTML = iconChar;
+  title.textContent = headline;
+  body.textContent = bodyText;
+  scoreEl.innerHTML = 'Resilience score: '+score+' / 100 &middot; pressures eased by about '+relief+' points.';
+
+  // strong / weak lists
+  var strong = document.getElementById('fbStrong');
+  var weak = document.getElementById('fbWeak');
+  strong.innerHTML = ''; weak.innerHTML = '';
+
+  var strongItems = [], weakItems = [];
+
+  // help-seeking specific feedback (the headline strand)
+  if (c.help >= (need.help||1)) {
+    strongItems.push('<span class="tag ok">help-seeking</span> You named where adults and services actually step in. '+firstName()+' is not coping alone.');
+  } else if (c.help > 0) {
+    weakItems.push('<span class="tag gap">thin on help-seeking</span> Only '+c.help+' help-seeking tool. This scenario needs around '+(need.help||1)+'. Add a mentor, GP, wellbeing service or buddy.');
+  } else {
+    weakItems.push('<span class="tag gap">no help-seeking</span> There is nobody and no service in this plan. Self-regulation is not a substitute for knowing where adults get help. This is the single most important fix.');
+  }
+
+  // planning feedback
+  if (c.plan >= (need.plan||1)) {
+    strongItems.push('<span class="tag ok">planning</span> Structure is in place, so money and workload do not ambush '+firstName()+'.');
+  } else if ((need.plan||0) > 0) {
+    weakItems.push('<span class="tag gap">light on planning</span> This transition is driven by money and workload pressure. Add a budget, timetable or weekly check-in.');
+  }
+
+  // self-reg feedback
+  if (c.self >= (need.self||1)) {
+    strongItems.push('<span class="tag ok">self-regulation</span> '+firstName()+' can settle the body in the moment, which buys time to use the rest of the plan.');
+  } else if ((need.self||0) > 0) {
+    weakItems.push('<span class="tag gap">light on self-regulation</span> Add a sleep, movement or breathing anchor so day-to-day mood does not slide.');
+  }
+
+  // balance feedback
+  if (distinct < 3) {
+    weakItems.push('<span class="tag gap">unbalanced</span> The plan leans on only '+distinct+' of the 3 tool types. The strongest plans mix all three colours.');
+  } else {
+    strongItems.push('<span class="tag ok">balanced</span> All three tool types are present: a complete plan, not just a coping list.');
+  }
+
+  // scenario-tailored crack
+  current.cracks.forEach(function(cr){
+    if (c[cr.miss] < (need[cr.miss]||1)) {
+      weakItems.push('<span class="tag gap">scenario risk</span> '+cr.text);
+    }
+  });
+
+  if (!strongItems.length) strongItems.push('<span class="empty-note">Nothing held up strongly yet. Build a broader plan.</span>');
+  if (!weakItems.length) weakItems.push('<span class="empty-note">No major cracks. Strong work.</span>');
+
+  strongItems.forEach(function(h){ var li=document.createElement('li'); li.innerHTML=h; strong.appendChild(li); });
+  weakItems.forEach(function(h){ var li=document.createElement('li'); li.innerHTML=h; weak.appendChild(li); });
+
+  // key teacher prompt
+  document.getElementById('keyText').textContent =
+    'Self-regulation tools (breathing, sleep, movement) transfer from earlier school years. What does not transfer is the safety net. At 16 to 18 the trusted adults change: a GP you register with yourself, a college tutor, a wellbeing service, a free crisis line, a friend who checks in. A resilient transition plan always names at least one route to another person, because the warning signs of a struggling young adult are most often spotted by someone else.';
+
+  // build spoken summary
+  lastFeedbackText = headline + '. ' + bodyText + ' Resilience score ' + score + ' out of 100.';
+
+  var fb = document.getElementById('feedback');
+  fb.classList.add('show');
+  announce(headline + '. Resilience score ' + score + ' out of 100.');
+  document.getElementById('testBtn').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function firstName(){ return current.who.split(',')[0]; }
+
+function hideFeedback(){
+  var fb = document.getElementById('feedback');
+  fb.classList.remove('show');
+  if (current) renderMeters(current.pressures);
+}
+
+/* ============ speech ============ */
+document.getElementById('speakBtn').addEventListener('click', function(){
+  if (lastFeedbackText && window.westTTS && window.westTTS.ready()) {
+    window.westTTS.speak(lastFeedbackText, { lang:'en-GB', rate:0.9, pitch:1.05 });
+  }
+});
+
+/* ============ live region ============ */
+var liveRegion = document.createElement('div');
+liveRegion.className = 'sr-only';
+liveRegion.setAttribute('aria-live','polite');
+liveRegion.setAttribute('role','status');
+document.body.appendChild(liveRegion);
+function announce(msg){ liveRegion.textContent = ''; setTimeout(function(){ liveRegion.textContent = msg; }, 30); }
+</script>
+</body>
+</html>

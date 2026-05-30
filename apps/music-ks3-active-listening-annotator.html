@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Active Listening Annotator &middot; KS3 Music</title>
+<style>
+  :root{
+    --bg:#0f1424;
+    --panel:#171d33;
+    --panel-2:#1f2745;
+    --ink:#eef1fb;
+    --muted:#a6b0d4;
+    --line:#2c365c;
+    --accent:#5cd1c2;
+    --accent-2:#ffb454;
+    --tempo:#5cd1c2;
+    --dyn:#ff8fab;
+    --instr:#9d8cff;
+    --good:#54d28a;
+    --bad:#ff6b7d;
+    --focus:#ffd166;
+    --radius:14px;
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:linear-gradient(180deg,#0d1120,#10162a 40%,#0f1424);
+    color:var(--ink);
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1000px;margin:0 auto;padding:18px 16px 64px}
+  header.app{
+    display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;
+    border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:8px;
+  }
+  header.app h1{
+    font-size:clamp(1.3rem,3.6vw,2rem);margin:0;letter-spacing:.2px;
+  }
+  .strand{
+    font-size:.78rem;color:#0d1120;background:var(--accent);
+    padding:3px 10px;border-radius:999px;font-weight:700;
+  }
+  .aim{
+    color:var(--muted);font-size:.95rem;margin:10px 0 18px;
+    background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent-2);
+    padding:10px 14px;border-radius:10px;
+  }
+  .aim b{color:var(--ink)}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px;margin-bottom:18px;
+  }
+  .card h2{margin:0 0 6px;font-size:1.05rem}
+  .card .sub{color:var(--muted);font-size:.9rem;margin:0 0 14px}
+
+  /* Track selector */
+  .tracks{display:flex;flex-wrap:wrap;gap:8px}
+  .track-btn{
+    flex:1 1 200px;text-align:left;background:var(--panel-2);color:var(--ink);
+    border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;
+    transition:border-color .15s,transform .05s;
+  }
+  .track-btn:hover{border-color:var(--accent)}
+  .track-btn[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+  .track-btn .tt{font-weight:700;display:block}
+  .track-btn .tg{color:var(--muted);font-size:.82rem}
+
+  /* Transport */
+  .transport{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:14px 0}
+  button.btn{
+    background:var(--accent);color:#0d1120;border:0;border-radius:10px;
+    padding:10px 16px;font-weight:700;font-size:.95rem;cursor:pointer;
+  }
+  button.btn.secondary{background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
+  button.btn:active{transform:translateY(1px)}
+  button.btn:disabled{opacity:.5;cursor:not-allowed}
+  .time{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.9rem;min-width:96px}
+
+  /* Tag palette */
+  .palette{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+  .tag-pick{
+    display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--ink);border-radius:999px;padding:7px 13px;
+    cursor:pointer;font-size:.9rem;font-weight:600;
+  }
+  .tag-pick .dot{width:12px;height:12px;border-radius:50%}
+  .tag-pick[aria-pressed="true"]{box-shadow:0 0 0 2px currentColor inset}
+  .tag-pick.tempo{color:var(--tempo)}
+  .tag-pick.dynamics{color:var(--dyn)}
+  .tag-pick.instr{color:var(--instr)}
+
+  .hint{color:var(--muted);font-size:.85rem;margin:2px 0 10px}
+
+  /* Waveform */
+  .wave-shell{
+    position:relative;background:#0c1020;border:1px solid var(--line);border-radius:12px;
+    padding:8px;touch-action:none;
+  }
+  canvas#wave{display:block;width:100%;height:160px;border-radius:8px;cursor:crosshair;touch-action:none}
+  canvas#wave:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+  /* marker chips list */
+  .markers h3{font-size:.95rem;margin:14px 0 8px}
+  ul.mk{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+  ul.mk li{
+    display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;
+  }
+  ul.mk li .swatch{width:11px;height:11px;border-radius:3px;flex:0 0 auto}
+  ul.mk li .mlabel{font-weight:700;min-width:96px}
+  ul.mk li .mtime{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.85rem;min-width:54px}
+  ul.mk li .mverdict{font-size:.85rem;flex:1 1 160px}
+  ul.mk li .mverdict.ok{color:var(--good)}
+  ul.mk li .mverdict.near{color:var(--accent-2)}
+  ul.mk li .mverdict.miss{color:var(--bad)}
+  ul.mk li button.del{
+    background:transparent;border:1px solid var(--line);color:var(--muted);
+    border-radius:8px;padding:4px 9px;cursor:pointer;font-size:.8rem;
+  }
+  ul.mk li button.del:hover{color:var(--bad);border-color:var(--bad)}
+  .empty{color:var(--muted);font-size:.88rem;font-style:italic}
+
+  /* check / score */
+  .scorebar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+  .scorebar .pill{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:999px;
+    padding:6px 13px;font-size:.85rem;color:var(--muted)
+  }
+  .scorebar .pill b{color:var(--ink)}
+  .feedback{
+    margin-top:12px;border-radius:10px;padding:12px 14px;font-size:.92rem;
+    border:1px solid var(--line);background:var(--panel-2);
+  }
+  .feedback h4{margin:0 0 6px;font-size:.95rem}
+  .feedback ul{margin:6px 0 0;padding-left:20px}
+  .feedback li{margin:3px 0}
+
+  /* genre decoder */
+  .genre-grid{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+  .genre-opt{
+    flex:1 1 130px;background:var(--panel-2);border:1px solid var(--line);
+    color:var(--ink);border-radius:10px;padding:10px;cursor:pointer;font-weight:600;font-size:.9rem;
+  }
+  .genre-opt:hover{border-color:var(--accent)}
+  .genre-opt[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+  .genre-result{margin-top:10px;font-size:.92rem}
+  .genre-result.ok{color:var(--good)}
+  .genre-result.no{color:var(--bad)}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  footer.note{color:var(--muted);font-size:.8rem;text-align:center;margin-top:30px}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;font-size:.82rem;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:14px;height:6px;border-radius:3px;display:inline-block}
+  details.help{margin-top:10px;font-size:.88rem;color:var(--muted)}
+  details.help summary{cursor:pointer;color:var(--ink);font-weight:600}
+  kbd{background:#0c1020;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:.8rem}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <h1>&#x1F3A7; Active Listening Annotator</h1>
+    <span class="strand">KS3 Music &middot; Listening, analysing &amp; appraising</span>
+  </header>
+
+  <p class="aim">
+    <b>Teacher aim:</b> pupils listen critically and tag the moment a musical change happens, naming it with correct vocabulary from the elements of music (tempo, dynamics, instrumentation). The app marks each tag for timing and type, then builds analytical listening through targeted feedback.
+  </p>
+
+  <!-- 1. Choose a track -->
+  <section class="card" aria-labelledby="h-track">
+    <h2 id="h-track">1. Choose a listening extract</h2>
+    <p class="sub">Three short fictional study pieces. Each has a hidden "answer map" of real musical changes for you to discover by ear.</p>
+    <div class="tracks" id="tracks" role="group" aria-label="Listening extracts"></div>
+    <div class="legend" aria-hidden="true">
+      <span><i style="background:var(--tempo)"></i> Tempo change</span>
+      <span><i style="background:var(--dyn)"></i> Dynamic change</span>
+      <span><i style="background:var(--instr)"></i> Instrumentation change</span>
+    </div>
+  </section>
+
+  <!-- 2. Annotate -->
+  <section class="card" aria-labelledby="h-annotate">
+    <h2 id="h-annotate">2. Listen and tag the changes</h2>
+    <p class="sub">Press play and follow the moving cursor. When you hear a change, pick the matching tag below, then tap (or press <kbd>Enter</kbd>) on the waveform at that moment.</p>
+
+    <div class="transport">
+      <button class="btn" id="play" type="button">&#x25B6; Play</button>
+      <button class="btn secondary" id="rewind" type="button">&#x23EE; Restart</button>
+      <span class="time" id="clock" aria-live="off">0.0s / 0.0s</span>
+    </div>
+
+    <div class="palette" id="palette" role="radiogroup" aria-label="Tag type to place">
+      <button class="tag-pick tempo" data-type="tempo" role="radio" aria-checked="true" aria-pressed="true" type="button"><span class="dot" style="background:var(--tempo)"></span>Tempo change</button>
+      <button class="tag-pick dynamics" data-type="dynamics" role="radio" aria-checked="false" aria-pressed="false" type="button"><span class="dot" style="background:var(--dyn)"></span>Dynamic change</button>
+      <button class="tag-pick instr" data-type="instr" role="radio" aria-checked="false" aria-pressed="false" type="button"><span class="dot" style="background:var(--instr)"></span>Instrumentation change</button>
+    </div>
+    <p class="hint">Selected tag: <b id="cur-type-label">Tempo change</b>. Place a marker on the waveform.</p>
+
+    <div class="wave-shell">
+      <canvas id="wave" tabindex="0" role="application"
+        aria-label="Waveform of the chosen extract. Use left and right arrow keys to move the listening cursor, and press Enter to place a marker of the selected type at the cursor.">
+      </canvas>
+    </div>
+
+    <p class="sr-only" id="canvas-status" aria-live="polite"></p>
+
+    <div class="markers">
+      <h3>Your markers</h3>
+      <ul class="mk" id="marker-list"><li class="empty" id="mk-empty">No markers yet. Tag a change to begin your analysis.</li></ul>
+    </div>
+
+    <div class="scorebar" aria-hidden="false">
+      <span class="pill">Markers placed: <b id="cnt-placed">0</b></span>
+      <span class="pill">Real changes in extract: <b id="cnt-total">0</b></span>
+      <button class="btn" id="check" type="button">Check my listening</button>
+      <button class="btn secondary" id="clear" type="button">Clear my markers</button>
+    </div>
+
+    <div class="feedback" id="feedback" aria-live="polite">
+      <h4>How analytical listening is marked</h4>
+      A marker counts as correct when it lands within about 1 second of a real change <i>and</i> you named the right element. "Close" means the timing or type is slightly off, which is your cue to listen again.
+    </div>
+
+    <details class="help">
+      <summary>Keyboard and accessibility notes</summary>
+      <p>Focus the waveform, then use <kbd>&larr;</kbd> / <kbd>&rarr;</kbd> to scrub the cursor (hold for larger jumps with <kbd>Shift</kbd>), <kbd>Space</kbd> to play or pause, and <kbd>Enter</kbd> to drop a marker of the currently selected tag. Switch the tag type with the buttons above. All feedback is announced to screen readers.</p>
+    </details>
+  </section>
+
+  <!-- 3. Genre Decoder -->
+  <section class="card" aria-labelledby="h-genre">
+    <h2 id="h-genre">3. Genre Decoder (extension)</h2>
+    <p class="sub">Use the musical evidence you have just heard. Which genre best fits this extract? Choose one and the app explains the reasoning.</p>
+    <div class="genre-grid" id="genre-grid" role="radiogroup" aria-label="Genre choices"></div>
+    <p class="genre-result" id="genre-result" aria-live="polite"></p>
+  </section>
+
+  <footer class="note">
+    Sound is generated live in the browser using the Web Audio API. All names and extracts are fictional, for demonstration only. No real performances are used.
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   Active Listening Annotator  -  KS3 Music
+   All audio synthesised live (Web Audio API), no external files.
+   ============================================================ */
+
+/* ---- Tracks: each has duration, a waveform "envelope" of segments,
+        a list of real change events (type + time), and genre data. ---- */
+const TRACKS = [
+  {
+    id:"voyage",
+    title:"Northern Voyage",
+    genre:"Film / cinematic",
+    blurb:"Builds from a quiet string idea to a bold brass climax.",
+    duration:16,
+    // segments drive both the synth and the drawn waveform amplitude
+    segments:[
+      {t:0,  tempo:88,  amp:0.30, voices:["strings"]},
+      {t:4,  tempo:88,  amp:0.55, voices:["strings","piano"]},   // instrumentation in
+      {t:8,  tempo:132, amp:0.55, voices:["strings","piano"]},   // tempo up
+      {t:11, tempo:132, amp:0.92, voices:["strings","piano","brass"]}, // dynamics up + brass in
+    ],
+    changes:[
+      {time:4,  type:"instr",    note:"Piano joins the strings (new layer of instrumentation)."},
+      {time:8,  type:"tempo",    note:"The pulse speeds up, the music drives forward (tempo change)."},
+      {time:11, type:"dynamics", note:"It grows much louder, a crescendo into the climax (dynamic change)."},
+      {time:11, type:"instr",    note:"Brass enters for the big moment (instrumentation change)."},
+    ],
+    genreAnswer:"film",
+    genreReason:"The slow build from a single quiet string line to a loud brass climax, with sweeping changes in dynamics, is a classic cinematic device used to underscore a dramatic scene."
+  },
+  {
+    id:"groove",
+    title:"City Lights Groove",
+    genre:"Pop / dance",
+    blurb:"A steady danceable beat with a drop and a synth hook.",
+    duration:16,
+    segments:[
+      {t:0,  tempo:120, amp:0.45, voices:["bass"]},
+      {t:3,  tempo:120, amp:0.45, voices:["bass","drums"]},      // drums in
+      {t:7,  tempo:120, amp:0.20, voices:["bass"]},              // breakdown (quiet)
+      {t:9,  tempo:120, amp:0.90, voices:["bass","drums","synth"]}, // drop: loud + synth in
+    ],
+    changes:[
+      {time:3,  type:"instr",    note:"Drums enter and lock in the groove (instrumentation change)."},
+      {time:7,  type:"dynamics", note:"A quiet breakdown: the texture drops away and softens (dynamic change)."},
+      {time:9,  type:"dynamics", note:"The drop: it bursts back loudly (dynamic change)."},
+      {time:9,  type:"instr",    note:"A bright synth hook is added on the drop (instrumentation change)."},
+    ],
+    genreAnswer:"pop",
+    genreReason:"A constant tempo, a strong four-on-the-floor beat, a quiet breakdown and a loud drop with a synth hook are hallmarks of modern pop and dance music."
+  },
+  {
+    id:"baroque",
+    title:"Courtly Dance",
+    genre:"Baroque",
+    blurb:"Harpsichord and strings in a poised dance, with terraced dynamics.",
+    duration:15,
+    segments:[
+      {t:0,  tempo:104, amp:0.40, voices:["harpsi"]},
+      {t:4,  tempo:104, amp:0.40, voices:["harpsi","strings"]},  // strings in
+      {t:8,  tempo:104, amp:0.80, voices:["harpsi","strings"]},  // terraced: louder
+      {t:11, tempo:78,  amp:0.55, voices:["harpsi","strings"]},  // slower closing
+    ],
+    changes:[
+      {time:4,  type:"instr",    note:"Strings join the harpsichord (instrumentation change)."},
+      {time:8,  type:"dynamics", note:"A sudden step up in volume, terraced dynamics typical of the period."},
+      {time:11, type:"tempo",    note:"The dance slows for its close (tempo change)."},
+    ],
+    genreAnswer:"baroque",
+    genreReason:"Harpsichord, a poised dance feel and terraced dynamics (sudden steps between loud and soft rather than gradual swells) point clearly to Baroque music."
+  }
+];
+
+const GENRES = [
+  {id:"film",    label:"Film / cinematic"},
+  {id:"pop",     label:"Pop / dance"},
+  {id:"baroque", label:"Baroque"},
+  {id:"jazz",    label:"Jazz"}
+];
+
+const TYPE_META = {
+  tempo:    {label:"Tempo change",         colour:"#5cd1c2"},
+  dynamics: {label:"Dynamic change",       colour:"#ff8fab"},
+  instr:    {label:"Instrumentation change",colour:"#9d8cff"}
+};
+
+/* ---------------- State ---------------- */
+let current = TRACKS[0];
+let curType = "tempo";
+let markers = [];           // {id,type,time}
+let playhead = 0;           // seconds
+let playing = false;
+let rafId = null;
+let startWallClock = 0;
+let startOffset = 0;
+let checked = false;
+
+/* ---------------- Audio ---------------- */
+let audioCtx = null;
+let activeNodes = [];
+
+function ensureCtx(){
+  if(!audioCtx){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AC();
+  }
+  if(audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+
+function stopAudio(){
+  activeNodes.forEach(n=>{ try{ n.stop(); }catch(e){} try{ n.disconnect(); }catch(e){} });
+  activeNodes = [];
+}
+
+/* Build the synthesised extract from segments, starting at offset seconds. */
+function buildAudio(offset){
+  const ctx = ensureCtx();
+  const now = ctx.currentTime;
+  const master = ctx.createGain();
+  master.gain.value = 0.9;
+  master.connect(ctx.destination);
+  activeNodes.push(master);
+
+  const segs = current.segments;
+  const dur = current.duration;
+
+  // A simple pulsing tone bed per voice, amplitude + tempo driven by segments.
+  // We schedule a repeating note pattern across the timeline.
+  const voiceTone = {
+    strings:{type:"sawtooth", base:220, det:0.5, soft:true},
+    piano:  {type:"triangle", base:330, det:0, soft:false},
+    brass:  {type:"sawtooth", base:165, det:1.5, soft:false},
+    bass:   {type:"sine",     base:82,  det:0, soft:true},
+    drums:  {type:"square",   base:110, det:0, soft:false, perc:true},
+    synth:  {type:"square",   base:440, det:3, soft:false},
+    harpsi: {type:"triangle", base:294, det:0.4, soft:false, perc:true},
+    strings2:{type:"sawtooth",base:262, det:0.6, soft:true}
+  };
+
+  function segAt(t){
+    let s = segs[0];
+    for(const sg of segs){ if(t >= sg.t) s = sg; }
+    return s;
+  }
+
+  // schedule notes at a beat grid driven by each moment's tempo
+  let t = offset;
+  let safety = 0;
+  while(t < dur && safety < 2000){
+    safety++;
+    const sg = segAt(t);
+    const beat = 60 / sg.tempo;       // seconds per beat
+    const startAt = now + (t - offset);
+    sg.voices.forEach((v,i)=>{
+      const def = voiceTone[v] || voiceTone.piano;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = def.type;
+      // small melodic movement so it is musical, not a drone
+      const step = [0,3,5,7,3,0,5,2][Math.floor(t/beat)%8];
+      osc.frequency.value = def.base * Math.pow(2, step/12);
+      osc.detune.value = def.det * 100 * (i?1:-1);
+      const peak = (sg.amp * (def.soft?0.10:0.16)) / (sg.voices.length*0.6+0.4);
+      g.gain.setValueAtTime(0.0001, startAt);
+      const att = def.perc?0.005:0.04;
+      g.gain.exponentialRampToValueAtTime(Math.max(peak,0.0002), startAt+att);
+      const rel = def.perc? beat*0.5 : beat*0.95;
+      g.gain.exponentialRampToValueAtTime(0.0001, startAt+rel);
+      osc.connect(g).connect(master);
+      osc.start(startAt);
+      osc.stop(startAt+rel+0.05);
+      activeNodes.push(osc, g);
+    });
+    t += beat;
+  }
+}
+
+/* ---------------- Canvas / waveform ---------------- */
+const canvas = document.getElementById("wave");
+const ctx2d = canvas.getContext("2d");
+let cssW = 0, cssH = 0, dpr = 1;
+
+function sizeCanvas(){
+  dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  cssW = rect.width; cssH = rect.height;
+  canvas.width = Math.round(cssW*dpr);
+  canvas.height = Math.round(cssH*dpr);
+  ctx2d.setTransform(dpr,0,0,dpr,0,0);
+  drawWave();
+}
+
+// deterministic pseudo-random so the waveform is stable per track
+function rnd(seed){ let x=Math.sin(seed*99.137)*43758.5453; return x-Math.floor(x); }
+
+function ampAt(t){
+  const segs = current.segments;
+  let s = segs[0];
+  for(const sg of segs){ if(t >= sg.t) s = sg; }
+  return s.amp;
+}
+
+function timeToX(t){ return (t/current.duration)*cssW; }
+function xToTime(x){ return Math.max(0, Math.min(current.duration, (x/cssW)*current.duration)); }
+
+function drawWave(){
+  if(!cssW) return;
+  ctx2d.clearRect(0,0,cssW,cssH);
+  const mid = cssH/2;
+  // background grid (seconds)
+  ctx2d.strokeStyle = "rgba(255,255,255,0.06)";
+  ctx2d.lineWidth = 1;
+  for(let s=0;s<=current.duration;s++){
+    const x = timeToX(s);
+    ctx2d.beginPath(); ctx2d.moveTo(x,0); ctx2d.lineTo(x,cssH); ctx2d.stroke();
+  }
+  // waveform bars
+  const bars = Math.max(60, Math.floor(cssW/4));
+  for(let i=0;i<bars;i++){
+    const t = (i/bars)*current.duration;
+    const a = ampAt(t);
+    const wob = 0.55 + 0.45*rnd(i*1.7 + current.id.length);
+    const h = a * wob * (cssH*0.46);
+    const x = (i/bars)*cssW;
+    // colour the bar lightly by which change-region it is near
+    ctx2d.fillStyle = "rgba(120,170,255,0.55)";
+    ctx2d.fillRect(x, mid-h, Math.max(1.5,cssW/bars-1), h*2);
+  }
+  // real-change guide ticks become visible only after Check
+  if(checked){
+    current.changes.forEach(c=>{
+      const x = timeToX(c.time);
+      ctx2d.fillStyle = TYPE_META[c.type].colour;
+      ctx2d.globalAlpha = 0.85;
+      ctx2d.fillRect(x-1.5, 0, 3, cssH);
+      ctx2d.globalAlpha = 1;
+    });
+  }
+  // user markers
+  markers.forEach(m=>{
+    const x = timeToX(m.time);
+    const col = TYPE_META[m.type].colour;
+    ctx2d.strokeStyle = col;
+    ctx2d.lineWidth = 2;
+    ctx2d.beginPath(); ctx2d.moveTo(x,0); ctx2d.lineTo(x,cssH); ctx2d.stroke();
+    // flag
+    ctx2d.fillStyle = col;
+    ctx2d.beginPath();
+    ctx2d.moveTo(x,6); ctx2d.lineTo(x+14,12); ctx2d.lineTo(x,18); ctx2d.closePath();
+    ctx2d.fill();
+  });
+  // playhead
+  const px = timeToX(playhead);
+  ctx2d.strokeStyle = "#ffd166";
+  ctx2d.lineWidth = 2;
+  ctx2d.beginPath(); ctx2d.moveTo(px,0); ctx2d.lineTo(px,cssH); ctx2d.stroke();
+  ctx2d.fillStyle = "#ffd166";
+  ctx2d.beginPath(); ctx2d.arc(px,mid,4,0,Math.PI*2); ctx2d.fill();
+}
+
+/* ---------------- Playback loop ---------------- */
+function tick(){
+  if(!playing) return;
+  const elapsed = (audioCtx ? audioCtx.currentTime : performance.now()/1000) - startWallClock;
+  playhead = startOffset + elapsed;
+  if(playhead >= current.duration){
+    playhead = current.duration;
+    stopPlay();
+    drawWave(); updateClock();
+    return;
+  }
+  drawWave(); updateClock();
+  rafId = requestAnimationFrame(tick);
+}
+
+function startPlay(){
+  if(playing) return;
+  ensureCtx();
+  if(playhead >= current.duration) playhead = 0;
+  startOffset = playhead;
+  startWallClock = audioCtx.currentTime;
+  buildAudio(startOffset);
+  playing = true;
+  document.getElementById("play").innerHTML = "&#x23F8; Pause";
+  rafId = requestAnimationFrame(tick);
+}
+function stopPlay(){
+  playing = false;
+  if(rafId) cancelAnimationFrame(rafId);
+  stopAudio();
+  document.getElementById("play").innerHTML = "&#x25B6; Play";
+}
+function togglePlay(){ playing ? stopPlay() : startPlay(); }
+
+function updateClock(){
+  document.getElementById("clock").textContent =
+    playhead.toFixed(1)+"s / "+current.duration.toFixed(1)+"s";
+}
+
+/* ---------------- Markers ---------------- */
+let idSeq = 1;
+function addMarker(time){
+  if(checked){ resetCheck(); }
+  markers.push({id:idSeq++, type:curType, time:Math.round(time*10)/10});
+  markers.sort((a,b)=>a.time-b.time);
+  renderMarkers();
+  drawWave();
+  announce("Placed a "+TYPE_META[curType].label.toLowerCase()+" marker at "+time.toFixed(1)+" seconds.");
+}
+function deleteMarker(id){
+  markers = markers.filter(m=>m.id!==id);
+  if(checked) resetCheck();
+  renderMarkers(); drawWave();
+}
+function clearMarkers(){
+  markers = []; resetCheck(); renderMarkers(); drawWave();
+  announce("All markers cleared.");
+}
+
+function renderMarkers(){
+  const ul = document.getElementById("marker-list");
+  ul.innerHTML = "";
+  if(markers.length===0){
+    const li = document.createElement("li");
+    li.className="empty";
+    li.textContent="No markers yet. Tag a change to begin your analysis.";
+    ul.appendChild(li);
+  } else {
+    markers.forEach(m=>{
+      const li = document.createElement("li");
+      const meta = TYPE_META[m.type];
+      const sw = document.createElement("span");
+      sw.className="swatch"; sw.style.background=meta.colour;
+      const lbl = document.createElement("span");
+      lbl.className="mlabel"; lbl.textContent=meta.label;
+      const tm = document.createElement("span");
+      tm.className="mtime"; tm.textContent=m.time.toFixed(1)+"s";
+      const vd = document.createElement("span");
+      vd.className="mverdict"; vd.id="vd-"+m.id;
+      if(m.verdict){
+        vd.classList.add(m.verdict.cls);
+        vd.textContent=m.verdict.text;
+      }
+      const del = document.createElement("button");
+      del.className="del"; del.type="button";
+      del.textContent="Remove";
+      del.setAttribute("aria-label","Remove "+meta.label+" marker at "+m.time.toFixed(1)+" seconds");
+      del.addEventListener("click",()=>deleteMarker(m.id));
+      li.append(sw,lbl,tm,vd,del);
+      ul.appendChild(li);
+    });
+  }
+  document.getElementById("cnt-placed").textContent = markers.length;
+  document.getElementById("cnt-total").textContent = current.changes.length;
+}
+
+/* ---------------- Checking (the real feedback engine) ---------------- */
+const TOL = 1.0; // seconds tolerance for "correct"
+
+function resetCheck(){
+  checked = false;
+  markers.forEach(m=>{ delete m.verdict; });
+  drawWave();
+}
+
+function checkListening(){
+  checked = true;
+  const changes = current.changes.map(c=>({...c, used:false}));
+  let correct=0, near=0, wrong=0;
+
+  // For each user marker, find best matching unused change
+  markers.forEach(m=>{
+    let best=null, bestDist=Infinity;
+    changes.forEach(c=>{
+      if(c.used) return;
+      const dist = Math.abs(c.time - m.time);
+      if(dist < bestDist){ bestDist=dist; best=c; }
+    });
+    if(best && bestDist<=TOL && best.type===m.type){
+      best.used=true; correct++;
+      m.verdict={cls:"ok", text:"Correct. "+best.note};
+    } else if(best && bestDist<=TOL && best.type!==m.type){
+      // right place, wrong element
+      m.verdict={cls:"near", text:"Right moment, but listen again: this is a "+TYPE_META[best.type].label.toLowerCase()+", not "+TYPE_META[m.type].label.toLowerCase()+"."};
+      near++;
+    } else if(best && bestDist<=2.0 && best.type===m.type){
+      m.verdict={cls:"near", text:"Right type of change, but your timing is "+bestDist.toFixed(1)+"s off. Try to pinpoint the exact moment."};
+      near++;
+    } else {
+      m.verdict={cls:"miss", text:"No change of this kind near here. Listen again at this point."};
+      wrong++;
+    }
+  });
+
+  const missed = changes.filter(c=>!c.used);
+
+  renderMarkers();
+  drawWave();
+  renderFeedback(correct, near, wrong, missed);
+
+  announce("Checked. "+correct+" correct, "+near+" close, "+wrong+" off target, "+missed.length+" changes missed.");
+}
+
+function renderFeedback(correct, near, wrong, missed){
+  const fb = document.getElementById("feedback");
+  const total = current.changes.length;
+  let stars = correct>=total && near===0 && wrong===0 ? " &#x1F31F;" : "";
+  let html = "<h4>Your listening analysis"+stars+"</h4>";
+  html += "<p><b>"+correct+"</b> of <b>"+total+"</b> real changes correctly identified and named";
+  if(near) html += ", <b>"+near+"</b> close (right idea, refine it)";
+  if(wrong) html += ", <b>"+wrong+"</b> off target";
+  html += ".</p>";
+
+  if(missed.length){
+    html += "<p>Changes you have not tagged yet:</p><ul>";
+    missed.forEach(c=>{
+      html += "<li>Around <b>"+c.time.toFixed(0)+"s</b>: a "+TYPE_META[c.type].label.toLowerCase()+". Listen for the clue and tag it.</li>";
+    });
+    html += "</ul>";
+  } else if(correct===total && wrong===0 && near===0){
+    html += "<p>Excellent critical listening. Every change is named with the correct element and pinpointed in time. Now justify your hearing in the Genre Decoder below.</p>";
+  } else {
+    html += "<p>You have found every change. Tidy up the close and off-target markers above to perfect your analysis.</p>";
+  }
+  fb.innerHTML = html;
+}
+
+/* ---------------- Genre Decoder ---------------- */
+function renderGenre(){
+  const grid = document.getElementById("genre-grid");
+  grid.innerHTML="";
+  GENRES.forEach(g=>{
+    const b = document.createElement("button");
+    b.className="genre-opt"; b.type="button";
+    b.textContent=g.label;
+    b.setAttribute("role","radio");
+    b.setAttribute("aria-checked","false");
+    b.setAttribute("aria-pressed","false");
+    b.dataset.id=g.id;
+    b.addEventListener("click",()=>guessGenre(g.id,b));
+    grid.appendChild(b);
+  });
+  document.getElementById("genre-result").textContent="";
+}
+function guessGenre(id, btn){
+  document.querySelectorAll(".genre-opt").forEach(o=>{
+    o.setAttribute("aria-checked","false"); o.setAttribute("aria-pressed","false");
+  });
+  btn.setAttribute("aria-checked","true"); btn.setAttribute("aria-pressed","true");
+  const res = document.getElementById("genre-result");
+  if(id===current.genreAnswer){
+    res.className="genre-result ok";
+    res.innerHTML = "&#x2714; Yes. "+current.genreReason;
+  } else {
+    res.className="genre-result no";
+    const right = GENRES.find(g=>g.id===current.genreAnswer).label;
+    res.innerHTML = "&#x2716; Not quite. Think about the evidence in your markers. Hint: this extract is closer to <b>"+right+"</b>. "+current.genreReason;
+  }
+}
+
+/* ---------------- Live region helper ---------------- */
+function announce(msg){
+  document.getElementById("canvas-status").textContent = msg;
+}
+
+/* ---------------- Track selection ---------------- */
+function renderTracks(){
+  const box = document.getElementById("tracks");
+  box.innerHTML="";
+  TRACKS.forEach(t=>{
+    const b = document.createElement("button");
+    b.className="track-btn"; b.type="button";
+    b.setAttribute("aria-pressed", t.id===current.id ? "true":"false");
+    b.innerHTML = "<span class='tt'>"+t.title+"</span><span class='tg'>"+t.blurb+"</span>";
+    b.addEventListener("click",()=>selectTrack(t.id));
+    box.appendChild(b);
+  });
+}
+function selectTrack(id){
+  const t = TRACKS.find(x=>x.id===id);
+  if(!t || t.id===current.id) { current = t; }
+  stopPlay();
+  current = t;
+  playhead = 0;
+  markers = [];
+  resetCheck();
+  renderTracks();
+  renderMarkers();
+  renderGenre();
+  drawWave();
+  updateClock();
+  document.getElementById("feedback").innerHTML =
+    "<h4>How analytical listening is marked</h4>A marker counts as correct when it lands within about 1 second of a real change <i>and</i> you named the right element. \"Close\" means the timing or type is slightly off, which is your cue to listen again.";
+  announce("Loaded extract "+t.title+". It is "+t.duration+" seconds long and contains "+t.changes.length+" changes to find.");
+}
+
+/* ---------------- Tag palette ---------------- */
+function setType(type){
+  curType = type;
+  document.querySelectorAll(".tag-pick").forEach(b=>{
+    const on = b.dataset.type===type;
+    b.setAttribute("aria-checked", on?"true":"false");
+    b.setAttribute("aria-pressed", on?"true":"false");
+  });
+  document.getElementById("cur-type-label").textContent = TYPE_META[type].label;
+}
+
+/* ---------------- Pointer / keyboard on canvas ---------------- */
+canvas.addEventListener("pointerdown", (e)=>{
+  e.preventDefault();
+  try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const t = xToTime(x);
+  playhead = t;
+  addMarker(t);
+  canvas.focus();
+});
+
+canvas.addEventListener("keydown",(e)=>{
+  const step = e.shiftKey ? 1.0 : 0.2;
+  if(e.key==="ArrowRight"){ playhead = Math.min(current.duration, playhead+step); drawWave(); updateClock(); announce("Cursor at "+playhead.toFixed(1)+" seconds."); e.preventDefault(); }
+  else if(e.key==="ArrowLeft"){ playhead = Math.max(0, playhead-step); drawWave(); updateClock(); announce("Cursor at "+playhead.toFixed(1)+" seconds."); e.preventDefault(); }
+  else if(e.key==="Enter"){ addMarker(playhead); e.preventDefault(); }
+  else if(e.key===" "){ togglePlay(); e.preventDefault(); }
+});
+
+/* ---------------- Wire up controls ---------------- */
+document.getElementById("play").addEventListener("click", togglePlay);
+document.getElementById("rewind").addEventListener("click", ()=>{
+  stopPlay(); playhead=0; drawWave(); updateClock(); announce("Restarted at the beginning.");
+});
+document.getElementById("check").addEventListener("click", ()=>{
+  if(markers.length===0){
+    announce("Place at least one marker before checking.");
+    const fb=document.getElementById("feedback");
+    fb.innerHTML="<h4>Nothing to check yet</h4>Listen to the extract and tag at least one change first.";
+    return;
+  }
+  checkListening();
+});
+document.getElementById("clear").addEventListener("click", clearMarkers);
+
+document.querySelectorAll(".tag-pick").forEach(b=>{
+  b.addEventListener("click",()=>setType(b.dataset.type));
+});
+
+window.addEventListener("resize", sizeCanvas);
+
+/* ---------------- Init ---------------- */
+renderTracks();
+renderGenre();
+renderMarkers();
+updateClock();
+sizeCanvas();
+</script>
+</body>
+</html>

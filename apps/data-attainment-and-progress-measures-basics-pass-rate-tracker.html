@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Basics Pass-Rate Tracker</title>
+<style>
+  :root {
+    --ink: #1d2733;
+    --muted: #5b6b7c;
+    --line: #d8e0e8;
+    --bg: #f4f7fa;
+    --card: #ffffff;
+    --accent: #1f6feb;
+    --accent-dark: #144a9e;
+    --good: #1a7f4b;
+    --good-bg: #e3f5ea;
+    --warn: #b26a00;
+    --warn-bg: #fdf2e0;
+    --bad: #b3261e;
+    --bad-bg: #fbe6e4;
+    --nat: #6a4caf;
+    --shadow: 0 1px 3px rgba(20,40,70,.08), 0 6px 18px rgba(20,40,70,.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px 64px; }
+  header.app { margin-bottom: 18px; }
+  .kicker {
+    font-size: .72rem; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent-dark); font-weight: 700;
+  }
+  h1 { font-size: 1.7rem; margin: 4px 0 6px; line-height: 1.15; }
+  .aim {
+    background: #eef4fc; border: 1px solid #d6e4f7; border-left: 4px solid var(--accent);
+    padding: 10px 14px; border-radius: 8px; color: #234; font-size: .95rem; max-width: 760px;
+  }
+  .aim strong { color: var(--accent-dark); }
+
+  .layout { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 20px; }
+  @media (min-width: 880px) { .layout { grid-template-columns: 1.05fr 1fr; } }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px; box-shadow: var(--shadow);
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 4px; }
+  .card .sub { color: var(--muted); font-size: .85rem; margin: 0 0 14px; }
+
+  /* Cohort builder */
+  .builder-row { margin-bottom: 16px; }
+  .builder-row:last-child { margin-bottom: 0; }
+  .lab {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-weight: 600; font-size: .92rem; margin-bottom: 2px;
+  }
+  .lab .val { font-variant-numeric: tabular-nums; color: var(--accent-dark); font-weight: 700; }
+  .hint { color: var(--muted); font-size: .78rem; margin: 0 0 8px; }
+  input[type=range] {
+    width: 100%; margin: 0; accent-color: var(--accent); height: 26px; touch-action: pan-y;
+  }
+  .group-block {
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;
+  }
+  .group-block.dis { border-left: 4px solid var(--warn); }
+  .group-block.send { border-left: 4px solid var(--nat); }
+  .group-block.all { border-left: 4px solid var(--accent); }
+  .group-title {
+    font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700;
+    color: var(--muted); margin-bottom: 8px; display: flex; justify-content: space-between;
+  }
+  .group-title .npupils { color: var(--ink); }
+
+  .toggle-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .toggle-btn {
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+    padding: 7px 12px; border-radius: 999px; font-size: .85rem; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .toggle-btn[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .toggle-btn:focus-visible { outline: 3px solid #9cc3ff; outline-offset: 2px; }
+
+  /* Results panel */
+  .measure-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .measure-tabs button {
+    flex: 1; border: 1px solid var(--line); background: #fff; padding: 8px 6px;
+    border-radius: 9px; cursor: pointer; font-family: inherit; font-weight: 600; font-size: .82rem; color: var(--muted);
+  }
+  .measure-tabs button[aria-selected="true"] { background: #eef4fc; color: var(--accent-dark); border-color: var(--accent); }
+  .measure-tabs button:focus-visible { outline: 3px solid #9cc3ff; outline-offset: 2px; }
+
+  .bar-row { margin-bottom: 16px; }
+  .bar-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+  .bar-name { font-weight: 700; font-size: .92rem; }
+  .bar-name small { display: block; font-weight: 400; color: var(--muted); font-size: .76rem; }
+  .bar-pct { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.05rem; }
+  .track {
+    position: relative; height: 26px; background: #eef2f6; border-radius: 7px; overflow: hidden;
+  }
+  .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 7px; transition: width .35s ease, background .3s; }
+  .fill.all { background: linear-gradient(90deg, #2f7be0, #1f6feb); }
+  .fill.dis { background: linear-gradient(90deg, #d68a1f, #b26a00); }
+  .fill.send { background: linear-gradient(90deg, #8366c9, #6a4caf); }
+  .bench-marker {
+    position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 2px dashed #33424f;
+  }
+  .bench-marker::after {
+    content: attr(data-lab); position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+    font-size: .62rem; color: #33424f; white-space: nowrap; background: #fff; padding: 0 3px; border-radius: 3px;
+  }
+  .gap-tag {
+    display: inline-block; font-size: .74rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-top: 5px;
+  }
+  .gap-tag.good { background: var(--good-bg); color: var(--good); }
+  .gap-tag.warn { background: var(--warn-bg); color: var(--warn); }
+  .gap-tag.bad { background: var(--bad-bg); color: var(--bad); }
+
+  .feedback {
+    margin-top: 6px; border-radius: 10px; padding: 12px 14px; font-size: .9rem;
+    border: 1px solid var(--line); background: #fafcfe;
+  }
+  .feedback h3 { margin: 0 0 6px; font-size: .92rem; }
+  .feedback.good { border-color: #bfe6cf; background: var(--good-bg); }
+  .feedback.warn { border-color: #f3dcae; background: var(--warn-bg); }
+  .feedback.bad { border-color: #f3c9c5; background: var(--bad-bg); }
+  .feedback ul { margin: 6px 0 0; padding-left: 18px; }
+  .feedback li { margin-bottom: 3px; }
+
+  .challenge {
+    margin-top: 18px; border: 1px dashed var(--accent); border-radius: 12px; padding: 14px 16px; background: #f6faff;
+  }
+  .challenge h2 { margin: 0 0 4px; font-size: 1rem; color: var(--accent-dark); }
+  .challenge p { margin: 0 0 10px; font-size: .9rem; }
+  .challenge .status { font-weight: 700; margin-top: 8px; }
+  .challenge .status.met { color: var(--good); }
+  .challenge .status.unmet { color: var(--muted); }
+
+  .pill-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .78rem; color: var(--muted); margin-top: 12px; }
+  .pill-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+  .swatch.all { background: #1f6feb; }
+  .swatch.dis { background: #b26a00; }
+  .swatch.send { background: #6a4caf; }
+
+  .keyhint { font-size: .76rem; color: var(--muted); margin-top: 10px; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  footer.app { margin-top: 22px; font-size: .78rem; color: var(--muted); text-align: center; }
+  .note { font-size: .78rem; color: var(--muted); margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <div class="kicker">Data &amp; Analytics &middot; Attainment and Progress Measures</div>
+    <h1>Basics Pass-Rate Tracker</h1>
+    <p class="aim"><strong>Teaching aim:</strong> read and compare the Basics headline measures, the percentage of pupils passing English <em>and</em> maths at grade 9 to 5 (strong pass) and at grade 9 to 4 (standard pass), and judge how a cohort sits against national benchmarks once it is split by disadvantage and SEND.</p>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: cohort builder -->
+    <section class="card" aria-labelledby="builder-h">
+      <h2 id="builder-h">Build a Year 11 cohort</h2>
+      <p class="sub">Drag the sliders to set how each group performs. The tracker recalculates the Basics measures live.</p>
+
+      <div class="builder-row">
+        <div class="lab"><label for="size">Cohort size</label><span class="val" id="sizeVal">180 pupils</span></div>
+        <p class="hint">Fictional Year 11 group at Maple Heath Academy.</p>
+        <input type="range" id="size" min="60" max="300" step="10" value="180" aria-describedby="sizeVal">
+      </div>
+
+      <div class="group-block all">
+        <div class="group-title"><span>All pupils</span><span class="npupils" id="allN">180 pupils</span></div>
+        <div class="builder-row" style="margin-bottom:10px">
+          <div class="lab"><label for="all4">Pass English &amp; maths at 9-4</label><span class="val" id="all4Val">68%</span></div>
+          <input type="range" id="all4" min="20" max="95" step="1" value="68" aria-describedby="all4Val">
+        </div>
+        <div class="builder-row" style="margin-bottom:0">
+          <div class="lab"><label for="all5">Of those, pass at 9-5 (strong)</label><span class="val" id="all5Val">62%</span></div>
+          <p class="hint">Strong pass is a subset of standard pass, so it cannot exceed it.</p>
+          <input type="range" id="all5" min="10" max="100" step="1" value="62" aria-describedby="all5Val">
+        </div>
+      </div>
+
+      <div class="group-block dis">
+        <div class="group-title"><span>Disadvantaged</span><span class="npupils" id="disN">54 pupils</span></div>
+        <div class="builder-row" style="margin-bottom:0">
+          <div class="lab"><label for="disShare">Share of cohort disadvantaged</label><span class="val" id="disShareVal">30%</span></div>
+          <input type="range" id="disShare" min="5" max="60" step="1" value="30" aria-describedby="disShareVal">
+          <div class="lab" style="margin-top:10px"><label for="disGap">Their 9-4 pass rate vs all</label><span class="val" id="disGapVal">-21 pts</span></div>
+          <input type="range" id="disGap" min="-40" max="5" step="1" value="-21" aria-describedby="disGapVal">
+        </div>
+      </div>
+
+      <div class="group-block send">
+        <div class="group-title"><span>SEND support / EHCP</span><span class="npupils" id="sendN">27 pupils</span></div>
+        <div class="builder-row" style="margin-bottom:0">
+          <div class="lab"><label for="sendShare">Share of cohort with SEND</label><span class="val" id="sendShareVal">15%</span></div>
+          <input type="range" id="sendShare" min="2" max="40" step="1" value="15" aria-describedby="sendShareVal">
+          <div class="lab" style="margin-top:10px"><label for="sendGap">Their 9-4 pass rate vs all</label><span class="val" id="sendGapVal">-29 pts</span></div>
+          <input type="range" id="sendGap" min="-50" max="5" step="1" value="-29" aria-describedby="sendGapVal">
+        </div>
+      </div>
+
+      <div class="note">
+        <strong>What "Basics" means.</strong> The DfE Basics headline measures count a pupil only if they pass <em>both</em> English and maths together. Basics 9-4 is the standard pass; Basics 9-5 is the strong pass. National averages used here as benchmarks: roughly 65% at 9-4 and 45% at 9-5 for all pupils. Demonstration figures only.
+      </div>
+    </section>
+
+    <!-- RIGHT: results -->
+    <section class="card" aria-labelledby="results-h">
+      <h2 id="results-h">Basics measures for this cohort</h2>
+      <p class="sub">Dashed line shows the national benchmark for the chosen measure.</p>
+
+      <div class="measure-tabs" role="tablist" aria-label="Select Basics measure">
+        <button role="tab" id="tab4" aria-selected="true" aria-controls="bars">Basics 9-4 (standard)</button>
+        <button role="tab" id="tab5" aria-selected="false" aria-controls="bars">Basics 9-5 (strong)</button>
+      </div>
+
+      <div id="bars" role="tabpanel" aria-live="polite">
+        <!-- bars injected -->
+      </div>
+
+      <div class="pill-legend">
+        <span><span class="swatch all"></span> All pupils</span>
+        <span><span class="swatch dis"></span> Disadvantaged</span>
+        <span><span class="swatch send"></span> SEND</span>
+      </div>
+
+      <div class="feedback" id="feedback" role="status" aria-live="polite">
+        <h3>Read-out</h3>
+        <p>Adjust the cohort to see how the Basics measures and gaps respond.</p>
+      </div>
+
+      <div class="challenge" aria-labelledby="chal-h">
+        <h2 id="chal-h">Target challenge</h2>
+        <p id="chalText">Set the cohort so that <strong>all pupils</strong> are at or above the national benchmark on the current measure, while keeping the <strong>disadvantage gap</strong> no wider than 15 percentage points.</p>
+        <div class="status unmet" id="chalStatus" aria-live="polite">Not met yet.</div>
+      </div>
+
+      <p class="keyhint">Keyboard: Tab to any slider, then use the arrow keys to change values. Tab between the two measure tabs and press Enter or Space to switch.</p>
+    </section>
+  </div>
+
+  <footer class="app">Basics Pass-Rate Tracker &middot; Demonstration data only. No real pupil is represented.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var els = {
+    size: document.getElementById("size"),
+    sizeVal: document.getElementById("sizeVal"),
+    allN: document.getElementById("allN"),
+    all4: document.getElementById("all4"), all4Val: document.getElementById("all4Val"),
+    all5: document.getElementById("all5"), all5Val: document.getElementById("all5Val"),
+    disShare: document.getElementById("disShare"), disShareVal: document.getElementById("disShareVal"),
+    disGap: document.getElementById("disGap"), disGapVal: document.getElementById("disGapVal"),
+    disN: document.getElementById("disN"),
+    sendShare: document.getElementById("sendShare"), sendShareVal: document.getElementById("sendShareVal"),
+    sendGap: document.getElementById("sendGap"), sendGapVal: document.getElementById("sendGapVal"),
+    sendN: document.getElementById("sendN"),
+    bars: document.getElementById("bars"),
+    feedback: document.getElementById("feedback"),
+    tab4: document.getElementById("tab4"),
+    tab5: document.getElementById("tab5"),
+    chalStatus: document.getElementById("chalStatus"),
+    chalText: document.getElementById("chalText")
+  };
+
+  // National benchmarks (demonstration values, broadly representative)
+  var BENCH = { p4: 65, p5: 45, disGap4: 27, disGap5: 22 };
+
+  var measure = 4; // 4 or 5 (which Basics measure is on view)
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function round(v) { return Math.round(v); }
+
+  // Derive each group's pass rates from the slider state.
+  function model() {
+    var size = +els.size.value;
+    var all4 = +els.all4.value;                       // all pupils 9-4 pass rate
+    var strongOfStd = +els.all5.value;                // strong pass as % of standard passers
+    var all5 = round(all4 * strongOfStd / 100);       // all pupils 9-5 pass rate
+
+    var disShare = +els.disShare.value;
+    var sendShare = +els.sendShare.value;
+    var disGap = +els.disGap.value;                   // dis 9-4 minus all 9-4
+    var sendGap = +els.sendGap.value;
+
+    var disN = round(size * disShare / 100);
+    var sendN = round(size * sendShare / 100);
+
+    var dis4 = clamp(all4 + disGap, 0, 100);
+    var send4 = clamp(all4 + sendGap, 0, 100);
+    // Assume strong-of-standard ratio is similar across groups (slightly lower for lower attainers).
+    var disStrongRatio = clamp(strongOfStd - 8, 0, 100);
+    var sendStrongRatio = clamp(strongOfStd - 14, 0, 100);
+    var dis5 = round(dis4 * disStrongRatio / 100);
+    var send5 = round(send4 * sendStrongRatio / 100);
+
+    return {
+      size: size, disN: disN, sendN: sendN,
+      all4: all4, all5: all5,
+      dis4: dis4, dis5: dis5,
+      send4: send4, send5: send5
+    };
+  }
+
+  function syncLabels(m) {
+    els.sizeVal.textContent = m.size + " pupils";
+    els.allN.textContent = m.size + " pupils";
+    els.all4Val.textContent = els.all4.value + "%";
+    els.all5Val.textContent = els.all5.value + "% of passers (≈ " + m.all5 + "% overall)";
+    els.disShareVal.textContent = els.disShare.value + "%";
+    els.sendShareVal.textContent = els.sendShare.value + "%";
+    els.disN.textContent = m.disN + " pupils";
+    els.sendN.textContent = m.sendN + " pupils";
+    var dg = +els.disGap.value, sg = +els.sendGap.value;
+    els.disGapVal.textContent = (dg > 0 ? "+" : "") + dg + " pts";
+    els.sendGapVal.textContent = (sg > 0 ? "+" : "") + sg + " pts";
+  }
+
+  function gapClass(gap) {
+    var g = Math.abs(gap);
+    if (g <= 10) return "good";
+    if (g <= 20) return "warn";
+    return "bad";
+  }
+
+  function makeBar(opts) {
+    // opts: name, sub, cls, pct, bench, gapText, gapCls
+    var benchPos = clamp(opts.bench, 0, 100);
+    var html = '<div class="bar-row">';
+    html += '<div class="bar-head"><span class="bar-name">' + opts.name +
+            (opts.sub ? '<small>' + opts.sub + '</small>' : '') +
+            '</span><span class="bar-pct">' + opts.pct + '%</span></div>';
+    html += '<div class="track" role="img" aria-label="' + opts.aria + '">';
+    html += '<div class="fill ' + opts.cls + '" style="width:' + clamp(opts.pct,0,100) + '%"></div>';
+    html += '<div class="bench-marker" style="left:' + benchPos + '%" data-lab="Nat ' + opts.bench + '%"></div>';
+    html += '</div>';
+    if (opts.gapText) {
+      html += '<span class="gap-tag ' + opts.gapCls + '">' + opts.gapText + '</span>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function render() {
+    var m = model();
+    syncLabels(m);
+
+    var key4 = measure === 4;
+    var bench = key4 ? BENCH.p4 : BENCH.p5;
+    var benchDisGap = key4 ? BENCH.disGap4 : BENCH.disGap5;
+
+    var allPct = key4 ? m.all4 : m.all5;
+    var disPct = key4 ? m.dis4 : m.dis5;
+    var sendPct = key4 ? m.send4 : m.send5;
+    var measName = key4 ? "Basics 9-4 (standard pass)" : "Basics 9-5 (strong pass)";
+
+    var disGap = disPct - allPct;       // negative means below all pupils
+    var sendGap = sendPct - allPct;
+
+    var html = "";
+    html += makeBar({
+      name: "All pupils", sub: "English and maths " + (key4 ? "9-4" : "9-5"),
+      cls: "all", pct: allPct, bench: bench, aria: "All pupils " + allPct + " percent, national benchmark " + bench + " percent"
+    });
+    html += makeBar({
+      name: "Disadvantaged", sub: m.disN + " pupils",
+      cls: "dis", pct: disPct, bench: bench,
+      gapText: "Gap vs all pupils: " + (disGap >= 0 ? "+" : "") + disGap + " pts",
+      gapCls: gapClass(disGap),
+      aria: "Disadvantaged pupils " + disPct + " percent, gap to all pupils " + disGap + " points"
+    });
+    html += makeBar({
+      name: "SEND", sub: m.sendN + " pupils",
+      cls: "send", pct: sendPct, bench: bench,
+      gapText: "Gap vs all pupils: " + (sendGap >= 0 ? "+" : "") + sendGap + " pts",
+      gapCls: gapClass(sendGap),
+      aria: "SEND pupils " + sendPct + " percent, gap to all pupils " + sendGap + " points"
+    });
+    els.bars.innerHTML = html;
+
+    // Feedback: targeted, specific.
+    var vsBench = allPct - bench;
+    var cls, head, points = [];
+
+    if (vsBench >= 3) { cls = "good"; head = "Above the national benchmark on " + measName + "."; }
+    else if (vsBench >= -3) { cls = "warn"; head = "Broadly in line with the national benchmark."; }
+    else { cls = "bad"; head = "Below the national benchmark on " + measName + "."; }
+
+    points.push("All pupils sit " + (vsBench >= 0 ? vsBench + " points above" : Math.abs(vsBench) + " points below") +
+                " the national figure of " + bench + "%.");
+
+    // Disadvantage commentary against the national gap.
+    var disGapAbs = Math.abs(disGap);
+    if (disGap >= 0) {
+      points.push("There is no disadvantage gap on this measure, which is unusual and worth checking the underlying numbers.");
+    } else if (disGapAbs <= benchDisGap - 4) {
+      points.push("The disadvantage gap of " + disGapAbs + " points is narrower than the national gap of about " + benchDisGap + " points: a relative strength.");
+    } else if (disGapAbs <= benchDisGap + 4) {
+      points.push("The disadvantage gap of " + disGapAbs + " points is close to the national gap of about " + benchDisGap + " points.");
+    } else {
+      points.push("The disadvantage gap of " + disGapAbs + " points is wider than the national gap of about " + benchDisGap + " points: a priority for the pupil premium strategy.");
+    }
+
+    // SEND commentary.
+    var sendGapAbs = Math.abs(sendGap);
+    if (sendGap >= 0) {
+      points.push("SEND pupils are matching or beating the whole cohort here.");
+    } else {
+      points.push("SEND pupils are " + sendGapAbs + " points below all pupils; with only " + m.sendN +
+                  " pupils, each one moves the SEND figure by about " + (m.sendN > 0 ? round(100 / m.sendN) : 0) + " points.");
+    }
+
+    // Small-number caution.
+    if (m.disN < 30 || m.sendN < 30) {
+      points.push("Caution: group sizes under 30 make these percentages volatile; one pupil can swing the rate sharply.");
+    }
+
+    // 9-5 vs 9-4 logic note.
+    if (!key4 && m.all5 > m.all4) {
+      points.push("Check the inputs: a strong-pass rate cannot exceed the standard-pass rate.");
+    }
+
+    var fh = '<h3>' + head + '</h3><ul>';
+    for (var i = 0; i < points.length; i++) fh += '<li>' + points[i] + '</li>';
+    fh += '</ul>';
+    els.feedback.className = "feedback " + cls;
+    els.feedback.innerHTML = fh;
+
+    // Challenge: all >= benchmark AND disadvantage gap <= 15 pts (on current measure).
+    var met = (allPct >= bench) && (disGapAbs <= 15) && (disGap < 0 || disGapAbs <= 15);
+    // allow non-negative dis gap as meeting the gap condition
+    if (disGap >= 0) met = (allPct >= bench);
+    else met = (allPct >= bench) && (disGapAbs <= 15);
+
+    if (met) {
+      els.chalStatus.className = "status met";
+      els.chalStatus.textContent = "Challenge met on " + measName + ". All pupils are at or above " + bench +
+        "% and the disadvantage gap is " + disGapAbs + " points (within 15).";
+    } else {
+      els.chalStatus.className = "status unmet";
+      var reasons = [];
+      if (allPct < bench) reasons.push("all-pupils rate is " + (bench - allPct) + " points short of " + bench + "%");
+      if (disGap < 0 && disGapAbs > 15) reasons.push("disadvantage gap is " + disGapAbs + " points, over the 15-point limit");
+      els.chalStatus.textContent = "Not met yet: " + (reasons.length ? reasons.join("; ") + "." : "keep adjusting.");
+    }
+  }
+
+  function setMeasure(n) {
+    measure = n;
+    var on4 = n === 4;
+    els.tab4.setAttribute("aria-selected", on4 ? "true" : "false");
+    els.tab5.setAttribute("aria-selected", on4 ? "false" : "true");
+    els.chalText.innerHTML = 'Set the cohort so that <strong>all pupils</strong> are at or above the national benchmark on the ' +
+      (on4 ? 'standard (9-4)' : 'strong (9-5)') + ' measure, while keeping the <strong>disadvantage gap</strong> no wider than 15 percentage points.';
+    render();
+  }
+
+  // Wire sliders.
+  ["size","all4","all5","disShare","disGap","sendShare","sendGap"].forEach(function (id) {
+    els[id].addEventListener("input", render);
+  });
+
+  // Measure tabs (click + keyboard).
+  els.tab4.addEventListener("click", function () { setMeasure(4); });
+  els.tab5.addEventListener("click", function () { setMeasure(5); });
+  [els.tab4, els.tab5].forEach(function (tab, idx) {
+    tab.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        var next = idx === 0 ? els.tab5 : els.tab4;
+        next.focus(); setMeasure(idx === 0 ? 5 : 4);
+      }
+    });
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Algebra Tiles Workbench</title>
+<style>
+  :root {
+    --ink: #1d2330;
+    --muted: #5a6678;
+    --line: #d8dee9;
+    --paper: #f4f6fa;
+    --card: #ffffff;
+    --accent: #2b5fb8;
+    --accent-soft: #e7eefb;
+    --good: #1f8a4c;
+    --good-soft: #e3f5ea;
+    --bad: #c0392b;
+    --bad-soft: #fbe7e4;
+    --warn: #b9770b;
+    --warn-soft: #fdf2dc;
+    /* tile colours */
+    --x2: #6c4ab6;       --x2d: #4f3490;
+    --x: #2b7a78;        --xd: #1f5a58;
+    --one: #d98b1e;      --oned: #b06f12;
+    --neg: #ffffff;      /* negatives = pale outline fill */
+    --shadow: 0 1px 2px rgba(20,30,50,.08), 0 6px 18px rgba(20,30,50,.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app { margin-bottom: 14px; }
+  h1 { font-size: clamp(1.4rem, 3.2vw, 2rem); margin: 0 0 4px; letter-spacing: -.01em; }
+  .aim {
+    background: var(--accent-soft);
+    border: 1px solid #cbdcf6;
+    border-left: 5px solid var(--accent);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: .95rem;
+    color: #25405f;
+    margin: 8px 0 6px;
+  }
+  .aim strong { color: var(--accent); }
+  .sub { color: var(--muted); font-size: .9rem; margin: 0 0 4px; }
+
+  .modebar {
+    display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 10px;
+  }
+  .modebar button {
+    flex: 1 1 150px;
+    font: inherit; font-size: .92rem; font-weight: 600;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink);
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform .06s, background .15s, border-color .15s;
+  }
+  .modebar button .tag { display:block; font-weight: 400; font-size: .76rem; color: var(--muted); margin-top: 2px; }
+  .modebar button[aria-pressed="true"] {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .modebar button[aria-pressed="true"] .tag { color: #dce8fb; }
+  .modebar button:active { transform: translateY(1px); }
+  .modebar button:focus-visible { outline: 3px solid #ffbf47; outline-offset: 2px; }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .panel h2 { font-size: 1.05rem; margin: 0 0 6px; }
+  .task {
+    font-size: .98rem; margin: 0 0 10px; color: #2a3344;
+  }
+  .task code, .expr-mono {
+    font-family: "Cascadia Code", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    background: #f0f3f9; padding: 1px 6px; border-radius: 6px;
+  }
+
+  /* Tray of source tiles */
+  .tray {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    padding: 10px; border: 1px dashed var(--line); border-radius: 10px;
+    background: #fbfcfe; margin-bottom: 12px;
+  }
+  .tray .lbl { font-size: .8rem; color: var(--muted); width: 100%; margin-bottom: 2px; }
+
+  /* A tile */
+  .tile {
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; color: #fff;
+    border-radius: 8px;
+    border: 2px solid rgba(0,0,0,.18);
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,.18);
+    font-size: .95rem;
+  }
+  .tile:focus-visible { outline: 3px solid #ffbf47; outline-offset: 2px; }
+  .tile.dragging { opacity: .85; cursor: grabbing; z-index: 50; }
+  .tile.x2  { width: 78px; height: 78px; background: var(--x2);  border-color: var(--x2d); }
+  .tile.x   { width: 78px; height: 30px; background: var(--x);   border-color: var(--xd); }
+  .tile.one { width: 30px; height: 30px; background: var(--one); border-color: var(--oned); }
+  /* negatives: pale fill, coloured outline + minus motif */
+  .tile.neg { color: #1d2330; background: #fff; border-style: dashed; border-width: 2px; }
+  .tile.neg.x2  { border-color: var(--x2);  }
+  .tile.neg.x   { border-color: var(--x);   }
+  .tile.neg.one { border-color: var(--one); }
+  .tile .sign { font-size: 1rem; }
+
+  /* Workbench drop area */
+  .bench {
+    position: relative;
+    min-height: 230px;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    background:
+      linear-gradient(#eef2f8 1px, transparent 1px) 0 0 / 100% 26px,
+      #fbfcfe;
+    padding: 12px;
+    overflow: hidden;
+    touch-action: none;
+  }
+  .bench.over { border-color: var(--accent); background-color: var(--accent-soft); }
+  .bench .grouphint {
+    position: absolute; top: 8px; right: 12px;
+    font-size: .78rem; color: var(--muted);
+  }
+  .bench .placed { position: absolute; }
+
+  /* Bracket / region overlays for expand & factorise */
+  .region {
+    position: absolute; border: 2px dashed #b9c6dd; border-radius: 8px;
+    pointer-events: none;
+    font-size: .78rem; color: var(--muted);
+  }
+  .region .rlabel {
+    position: absolute; top: -10px; left: 8px; background: var(--card);
+    padding: 0 6px; font-weight: 600; color: #3a4a63;
+  }
+
+  .live-expr {
+    margin-top: 12px;
+    background: #0f1726; color: #eaf1ff;
+    border-radius: 10px; padding: 12px 14px;
+    font-family: "Cascadia Code", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: clamp(1.05rem, 3vw, 1.35rem);
+    letter-spacing: .02em;
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 2px;
+    min-height: 30px;
+  }
+  .live-expr .eq { color: #8fd0ff; }
+  .live-expr .zero { color: #7fe0a8; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .btn {
+    font: inherit; font-weight: 600; font-size: .9rem;
+    padding: 9px 14px; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    box-shadow: var(--shadow); transition: transform .06s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 3px solid #ffbf47; outline-offset: 2px; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.good { background: var(--good); border-color: var(--good); color: #fff; }
+  .btn.ghost { background: transparent; }
+
+  .feedback {
+    margin-top: 12px; border-radius: 10px; padding: 11px 14px;
+    font-size: .95rem; border: 1px solid var(--line); background: #fbfcfe;
+    min-height: 22px;
+  }
+  .feedback.good { background: var(--good-soft); border-color: #b6e3c6; color: #14622f; }
+  .feedback.bad  { background: var(--bad-soft);  border-color: #f0c0b9; color: #8c281c; }
+  .feedback.warn { background: var(--warn-soft);  border-color: #f0d79a; color: #7a4f06; }
+  .feedback b { font-weight: 700; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0 2px; font-size: .82rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 16px; height: 16px; border-radius: 4px; border: 2px solid rgba(0,0,0,.18); display: inline-block; }
+  .sw-x2 { background: var(--x2); border-color: var(--x2d); }
+  .sw-x { background: var(--x); border-color: var(--xd); width: 22px; height: 12px; }
+  .sw-one { background: var(--one); border-color: var(--oned); }
+  .sw-neg { background: #fff; border-style: dashed; }
+
+  .help { font-size: .85rem; color: var(--muted); margin-top: 10px; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; font-weight: 600; color: var(--accent); font-size: .9rem; }
+  details ul { margin: 8px 0 0; padding-left: 20px; font-size: .88rem; color: #3a4458; }
+  .balrow { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom: 8px; }
+
+  footer.app { color: var(--muted); font-size: .8rem; text-align: center; margin-top: 24px; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .kbd { font-size: .75rem; background:#eef2f8; border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-family: ui-monospace, monospace;}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <h1>Algebra Tiles Workbench</h1>
+    <p class="sub">Maths &middot; Key Stage 3 &middot; Algebra: notation, collecting like terms, brackets, equations</p>
+    <div class="aim">
+      <strong>Teacher aim:</strong> pupils build and rearrange algebra tiles so the symbolic expression updates live, making
+      <em>collecting like terms</em>, <em>expanding single brackets</em>, <em>factorising</em> and <em>solving linear equations</em> visible and concrete.
+    </div>
+  </header>
+
+  <nav class="modebar" aria-label="Choose a task">
+    <button id="m-collect" aria-pressed="true">Collect like terms <span class="tag">drag &amp; simplify</span></button>
+    <button id="m-expand" aria-pressed="false">Expand brackets <span class="tag">a(b + c)</span></button>
+    <button id="m-factorise" aria-pressed="false">Factorise <span class="tag">find the common factor</span></button>
+    <button id="m-solve" aria-pressed="false">Solve equation <span class="tag">keep the balance</span></button>
+  </nav>
+
+  <section class="panel" id="taskPanel">
+    <h2 id="taskTitle">Collect like terms</h2>
+    <p class="task" id="taskText"></p>
+
+    <div class="tray" id="tray" aria-label="Tile tray. Drag a tile onto the workbench, or press Enter on a tile to add a copy.">
+      <span class="lbl">Tile tray (drag onto the workbench, or focus a tile and press <span class="kbd">Enter</span>)</span>
+    </div>
+
+    <div class="legend" aria-hidden="false">
+      <span><i class="swatch sw-x2"></i> x&sup2;</span>
+      <span><i class="swatch sw-x"></i> x</span>
+      <span><i class="swatch sw-one"></i> unit (1)</span>
+      <span><i class="swatch sw-neg"></i> dashed outline = negative</span>
+    </div>
+
+    <div class="bench" id="bench" tabindex="0"
+         role="application"
+         aria-label="Algebra tiles workbench. Tiles dropped here are counted into the expression below.">
+      <span class="grouphint" id="groupHint"></span>
+    </div>
+
+    <div class="live-expr" id="liveExpr" aria-live="polite" aria-atomic="true">
+      <span style="opacity:.6">empty</span>
+    </div>
+
+    <div class="controls" id="controls"></div>
+
+    <div class="feedback" id="feedback" role="status" aria-live="polite">Add tiles to begin.</div>
+
+    <p class="help" id="help"></p>
+
+    <details>
+      <summary>How algebra tiles work</summary>
+      <ul>
+        <li>A large square is <b>x&sup2;</b>, a long rectangle is <b>x</b>, a small square is <b>1</b>. Each has its own colour.</li>
+        <li>A <b>dashed</b> tile is the negative of that piece. A solid tile and the matching dashed tile make a <b>zero pair</b>: they cancel.</li>
+        <li>You can only add together tiles of the <b>same kind</b> (like terms). Different shapes stay separate.</li>
+        <li>To <b>expand</b> a(b + c) you tile out a rows of (b + c). To <b>factorise</b> you arrange all tiles into one tidy rectangle and read off its side lengths.</li>
+      </ul>
+    </details>
+  </section>
+
+  <footer class="app">
+    Algebra Tiles Workbench &middot; demonstration tool for WeST &middot; UK National Curriculum, Key Stage 3 Algebra.
+  </footer>
+</div>
+
+<script>
+"use strict";
+(function () {
+  /* ---------- model ---------- */
+  // A placed tile: { id, kind:'x2'|'x'|'one', neg:bool, x, y, el }
+  var tiles = [];
+  var nextId = 1;
+  var mode = "collect";
+  var dragState = null;
+  var bench = document.getElementById("bench");
+  var tray = document.getElementById("tray");
+  var liveExpr = document.getElementById("liveExpr");
+  var feedback = document.getElementById("feedback");
+  var controls = document.getElementById("controls");
+  var taskTitle = document.getElementById("taskTitle");
+  var taskText = document.getElementById("taskText");
+  var helpEl = document.getElementById("help");
+  var groupHint = document.getElementById("groupHint");
+
+  var KIND = {
+    x2:  { cls: "x2",  w: 78, h: 78, label: "x squared" },
+    x:   { cls: "x",   w: 78, h: 30, label: "x" },
+    one: { cls: "one", w: 30, h: 30, label: "one" }
+  };
+
+  /* ---------- tile factory ---------- */
+  function tileFace(kind, neg) {
+    if (kind === "x2") return neg ? "&minus;x&sup2;" : "x&sup2;";
+    if (kind === "x")  return neg ? "&minus;x" : "x";
+    return neg ? "&minus;1" : "1";
+  }
+
+  function makeTileEl(kind, neg) {
+    var d = document.createElement("div");
+    d.className = "tile " + KIND[kind].cls + (neg ? " neg" : "");
+    d.innerHTML = "<span class='face'>" + tileFace(kind, neg) + "</span>";
+    d.setAttribute("role", "img");
+    d.setAttribute("aria-label", (neg ? "negative " : "positive ") + KIND[kind].label + " tile");
+    return d;
+  }
+
+  /* ---------- tray (source tiles) ---------- */
+  function buildTray(specs) {
+    // keep the label
+    var label = tray.querySelector(".lbl");
+    tray.innerHTML = "";
+    tray.appendChild(label);
+    specs.forEach(function (s) {
+      var el = makeTileEl(s.kind, s.neg);
+      el.classList.add("source");
+      el.setAttribute("tabindex", "0");
+      el.dataset.kind = s.kind;
+      el.dataset.neg = s.neg ? "1" : "0";
+      el.title = "Drag onto the workbench, or press Enter to add a copy";
+      // keyboard: Enter / Space adds a copy
+      el.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          addTileToBench(s.kind, s.neg, null, null, true);
+        }
+      });
+      el.addEventListener("pointerdown", function (e) { startDragFromSource(e, s.kind, s.neg, el); });
+      tray.appendChild(el);
+    });
+  }
+
+  /* ---------- placement ---------- */
+  function addTileToBench(kind, neg, px, py, announce) {
+    var benchRect = bench.getBoundingClientRect();
+    var k = KIND[kind];
+    var x, y;
+    if (px == null) {
+      // auto-place: tidy flow by kind
+      var n = tiles.filter(function (t) { return t.kind === kind; }).length;
+      var col = n % 6;
+      var rowBase = kind === "x2" ? 14 : (kind === "x" ? 110 : 160);
+      x = 14 + col * (k.w + 10);
+      y = rowBase + Math.floor(n / 6) * (k.h + 10);
+    } else {
+      x = px; y = py;
+    }
+    x = Math.max(2, Math.min(x, benchRect.width - k.w - 2));
+    y = Math.max(2, Math.min(y, benchRect.height - k.h - 2));
+
+    var el = makeTileEl(kind, neg);
+    el.classList.add("placed");
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+    el.setAttribute("tabindex", "0");
+    var rec = { id: nextId++, kind: kind, neg: neg, x: x, y: y, el: el };
+    el.dataset.id = rec.id;
+
+    el.addEventListener("pointerdown", function (e) { startDragPlaced(e, rec); });
+    el.addEventListener("keydown", function (e) { onPlacedKey(e, rec); });
+    el.addEventListener("dblclick", function () { removeTile(rec); checkZeroPairs(); refresh(); });
+
+    bench.appendChild(el);
+    tiles.push(rec);
+    refresh();
+    if (announce) say("Added " + (neg ? "negative " : "") + KIND[kind].label + ". Drag to move, double click or press Delete to remove.");
+  }
+
+  function removeTile(rec) {
+    var i = tiles.indexOf(rec);
+    if (i >= 0) tiles.splice(i, 1);
+    if (rec.el && rec.el.parentNode) rec.el.parentNode.removeChild(rec.el);
+  }
+
+  function onPlacedKey(e, rec) {
+    var step = 12;
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      var idx = tiles.indexOf(rec);
+      removeTile(rec); checkZeroPairs(); refresh();
+      // move focus to a neighbour or bench
+      var next = tiles[idx] || tiles[idx - 1];
+      (next ? next.el : bench).focus();
+      say("Removed tile.");
+      return;
+    }
+    var moved = true;
+    if (e.key === "ArrowLeft") rec.x -= step;
+    else if (e.key === "ArrowRight") rec.x += step;
+    else if (e.key === "ArrowUp") rec.y -= step;
+    else if (e.key === "ArrowDown") rec.y += step;
+    else moved = false;
+    if (moved) {
+      e.preventDefault();
+      var b = bench.getBoundingClientRect();
+      var k = KIND[rec.kind];
+      rec.x = Math.max(2, Math.min(rec.x, b.width - k.w - 2));
+      rec.y = Math.max(2, Math.min(rec.y, b.height - k.h - 2));
+      rec.el.style.left = rec.x + "px";
+      rec.el.style.top = rec.y + "px";
+      checkZeroPairs();
+      refresh();
+    }
+  }
+
+  /* ---------- dragging (Pointer Events) ---------- */
+  function startDragFromSource(e, kind, neg, srcEl) {
+    e.preventDefault();
+    var k = KIND[kind];
+    // create a floating clone that will become a placed tile on drop
+    var ghost = makeTileEl(kind, neg);
+    ghost.classList.add("dragging");
+    ghost.style.position = "fixed";
+    ghost.style.pointerEvents = "none";
+    ghost.style.left = (e.clientX - k.w / 2) + "px";
+    ghost.style.top = (e.clientY - k.h / 2) + "px";
+    document.body.appendChild(ghost);
+    dragState = { type: "source", kind: kind, neg: neg, ghost: ghost, k: k, offx: k.w / 2, offy: k.h / 2 };
+    try { srcEl.setPointerCapture(e.pointerId); } catch (err) {}
+    dragState.captureEl = srcEl;
+    dragState.pointerId = e.pointerId;
+    attachWindowDrag();
+  }
+
+  function startDragPlaced(e, rec) {
+    e.preventDefault();
+    var k = KIND[rec.kind];
+    var rect = rec.el.getBoundingClientRect();
+    rec.el.classList.add("dragging");
+    dragState = {
+      type: "placed", rec: rec, k: k,
+      offx: e.clientX - rect.left, offy: e.clientY - rect.top
+    };
+    try { rec.el.setPointerCapture(e.pointerId); } catch (err) {}
+    dragState.captureEl = rec.el;
+    dragState.pointerId = e.pointerId;
+    attachWindowDrag();
+  }
+
+  function attachWindowDrag() {
+    window.addEventListener("pointermove", onDragMove);
+    window.addEventListener("pointerup", onDragEnd);
+    window.addEventListener("pointercancel", onDragEnd);
+  }
+  function detachWindowDrag() {
+    window.removeEventListener("pointermove", onDragMove);
+    window.removeEventListener("pointerup", onDragEnd);
+    window.removeEventListener("pointercancel", onDragEnd);
+  }
+
+  function onDragMove(e) {
+    if (!dragState) return;
+    var benchRect = bench.getBoundingClientRect();
+    var inside = e.clientX >= benchRect.left && e.clientX <= benchRect.right &&
+                 e.clientY >= benchRect.top && e.clientY <= benchRect.bottom;
+    bench.classList.toggle("over", inside);
+    if (dragState.type === "source") {
+      dragState.ghost.style.left = (e.clientX - dragState.offx) + "px";
+      dragState.ghost.style.top = (e.clientY - dragState.offy) + "px";
+    } else {
+      var rec = dragState.rec;
+      var x = e.clientX - benchRect.left - dragState.offx;
+      var y = e.clientY - benchRect.top - dragState.offy;
+      rec.el.style.left = x + "px";
+      rec.el.style.top = y + "px";
+    }
+  }
+
+  function onDragEnd(e) {
+    if (!dragState) return;
+    var benchRect = bench.getBoundingClientRect();
+    var inside = e.clientX >= benchRect.left && e.clientX <= benchRect.right &&
+                 e.clientY >= benchRect.top && e.clientY <= benchRect.bottom;
+    bench.classList.remove("over");
+
+    if (dragState.type === "source") {
+      if (dragState.ghost.parentNode) dragState.ghost.parentNode.removeChild(dragState.ghost);
+      if (inside) {
+        var x = e.clientX - benchRect.left - dragState.offx;
+        var y = e.clientY - benchRect.top - dragState.offy;
+        addTileToBench(dragState.kind, dragState.neg, x, y, false);
+      }
+    } else {
+      var rec = dragState.rec;
+      rec.el.classList.remove("dragging");
+      if (!inside) {
+        // dropped outside: remove it
+        removeTile(rec);
+      } else {
+        var nx = parseFloat(rec.el.style.left) || rec.x;
+        var ny = parseFloat(rec.el.style.top) || rec.y;
+        var k = KIND[rec.kind];
+        rec.x = Math.max(2, Math.min(nx, benchRect.width - k.w - 2));
+        rec.y = Math.max(2, Math.min(ny, benchRect.height - k.h - 2));
+        rec.el.style.left = rec.x + "px";
+        rec.el.style.top = rec.y + "px";
+      }
+      checkZeroPairs();
+    }
+    try { if (dragState.captureEl) dragState.captureEl.releasePointerCapture(dragState.pointerId); } catch (err) {}
+    dragState = null;
+    detachWindowDrag();
+    refresh();
+  }
+
+  /* ---------- zero pairs: a positive and negative of same kind overlapping cancel ---------- */
+  function checkZeroPairs() {
+    // when a tile overlaps a tile of same kind & opposite sign, remove both
+    var removed = false;
+    outer:
+    for (var i = 0; i < tiles.length; i++) {
+      for (var j = i + 1; j < tiles.length; j++) {
+        var a = tiles[i], b = tiles[j];
+        if (a.kind === b.kind && a.neg !== b.neg) {
+          var k = KIND[a.kind];
+          // overlap test (centres within tile size)
+          var dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y);
+          if (dx < k.w * 0.6 && dy < k.h * 0.6) {
+            flashZero(a); flashZero(b);
+            removeTile(a); removeTile(b);
+            removed = true;
+            say("Zero pair cancelled: " + KIND[a.kind].label + " and negative " + KIND[a.kind].label + " make zero.");
+            break outer;
+          }
+        }
+      }
+    }
+    if (removed) { setTimeout(checkZeroPairs, 0); }
+  }
+  function flashZero(rec) {
+    rec.el.style.transition = "transform .15s, opacity .15s";
+    rec.el.style.transform = "scale(1.25)";
+    rec.el.style.opacity = "0";
+  }
+
+  /* ---------- counting & expression ---------- */
+  function counts() {
+    var c = { x2: 0, x: 0, one: 0 };
+    tiles.forEach(function (t) { c[t.kind] += (t.neg ? -1 : 1); });
+    return c;
+  }
+
+  function termStr(coef, sym, first) {
+    // returns object {sign, body}
+    if (coef === 0) return null;
+    var sign = coef < 0 ? "-" : "+";
+    var mag = Math.abs(coef);
+    var body;
+    if (sym === "") body = String(mag);            // constant
+    else body = (mag === 1 ? "" : String(mag)) + sym;
+    return { sign: sign, body: body };
+  }
+
+  function exprFromCounts(c) {
+    var parts = [];
+    var order = [["x2", "x²"], ["x", "x"], ["one", ""]];
+    order.forEach(function (o) {
+      var t = termStr(c[o[0]], o[1]);
+      if (t) parts.push(t);
+    });
+    return parts;
+  }
+
+  function renderExpr(parts) {
+    if (!parts.length) {
+      liveExpr.innerHTML = "<span class='zero'>0</span>";
+      return "0";
+    }
+    var html = "";
+    var plain = "";
+    parts.forEach(function (p, i) {
+      if (i === 0) {
+        html += (p.sign === "-" ? "&minus;" : "") + p.body;
+        plain += (p.sign === "-" ? "-" : "") + p.body;
+      } else {
+        html += " " + (p.sign === "-" ? "&minus;" : "+") + " " + p.body;
+        plain += " " + p.sign + " " + p.body;
+      }
+    });
+    liveExpr.innerHTML = html;
+    return plain;
+  }
+
+  /* ---------- modes ---------- */
+  var modeButtons = {
+    collect: document.getElementById("m-collect"),
+    expand: document.getElementById("m-expand"),
+    factorise: document.getElementById("m-factorise"),
+    solve: document.getElementById("m-solve")
+  };
+  Object.keys(modeButtons).forEach(function (key) {
+    modeButtons[key].addEventListener("click", function () { setMode(key); });
+  });
+
+  // current target / problem per mode
+  var problem = null;
+
+  function setMode(m) {
+    mode = m;
+    Object.keys(modeButtons).forEach(function (k) {
+      modeButtons[k].setAttribute("aria-pressed", k === m ? "true" : "false");
+    });
+    clearBench();
+    clearRegions();
+    if (m === "collect") setupCollect();
+    else if (m === "expand") setupExpand();
+    else if (m === "factorise") setupFactorise();
+    else if (m === "solve") setupSolve();
+  }
+
+  function clearBench() {
+    tiles.slice().forEach(removeTile);
+    tiles = [];
+    groupHint.textContent = "";
+  }
+  function clearRegions() {
+    Array.prototype.slice.call(bench.querySelectorAll(".region")).forEach(function (r) { r.remove(); });
+  }
+
+  function setControls(buttons) {
+    controls.innerHTML = "";
+    buttons.forEach(function (b) {
+      var el = document.createElement("button");
+      el.className = "btn " + (b.cls || "");
+      el.textContent = b.label;
+      el.addEventListener("click", b.onClick);
+      if (b.id) el.id = b.id;
+      controls.appendChild(el);
+    });
+  }
+
+  function setFeedback(text, cls) {
+    feedback.className = "feedback" + (cls ? " " + cls : "");
+    feedback.innerHTML = text;
+  }
+
+  /* ===== MODE 1: COLLECT LIKE TERMS ===== */
+  var collectBank = [
+    { expr: "3x + 2 + 2x + 4", target: { x2: 0, x: 5, one: 6 }, pretty: "3x + 2 + 2x + 4", ans: "5x + 6" },
+    { expr: "4x + 5 − x − 2", target: { x2: 0, x: 3, one: 3 }, pretty: "4x + 5 − x − 2", ans: "3x + 3" },
+    { expr: "2x² + 3x + x² + 1", target: { x2: 3, x: 3, one: 1 }, pretty: "2x² + 3x + x² + 1", ans: "3x² + 3x + 1" },
+    { expr: "5x − 2 − 3x + 6", target: { x2: 0, x: 2, one: 4 }, pretty: "5x − 2 − 3x + 6", ans: "2x + 4" }
+  ];
+  var collectIdx = 0;
+
+  function setupCollect() {
+    taskTitle.textContent = "Collect like terms";
+    problem = collectBank[collectIdx % collectBank.length];
+    taskText.innerHTML = "Build the expression <code>" + problem.pretty + "</code> using tiles, then drag matching tiles together. The live expression simplifies as you cancel and group. Aim for the simplest form.";
+    helpEl.innerHTML = "Tip: drag a <b>+x</b> tile onto a <b>dashed &minus;x</b> tile to make a zero pair. Like terms have the same colour and shape.";
+    buildTray([
+      { kind: "x2", neg: false }, { kind: "x", neg: false }, { kind: "one", neg: false },
+      { kind: "x2", neg: true }, { kind: "x", neg: true }, { kind: "one", neg: true }
+    ]);
+    setControls([
+      { label: "Check my answer", cls: "primary", onClick: checkCollect },
+      { label: "Build it for me", cls: "ghost", onClick: function () { buildCollectStart(); } },
+      { label: "Next problem", cls: "good", onClick: function () { collectIdx++; setupCollect(); } }
+    ]);
+    setFeedback("Drag tiles to match <b>" + problem.pretty + "</b>, then simplify by forming zero pairs.", "");
+    groupHint.textContent = "x² top, x middle, units below";
+    refresh();
+  }
+
+  function buildCollectStart() {
+    clearBench();
+    // build the raw, un-simplified version to show what to model
+    var raw = problem.expr;
+    // place tiles per parsed terms (use target plus the cancelling pairs implied by the pretty string)
+    // simplest: just place the target counts, but spread sign so pupils see grouped form
+    placeCounts(problem.target);
+    setFeedback("Here is one correct collected form. Notice like terms grouped together. Press <b>Check my answer</b> to confirm.", "warn");
+  }
+
+  function checkCollect() {
+    var c = counts();
+    var t = problem.target;
+    if (c.x2 === t.x2 && c.x === t.x && c.one === t.one) {
+      setFeedback("Correct. <b>" + problem.pretty + " = " + problem.ans + "</b>. You collected " +
+        describeCounts(t) + ". Like terms have been combined into one of each kind.", "good");
+      say("Correct. The simplified expression is " + problem.ans);
+    } else {
+      var msg = "Not simplified yet. ";
+      msg += diffHint(c, t);
+      setFeedback(msg, "bad");
+    }
+  }
+
+  function describeCounts(c) {
+    var bits = [];
+    if (c.x2) bits.push(c.x2 + " of x squared");
+    if (c.x) bits.push(c.x + " of x");
+    if (c.one) bits.push(c.one + " unit" + (Math.abs(c.one) === 1 ? "" : "s"));
+    return bits.join(", ") || "nothing";
+  }
+
+  function diffHint(c, t) {
+    var parts = [];
+    [["x2", "x²"], ["x", "x"], ["one", "units"]].forEach(function (o) {
+      var have = c[o[0]], need = t[o[0]];
+      if (have !== need) {
+        var d = need - have;
+        parts.push("you have <b>" + have + "</b> of " + o[1] + " but need <b>" + need + "</b> (" +
+          (d > 0 ? "add " + d : "remove " + (-d)) + ")");
+      }
+    });
+    if (!parts.length) return "Counts match: try pressing Check again.";
+    return "Compare with " + problem.ans + ": " + parts.join("; ") + ".";
+  }
+
+  /* ===== MODE 2: EXPAND BRACKETS ===== */
+  var expandBank = [
+    { a: 3, b: 1, c: 2, str: "3(x + 2)", ans: "3x + 6", target: { x2: 0, x: 3, one: 6 } },
+    { a: 2, b: 1, c: 3, str: "2(x + 3)", ans: "2x + 6", target: { x2: 0, x: 2, one: 6 } },
+    { a: 4, b: 1, c: 1, str: "4(x + 1)", ans: "4x + 4", target: { x2: 0, x: 4, one: 4 } },
+    { a: 2, b: 2, c: 1, str: "2(2x + 1)", ans: "4x + 2", target: { x2: 0, x: 4, one: 2 } }
+  ];
+  var expandIdx = 0;
+
+  function setupExpand() {
+    taskTitle.textContent = "Expand single brackets";
+    problem = expandBank[expandIdx % expandBank.length];
+    taskText.innerHTML = "Expand <code>" + problem.str + "</code>. Lay out <b>" + problem.a + "</b> rows, each holding what is inside the bracket. Every term inside is multiplied by the number outside.";
+    helpEl.innerHTML = "Each row models one lot of the bracket. " + problem.a + " rows means each inside term appears " + problem.a + " times.";
+    buildTray([
+      { kind: "x", neg: false }, { kind: "one", neg: false }
+    ]);
+    setControls([
+      { label: "Check expansion", cls: "primary", onClick: checkExpand },
+      { label: "Show the array", cls: "ghost", onClick: showExpandArray },
+      { label: "Next problem", cls: "good", onClick: function () { expandIdx++; setupExpand(); } }
+    ]);
+    drawExpandRegions();
+    setFeedback("Fill " + problem.a + " rows, each with " + insideDesc(problem) + ". The expression updates as you go.", "");
+    groupHint.textContent = problem.a + " rows of (" + insideDesc(problem) + ")";
+    refresh();
+  }
+
+  function insideDesc(p) {
+    var bits = [];
+    if (p.b) bits.push((p.b === 1 ? "" : p.b) + "x");
+    if (p.c) bits.push(p.c + " unit" + (p.c === 1 ? "" : "s"));
+    return bits.join(" and ");
+  }
+
+  function drawExpandRegions() {
+    clearRegions();
+    var p = problem;
+    var rowH = 36, top = 16, left = 14;
+    var rowW = p.b * 84 + p.c * 36 + 16;
+    for (var r = 0; r < p.a; r++) {
+      var reg = document.createElement("div");
+      reg.className = "region";
+      reg.style.left = left + "px";
+      reg.style.top = (top + r * (rowH + 6)) + "px";
+      reg.style.width = Math.min(rowW, bench.clientWidth - left - 8) + "px";
+      reg.style.height = rowH + "px";
+      reg.innerHTML = "<span class='rlabel'>row " + (r + 1) + "</span>";
+      bench.appendChild(reg);
+    }
+  }
+
+  function showExpandArray() {
+    clearBench();
+    drawExpandRegions();
+    var p = problem;
+    var rowH = 36, top = 16, left = 14;
+    for (var r = 0; r < p.a; r++) {
+      var x = left + 6;
+      for (var i = 0; i < p.b; i++) { placeAt("x", false, x, top + r * (rowH + 6) + 3); x += 84; }
+      for (var j = 0; j < p.c; j++) { placeAt("one", false, x, top + r * (rowH + 6) + 3); x += 36; }
+    }
+    setFeedback("There it is: " + p.a + " rows of (" + insideDesc(p) + ") gives <b>" + p.ans + "</b>. Count down the columns to see each inside term appears " + p.a + " times.", "warn");
+    refresh();
+  }
+
+  function checkExpand() {
+    var c = counts();
+    var t = problem.target;
+    if (c.x2 === t.x2 && c.x === t.x && c.one === t.one) {
+      setFeedback("Correct. <b>" + problem.str + " = " + problem.ans + "</b>. Multiplying out, " +
+        problem.a + " &times; " + insideDesc(problem) + " gives " + problem.ans + ".", "good");
+      say("Correct. " + problem.str + " expands to " + problem.ans);
+    } else {
+      setFeedback("Not yet. " + diffHintExpand(c, t), "bad");
+    }
+  }
+  function diffHintExpand(c, t) {
+    var parts = [];
+    [["x", "x"], ["one", "units"]].forEach(function (o) {
+      if (c[o[0]] !== t[o[0]]) {
+        var d = t[o[0]] - c[o[0]];
+        parts.push("of " + o[1] + " you have <b>" + c[o[0]] + "</b>, need <b>" + t[o[0]] + "</b> (" + (d > 0 ? "add " + d : "remove " + (-d)) + ")");
+      }
+    });
+    return "Remember: multiply <b>each</b> inside term by " + problem.a + ". " + parts.join("; ") + ".";
+  }
+
+  /* ===== MODE 3: FACTORISE ===== */
+  var factBank = [
+    { hcf: 3, inX: 1, inOne: 2, str: "3x + 6", ans: "3(x + 2)", target: { x2: 0, x: 3, one: 6 } },
+    { hcf: 2, inX: 1, inOne: 4, str: "2x + 8", ans: "2(x + 4)", target: { x2: 0, x: 2, one: 8 } },
+    { hcf: 4, inX: 1, inOne: 1, str: "4x + 4", ans: "4(x + 1)", target: { x2: 0, x: 4, one: 4 } },
+    { hcf: 2, inX: 2, inOne: 3, str: "4x + 6", ans: "2(2x + 3)", target: { x2: 0, x: 4, one: 6 } }
+  ];
+  var factIdx = 0;
+
+  function setupFactorise() {
+    taskTitle.textContent = "Factorise";
+    problem = factBank[factIdx % factBank.length];
+    taskText.innerHTML = "Factorise <code>" + problem.str + "</code>. Arrange all the tiles into one tidy rectangle of <b>" + problem.hcf + "</b> equal rows. Each row is the bracket; the number of rows is the factor outside.";
+    helpEl.innerHTML = "The factorised form is the side lengths of the rectangle. " + problem.hcf + " identical rows means a common factor of " + problem.hcf + ".";
+    buildTray([
+      { kind: "x", neg: false }, { kind: "one", neg: false }
+    ]);
+    // pre-load the tiles so pupils only have to arrange them
+    placeCountsScatter(problem.target);
+    setControls([
+      { label: "Check rectangle", cls: "primary", onClick: checkFactorise },
+      { label: "Reveal grouping", cls: "ghost", onClick: showFactorArray },
+      { label: "Next problem", cls: "good", onClick: function () { factIdx++; setupFactorise(); } }
+    ]);
+    setFeedback("All " + (problem.target.x + problem.target.one) + " tiles for " + problem.str + " are on the bench. Arrange them into " + problem.hcf + " equal rows.", "");
+    groupHint.textContent = "make " + problem.hcf + " equal rows";
+    refresh();
+  }
+
+  function showFactorArray() {
+    clearBench();
+    var p = problem;
+    var rowH = 36, top = 18, left = 14;
+    for (var r = 0; r < p.hcf; r++) {
+      var x = left + 6;
+      for (var i = 0; i < p.inX; i++) { placeAt("x", false, x, top + r * (rowH + 6)); x += 84; }
+      for (var j = 0; j < p.inOne; j++) { placeAt("one", false, x, top + r * (rowH + 6)); x += 36; }
+    }
+    // overlay region showing the rectangle
+    clearRegions();
+    var reg = document.createElement("div");
+    reg.className = "region";
+    reg.style.left = (left) + "px"; reg.style.top = (top - 2) + "px";
+    reg.style.width = Math.min(p.inX * 84 + p.inOne * 36 + 16, bench.clientWidth - left - 8) + "px";
+    reg.style.height = (p.hcf * (rowH + 6)) + "px";
+    reg.innerHTML = "<span class='rlabel'>" + p.hcf + " rows of (" + (p.inX === 1 ? "" : p.inX) + "x + " + p.inOne + ")</span>";
+    bench.appendChild(reg);
+    setFeedback("Grouped: <b>" + p.hcf + "</b> equal rows, each (" + (p.inX === 1 ? "" : p.inX) + "x + " + p.inOne + "). So " + p.str + " = <b>" + p.ans + "</b>.", "warn");
+    refresh();
+  }
+
+  function checkFactorise() {
+    // verify tiles still match target (pupil may have removed some)
+    var c = counts();
+    var t = problem.target;
+    if (c.x2 !== t.x2 || c.x !== t.x || c.one !== t.one) {
+      setFeedback("The tiles no longer match " + problem.str + ". You have " + describeCounts(c) + ". Press Reveal grouping to reset, or rebuild.", "bad");
+      return;
+    }
+    // detect rows: cluster placed tiles by y
+    var rows = clusterRows();
+    if (rows.length === problem.hcf && rowsEqual(rows)) {
+      setFeedback("Correct. You made <b>" + problem.hcf + "</b> equal rows of (" +
+        (problem.inX === 1 ? "" : problem.inX) + "x + " + problem.inOne + "). So <b>" + problem.str + " = " + problem.ans + "</b>. The common factor is " + problem.hcf + ".", "good");
+      say("Correct. " + problem.str + " factorises to " + problem.ans);
+    } else {
+      var hint = "Aim for exactly <b>" + problem.hcf + "</b> rows, each identical. ";
+      if (rows.length !== problem.hcf) hint += "I count <b>" + rows.length + "</b> rows right now: line tiles up so there are " + problem.hcf + ". ";
+      else hint += "Your rows are not all the same: each should have " + (problem.inX === 1 ? "an" : problem.inX) + " x and " + problem.inOne + " units. ";
+      hint += "Try Reveal grouping if you are stuck.";
+      setFeedback(hint, "warn");
+    }
+  }
+
+  function clusterRows() {
+    // group placed tiles by approximate y (row band of 42px)
+    var sorted = tiles.slice().sort(function (a, b) { return a.y - b.y; });
+    var rows = [];
+    sorted.forEach(function (t) {
+      var placed = false;
+      for (var i = 0; i < rows.length; i++) {
+        if (Math.abs(rows[i].y - t.y) < 26) { rows[i].items.push(t); placed = true; break; }
+      }
+      if (!placed) rows.push({ y: t.y, items: [t] });
+    });
+    return rows;
+  }
+  function rowsEqual(rows) {
+    // each row should have inX x-tiles and inOne one-tiles
+    return rows.every(function (r) {
+      var cx = r.items.filter(function (t) { return t.kind === "x"; }).length;
+      var co = r.items.filter(function (t) { return t.kind === "one"; }).length;
+      return cx === problem.inX && co === problem.inOne;
+    });
+  }
+
+  /* ===== MODE 4: SOLVE EQUATION (balance) ===== */
+  // Models ax + b = c by tiles on a single bench, with operation buttons that keep balance.
+  var solveBank = [
+    { a: 1, b: 3, c: 7, str: "x + 3 = 7", x: 4 },
+    { a: 2, b: 1, c: 7, str: "2x + 1 = 7", x: 3 },
+    { a: 1, b: 2, c: 6, str: "x + 2 = 6", x: 4 },
+    { a: 3, b: 2, c: 11, str: "3x + 2 = 11", x: 3 }
+  ];
+  var solveIdx = 0;
+  var solveState = null;
+
+  function setupSolve() {
+    taskTitle.textContent = "Solve a linear equation";
+    var p = solveBank[solveIdx % solveBank.length];
+    solveState = { a: p.a, lhsConst: p.b, rhs: p.c, str: p.str, answer: p.x, history: [] };
+    taskText.innerHTML = "Solve <code>" + p.str + "</code> by keeping the balance. Whatever you do to one side, do to the other. Reach <b>x = ?</b>.";
+    helpEl.innerHTML = "Use the buttons to subtract the constant from both sides, then divide both sides by the coefficient of x.";
+    tray.querySelectorAll(".source").forEach(function (e) { e.remove(); });
+    drawSolve();
+    renderSolveControls();
+    setFeedback("Step 1: remove the constant <b>" + (solveState.lhsConst >= 0 ? "+" + solveState.lhsConst : solveState.lhsConst) + "</b> from both sides.", "");
+    groupHint.textContent = "left = right (balance)";
+  }
+
+  function drawSolve() {
+    clearBench();
+    clearRegions();
+    var s = solveState;
+    // left region & right region
+    var halfW = bench.clientWidth / 2;
+    var leftReg = document.createElement("div");
+    leftReg.className = "region";
+    leftReg.style.left = "10px"; leftReg.style.top = "12px";
+    leftReg.style.width = (halfW - 24) + "px"; leftReg.style.height = "150px";
+    leftReg.innerHTML = "<span class='rlabel'>LEFT</span>";
+    bench.appendChild(leftReg);
+    var rightReg = document.createElement("div");
+    rightReg.className = "region";
+    rightReg.style.left = (halfW + 6) + "px"; rightReg.style.top = "12px";
+    rightReg.style.width = (halfW - 18) + "px"; rightReg.style.height = "150px";
+    rightReg.innerHTML = "<span class='rlabel'>RIGHT</span>";
+    bench.appendChild(rightReg);
+
+    // place LEFT: a x-tiles + lhsConst units
+    var x = 22, y = 40;
+    for (var i = 0; i < s.a; i++) { placeStatic("x", false, x, y); x += 86; }
+    x = 22; y = 96;
+    for (var j = 0; j < s.lhsConst; j++) { placeStatic("one", false, x, y); x += 34; if (x > halfW - 40) { x = 22; y += 34; } }
+    // place RIGHT: rhs units
+    var rx = halfW + 18, ry = 40, col = 0;
+    for (var k = 0; k < s.rhs; k++) {
+      placeStatic("one", false, rx, ry);
+      rx += 34; col++;
+      if (col % 5 === 0) { rx = halfW + 18; ry += 34; }
+    }
+    renderSolveExpr();
+  }
+
+  function placeStatic(kind, neg, x, y) {
+    var el = makeTileEl(kind, neg);
+    el.classList.add("placed");
+    el.style.left = x + "px"; el.style.top = y + "px";
+    el.style.cursor = "default";
+    bench.appendChild(el);
+  }
+
+  function renderSolveExpr() {
+    var s = solveState;
+    var lhs = (s.a === 1 ? "x" : s.a + "x");
+    if (s.lhsConst > 0) lhs += " + " + s.lhsConst;
+    else if (s.lhsConst < 0) lhs += " − " + (-s.lhsConst);
+    liveExpr.innerHTML = lhs + " <span class='eq'>=</span> " + s.rhs;
+  }
+
+  function renderSolveControls() {
+    var s = solveState;
+    var btns = [];
+    if (s.lhsConst !== 0) {
+      btns.push({
+        label: "Subtract " + Math.abs(s.lhsConst) + " from both sides", cls: "primary",
+        onClick: function () {
+          s.rhs -= s.lhsConst; s.lhsConst = 0;
+          drawSolve(); renderSolveControls();
+          if (s.a === 1) setFeedback("Balanced. Now x = " + s.rhs + " is in sight. Press <b>Read off x</b>.", "good");
+          else setFeedback("Good, both sides reduced. Now <b>" + s.a + "x = " + s.rhs + "</b>. Divide both sides by " + s.a + ".", "good");
+          renderSolveExpr();
+        }
+      });
+    } else if (s.a !== 1) {
+      btns.push({
+        label: "Divide both sides by " + s.a, cls: "primary",
+        onClick: function () {
+          if (s.rhs % s.a === 0) {
+            s.rhs = s.rhs / s.a; s.a = 1;
+            drawSolve(); renderSolveControls();
+            setFeedback("Balanced. Each x equals one share. Press <b>Read off x</b>.", "good");
+            renderSolveExpr();
+          } else {
+            setFeedback("Careful: dividing must split evenly. Check earlier steps.", "bad");
+          }
+        }
+      });
+    } else {
+      btns.push({
+        label: "Read off x", cls: "good",
+        onClick: function () {
+          setFeedback("Solved. <b>x = " + s.rhs + "</b>. Check: substitute back into " + solveState.str.split("=")[0].trim() + " to get " + originalRHS() + ". Both sides stayed equal at every step.", "good");
+          say("Solved. x equals " + s.rhs);
+        }
+      });
+    }
+    btns.push({ label: "Restart this equation", cls: "ghost", onClick: function () { setupSolve(); } });
+    btns.push({ label: "Next equation", cls: "good", onClick: function () { solveIdx++; setupSolve(); } });
+    setControls(btns);
+  }
+  function originalRHS() {
+    var p = solveBank[solveIdx % solveBank.length];
+    return p.c;
+  }
+
+  /* ---------- shared placement helpers ---------- */
+  function placeAt(kind, neg, x, y) {
+    addTileToBench(kind, neg, x, y, false);
+  }
+  function placeCounts(c) {
+    clearBench();
+    ["x2", "x", "one"].forEach(function (kind) {
+      var n = c[kind];
+      var neg = n < 0; var mag = Math.abs(n);
+      for (var i = 0; i < mag; i++) addTileToBench(kind, neg, null, null, false);
+    });
+  }
+  function placeCountsScatter(c) {
+    clearBench();
+    var bw = bench.clientWidth || 600;
+    ["x", "one"].forEach(function (kind) {
+      var n = Math.abs(c[kind]); var neg = c[kind] < 0;
+      for (var i = 0; i < n; i++) {
+        var rx = 20 + Math.random() * (bw - 120);
+        var ry = 16 + Math.random() * 170;
+        addTileToBench(kind, neg, rx, ry, false);
+      }
+    });
+  }
+
+  /* ---------- refresh ---------- */
+  function refresh() {
+    if (mode === "solve") { renderSolveExpr(); return; }
+    var c = counts();
+    var parts = exprFromCounts(c);
+    renderExpr(parts);
+  }
+
+  function say(msg) {
+    // route through live region only (no audio unless TTS present and desired)
+    feedback.setAttribute("data-say", msg);
+  }
+
+  /* ---------- bench keyboard: add tile on Enter when focused ---------- */
+  bench.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && mode !== "solve") {
+      // add a default x tile
+      addTileToBench("x", false, null, null, true);
+    }
+  });
+
+  /* ---------- init ---------- */
+  setMode("collect");
+})();
+</script>
+</body>
+</html>

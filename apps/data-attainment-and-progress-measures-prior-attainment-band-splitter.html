@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prior-Attainment Band Splitter</title>
+<style>
+  :root {
+    --ink: #14202e;
+    --muted: #5a6b7b;
+    --line: #d9e0e7;
+    --bg: #f4f6f9;
+    --card: #ffffff;
+    --low: #c0392b;
+    --low-bg: #fdecea;
+    --mid: #b8860b;
+    --mid-bg: #fdf6e3;
+    --high: #1e7d4f;
+    --high-bg: #e9f6ef;
+    --accent: #2b5fb0;
+    --accent-bg: #eaf1fb;
+    --shadow: 0 1px 3px rgba(20,32,46,.08), 0 6px 18px rgba(20,32,46,.06);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px 64px; }
+  header.app { margin-bottom: 18px; }
+  .kicker {
+    display: inline-block;
+    font-size: .72rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-bg);
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+  h1 { font-size: clamp(1.5rem, 3.6vw, 2.2rem); margin: 12px 0 6px; letter-spacing: -.01em; }
+  .aim {
+    font-size: .98rem;
+    color: var(--muted);
+    max-width: 70ch;
+    border-left: 3px solid var(--accent);
+    padding: 6px 0 6px 12px;
+    background: linear-gradient(90deg, var(--accent-bg), transparent);
+  }
+  .aim strong { color: var(--ink); }
+
+  .grid { display: grid; gap: 16px; }
+  @media (min-width: 860px) { .grid.cols { grid-template-columns: 1.15fr .85fr; align-items: start; } }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 16px 18px;
+    box-shadow: var(--shadow);
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 4px; }
+  .card .sub { font-size: .85rem; color: var(--muted); margin: 0 0 14px; }
+
+  /* Cohort table */
+  .cohort {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .pupil {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 10px;
+    align-items: center;
+    background: #fcfdfe;
+  }
+  .pupil .name { font-weight: 600; }
+  .pupil .meta { font-size: .8rem; color: var(--muted); grid-column: 1 / -1; }
+  .pupil .ks2 {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 1rem;
+    text-align: right;
+  }
+
+  /* Band slider region */
+  .slider-region { margin-top: 6px; }
+  .scale-head { display: flex; justify-content: space-between; font-size: .76rem; color: var(--muted); margin-bottom: 4px; }
+  .scale {
+    position: relative;
+    height: 86px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.4), rgba(255,255,255,0));
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .seg { position: absolute; top: 0; bottom: 0; }
+  .seg.low  { background: var(--low-bg); left: 0; }
+  .seg.mid  { background: var(--mid-bg); }
+  .seg.high { background: var(--high-bg); }
+  .seg-label {
+    position: absolute;
+    top: 6px;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    padding: 1px 7px;
+    border-radius: 999px;
+    transform: translateX(-50%);
+  }
+  .seg-label.low  { color: var(--low);  background: rgba(192,57,43,.12); }
+  .seg-label.mid  { color: var(--mid);  background: rgba(184,134,11,.14); }
+  .seg-label.high { color: var(--high); background: rgba(30,125,79,.12); }
+
+  .dot {
+    position: absolute;
+    bottom: 10px;
+    width: 18px; height: 18px;
+    margin-left: -9px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,.3);
+  }
+  .dot.low  { background: var(--low); }
+  .dot.mid  { background: var(--mid); }
+  .dot.high { background: var(--high); }
+
+  .handle {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 32px;
+    margin-left: -16px;
+    cursor: ew-resize;
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+  }
+  .handle::before {
+    content: "";
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 3px;
+    background: var(--ink);
+    border-radius: 2px;
+    opacity: .55;
+  }
+  .handle .grip {
+    position: relative;
+    width: 26px; height: 26px;
+    border-radius: 7px;
+    background: var(--ink);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .8rem;
+    box-shadow: 0 2px 6px rgba(0,0,0,.3);
+  }
+  .handle:focus-visible { outline: none; }
+  .handle:focus-visible .grip { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .cut-read {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: .82rem;
+  }
+  .pill {
+    background: #f0f3f7;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .pill b { color: var(--ink); }
+
+  /* Results: bands */
+  .bands { display: grid; gap: 12px; margin-top: 4px; }
+  .band {
+    border: 1px solid var(--line);
+    border-left-width: 5px;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: #fff;
+  }
+  .band.low  { border-left-color: var(--low);  }
+  .band.mid  { border-left-color: var(--mid);  }
+  .band.high { border-left-color: var(--high); }
+  .band-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .band-name { font-weight: 700; font-size: .95rem; }
+  .band-name .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .band-name.low .swatch  { background: var(--low); }
+  .band-name.mid .swatch  { background: var(--mid); }
+  .band-name.high .swatch { background: var(--high); }
+  .band-count { font-size: .8rem; color: var(--muted); }
+  .measures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .measure { text-align: center; }
+  .measure .lab { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .measure .val { font-size: 1.32rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .measure .val.empty { color: var(--muted); font-weight: 600; font-size: 1rem; }
+  .p8.pos { color: var(--high); }
+  .p8.neg { color: var(--low); }
+  .p8.flat { color: var(--mid); }
+
+  /* Insight */
+  .insight {
+    margin-top: 4px;
+    background: var(--accent-bg);
+    border: 1px solid #cfe0f7;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: .92rem;
+  }
+  .insight h3 { margin: 0 0 6px; font-size: .82rem; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); }
+  .insight p { margin: 0; }
+  .insight .strongest { font-weight: 700; }
+
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  button.btn {
+    font: inherit;
+    font-weight: 600;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    border-radius: 9px;
+    padding: 9px 14px;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+  }
+  button.btn:hover { background: #f0f3f7; }
+  button.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.btn.primary:hover { background: #234c8e; }
+  button.btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .preset-row .chip {
+    font: inherit; font-size: .82rem;
+    border: 1px solid var(--line); background: #fff; border-radius: 999px;
+    padding: 6px 12px; cursor: pointer;
+  }
+  .preset-row .chip[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .preset-row .chip:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .note { font-size: .78rem; color: var(--muted); margin-top: 14px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .78rem; color: var(--muted); margin: 8px 0 2px; }
+  .legend span b { color: var(--ink); }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .help-toggle {
+    background: none; border: none; color: var(--accent); font: inherit; font-weight: 600;
+    cursor: pointer; padding: 0; text-decoration: underline;
+  }
+  details.explain { margin-top: 16px; }
+  details.explain summary { cursor: pointer; font-weight: 600; }
+  details.explain p, details.explain li { font-size: .9rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+<div class="wrap">
+  <header class="app">
+    <span class="kicker">Data &amp; Analytics &middot; Attainment and Progress Measures</span>
+    <h1>Prior-Attainment Band Splitter</h1>
+    <p class="aim">
+      <strong>Teaching aim:</strong> Progress 8 plots pupils against their Key Stage 2 prior attainment, but headline figures hide
+      whether progress is strongest for lower, middle or higher prior attainers. Drag the two band cut-offs to split this
+      fictional cohort, then watch Progress 8, Attainment 8 and the Basics measure recalculate live for each band.
+    </p>
+  </header>
+
+  <div class="grid cols">
+    <!-- LEFT: interactive splitter -->
+    <section class="card" aria-labelledby="split-h">
+      <h2 id="split-h">1. Set the prior-attainment bands</h2>
+      <p class="sub">Each dot is one pupil placed by KS2 fine grade. Drag the two black handles, or focus a handle and use the
+        arrow keys, to decide where low, middle and high prior attainment begin and end.</p>
+
+      <div class="legend" aria-hidden="true">
+        <span><b style="color:var(--low)">&#x25CF;</b> Low prior attainers</span>
+        <span><b style="color:var(--mid)">&#x25CF;</b> Middle prior attainers</span>
+        <span><b style="color:var(--high)">&#x25CF;</b> High prior attainers</span>
+      </div>
+
+      <div class="slider-region">
+        <div class="scale-head">
+          <span>KS2 fine grade 2.0 (lowest)</span>
+          <span>5.5 (highest)</span>
+        </div>
+        <div class="scale" id="scale" role="group" aria-label="Prior-attainment band splitter with pupils plotted by KS2 fine grade">
+          <div class="seg low"  id="segLow"></div>
+          <div class="seg mid"  id="segMid"></div>
+          <div class="seg high" id="segHigh"></div>
+          <div class="seg-label low"  id="labLow">Low</div>
+          <div class="seg-label mid"  id="labMid">Middle</div>
+          <div class="seg-label high" id="labHigh">High</div>
+          <!-- dots injected here -->
+          <div class="handle" id="handleA" tabindex="0" role="slider"
+               aria-label="Low / Middle cut-off, KS2 fine grade"
+               aria-valuemin="2.0" aria-valuemax="5.5" aria-valuenow="3.0">
+            <span class="grip" aria-hidden="true">&#x2194;</span>
+          </div>
+          <div class="handle" id="handleB" tabindex="0" role="slider"
+               aria-label="Middle / High cut-off, KS2 fine grade"
+               aria-valuemin="2.0" aria-valuemax="5.5" aria-valuenow="4.0">
+            <span class="grip" aria-hidden="true">&#x2194;</span>
+          </div>
+        </div>
+
+        <div class="cut-read" aria-hidden="true">
+          <span class="pill">Low: under <b id="cutAtxt">3.00</b></span>
+          <span class="pill">Middle: <b id="cutAtxt2">3.00</b> to <b id="cutBtxt">4.00</b></span>
+          <span class="pill">High: <b id="cutBtxt2">4.00</b> and above</span>
+        </div>
+      </div>
+
+      <p class="sub" style="margin-top:14px;margin-bottom:6px;">Try a standard split, then experiment:</p>
+      <div class="preset-row" role="group" aria-label="Preset band splits">
+        <button class="chip" type="button" data-a="3.0" data-b="4.0">Standard (3.0 / 4.0)</button>
+        <button class="chip" type="button" data-a="2.8" data-b="3.6">Lower thresholds</button>
+        <button class="chip" type="button" data-a="3.3" data-b="4.3">Higher thresholds</button>
+        <button class="chip" type="button" data-a="3.75" data-b="3.85">Squeeze the middle</button>
+      </div>
+
+      <div class="controls">
+        <button class="btn primary" type="button" id="speakBtn">&#x1F50A; Read the verdict</button>
+        <button class="btn" type="button" id="resetBtn">Reset</button>
+      </div>
+
+      <details class="explain">
+        <summary>What do these measures mean?</summary>
+        <p><b>Progress 8 (P8)</b> compares each pupil's Attainment 8 score with the average for all pupils nationally who had the
+          same KS2 prior attainment. Zero means in line with similar starters; positive means more progress; negative means less.</p>
+        <p><b>Attainment 8 (A8)</b> is the raw points score across eight qualifications (out of roughly 90).</p>
+        <p><b>Basics (4+)</b> is the percentage securing a grade 4 or above in both English and maths.</p>
+        <p class="note">All pupils, names and figures here are fictional and for demonstration only.</p>
+      </details>
+    </section>
+
+    <!-- RIGHT: results -->
+    <section class="card" aria-labelledby="res-h">
+      <h2 id="res-h">2. Headline measures by band</h2>
+      <p class="sub">These three measures recalculate the instant you move a handle. Watch where Progress 8 turns green.</p>
+
+      <div class="bands" id="bands"></div>
+
+      <div class="insight" id="insight" aria-live="polite">
+        <h3>Live verdict</h3>
+        <p id="insightText">Move a handle to begin.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- Cohort reference -->
+  <section class="card" style="margin-top:16px;" aria-labelledby="coh-h">
+    <h2 id="coh-h">The cohort (demonstration data only)</h2>
+    <p class="sub">Sixteen fictional pupils. KS2 is the prior-attainment fine grade used as the Progress 8 x-axis. A8 is their
+      attainment; P8 is their individual progress against similar national starters.</p>
+    <div class="cohort" id="cohort"></div>
+  </section>
+
+  <p class="note" role="status" aria-live="polite" id="statusLine"></p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- Fictional cohort. KS2 fine grade is the prior-attainment x-axis. ----
+  // a8 = Attainment 8 points; p8 = individual Progress 8; basics = secured grade 4+ in Eng & maths.
+  var PUPILS = [
+    { name: " Amara O.",  ks2: 2.3, a8: 24, p8: 0.31, basics: false },
+    { name: "Bryn T.",    ks2: 2.6, a8: 21, p8: -0.12, basics: false },
+    { name: "Cora L.",    ks2: 2.8, a8: 30, p8: 0.45, basics: true  },
+    { name: "Devon M.",   ks2: 3.0, a8: 34, p8: 0.52, basics: true  },
+    { name: "Esme R.",    ks2: 3.1, a8: 38, p8: 0.40, basics: true  },
+    { name: "Finlay K.",  ks2: 3.3, a8: 33, p8: -0.08, basics: true  },
+    { name: "Greta P.",   ks2: 3.5, a8: 41, p8: 0.18, basics: true  },
+    { name: "Hari S.",    ks2: 3.6, a8: 39, p8: -0.22, basics: true  },
+    { name: "Isla N.",    ks2: 3.8, a8: 47, p8: 0.05, basics: true  },
+    { name: "Joah W.",    ks2: 3.9, a8: 44, p8: -0.30, basics: true  },
+    { name: "Kira D.",    ks2: 4.1, a8: 55, p8: 0.12, basics: true  },
+    { name: "Liam F.",    ks2: 4.3, a8: 52, p8: -0.41, basics: true  },
+    { name: "Maya H.",    ks2: 4.5, a8: 61, p8: -0.18, basics: true  },
+    { name: "Noor A.",    ks2: 4.7, a8: 68, p8: 0.02, basics: true  },
+    { name: "Ola B.",     ks2: 5.0, a8: 72, p8: -0.36, basics: true  },
+    { name: "Priya C.",   ks2: 5.3, a8: 79, p8: -0.55, basics: true  }
+  ];
+
+  var MIN = 2.0, MAX = 5.5;
+  var cutA = 3.0, cutB = 4.0;       // low/mid and mid/high cut-offs
+  var GAP = 0.1;                    // minimum gap between cut-offs (fine grade)
+
+  // ---- Element refs ----
+  var scale   = document.getElementById("scale");
+  var handleA = document.getElementById("handleA");
+  var handleB = document.getElementById("handleB");
+  var segLow  = document.getElementById("segLow");
+  var segMid  = document.getElementById("segMid");
+  var segHigh = document.getElementById("segHigh");
+  var labLow  = document.getElementById("labLow");
+  var labMid  = document.getElementById("labMid");
+  var labHigh = document.getElementById("labHigh");
+  var bandsEl = document.getElementById("bands");
+  var insightText = document.getElementById("insightText");
+  var statusLine = document.getElementById("statusLine");
+
+  // ---- Plot pupils as dots once ----
+  function pctFor(ks2) { return ((ks2 - MIN) / (MAX - MIN)) * 100; }
+
+  var dotEls = [];
+  PUPILS.forEach(function (p, i) {
+    var d = document.createElement("div");
+    d.className = "dot";
+    d.style.left = pctFor(p.ks2) + "%";
+    // slight vertical stagger so overlapping dots are readable
+    d.style.bottom = (10 + (i % 3) * 16) + "px";
+    d.title = p.name.trim() + " (KS2 " + p.ks2.toFixed(1) + ")";
+    scale.appendChild(d);
+    dotEls.push(d);
+  });
+
+  // ---- Cohort reference table ----
+  var cohortEl = document.getElementById("cohort");
+  PUPILS.forEach(function (p) {
+    var row = document.createElement("div");
+    row.className = "pupil";
+    row.innerHTML =
+      '<span class="name">' + p.name.trim() + '</span>' +
+      '<span class="ks2">KS2 ' + p.ks2.toFixed(1) + '</span>' +
+      '<span class="meta">A8 ' + p.a8 + ' &middot; P8 ' + (p.p8 >= 0 ? "+" : "") + p.p8.toFixed(2) +
+        ' &middot; Basics ' + (p.basics ? "secured" : "not secured") + '</span>';
+    cohortEl.appendChild(row);
+  });
+
+  // ---- Banding maths ----
+  function bandOf(ks2) {
+    if (ks2 < cutA) return "low";
+    if (ks2 < cutB) return "mid";
+    return "high";
+  }
+
+  function summarise(key) {
+    var members = PUPILS.filter(function (p) { return bandOf(p.ks2) === key; });
+    if (!members.length) {
+      return { key: key, n: 0 };
+    }
+    var sumP8 = 0, sumA8 = 0, basics = 0;
+    members.forEach(function (p) {
+      sumP8 += p.p8; sumA8 += p.a8; if (p.basics) basics++;
+    });
+    return {
+      key: key,
+      n: members.length,
+      p8: sumP8 / members.length,
+      a8: sumA8 / members.length,
+      basics: (basics / members.length) * 100
+    };
+  }
+
+  function p8Class(v) { return v > 0.03 ? "pos" : (v < -0.03 ? "neg" : "flat"); }
+
+  var BAND_INFO = {
+    low:  { name: "Low prior attainment" },
+    mid:  { name: "Middle prior attainment" },
+    high: { name: "High prior attainment" }
+  };
+
+  // ---- Render results ----
+  function renderBands() {
+    var order = ["low", "mid", "high"];
+    var summaries = order.map(summarise);
+    bandsEl.innerHTML = "";
+
+    summaries.forEach(function (s) {
+      var info = BAND_INFO[s.key];
+      var card = document.createElement("div");
+      card.className = "band " + s.key;
+
+      if (s.n === 0) {
+        card.innerHTML =
+          '<div class="band-top">' +
+            '<span class="band-name ' + s.key + '"><span class="swatch"></span>' + info.name + '</span>' +
+            '<span class="band-count">0 pupils</span>' +
+          '</div>' +
+          '<div class="measures"><div class="measure" style="grid-column:1/-1"><span class="val empty">No pupils in this band at the current cut-offs</span></div></div>';
+        bandsEl.appendChild(card);
+        return;
+      }
+
+      var pc = p8Class(s.p8);
+      card.innerHTML =
+        '<div class="band-top">' +
+          '<span class="band-name ' + s.key + '"><span class="swatch"></span>' + info.name + '</span>' +
+          '<span class="band-count">' + s.n + ' pupil' + (s.n === 1 ? "" : "s") + '</span>' +
+        '</div>' +
+        '<div class="measures">' +
+          '<div class="measure"><span class="lab">Progress 8</span><span class="val p8 ' + pc + '">' +
+            (s.p8 >= 0 ? "+" : "") + s.p8.toFixed(2) + '</span></div>' +
+          '<div class="measure"><span class="lab">Attainment 8</span><span class="val">' + s.a8.toFixed(1) + '</span></div>' +
+          '<div class="measure"><span class="lab">Basics 4+</span><span class="val">' + Math.round(s.basics) + '%</span></div>' +
+        '</div>';
+      bandsEl.appendChild(card);
+    });
+
+    return summaries;
+  }
+
+  // ---- Plain-English verdict ----
+  function buildVerdict(summaries) {
+    var filled = summaries.filter(function (s) { return s.n > 0; });
+    if (!filled.length) return "No pupils are inside any band. Spread the handles apart.";
+
+    // strongest progress band
+    var best = filled.slice().sort(function (a, b) { return b.p8 - a.p8; })[0];
+    var worst = filled.slice().sort(function (a, b) { return a.p8 - b.p8; })[0];
+    var nameMap = { low: "lower", mid: "middle", high: "higher" };
+
+    var parts = [];
+    parts.push("Progress is strongest for " + nameMap[best.key] + " prior attainers at P8 " +
+      (best.p8 >= 0 ? "+" : "") + best.p8.toFixed(2) + ".");
+
+    if (best.key !== worst.key) {
+      parts.push("It is weakest for " + nameMap[worst.key] + " prior attainers at " +
+        (worst.p8 >= 0 ? "+" : "") + worst.p8.toFixed(2) + ", a gap of " +
+        (best.p8 - worst.p8).toFixed(2) + " Progress 8 points.");
+    }
+
+    // teaching read: who is overall headline hiding?
+    var allP8 = PUPILS.reduce(function (a, p) { return a + p.p8; }, 0) / PUPILS.length;
+    parts.push("The whole-cohort P8 of " + (allP8 >= 0 ? "+" : "") + allP8.toFixed(2) +
+      " hides this pattern; splitting by prior attainment is what exposes it.");
+
+    return parts.join(" ");
+  }
+
+  function lastVerdict() { return insightText.textContent; }
+
+  function render() {
+    // positions
+    var pa = pctFor(cutA), pb = pctFor(cutB);
+    segLow.style.left = "0%";        segLow.style.width = pa + "%";
+    segMid.style.left = pa + "%";    segMid.style.width = (pb - pa) + "%";
+    segHigh.style.left = pb + "%";   segHigh.style.width = (100 - pb) + "%";
+    labLow.style.left  = (pa / 2) + "%";
+    labMid.style.left  = ((pa + pb) / 2) + "%";
+    labHigh.style.left = (pb + (100 - pb) / 2) + "%";
+    handleA.style.left = pa + "%";
+    handleB.style.left = pb + "%";
+
+    handleA.setAttribute("aria-valuenow", cutA.toFixed(2));
+    handleB.setAttribute("aria-valuenow", cutB.toFixed(2));
+    handleA.setAttribute("aria-valuetext", "Low / Middle cut-off at KS2 fine grade " + cutA.toFixed(2));
+    handleB.setAttribute("aria-valuetext", "Middle / High cut-off at KS2 fine grade " + cutB.toFixed(2));
+
+    // recolour dots by band
+    PUPILS.forEach(function (p, i) {
+      var b = bandOf(p.ks2);
+      dotEls[i].className = "dot " + b;
+    });
+
+    // cut readouts
+    document.getElementById("cutAtxt").textContent  = cutA.toFixed(2);
+    document.getElementById("cutAtxt2").textContent = cutA.toFixed(2);
+    document.getElementById("cutBtxt").textContent  = cutB.toFixed(2);
+    document.getElementById("cutBtxt2").textContent = cutB.toFixed(2);
+
+    var summaries = renderBands();
+    var verdict = buildVerdict(summaries);
+    insightText.textContent = verdict;
+
+    // update preset chip pressed states
+    presetChips.forEach(function (c) {
+      var match = Math.abs(parseFloat(c.dataset.a) - cutA) < 0.001 &&
+                  Math.abs(parseFloat(c.dataset.b) - cutB) < 0.001;
+      c.setAttribute("aria-pressed", match ? "true" : "false");
+    });
+  }
+
+  // ---- Drag handling (Pointer Events) ----
+  function valueFromClientX(clientX) {
+    var rect = scale.getBoundingClientRect();
+    var frac = (clientX - rect.left) / rect.width;
+    frac = Math.max(0, Math.min(1, frac));
+    var v = MIN + frac * (MAX - MIN);
+    return Math.round(v * 100) / 100;
+  }
+
+  function setCut(which, v) {
+    v = Math.max(MIN, Math.min(MAX, v));
+    if (which === "A") {
+      cutA = Math.min(v, cutB - GAP);
+      cutA = Math.max(cutA, MIN);
+    } else {
+      cutB = Math.max(v, cutA + GAP);
+      cutB = Math.min(cutB, MAX);
+    }
+    render();
+  }
+
+  function attachDrag(handle, which) {
+    var dragging = false;
+    handle.addEventListener("pointerdown", function (e) {
+      dragging = true;
+      handle.setPointerCapture(e.pointerId);
+      handle.style.cursor = "grabbing";
+      e.preventDefault();
+    });
+    handle.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      setCut(which, valueFromClientX(e.clientX));
+      e.preventDefault();
+    });
+    function end(e) {
+      if (!dragging) return;
+      dragging = false;
+      try { handle.releasePointerCapture(e.pointerId); } catch (err) {}
+      handle.style.cursor = "ew-resize";
+      announce();
+    }
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+
+    // Keyboard
+    handle.addEventListener("keydown", function (e) {
+      var step = e.shiftKey ? 0.5 : 0.1;
+      var v = (which === "A") ? cutA : cutB;
+      var handled = true;
+      switch (e.key) {
+        case "ArrowLeft":
+        case "ArrowDown": setCut(which, v - step); break;
+        case "ArrowRight":
+        case "ArrowUp":   setCut(which, v + step); break;
+        case "Home":      setCut(which, MIN); break;
+        case "End":       setCut(which, MAX); break;
+        case "PageDown":  setCut(which, v - 0.5); break;
+        case "PageUp":    setCut(which, v + 0.5); break;
+        default: handled = false;
+      }
+      if (handled) { e.preventDefault(); announce(); }
+    });
+  }
+
+  attachDrag(handleA, "A");
+  attachDrag(handleB, "B");
+
+  // ---- Tap on scale moves nearest handle ----
+  scale.addEventListener("pointerdown", function (e) {
+    if (e.target.closest(".handle")) return; // handles manage themselves
+    var v = valueFromClientX(e.clientX);
+    var which = Math.abs(v - cutA) <= Math.abs(v - cutB) ? "A" : "B";
+    setCut(which, v);
+    announce();
+    (which === "A" ? handleA : handleB).focus();
+  });
+
+  function announce() {
+    statusLine.textContent =
+      "Bands set. Low under " + cutA.toFixed(2) + ", middle " + cutA.toFixed(2) +
+      " to " + cutB.toFixed(2) + ", high " + cutB.toFixed(2) + " and above. " + lastVerdict();
+  }
+
+  // ---- Presets ----
+  var presetChips = Array.prototype.slice.call(document.querySelectorAll(".preset-row .chip"));
+  presetChips.forEach(function (c) {
+    c.addEventListener("click", function () {
+      cutB = parseFloat(c.dataset.b);  // set B first so A can clamp under it
+      cutA = parseFloat(c.dataset.a);
+      // safety clamp
+      if (cutA > cutB - GAP) cutA = cutB - GAP;
+      render();
+      announce();
+    });
+  });
+
+  // ---- Reset / speak ----
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    cutA = 3.0; cutB = 4.0;
+    render();
+    announce();
+  });
+
+  document.getElementById("speakBtn").addEventListener("click", function () {
+    var text = lastVerdict();
+    if (window.westTTS && window.westTTS.ready()) {
+      window.westTTS.speak(text, { lang: "en-GB", rate: 0.9, pitch: 1.05 });
+    }
+    statusLine.textContent = text;
+  });
+
+  // ---- Init ----
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Histogram and Frequency Density</title>
+<style>
+  :root {
+    --ink: #14203a;
+    --muted: #5a6680;
+    --line: #d7deec;
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --accent: #2f5fd0;
+    --accent-dark: #1d3f96;
+    --good: #1f8a4c;
+    --good-bg: #e3f4ea;
+    --warn: #b4571a;
+    --warn-bg: #fdeede;
+    --bad: #c2304a;
+    --bad-bg: #fbe6ea;
+    --naive: #e0a23a;
+    --density: #2f5fd0;
+    --shadow: 0 2px 10px rgba(20,32,58,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app {
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+  }
+  .eyebrow {
+    font-size: .76rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--accent-dark);
+    font-weight: 700;
+  }
+  h1 { font-size: 1.7rem; margin: 4px 0 6px; line-height: 1.15; }
+  .aim {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: .95rem;
+    color: var(--muted);
+    box-shadow: var(--shadow);
+  }
+  .aim strong { color: var(--ink); }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  @media (min-width: 880px) {
+    .grid { grid-template-columns: 1.55fr 1fr; align-items: start; }
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  h2 { font-size: 1.12rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: .88rem; margin: 0 0 12px; }
+  /* Chart */
+  .chart-frame {
+    position: relative;
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fbfcff;
+    overflow: hidden;
+  }
+  svg { display: block; width: 100%; height: auto; touch-action: none; }
+  .grp-label { font-size: 10px; fill: var(--muted); }
+  .axis-title { font-size: 11px; fill: var(--ink); font-weight: 600; }
+  .tick { font-size: 9px; fill: var(--muted); }
+  .gridline { stroke: #e7ecf6; stroke-width: 1; }
+  .bar-naive { fill: var(--naive); opacity: .9; }
+  .bar-density { fill: var(--density); }
+  .handle {
+    fill: #fff;
+    stroke: var(--accent-dark);
+    stroke-width: 2;
+    cursor: grab;
+  }
+  .handle:active { cursor: grabbing; }
+  .handle.focusable:focus { outline: 3px solid #ffb43a; outline-offset: 2px; }
+  .edge {
+    stroke: var(--accent-dark);
+    stroke-width: 2;
+    stroke-dasharray: 4 3;
+    opacity: .55;
+  }
+  .toggle-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 12px 0 6px;
+  }
+  .toggle-row button {
+    flex: 1 1 auto;
+    min-width: 130px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    border-radius: 8px;
+    padding: 9px 10px;
+    font-size: .85rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .toggle-row button[aria-pressed="true"] {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: .8rem; margin-top: 8px; color: var(--muted); }
+  .swatch { display: inline-block; width: 13px; height: 13px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+  /* Controls table */
+  table.controls { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  table.controls th, table.controls td {
+    border: 1px solid var(--line);
+    padding: 5px 6px;
+    text-align: center;
+  }
+  table.controls th { background: #eef2fb; font-weight: 700; }
+  table.controls td:first-child { text-align: left; white-space: nowrap; }
+  .stepper { display: inline-flex; align-items: center; gap: 4px; }
+  .stepper button {
+    width: 26px; height: 26px;
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 6px;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--accent-dark);
+    font-weight: 700;
+  }
+  .stepper button:disabled { opacity: .4; cursor: not-allowed; }
+  .stepper output { min-width: 28px; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .fd-cell { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent-dark); }
+  /* Feedback */
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: .9rem;
+    margin-top: 12px;
+    border: 1px solid var(--line);
+    background: #f7f9ff;
+  }
+  .feedback.good { background: var(--good-bg); border-color: #bfe5cd; }
+  .feedback.warn { background: var(--warn-bg); border-color: #f4d9b6; }
+  .feedback.bad { background: var(--bad-bg); border-color: #f3c2cd; }
+  .feedback strong { display: block; margin-bottom: 2px; }
+  /* Stats panel */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .stat {
+    background: #f7f9ff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .stat .k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .stat .v { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  /* Challenge */
+  .challenge { margin-top: 18px; }
+  .challenge .q { font-weight: 600; margin: 4px 0 10px; }
+  .opt-row { display: grid; gap: 8px; }
+  .opt-row button {
+    text-align: left;
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: .9rem;
+    cursor: pointer;
+  }
+  .opt-row button:hover { border-color: var(--accent); }
+  .opt-row button.correct { background: var(--good-bg); border-color: var(--good); }
+  .opt-row button.wrong { background: var(--bad-bg); border-color: var(--bad); }
+  .opt-row button:disabled { cursor: default; }
+  .btn {
+    display: inline-block;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: .88rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn.ghost { background: #fff; color: var(--accent-dark); }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .hint { font-size: .82rem; color: var(--muted); margin-top: 8px; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  footer.note { margin-top: 26px; font-size: .8rem; color: var(--muted); text-align: center; }
+  .kbd { font-family: ui-monospace, Menlo, Consolas, monospace; background: #eef2fb; border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; font-size: .8em; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <div class="eyebrow">Maths &middot; KS4 &middot; Statistics</div>
+    <h1>Histogram and Frequency Density</h1>
+    <div class="aim">
+      <strong>Teacher aim:</strong> Pupils adjust class-interval widths and frequencies and watch bars rescale by
+      <strong>frequency density</strong>, seeing why a histogram with unequal intervals is not a naive bar chart.
+      Fold in cumulative frequency, the median and the interquartile range.
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: chart + plot mode -->
+    <section class="card" aria-labelledby="chartHead">
+      <h2 id="chartHead">The plot</h2>
+      <p class="sub">Marks scored by a fictional Year 11 class (out of 100). Drag the white handles on top of each bar, or use the table on the right.</p>
+
+      <div class="toggle-row" role="group" aria-label="Plot mode">
+        <button id="modeNaive" aria-pressed="false">Bar by frequency (naive)</button>
+        <button id="modeDensity" aria-pressed="true">Histogram by density (correct)</button>
+        <button id="modeBoth" aria-pressed="false">Show both</button>
+      </div>
+
+      <div class="chart-frame">
+        <svg id="chart" viewBox="0 0 600 360" role="img"
+             aria-label="Histogram of test marks. Drag the handle on each bar to change its frequency.">
+        </svg>
+      </div>
+
+      <div class="legend" aria-hidden="true">
+        <span><span class="swatch" style="background:var(--naive)"></span>Bar height = frequency</span>
+        <span><span class="swatch" style="background:var(--density)"></span>Bar height = frequency density</span>
+      </div>
+
+      <div id="modeNote" class="feedback" role="status" aria-live="polite"></div>
+
+      <p class="hint">Keyboard: <kbd class="kbd">Tab</kbd> to a handle, then <kbd class="kbd">&uarr;</kbd>/<kbd class="kbd">&darr;</kbd> to change its frequency.</p>
+    </section>
+
+    <!-- RIGHT: data controls + stats -->
+    <section class="card" aria-labelledby="dataHead">
+      <h2 id="dataHead">The data</h2>
+      <p class="sub">Change a class width or a frequency. Frequency density = frequency &divide; class width.</p>
+
+      <table class="controls">
+        <thead>
+          <tr><th>Mark (out of 100)</th><th>Width</th><th>Freq</th><th>Density</th></tr>
+        </thead>
+        <tbody id="dataBody"></tbody>
+        <tfoot>
+          <tr><th>Total</th><th id="totWidth"></th><th id="totFreq"></th><th></th></tr>
+        </tfoot>
+      </table>
+
+      <div class="stat-grid" aria-label="Summary statistics">
+        <div class="stat"><div class="k">Sample size n</div><div class="v" id="sN">0</div></div>
+        <div class="stat"><div class="k">Estimated mean</div><div class="v" id="sMean">0</div></div>
+        <div class="stat"><div class="k">Modal class</div><div class="v" id="sMode" style="font-size:.92rem">&ndash;</div></div>
+        <div class="stat"><div class="k">Median class</div><div class="v" id="sMedian" style="font-size:.92rem">&ndash;</div></div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat"><div class="k">Est. median (CF)</div><div class="v" id="sMedVal">&ndash;</div></div>
+        <div class="stat"><div class="k">Est. IQR (CF)</div><div class="v" id="sIQR">&ndash;</div></div>
+      </div>
+      <p class="hint">The modal class is the bar with the <em>greatest density</em>, not the greatest frequency. Watch which one wins.</p>
+    </section>
+  </div>
+
+  <!-- CHALLENGE -->
+  <section class="card challenge" aria-labelledby="chHead">
+    <h2 id="chHead">Reasoning check</h2>
+    <p class="sub" id="chCount">Question 1 of 4</p>
+    <p class="q" id="chQ"></p>
+    <div class="opt-row" id="chOpts"></div>
+    <div id="chFeedback" class="feedback" role="status" aria-live="polite" hidden></div>
+    <div class="btn-row">
+      <button class="btn" id="chNext" hidden>Next question</button>
+      <button class="btn ghost" id="chRestart" hidden>Restart questions</button>
+    </div>
+  </section>
+
+  <footer class="note">
+    Demonstration data only. The names and marks are fictional and represent no real pupil.
+    WeST &middot; Curriculum Expert.
+  </footer>
+</div>
+
+<script>
+"use strict";
+(function () {
+  /* ---------------- Data model ----------------
+     Each class: lower bound, upper bound, frequency.
+     Widths are adjustable by editing upper bound (we keep contiguous classes). */
+  var classes = [
+    { lo: 0,  hi: 20, f: 4  },
+    { lo: 20, hi: 40, f: 10 },
+    { lo: 40, hi: 50, f: 14 },
+    { lo: 50, hi: 60, f: 18 },
+    { lo: 60, hi: 80, f: 12 },
+    { lo: 80, hi: 100, f: 6 }
+  ];
+  var MAXX = 100, MINW = 5, MAXF = 30;
+
+  var mode = "density"; // naive | density | both
+
+  // SVG geometry
+  var SVG = document.getElementById("chart");
+  var VW = 600, VH = 360;
+  var ML = 48, MR = 16, MT = 16, MB = 52;
+  var PW = VW - ML - MR, PH = VH - MT - MB;
+  var SVGNS = "http://www.w3.org/2000/svg";
+
+  function el(name, attrs) {
+    var e = document.createElementNS(SVGNS, name);
+    if (attrs) for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function xScale(v) { return ML + (v / MAXX) * PW; }
+
+  function density(c) { return c.f / (c.hi - c.lo); }
+
+  function maxNaive() {
+    var m = 1; classes.forEach(function (c) { if (c.f > m) m = c.f; }); return m;
+  }
+  function maxDensity() {
+    var m = 0.1; classes.forEach(function (c) { var d = density(c); if (d > m) m = d; }); return m;
+  }
+
+  function yTopNaive(c, maxN) { return MT + PH - (c.f / maxN) * PH; }
+  function yTopDensity(c, maxD) { return MT + PH - (density(c) / maxD) * PH; }
+
+  /* ---------------- Render chart ---------------- */
+  var liveRegion = document.createElement("div");
+  liveRegion.className = "sr-only";
+  liveRegion.setAttribute("aria-live", "polite");
+  document.body.appendChild(liveRegion);
+
+  function announce(msg) { liveRegion.textContent = msg; }
+
+  function render() {
+    while (SVG.firstChild) SVG.removeChild(SVG.firstChild);
+
+    var maxN = maxNaive();
+    var maxD = maxDensity();
+    var showNaive = (mode === "naive" || mode === "both");
+    var showDensity = (mode === "density" || mode === "both");
+
+    // y axis title
+    var yTitle = el("text", { x: 14, y: MT + PH / 2, "class": "axis-title",
+      transform: "rotate(-90 14 " + (MT + PH / 2) + ")", "text-anchor": "middle" });
+    yTitle.textContent = (mode === "naive") ? "Frequency" : "Frequency density";
+    SVG.appendChild(yTitle);
+
+    // gridlines + y ticks
+    var ticks = 5;
+    for (var t = 0; t <= ticks; t++) {
+      var yy = MT + PH - (t / ticks) * PH;
+      SVG.appendChild(el("line", { x1: ML, y1: yy, x2: ML + PW, y2: yy, "class": "gridline" }));
+      var lab = el("text", { x: ML - 6, y: yy + 3, "class": "tick", "text-anchor": "end" });
+      var val = (mode === "naive") ? (maxN * t / ticks) : (maxD * t / ticks);
+      lab.textContent = (mode === "naive") ? Math.round(val) : val.toFixed(2);
+      SVG.appendChild(lab);
+    }
+
+    // x axis line
+    SVG.appendChild(el("line", { x1: ML, y1: MT + PH, x2: ML + PW, y2: MT + PH, stroke: "#9aa6c2", "stroke-width": 1.5 }));
+
+    // x axis title
+    var xTitle = el("text", { x: ML + PW / 2, y: VH - 8, "class": "axis-title", "text-anchor": "middle" });
+    xTitle.textContent = "Mark scored (out of 100)";
+    SVG.appendChild(xTitle);
+
+    // bars + boundaries
+    classes.forEach(function (c, i) {
+      var x0 = xScale(c.lo), x1 = xScale(c.hi);
+      var w = x1 - x0;
+
+      if (showNaive) {
+        var yn = yTopNaive(c, maxN);
+        SVG.appendChild(el("rect", {
+          x: x0 + (showDensity ? 1 : 0), y: yn,
+          width: Math.max(0, w - (showDensity ? 2 : 0)),
+          height: MT + PH - yn, "class": "bar-naive",
+          opacity: showDensity ? 0.45 : 0.9
+        }));
+      }
+      if (showDensity) {
+        var yd = yTopDensity(c, maxD);
+        SVG.appendChild(el("rect", {
+          x: x0, y: yd, width: w, height: MT + PH - yd,
+          "class": "bar-density", "fill-opacity": 0.82,
+          stroke: "#1d3f96", "stroke-width": 1
+        }));
+      }
+
+      // x boundary tick label
+      var xb = el("text", { x: x0, y: MT + PH + 14, "class": "tick", "text-anchor": "middle" });
+      xb.textContent = c.lo;
+      SVG.appendChild(xb);
+      if (i === classes.length - 1) {
+        var xe = el("text", { x: x1, y: MT + PH + 14, "class": "tick", "text-anchor": "middle" });
+        xe.textContent = c.hi;
+        SVG.appendChild(xe);
+      }
+    });
+
+    // boundary drag edges (between classes) for width adjustment
+    for (var b = 1; b < classes.length; b++) {
+      var bx = xScale(classes[b].lo);
+      SVG.appendChild(el("line", { x1: bx, y1: MT, x2: bx, y2: MT + PH, "class": "edge" }));
+    }
+
+    // draggable handles: one per bar at top, drives frequency
+    classes.forEach(function (c, i) {
+      var x0 = xScale(c.lo), x1 = xScale(c.hi);
+      var cx = (x0 + x1) / 2;
+      var top = showDensity ? yTopDensity(c, maxD) : yTopNaive(c, maxN);
+      var handle = el("rect", {
+        x: cx - 12, y: top - 9, width: 24, height: 18, rx: 5,
+        "class": "handle focusable", tabindex: "0",
+        role: "slider",
+        "aria-label": "Class " + c.lo + " to " + c.hi + " marks. Frequency " + c.f +
+                      ", density " + density(c).toFixed(2) + ". Use up and down arrows to change frequency.",
+        "aria-valuemin": "0", "aria-valuemax": String(MAXF),
+        "aria-valuenow": String(c.f),
+        "data-i": String(i)
+      });
+      SVG.appendChild(handle);
+      // grip dots
+      var grip = el("text", { x: cx, y: top + 4, "text-anchor": "middle", "font-size": "11", fill: "#1d3f96", "pointer-events": "none", "font-weight": "700" });
+      grip.textContent = c.f;
+      SVG.appendChild(grip);
+
+      bindHandle(handle, i);
+    });
+  }
+
+  /* ---------------- Drag logic (Pointer Events) ---------------- */
+  function freqFromY(yPix, i) {
+    // invert: convert a y pixel into a frequency for the active scale
+    var c = classes[i];
+    var frac = (MT + PH - yPix) / PH; // 0..1 of plot height
+    frac = Math.max(0, Math.min(1, frac));
+    if (mode === "density" || mode === "both") {
+      var d = frac * maxDensity();
+      return Math.round(d * (c.hi - c.lo));
+    } else {
+      return Math.round(frac * maxNaive());
+    }
+  }
+
+  function svgPoint(evt) {
+    var rect = SVG.getBoundingClientRect();
+    var sy = (evt.clientY - rect.top) / rect.height * VH;
+    return sy;
+  }
+
+  function setFreq(i, val) {
+    val = Math.max(0, Math.min(MAXF, val));
+    if (classes[i].f === val) return;
+    classes[i].f = val;
+    refresh();
+  }
+
+  function bindHandle(handle, i) {
+    handle.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      handle.dragging = true;
+    });
+    handle.addEventListener("pointermove", function (e) {
+      if (!handle.dragging) return;
+      var sy = svgPoint(e);
+      var nf = freqFromY(sy, i);
+      setFreq(i, nf);
+    });
+    function endDrag(e) {
+      if (!handle.dragging) return;
+      handle.dragging = false;
+      try { handle.releasePointerCapture(e.pointerId); } catch (x) {}
+      announce("Class " + classes[i].lo + " to " + classes[i].hi + ": frequency " + classes[i].f +
+               ", density " + density(classes[i]).toFixed(2) + ".");
+    }
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
+
+    handle.addEventListener("keydown", function (e) {
+      var step = e.shiftKey ? 5 : 1;
+      if (e.key === "ArrowUp" || e.key === "ArrowRight") { setFreq(i, classes[i].f + step); e.preventDefault(); }
+      else if (e.key === "ArrowDown" || e.key === "ArrowLeft") { setFreq(i, classes[i].f - step); e.preventDefault(); }
+      else return;
+      announce("Class " + classes[i].lo + " to " + classes[i].hi + ": frequency " + classes[i].f +
+               ", density " + density(classes[i]).toFixed(2) + ".");
+    });
+  }
+
+  /* ---------------- Data table ---------------- */
+  function buildTable() {
+    var body = document.getElementById("dataBody");
+    body.innerHTML = "";
+    classes.forEach(function (c, i) {
+      var tr = document.createElement("tr");
+      // label cell
+      var tdL = document.createElement("td");
+      tdL.textContent = c.lo + " – " + c.hi;
+      tr.appendChild(tdL);
+
+      // width stepper (changes hi of this class and lo of next, keeps contiguous)
+      var tdW = document.createElement("td");
+      tdW.appendChild(makeStepper("w" + i,
+        function () { return c.hi - c.lo; },
+        function (delta) { changeWidth(i, delta); }, true, i));
+      tr.appendChild(tdW);
+
+      // freq stepper
+      var tdF = document.createElement("td");
+      tdF.appendChild(makeStepper("f" + i,
+        function () { return c.f; },
+        function (delta) { setFreq(i, c.f + delta); }, false, i));
+      tr.appendChild(tdF);
+
+      // density
+      var tdD = document.createElement("td");
+      tdD.className = "fd-cell";
+      tdD.id = "den" + i;
+      tdD.textContent = density(c).toFixed(2);
+      tr.appendChild(tdD);
+
+      body.appendChild(tr);
+    });
+  }
+
+  function makeStepper(id, getVal, onDelta, isWidth, i) {
+    var wrap = document.createElement("span");
+    wrap.className = "stepper";
+    var minus = document.createElement("button");
+    minus.type = "button"; minus.textContent = "−";
+    minus.setAttribute("aria-label", (isWidth ? "Decrease width" : "Decrease frequency") + " for class " + (i + 1));
+    var out = document.createElement("output");
+    out.id = id; out.textContent = getVal();
+    var plus = document.createElement("button");
+    plus.type = "button"; plus.textContent = "+";
+    plus.setAttribute("aria-label", (isWidth ? "Increase width" : "Increase frequency") + " for class " + (i + 1));
+    minus.addEventListener("click", function () { onDelta(isWidth ? -5 : -1); });
+    plus.addEventListener("click", function () { onDelta(isWidth ? 5 : 1); });
+    wrap.appendChild(minus); wrap.appendChild(out); wrap.appendChild(plus);
+    return wrap;
+  }
+
+  function changeWidth(i, delta) {
+    var c = classes[i];
+    var newHi = c.hi + delta;
+    // constraints: width >= MINW, must not pass next class lower beyond its hi - MINW, must stay <= MAXX for last
+    var minHi = c.lo + MINW;
+    if (newHi < minHi) return;
+    if (i < classes.length - 1) {
+      var nxt = classes[i + 1];
+      var maxHi = nxt.hi - MINW; // keep next class at least MINW wide
+      if (newHi > maxHi) return;
+      c.hi = newHi;
+      nxt.lo = newHi;
+    } else {
+      if (newHi > MAXX) return;
+      c.hi = newHi;
+    }
+    refresh();
+    announce("Class " + (i + 1) + " width now " + (c.hi - c.lo) + ", density " + density(c).toFixed(2) + ".");
+  }
+
+  /* ---------------- Stats ---------------- */
+  function totalFreq() { var s = 0; classes.forEach(function (c) { s += c.f; }); return s; }
+
+  function estMean() {
+    var n = totalFreq(); if (n === 0) return 0;
+    var sum = 0;
+    classes.forEach(function (c) { sum += ((c.lo + c.hi) / 2) * c.f; });
+    return sum / n;
+  }
+
+  function modalClass() {
+    var best = null, bd = -1;
+    classes.forEach(function (c) { var d = density(c); if (d > bd) { bd = d; best = c; } });
+    return best;
+  }
+
+  function medianClassFn() {
+    var n = totalFreq(); var half = n / 2; var run = 0;
+    for (var i = 0; i < classes.length; i++) {
+      run += classes[i].f;
+      if (run >= half) return classes[i];
+    }
+    return null;
+  }
+
+  // Linear interpolation within median class using cumulative frequency
+  function cfValue(target) {
+    var run = 0;
+    for (var i = 0; i < classes.length; i++) {
+      var c = classes[i];
+      if (run + c.f >= target && c.f > 0) {
+        var within = (target - run) / c.f;
+        return c.lo + within * (c.hi - c.lo);
+      }
+      run += c.f;
+    }
+    return null;
+  }
+
+  function updateStats() {
+    var n = totalFreq();
+    document.getElementById("sN").textContent = n;
+    document.getElementById("sMean").textContent = n ? estMean().toFixed(1) : "–";
+    var mc = modalClass();
+    document.getElementById("sMode").textContent = (n && mc) ? (mc.lo + "–" + mc.hi) : "–";
+    var med = medianClassFn();
+    document.getElementById("sMedian").textContent = (n && med) ? (med.lo + "–" + med.hi) : "–";
+
+    if (n >= 2) {
+      var q2 = cfValue(n / 2), q1 = cfValue(n / 4), q3 = cfValue(3 * n / 4);
+      document.getElementById("sMedVal").textContent = q2 != null ? q2.toFixed(1) : "–";
+      document.getElementById("sIQR").textContent = (q1 != null && q3 != null) ? (q3 - q1).toFixed(1) : "–";
+    } else {
+      document.getElementById("sMedVal").textContent = "–";
+      document.getElementById("sIQR").textContent = "–";
+    }
+
+    document.getElementById("totFreq").textContent = n;
+    var tw = 0; classes.forEach(function (c) { tw += (c.hi - c.lo); });
+    document.getElementById("totWidth").textContent = tw;
+  }
+
+  /* ---------------- Mode note (specific feedback) ---------------- */
+  function updateModeNote() {
+    var note = document.getElementById("modeNote");
+    var mc = modalClass();
+    // find class with max frequency
+    var maxF = -1, maxFc = null;
+    classes.forEach(function (c) { if (c.f > maxF) { maxF = c.f; maxFc = c; } });
+
+    if (mode === "naive") {
+      note.className = "feedback warn";
+      note.innerHTML = "<strong>Careful: this is a bar chart, not a histogram.</strong>" +
+        "Each bar height is just the frequency, so a wide class can look taller only because it holds more values across a bigger range. The tallest bar here is <strong>" +
+        maxFc.lo + "–" + maxFc.hi + "</strong> with frequency " + maxFc.f + ". Switch to density to compare fairly.";
+    } else if (mode === "density") {
+      var sameClass = (mc && maxFc && mc.lo === maxFc.lo && mc.hi === maxFc.hi);
+      if (sameClass) {
+        note.className = "feedback good";
+        note.innerHTML = "<strong>Correct histogram.</strong>" +
+          "Bar height is frequency density (frequency &divide; width), so area shows frequency. Here the densest class <strong>" +
+          mc.lo + "–" + mc.hi + "</strong> also has the highest frequency, so they agree. Try widening a class to break the tie.";
+      } else {
+        note.className = "feedback bad";
+        note.innerHTML = "<strong>Density changes the story.</strong>" +
+          "The class with the most pupils is <strong>" + maxFc.lo + "–" + maxFc.hi + "</strong> (frequency " + maxFc.f +
+          "), but the <em>modal class</em> (highest density) is <strong>" + mc.lo + "–" + mc.hi +
+          "</strong>, density " + density(mc).toFixed(2) + ". The naive bar chart would have misled you.";
+      }
+    } else {
+      note.className = "feedback";
+      note.innerHTML = "<strong>Both plots overlaid.</strong>" +
+        "Gold = naive bar (height is frequency). Blue = histogram (height is density, area is frequency). Where they disagree most, an unequal class width is doing the work.";
+    }
+  }
+
+  /* ---------------- Refresh everything ---------------- */
+  function refresh() {
+    render();
+    // update density cells + steppers
+    classes.forEach(function (c, i) {
+      var den = document.getElementById("den" + i);
+      if (den) den.textContent = density(c).toFixed(2);
+      var fo = document.getElementById("f" + i); if (fo) fo.textContent = c.f;
+      var wo = document.getElementById("w" + i); if (wo) wo.textContent = c.hi - c.lo;
+      var tdL = den ? den.parentNode.firstChild : null;
+      if (tdL) tdL.textContent = c.lo + " – " + c.hi;
+    });
+    updateStats();
+    updateModeNote();
+  }
+
+  /* ---------------- Mode buttons ---------------- */
+  var bN = document.getElementById("modeNaive"),
+      bD = document.getElementById("modeDensity"),
+      bB = document.getElementById("modeBoth");
+  function setMode(m) {
+    mode = m;
+    bN.setAttribute("aria-pressed", String(m === "naive"));
+    bD.setAttribute("aria-pressed", String(m === "density"));
+    bB.setAttribute("aria-pressed", String(m === "both"));
+    refresh();
+  }
+  bN.addEventListener("click", function () { setMode("naive"); });
+  bD.addEventListener("click", function () { setMode("density"); });
+  bB.addEventListener("click", function () { setMode("both"); });
+
+  /* ---------------- Challenge questions ---------------- */
+  var questions = [
+    {
+      q: "A histogram shows the marks of two classes. Class A is 40 to 50 with frequency 12. Class B is 50 to 70 with frequency 16. Which class has the greater frequency density?",
+      opts: [
+        { t: "Class A: 12 ÷ 10 = 1.2 per mark", correct: true },
+        { t: "Class B: it has more pupils (16)", correct: false },
+        { t: "They are equal because both are about marks", correct: false }
+      ],
+      why: "Density = frequency ÷ width. A gives 12 ÷ 10 = 1.2; B gives 16 ÷ 20 = 0.8. A is denser even though B has more pupils."
+    },
+    {
+      q: "In a histogram, what does the AREA of a bar represent?",
+      opts: [
+        { t: "The frequency for that class", correct: true },
+        { t: "The frequency density", correct: false },
+        { t: "The class width", correct: false }
+      ],
+      why: "Height is density and width is the class width, so height × width = area = frequency. That is the whole point of frequency density."
+    },
+    {
+      q: "A class interval 0 to 30 has frequency density 0.5. How many pupils are in that class?",
+      opts: [
+        { t: "15 pupils (0.5 × 30)", correct: true },
+        { t: "0.5 pupils", correct: false },
+        { t: "30 pupils", correct: false }
+      ],
+      why: "Frequency = density × width = 0.5 × 30 = 15. Reading frequency back from a histogram means multiplying by the width."
+    },
+    {
+      q: "Why can a naive bar chart of unequal class widths mislead you?",
+      opts: [
+        { t: "Wide classes look tall just because they cover more marks, not because they are denser", correct: true },
+        { t: "Bar charts cannot show numbers at all", correct: false },
+        { t: "Frequency is always wrong", correct: false }
+      ],
+      why: "A wide interval collects values over a bigger range, so its frequency can be large even when pupils are thinly spread. Density corrects for width so comparisons are fair."
+    }
+  ];
+  var qi = 0;
+  var chQ = document.getElementById("chQ"),
+      chOpts = document.getElementById("chOpts"),
+      chFb = document.getElementById("chFeedback"),
+      chNext = document.getElementById("chNext"),
+      chRestart = document.getElementById("chRestart"),
+      chCount = document.getElementById("chCount");
+
+  function loadQ() {
+    var item = questions[qi];
+    chCount.textContent = "Question " + (qi + 1) + " of " + questions.length;
+    chQ.textContent = item.q;
+    chOpts.innerHTML = "";
+    chFb.hidden = true;
+    chNext.hidden = true;
+    chRestart.hidden = true;
+    item.opts.forEach(function (o) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = o.t;
+      b.addEventListener("click", function () { answer(b, o, item); });
+      chOpts.appendChild(b);
+    });
+  }
+
+  function answer(btn, opt, item) {
+    var btns = chOpts.querySelectorAll("button");
+    btns.forEach(function (b) { b.disabled = true; });
+    if (opt.correct) {
+      btn.classList.add("correct");
+      chFb.className = "feedback good";
+      chFb.innerHTML = "<strong>Correct.</strong>" + item.why;
+    } else {
+      btn.classList.add("wrong");
+      chFb.className = "feedback bad";
+      // also mark the correct one
+      btns.forEach(function (b, idx) { if (item.opts[idx].correct) b.classList.add("correct"); });
+      chFb.innerHTML = "<strong>Not quite.</strong>" + item.why;
+    }
+    chFb.hidden = false;
+    if (qi < questions.length - 1) chNext.hidden = false;
+    else chRestart.hidden = false;
+  }
+
+  chNext.addEventListener("click", function () { qi++; loadQ(); });
+  chRestart.addEventListener("click", function () { qi = 0; loadQ(); });
+
+  /* ---------------- Init ---------------- */
+  buildTable();
+  setMode("density");
+  loadQ();
+})();
+</script>
+</body>
+</html>

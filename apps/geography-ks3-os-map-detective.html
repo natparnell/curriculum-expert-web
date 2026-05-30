@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OS Map Detective</title>
+<style>
+:root {
+    --bg: #f4f7f5;
+    --card: #ffffff;
+    --ink: #1f2b27;
+    --muted: #5b6b65;
+    --accent: #0f766e;
+    --accent-soft: #ccfbf1;
+    --line: #d8e1dd;
+    --good: #15803d;
+    --good-soft: #dcfce7;
+    --bad: #b91c1c;
+    --bad-soft: #fee2e2;
+    --warn: #b45309;
+    --contour: #a16207;
+    --water: #2563eb;
+    --road: #c2410c;
+    --shadow: 0 4px 18px rgba(20,40,30,0.10);
+    --shadow-lg: 0 10px 34px rgba(20,40,30,0.16);
+    --radius: 14px;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+* , *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+    min-height: 100vh;
+}
+a { color: var(--accent); }
+
+.header {
+    background: linear-gradient(135deg, #0f766e, #0d9488 55%, #14b8a6);
+    color: #fff;
+    padding: 18px 18px 16px;
+    text-align: center;
+    box-shadow: var(--shadow);
+}
+.header h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; }
+.header .tag { font-size: 0.78rem; opacity: 0.92; font-weight: 600; margin-top: 3px; }
+.aim {
+    max-width: 760px; margin: 12px auto 0; font-size: 0.82rem;
+    background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.28);
+    padding: 8px 12px; border-radius: 10px; text-align: left;
+}
+.aim strong { font-weight: 800; }
+
+.main { max-width: 880px; margin: 0 auto; padding: 16px 16px 64px; }
+
+.tabs {
+    display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.tab-btn {
+    flex: 1 1 130px; padding: 11px 8px; border: 2px solid var(--line);
+    background: var(--card); font-family: var(--sans); font-size: 0.82rem;
+    font-weight: 700; cursor: pointer; color: var(--muted); border-radius: 11px;
+    transition: background .15s, color .15s, border-color .15s; min-width: 0;
+}
+.tab-btn:hover { border-color: var(--accent); }
+.tab-btn[aria-selected="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tab-btn:focus-visible { outline: 3px solid #134e4a; outline-offset: 2px; }
+
+.panel { display: none; }
+.panel.active { display: block; animation: fade .2s ease; }
+@keyframes fade { from { opacity: 0; transform: translateY(4px);} to {opacity:1; transform:none;} }
+
+.card {
+    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 16px; margin-bottom: 16px; border: 1px solid var(--line);
+}
+.card h2 { font-size: 1.02rem; font-weight: 800; margin-bottom: 4px; }
+.card .lead { font-size: 0.84rem; color: var(--muted); margin-bottom: 12px; }
+
+.scorebar {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    background: var(--accent-soft); border: 1px solid #99f6e4; border-radius: 11px;
+    padding: 8px 12px; margin-bottom: 14px; font-size: 0.82rem; font-weight: 700; color: #134e4a;
+}
+.scorebar .chip { background: #fff; border-radius: 8px; padding: 3px 9px; }
+
+/* Map */
+.map-wrap {
+    position: relative; width: 100%; max-width: 560px; margin: 0 auto 6px;
+    aspect-ratio: 1 / 1; border: 2px solid var(--accent); border-radius: var(--radius);
+    overflow: hidden; box-shadow: var(--shadow-lg); background: #eef6ee; touch-action: none;
+}
+.map-wrap canvas { width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: none; }
+.map-hint { text-align: center; font-size: 0.74rem; color: var(--muted); margin-bottom: 12px; }
+
+.q-text { font-size: 0.98rem; font-weight: 700; margin: 6px 0 10px; }
+.q-text .hl { color: var(--accent); font-weight: 800; }
+
+.gr-entry {
+    display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 10px;
+}
+.gr-input {
+    font-family: var(--mono); font-size: 1.4rem; font-weight: 700; letter-spacing: 0.18em;
+    width: 6.6em; text-align: center; padding: 8px 6px; border: 2px solid var(--line);
+    border-radius: 10px; background: #fff; color: var(--ink);
+}
+.gr-input:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.gr-input.is-good { border-color: var(--good); background: var(--good-soft); }
+.gr-input.is-bad { border-color: var(--bad); background: var(--bad-soft); }
+
+.btnrow { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.btn {
+    font-family: var(--sans); font-size: 0.86rem; font-weight: 700; padding: 10px 18px;
+    border-radius: 10px; border: 2px solid var(--accent); background: var(--accent); color: #fff;
+    cursor: pointer; transition: filter .15s, transform .05s;
+}
+.btn:hover { filter: brightness(1.07); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 3px solid #134e4a; outline-offset: 2px; }
+.btn.ghost { background: #fff; color: var(--accent); }
+.btn.ghost:hover { background: var(--accent-soft); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.feedback {
+    margin-top: 12px; padding: 11px 13px; border-radius: 11px; font-size: 0.86rem;
+    font-weight: 600; display: none; border: 1px solid transparent;
+}
+.feedback.show { display: block; }
+.feedback.good { background: var(--good-soft); border-color: #86efac; color: #14532d; }
+.feedback.bad { background: var(--bad-soft); border-color: #fca5a5; color: #7f1d1d; }
+.feedback.tip { background: #fef9c3; border-color: #fde047; color: #713f12; }
+.feedback b { font-weight: 800; }
+
+.choice-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 8px; margin: 6px 0 4px; }
+.choice {
+    padding: 11px 10px; border: 2px solid var(--line); border-radius: 10px; background: #fff;
+    font-family: var(--sans); font-size: 0.9rem; font-weight: 700; cursor: pointer; color: var(--ink);
+    transition: border-color .12s, background .12s; text-align: center;
+}
+.choice:hover { border-color: var(--accent); }
+.choice:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.choice.good { border-color: var(--good); background: var(--good-soft); color: #14532d; }
+.choice.bad { border-color: var(--bad); background: var(--bad-soft); color: #7f1d1d; }
+.choice:disabled { cursor: default; }
+
+/* Legend */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.74rem; color: var(--muted); justify-content: center; margin: 4px 0 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.swatch { width: 16px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.15); display: inline-block; }
+
+/* Profile */
+.profile-controls { font-size: 0.84rem; color: var(--muted); margin-bottom: 8px; }
+.profile-controls b { color: var(--ink); }
+.profile-wrap { width: 100%; border: 1px solid var(--line); border-radius: 11px; background: #fff; padding: 8px; }
+.profile-wrap canvas { width: 100%; height: 200px; display: block; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 10px; margin-top: 12px; }
+.stat {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; text-align: center;
+}
+.stat .v { font-size: 1.25rem; font-weight: 800; color: var(--accent); font-family: var(--mono); }
+.stat .k { font-size: 0.72rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+
+.sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+.teacher-note {
+    font-size: 0.78rem; color: var(--muted); background: #fff; border: 1px dashed var(--line);
+    border-radius: 11px; padding: 10px 13px; margin-top: 4px;
+}
+.teacher-note b { color: var(--ink); }
+
+.enquiry-step { display: none; }
+.enquiry-step.active { display: block; }
+.steps-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 12px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+.dot.on { background: var(--accent); }
+
+footer { text-align: center; font-size: 0.72rem; color: var(--muted); padding: 18px; }
+
+@media (max-width: 520px) {
+    .header h1 { font-size: 1.28rem; }
+    .gr-input { font-size: 1.2rem; width: 5.8em; }
+}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="header">
+    <h1>&#x1F50D; OS Map Detective</h1>
+    <div class="tag">Geography &middot; Key Stage 3 &middot; Geographical skills and fieldwork</div>
+    <div class="aim"><strong>Teacher aim:</strong> Pupils interpret an Ordnance Survey style map, master four and six figure grid references, read contours and relief, measure distance, and run a short data enquiry. Instant, specific marking on every attempt.</div>
+</header>
+
+<main class="main">
+    <div class="tabs" role="tablist" aria-label="Map detective activities">
+        <button class="tab-btn" role="tab" id="tab-grid" aria-controls="panel-grid" aria-selected="true">1. Grid refs</button>
+        <button class="tab-btn" role="tab" id="tab-contour" aria-controls="panel-contour" aria-selected="false">2. Contours</button>
+        <button class="tab-btn" role="tab" id="tab-distance" aria-controls="panel-distance" aria-selected="false">3. Distance</button>
+        <button class="tab-btn" role="tab" id="tab-profile" aria-controls="panel-profile" aria-selected="false">4. Relief profile</button>
+        <button class="tab-btn" role="tab" id="tab-enquiry" aria-controls="panel-enquiry" aria-selected="false">5. GIS enquiry</button>
+    </div>
+
+    <div class="scorebar" aria-live="polite">
+        <span>Detective rank: <span class="chip" id="rankChip">Trainee</span></span>
+        <span>Correct: <span class="chip" id="scoreChip">0</span></span>
+        <span>Attempts: <span class="chip" id="tryChip">0</span></span>
+    </div>
+
+    <!-- The shared map -->
+    <div class="card">
+        <div class="legend" aria-hidden="true">
+            <span><i class="swatch" style="background:#2563eb"></i>River and lake</span>
+            <span><i class="swatch" style="background:#c2410c"></i>A road</span>
+            <span><i class="swatch" style="background:#a16207"></i>Contour (10 m)</span>
+            <span><i class="swatch" style="background:#166534"></i>Woodland</span>
+            <span><i class="swatch" style="background:#7f1d1d"></i>Spot height &#x25B2;</span>
+            <span><i class="swatch" style="background:#6d28d9"></i>Settlement</span>
+        </div>
+        <div class="map-wrap">
+            <canvas id="mapCanvas" width="560" height="560"
+                role="img"
+                aria-label="Ordnance Survey style map. A 5 by 5 numbered grid covers a valley with the River Tamar running diagonally, a brown contoured hill named Brackrigg Tor in the north east rising to a spot height, the A38 road crossing west to east, Foxley village beside the river, and a patch of woodland. Use the activity tabs to read references, contours, distance and relief.">
+            </canvas>
+            <div id="mapInteractLayer"></div>
+        </div>
+        <div class="map-hint" id="mapHint">Eastings run along the bottom, northings up the side. Read along the corridor, then up the stairs.</div>
+    </div>
+
+    <!-- PANEL 1: GRID REFERENCES -->
+    <section class="panel active" id="panel-grid" role="tabpanel" aria-labelledby="tab-grid" tabindex="0">
+        <div class="card">
+            <h2>Find the grid reference</h2>
+            <p class="lead">Type the reference for the feature named below. Four figures locate a whole square; six figures locate a point inside it (imagine each square split into tenths).</p>
+            <div class="q-text" id="gridQ">Loading challenge.</div>
+            <div class="gr-entry">
+                <input class="gr-input" id="gridInput" inputmode="numeric" maxlength="6"
+                    autocomplete="off" aria-label="Grid reference, four or six digits" placeholder="------">
+            </div>
+            <div class="btnrow">
+                <button class="btn" id="gridCheck">Check</button>
+                <button class="btn ghost" id="gridHint">Hint</button>
+                <button class="btn ghost" id="gridNext">New feature</button>
+            </div>
+            <div class="feedback" id="gridFb" role="status" aria-live="polite"></div>
+        </div>
+        <p class="teacher-note"><b>Skill:</b> four and six figure grid references. Highlighted target flashes on the map when you press Hint. Six figure answers are marked correct within one tenth of a square either way.</p>
+    </section>
+
+    <!-- PANEL 2: CONTOURS -->
+    <section class="panel" id="panel-contour" role="tabpanel" aria-labelledby="tab-contour" tabindex="0">
+        <div class="card">
+            <h2>Read the relief</h2>
+            <p class="lead">Brown lines are contours, each one 10 metres of height. Lines close together mean a steep slope; spread out means gentle. Answer the question, then watch the map respond.</p>
+            <div class="q-text" id="contourQ">Loading question.</div>
+            <div class="choice-row" id="contourChoices"></div>
+            <div class="feedback" id="contourFb" role="status" aria-live="polite"></div>
+            <div class="btnrow" style="margin-top:12px;">
+                <button class="btn ghost" id="contourNext">Next question</button>
+            </div>
+        </div>
+        <p class="teacher-note"><b>Skill:</b> interpreting contour patterns, gradient and landform shape. The relevant slope is shaded on the map when you answer.</p>
+    </section>
+
+    <!-- PANEL 3: DISTANCE -->
+    <section class="panel" id="panel-distance" role="tabpanel" aria-labelledby="tab-distance" tabindex="0">
+        <div class="card">
+            <h2>Measure straight line distance</h2>
+            <p class="lead">Drag the two markers on the map (or use the keyboard) to join the points named below, then estimate the distance. One grid square is 1 kilometre.</p>
+            <div class="q-text" id="distQ">Loading route.</div>
+            <div class="profile-controls">Marker A is at <b id="aRef">--</b>, marker B is at <b id="bRef">--</b>. Measured line: <b id="liveDist">0.0 km</b>.</div>
+            <div class="choice-row" id="distChoices"></div>
+            <div class="feedback" id="distFb" role="status" aria-live="polite"></div>
+            <div class="btnrow" style="margin-top:12px;">
+                <button class="btn ghost" id="distNext">New route</button>
+            </div>
+        </div>
+        <p class="teacher-note"><b>Skill:</b> using map scale and the Pythagoras style straight line measure. Markers are draggable with a pointer or movable with arrow keys when focused.</p>
+    </section>
+
+    <!-- PANEL 4: RELIEF PROFILE -->
+    <section class="panel" id="panel-profile" role="tabpanel" aria-labelledby="tab-profile" tabindex="0">
+        <div class="card">
+            <h2>Build a cross section</h2>
+            <p class="lead">A relief profile shows the land going up and down along a line. Drag marker A and marker B across the hill, then read the cross section the app draws underneath.</p>
+            <div class="profile-controls">Profile line from <b id="pAref">--</b> to <b id="pBref">--</b>.</div>
+            <div class="profile-wrap">
+                <canvas id="profileCanvas" width="800" height="200"
+                    role="img" aria-label="Cross section chart of land height along the chosen line." aria-describedby="profileDesc"></canvas>
+            </div>
+            <p id="profileDesc" class="sr-only" aria-live="polite">Move the markers to draw a profile.</p>
+            <div class="stat-grid">
+                <div class="stat"><div class="v" id="pHigh">--</div><div class="k">Highest point</div></div>
+                <div class="stat"><div class="v" id="pLow">--</div><div class="k">Lowest point</div></div>
+                <div class="stat"><div class="v" id="pRange">--</div><div class="k">Height range</div></div>
+                <div class="stat"><div class="v" id="pShape">--</div><div class="k">Slope shape</div></div>
+            </div>
+            <div class="btnrow" style="margin-top:14px;">
+                <button class="btn ghost" id="profileChallenge">Set me a challenge</button>
+            </div>
+            <div class="feedback" id="profileFb" role="status" aria-live="polite"></div>
+        </div>
+        <p class="teacher-note"><b>Skill:</b> constructing and interpreting a relief cross section. The same two markers drive both the distance and profile tools.</p>
+    </section>
+
+    <!-- PANEL 5: GIS ENQUIRY -->
+    <section class="panel" id="panel-enquiry" role="tabpanel" aria-labelledby="tab-enquiry" tabindex="0">
+        <div class="card">
+            <h2>Run a GIS enquiry</h2>
+            <p class="lead">Geographers ask a question, gather data, present it, then reach a conclusion. Work through the enquiry on where to site a new visitor car park near Brackrigg Tor.</p>
+            <div class="steps-dots" id="enqDots" aria-hidden="true"></div>
+
+            <div class="enquiry-step active" data-step="0">
+                <div class="q-text"><span class="hl">Step 1: the question.</span> Which enquiry question is best for choosing a car park site?</div>
+                <div class="choice-row" id="enq0"></div>
+            </div>
+            <div class="enquiry-step" data-step="1">
+                <div class="q-text"><span class="hl">Step 2: the data layers.</span> The GIS holds four map layers. Which single layer matters most for keeping visitors safe from flooding?</div>
+                <div class="choice-row" id="enq1"></div>
+            </div>
+            <div class="enquiry-step" data-step="2">
+                <div class="q-text"><span class="hl">Step 3: read the data.</span> Visitor counts per square (people per day): use the figures to find the busiest square.</div>
+                <div id="enqTable"></div>
+                <div class="choice-row" id="enq2"></div>
+            </div>
+            <div class="enquiry-step" data-step="3">
+                <div class="q-text"><span class="hl">Step 4: the decision.</span> Combine your layers. Which square is the best car park site: close to demand, not on the flood plain, gentle ground, near the road?</div>
+                <div class="choice-row" id="enq3"></div>
+            </div>
+            <div class="enquiry-step" data-step="4">
+                <div class="q-text"><span class="hl">Enquiry complete.</span></div>
+                <div class="feedback good show" id="enqDone"></div>
+            </div>
+
+            <div class="feedback" id="enqFb" role="status" aria-live="polite"></div>
+            <div class="btnrow" style="margin-top:12px;">
+                <button class="btn ghost" id="enqRestart">Restart enquiry</button>
+            </div>
+        </div>
+        <p class="teacher-note"><b>Skill:</b> the geographical enquiry cycle and layered GIS thinking: question, data, analysis, conclusion.</p>
+    </section>
+
+    <footer>Demonstration data only. All names and figures are fictional, designed for classroom teaching. One grid square represents 1 km. Built for WeST.</footer>
+</main>
+
+<script>
+"use strict";
+
+/* ============================================================
+   MAP MODEL
+   The map is a 5x5 km grid. Eastings 30-35, Northings 60-65.
+   So squares run from grid ref 3060 (bottom-left) to 3464 (top-right).
+   Canvas is 560x560: a 40px margin all round, 480px of usable grid,
+   so each km square is 96px.
+   ============================================================ */
+const cv = document.getElementById("mapCanvas");
+const ctx = cv.getContext("2d");
+const MARGIN = 40;
+const SQ = (cv.width - MARGIN * 2) / 5;   // px per km square = 96
+const E_MIN = 30, N_MIN = 60;             // grid origin (bottom-left full numbers)
+
+// Convert grid easting/northing (tenths allowed, e.g. 31.5) to canvas x/y.
+function gridToXY(e, n) {
+    const x = MARGIN + (e - E_MIN) * SQ;
+    const y = MARGIN + (5 - (n - N_MIN)) * SQ; // y inverted: north is up
+    return { x, y };
+}
+function xyToGrid(x, y) {
+    const e = E_MIN + (x - MARGIN) / SQ;
+    const n = N_MIN + (5 - (y - MARGIN) / SQ);
+    return { e, n };
+}
+
+/* ---- Terrain height field (metres) -------------------------------
+   Built from a base valley plus a hill (Brackrigg Tor) in the NE.
+   Returns height in metres for grid coords (e,n). */
+const TOR = { e: 33.6, n: 63.4, peak: 220, radius: 1.9 };
+const VALLEY_FLOOR = 30; // metres near the river
+function heightAt(e, n) {
+    // distance from tor centre in km
+    const dx = e - TOR.e, dy = n - TOR.n;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    let h = VALLEY_FLOOR;
+    // hill: cosine bump
+    if (d < TOR.radius) {
+        h += (TOR.peak - VALLEY_FLOOR) * Math.pow(Math.cos((d / TOR.radius) * Math.PI / 2), 1.4);
+    }
+    // gentle general rise to the north (kept small so it does not overwhelm the hill)
+    h += (n - N_MIN) * 4;
+    // river trough: low ground along the diagonal valley line
+    const riverE = riverEastingAt(n);
+    const distRiver = Math.abs(e - riverE);
+    if (distRiver < 0.6) h -= (0.6 - distRiver) * 18;
+    // the surveyed summit is labelled 220 m on the map; keep the field honest to that
+    return Math.max(8, Math.min(220, Math.round(h)));
+}
+// River runs from NW (about e30.4,n65) to SE (about e34.5,n60), gentle curve.
+function riverEastingAt(n) {
+    const t = (65 - n) / 5;               // 0 at top, 1 at bottom
+    return 30.4 + t * 4.1 + Math.sin(t * Math.PI) * 0.35;
+}
+
+/* ---- Named features (fictional) --------------------------------- */
+const FEATURES = [
+    { key: "church", name: "St Mabyn's church", e: 31.6, n: 62.4, kind: "point" },
+    { key: "village", name: "Foxley village centre", e: 31.2, n: 62.0, kind: "point" },
+    { key: "tor", name: "the summit of Brackrigg Tor", e: TOR.e, n: TOR.n, kind: "point" },
+    { key: "bridge", name: "Tamar road bridge", e: 32.0, n: 61.55, kind: "point" },
+    { key: "wood", name: "the centre of Heron Wood", e: 30.9, n: 63.6, kind: "point" },
+    { key: "carpark", name: "Riverside car park", e: 31.85, n: 61.7, kind: "point" },
+    { key: "farm", name: "Tregwynt Farm", e: 33.1, n: 61.2, kind: "point" }
+];
+
+/* ============================================================
+   DRAW THE MAP
+   ============================================================ */
+let highlightSquare = null;   // {e,n} full numbers, flashes a square
+let shadedSlope = null;       // {x,y,r} a shaded circle on map
+let markerA = { e: 31.0, n: 61.0 };
+let markerB = { e: 34.0, n: 64.0 };
+let showMarkers = false;
+
+function drawMap() {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+
+    // background
+    ctx.fillStyle = "#eef6ee";
+    ctx.fillRect(0, 0, cv.width, cv.height);
+
+    // woodland patch (Heron Wood) NW
+    drawWood();
+
+    // contours
+    drawContours();
+
+    // river
+    drawRiver();
+
+    // A road (A38) west-east, slightly wavy through n61.4
+    drawRoad();
+
+    // settlement block (Foxley)
+    ctx.fillStyle = "rgba(109,40,217,0.18)";
+    const fv = gridToXY(30.95, 62.25);
+    ctx.fillRect(fv.x, fv.y - SQ * 0.5, SQ * 0.55, SQ * 0.5);
+
+    // grid lines + numbers
+    drawGrid();
+
+    // feature symbols
+    drawFeatures();
+
+    // shaded slope overlay
+    if (shadedSlope) {
+        ctx.save();
+        ctx.fillStyle = "rgba(180,83,9,0.30)";
+        ctx.beginPath();
+        ctx.arc(shadedSlope.x, shadedSlope.y, shadedSlope.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // highlight square (flashing target)
+    if (highlightSquare) {
+        const p = gridToXY(highlightSquare.e, highlightSquare.n + 1); // top-left of square
+        ctx.save();
+        ctx.strokeStyle = "#dc2626";
+        ctx.lineWidth = 4;
+        ctx.setLineDash([8, 5]);
+        ctx.strokeRect(p.x + 2, p.y + 2, SQ - 4, SQ - 4);
+        ctx.restore();
+    }
+
+    // distance / profile markers
+    if (showMarkers) drawMarkers();
+}
+
+function drawGrid() {
+    ctx.save();
+    ctx.strokeStyle = "rgba(75,110,90,0.45)";
+    ctx.lineWidth = 1;
+    ctx.font = "600 13px " + getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = "#3f5249";
+    for (let i = 0; i <= 5; i++) {
+        // vertical (eastings)
+        const x = MARGIN + i * SQ;
+        ctx.beginPath(); ctx.moveTo(x, MARGIN); ctx.lineTo(x, MARGIN + 5 * SQ); ctx.stroke();
+        // horizontal (northings)
+        const y = MARGIN + i * SQ;
+        ctx.beginPath(); ctx.moveTo(MARGIN, y); ctx.lineTo(MARGIN + 5 * SQ, y); ctx.stroke();
+        if (i < 5) {
+            // easting label (bottom)
+            ctx.textAlign = "center";
+            ctx.fillText(String(E_MIN + i), x + SQ / 2, MARGIN + 5 * SQ + 18);
+            // northing label (left), counting up
+            ctx.textAlign = "right";
+            ctx.fillText(String(N_MIN + i), MARGIN - 8, MARGIN + (5 - i) * SQ - SQ / 2 + 5);
+        }
+    }
+    ctx.restore();
+}
+
+function drawContours() {
+    ctx.save();
+    ctx.strokeStyle = "#a16207";
+    ctx.lineWidth = 1.4;
+    ctx.font = "italic 600 11px " + getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = "#92500a";
+    const step = 20; // 20 m contours for clarity
+    for (let level = 40; level <= TOR.peak; level += step) {
+        traceContour(level);
+    }
+    ctx.restore();
+}
+// Marching-style trace by scanning a fine grid and drawing segments where the field crosses level.
+function traceContour(level) {
+    const res = 0.06; // km step
+    ctx.beginPath();
+    for (let e = E_MIN; e < E_MIN + 5; e += res) {
+        for (let n = N_MIN; n < N_MIN + 5; n += res) {
+            const h00 = heightAt(e, n);
+            const h10 = heightAt(e + res, n);
+            const h01 = heightAt(e, n + res);
+            // horizontal crossing
+            if ((h00 - level) * (h10 - level) < 0) {
+                const t = (level - h00) / (h10 - h00);
+                const a = gridToXY(e + t * res, n);
+                const b = gridToXY(e + t * res, n);
+                ctx.moveTo(a.x, a.y); ctx.lineTo(b.x + 0.6, b.y + 0.6);
+            }
+            // vertical crossing
+            if ((h00 - level) * (h01 - level) < 0) {
+                const t = (level - h00) / (h01 - h00);
+                const a = gridToXY(e, n + t * res);
+                ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + 0.6, a.y + 0.6);
+            }
+        }
+    }
+    ctx.stroke();
+    // label one contour near the tor
+    const lp = gridToXY(TOR.e - 0.5, TOR.n + (level / TOR.peak) * 0.4);
+    if (level % 40 === 0) {
+        ctx.save();
+        ctx.fillStyle = "#92500a";
+        ctx.fillText(String(level), lp.x, lp.y);
+        ctx.restore();
+    }
+}
+
+function drawRiver() {
+    ctx.save();
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    let first = true;
+    for (let n = N_MIN + 5; n >= N_MIN; n -= 0.05) {
+        const p = gridToXY(riverEastingAt(n), n);
+        if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+    // label
+    ctx.fillStyle = "#1d4ed8";
+    ctx.font = "italic 600 12px " + getComputedStyle(document.body).fontFamily;
+    const lp = gridToXY(riverEastingAt(62.5) + 0.15, 62.5);
+    ctx.save(); ctx.translate(lp.x, lp.y); ctx.rotate(0.9); ctx.fillText("R. Tamar", 0, 0); ctx.restore();
+    ctx.restore();
+}
+
+function drawRoad() {
+    ctx.save();
+    ctx.strokeStyle = "#c2410c";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    let first = true;
+    for (let e = E_MIN; e <= E_MIN + 5; e += 0.05) {
+        const n = 61.4 + Math.sin((e - E_MIN) * 1.1) * 0.22;
+        const p = gridToXY(e, n);
+        if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+    ctx.fillStyle = "#9a3412";
+    ctx.font = "700 12px " + getComputedStyle(document.body).fontFamily;
+    const lp = gridToXY(33.4, 61.05);
+    ctx.fillText("A38", lp.x, lp.y);
+    ctx.restore();
+}
+
+function drawWood() {
+    ctx.save();
+    ctx.fillStyle = "rgba(22,101,52,0.20)";
+    const c = gridToXY(30.9, 63.6);
+    ctx.beginPath();
+    ctx.ellipse(c.x, c.y, SQ * 0.55, SQ * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // little tree dots
+    ctx.fillStyle = "#166534";
+    for (let i = 0; i < 9; i++) {
+        const ang = (i / 9) * Math.PI * 2;
+        const tx = c.x + Math.cos(ang) * SQ * 0.32;
+        const ty = c.y + Math.sin(ang) * SQ * 0.24;
+        ctx.beginPath(); ctx.arc(tx, ty, 3, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+}
+
+function drawFeatures() {
+    ctx.save();
+    ctx.font = "700 11px " + getComputedStyle(document.body).fontFamily;
+    FEATURES.forEach(f => {
+        const p = gridToXY(f.e, f.n);
+        ctx.fillStyle = "#6d28d9";
+        if (f.key === "church") {
+            // church symbol: a cross
+            ctx.strokeStyle = "#4c1d95"; ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y - 7); ctx.lineTo(p.x, p.y + 5);
+            ctx.moveTo(p.x - 4, p.y - 3); ctx.lineTo(p.x + 4, p.y - 3);
+            ctx.stroke();
+        } else if (f.key === "tor") {
+            ctx.fillStyle = "#7f1d1d";
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y - 7); ctx.lineTo(p.x - 6, p.y + 5); ctx.lineTo(p.x + 6, p.y + 5); ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = "#7f1d1d"; ctx.textAlign = "left";
+            ctx.fillText("220 ▲", p.x + 9, p.y + 4);
+            ctx.fillText("Brackrigg Tor", p.x - 28, p.y - 12);
+        } else if (f.key === "carpark") {
+            ctx.fillStyle = "#1e3a8a";
+            ctx.fillRect(p.x - 6, p.y - 6, 12, 12);
+            ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = "800 10px sans-serif";
+            ctx.fillText("P", p.x, p.y + 3.5);
+            ctx.font = "700 11px " + getComputedStyle(document.body).fontFamily;
+        } else if (f.key === "bridge") {
+            ctx.strokeStyle = "#374151"; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(p.x - 7, p.y); ctx.lineTo(p.x + 7, p.y); ctx.stroke();
+        } else {
+            ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
+        }
+    });
+    ctx.restore();
+}
+
+function drawMarkers() {
+    drawOneMarker(markerA, "A", "#0f766e");
+    drawOneMarker(markerB, "B", "#b45309");
+    // connecting line
+    const a = gridToXY(markerA.e, markerA.n);
+    const b = gridToXY(markerB.e, markerB.n);
+    ctx.save();
+    ctx.strokeStyle = "rgba(15,23,42,0.7)";
+    ctx.lineWidth = 2.5; ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.restore();
+}
+function drawOneMarker(m, label, colour) {
+    const p = gridToXY(m.e, m.n);
+    ctx.save();
+    ctx.fillStyle = colour;
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.font = "800 13px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(label, p.x, p.y + 5);
+    ctx.restore();
+}
+
+drawMap();
+
+/* ============================================================
+   SCORING
+   ============================================================ */
+let score = 0, attempts = 0;
+function bump(correct) {
+    attempts++;
+    if (correct) score++;
+    document.getElementById("scoreChip").textContent = score;
+    document.getElementById("tryChip").textContent = attempts;
+    let rank = "Trainee";
+    if (score >= 3) rank = "Map Reader";
+    if (score >= 6) rank = "Field Surveyor";
+    if (score >= 10) rank = "Chief Cartographer";
+    document.getElementById("rankChip").textContent = rank;
+}
+
+/* ============================================================
+   TABS
+   ============================================================ */
+const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+const panels = {
+    "tab-grid": "panel-grid", "tab-contour": "panel-contour",
+    "tab-distance": "panel-distance", "tab-profile": "panel-profile",
+    "tab-enquiry": "panel-enquiry"
+};
+function activateTab(id) {
+    tabs.forEach(t => {
+        const sel = t.id === id;
+        t.setAttribute("aria-selected", sel ? "true" : "false");
+    });
+    Object.entries(panels).forEach(([t, p]) => {
+        document.getElementById(p).classList.toggle("active", t === id);
+    });
+    // markers only on distance/profile tabs
+    showMarkers = (id === "tab-distance" || id === "tab-profile");
+    highlightSquare = null; shadedSlope = null;
+    drawMap();
+    if (id === "tab-profile") drawProfile();
+    if (id === "tab-distance") updateDistInfo();
+}
+tabs.forEach((t, i) => {
+    t.addEventListener("click", () => activateTab(t.id));
+    t.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+            e.preventDefault();
+            const dir = e.key === "ArrowRight" ? 1 : -1;
+            const next = tabs[(i + dir + tabs.length) % tabs.length];
+            next.focus(); activateTab(next.id);
+        }
+    });
+});
+
+/* ============================================================
+   PANEL 1: GRID REFERENCES
+   ============================================================ */
+const gridQ = document.getElementById("gridQ");
+const gridInput = document.getElementById("gridInput");
+const gridFb = document.getElementById("gridFb");
+let currentFeature = null;
+
+function newGridChallenge() {
+    currentFeature = FEATURES[Math.floor(Math.random() * FEATURES.length)];
+    const wantSix = Math.random() < 0.5;
+    currentFeature._wantSix = wantSix;
+    gridQ.innerHTML = "Give the <span class='hl'>" + (wantSix ? "six" : "four")
+        + " figure</span> grid reference for <span class='hl'>" + currentFeature.name + "</span>.";
+    gridInput.value = "";
+    gridInput.maxLength = wantSix ? 6 : 4;
+    gridInput.placeholder = wantSix ? "------" : "----";
+    gridInput.className = "gr-input";
+    setFb(gridFb, "", "");
+    highlightSquare = null; drawMap();
+    gridInput.focus();
+}
+function expectedRef(f, six) {
+    const e = f.e, n = f.n;
+    const e1 = Math.floor(e), n1 = Math.floor(n);
+    if (!six) return "" + e1 + n1;
+    const eT = Math.round((e - e1) * 10);
+    const nT = Math.round((n - n1) * 10);
+    return "" + e1 + eT + n1 + nT;
+}
+document.getElementById("gridCheck").addEventListener("click", checkGrid);
+gridInput.addEventListener("keydown", e => { if (e.key === "Enter") checkGrid(); });
+function checkGrid() {
+    if (!currentFeature) return;
+    const val = gridInput.value.trim();
+    const six = currentFeature._wantSix;
+    const need = six ? 6 : 4;
+    if (!/^[0-9]+$/.test(val) || val.length !== need) {
+        gridInput.className = "gr-input is-bad";
+        setFb(gridFb, "tip", "&#x270B; Enter exactly <b>" + need + " digits</b> (numbers only). Read the easting first, then the northing.");
+        return;
+    }
+    const f = currentFeature;
+    if (!six) {
+        const ans = expectedRef(f, false);
+        if (val === ans) {
+            gridInput.className = "gr-input is-good";
+            setFb(gridFb, "good", "&#x2705; Correct. The square containing " + f.name + " is <b>" + ans + "</b>. You read along to easting " + ans.slice(0,2) + " then up to northing " + ans.slice(2) + ".");
+            flashHighlight(Math.floor(f.e), Math.floor(f.n));
+            bump(true);
+        } else {
+            gridInput.className = "gr-input is-bad";
+            const eGiven = val.slice(0,2), nGiven = val.slice(2);
+            let why = "";
+            if (eGiven !== ans.slice(0,2) && nGiven !== ans.slice(2)) why = "Both figures are off. ";
+            else if (eGiven !== ans.slice(0,2)) why = "Your easting (along) is wrong. ";
+            else why = "Your northing (up) is wrong. ";
+            setFb(gridFb, "bad", "&#x274C; Not quite. " + why + "Remember: <b>along the corridor, then up the stairs</b>. Press Hint to see the square.");
+            bump(false);
+        }
+    } else {
+        // six figure: allow one tenth tolerance
+        const e1 = Math.floor(f.e), n1 = Math.floor(f.n);
+        const eGiven = parseInt(val.slice(0,2), 10);
+        const eTenth = parseInt(val[2], 10);
+        const nGiven = parseInt(val.slice(3,5), 10);
+        const nTenth = parseInt(val[5], 10);
+        const eTrue = Math.round((f.e - e1) * 10);
+        const nTrue = Math.round((f.n - n1) * 10);
+        const squareOK = (eGiven === e1 && nGiven === n1);
+        const tenthOK = squareOK && Math.abs(eTenth - eTrue) <= 1 && Math.abs(nTenth - nTrue) <= 1;
+        const exact = squareOK && eTenth === eTrue && nTenth === nTrue;
+        if (tenthOK) {
+            gridInput.className = "gr-input is-good";
+            const exactRef = expectedRef(f, true);
+            setFb(gridFb, "good", (exact ? "&#x2705; Spot on." : "&#x2705; Close enough, within one tenth.")
+                + " The precise reference is <b>" + exactRef + "</b>: each square is split into tenths, so the point sits "
+                + eTrue + " tenths across and " + nTrue + " tenths up.");
+            flashHighlight(e1, n1);
+            bump(true);
+        } else {
+            gridInput.className = "gr-input is-bad";
+            let why;
+            if (!squareOK) why = "Your four figure square is wrong (the first two and middle two digits set the square).";
+            else why = "Right square, but the tenths are too far out. Estimate how far across and up inside the square the point sits.";
+            setFb(gridFb, "bad", "&#x274C; Not yet. " + why + " Press Hint to see the square.");
+            bump(false);
+        }
+    }
+}
+document.getElementById("gridHint").addEventListener("click", () => {
+    if (!currentFeature) return;
+    flashHighlight(Math.floor(currentFeature.e), Math.floor(currentFeature.n));
+    setFb(gridFb, "tip", "&#x1F4A1; The flashing square is where " + currentFeature.name + " sits. Its four figure reference is the easting along the bottom then the northing up the side.");
+});
+document.getElementById("gridNext").addEventListener("click", newGridChallenge);
+
+function flashHighlight(e, n) {
+    highlightSquare = { e, n };
+    drawMap();
+    let flashes = 0;
+    const iv = setInterval(() => {
+        highlightSquare = highlightSquare ? null : { e, n };
+        drawMap();
+        if (++flashes > 5) { clearInterval(iv); highlightSquare = { e, n }; drawMap(); }
+    }, 280);
+}
+function setFb(el, kind, html) {
+    el.className = "feedback" + (kind ? " " + kind : "");
+    el.innerHTML = html;
+    if (html) el.classList.add("show"); else el.classList.remove("show");
+}
+newGridChallenge();
+
+/* ============================================================
+   PANEL 2: CONTOURS
+   ============================================================ */
+const contourQ = document.getElementById("contourQ");
+const contourChoices = document.getElementById("contourChoices");
+const contourFb = document.getElementById("contourFb");
+
+const CONTOUR_QS = [
+    {
+        q: "Look at Brackrigg Tor in the north east. What does the spot height symbol ▲ 220 tell you?",
+        opts: ["The exact height of the summit is 220 m", "There are 220 contour lines", "The slope angle is 220 degrees", "The river is 220 m wide"],
+        ans: 0,
+        slope: { e: TOR.e, n: TOR.n, r: SQ * 0.4 },
+        good: "Yes. A spot height marks a surveyed point and gives its exact height: the summit of Brackrigg Tor is 220 m above sea level.",
+        bad: "A spot height (the triangle and a number) gives the exact surveyed height of that point. Here the summit is 220 m."
+    },
+    {
+        q: "Where the brown contour lines are packed close together on the Tor, the land is:",
+        opts: ["Steep", "Flat", "Under water", "A road"],
+        ans: 0,
+        slope: { e: TOR.e - 0.5, n: TOR.n - 0.4, r: SQ * 0.45 },
+        good: "Correct. Closely spaced contours mean height changes quickly over a short distance, so the slope is steep.",
+        bad: "Closely spaced contours mean the height changes fast over a short distance. That is a steep slope."
+    },
+    {
+        q: "Down near the River Tamar the contours are widely spaced or absent. This tells you the valley floor is:",
+        opts: ["Gentle and low lying", "The highest land", "Very steep", "A cliff"],
+        ans: 0,
+        slope: { e: riverEastingAt(62) , n: 62, r: SQ * 0.5 },
+        good: "Right. Few, widely spaced contours mean the land is low and almost flat: the gentle valley floor by the river.",
+        bad: "Widely spaced or missing contours mean gentle, low ground. By the river this is the flat valley floor."
+    },
+    {
+        q: "Following one single brown contour line all the way round, every point on that line is:",
+        opts: ["At the same height", "At a different height", "The same temperature", "On a road"],
+        ans: 0,
+        slope: null,
+        good: "Exactly. A contour line joins points of equal height, like a level path that never goes up or down.",
+        bad: "A contour line joins all points at the same height above sea level. Walk along it and you stay level."
+    },
+    {
+        q: "Each contour on this map is drawn every 20 m. Climbing from the 60 m line to the 120 m line, you have gone up:",
+        opts: ["60 m", "20 m", "120 m", "3 m"],
+        ans: 0,
+        slope: { e: TOR.e - 0.7, n: TOR.n - 0.5, r: SQ * 0.5 },
+        good: "Correct. From 60 m to 120 m is a rise of 60 m. Counting contour lines and multiplying by the interval gives height gained.",
+        bad: "From 60 m up to 120 m is 120 minus 60, which is 60 m gained. Count the lines and use the 20 m interval."
+    }
+];
+let contourIdx = -1;
+function newContour() {
+    contourIdx = (contourIdx + 1) % CONTOUR_QS.length;
+    const q = CONTOUR_QS[contourIdx];
+    contourQ.textContent = q.q;
+    contourChoices.innerHTML = "";
+    shadedSlope = null; drawMap();
+    setFb(contourFb, "", "");
+    q.opts.forEach((opt, i) => {
+        const b = document.createElement("button");
+        b.className = "choice"; b.type = "button"; b.textContent = opt;
+        b.addEventListener("click", () => {
+            Array.from(contourChoices.children).forEach(c => c.disabled = true);
+            if (i === q.ans) {
+                b.classList.add("good");
+                setFb(contourFb, "good", "&#x2705; " + q.good);
+                bump(true);
+            } else {
+                b.classList.add("bad");
+                contourChoices.children[q.ans].classList.add("good");
+                setFb(contourFb, "bad", "&#x274C; " + q.bad);
+                bump(false);
+            }
+            if (q.slope) { const p = gridToXY(q.slope.e, q.slope.n); shadedSlope = { x: p.x, y: p.y, r: q.slope.r }; drawMap(); }
+        });
+        contourChoices.appendChild(b);
+    });
+}
+document.getElementById("contourNext").addEventListener("click", newContour);
+newContour();
+
+/* ============================================================
+   PANEL 3: DISTANCE  (uses markerA / markerB)
+   ============================================================ */
+const distQ = document.getElementById("distQ");
+const distChoices = document.getElementById("distChoices");
+const distFb = document.getElementById("distFb");
+const aRefEl = document.getElementById("aRef");
+const bRefEl = document.getElementById("bRef");
+const liveDistEl = document.getElementById("liveDist");
+
+const DIST_ROUTES = [
+    { a: "village", b: "tor" },
+    { a: "church", b: "farm" },
+    { a: "bridge", b: "wood" },
+    { a: "carpark", b: "tor" }
+];
+let distRoute = null;
+function featureByKey(k) { return FEATURES.find(f => f.key === k); }
+function trueDistance() {
+    const dx = markerA.e - markerB.e, dy = markerA.n - markerB.n;
+    return Math.sqrt(dx * dx + dy * dy); // km, since 1 square = 1 km
+}
+function newDistRoute() {
+    distRoute = DIST_ROUTES[Math.floor(Math.random() * DIST_ROUTES.length)];
+    const fa = featureByKey(distRoute.a), fb = featureByKey(distRoute.b);
+    markerA = { e: fa.e, n: fa.n };
+    markerB = { e: fb.e, n: fb.n };
+    distQ.innerHTML = "Join <span class='hl'>" + fa.name + "</span> (marker A) to <span class='hl'>" + fb.name + "</span> (marker B). What is the straight line distance?";
+    showMarkers = true; drawMap(); updateDistInfo();
+    setFb(distFb, "", "");
+    buildDistChoices();
+}
+function buildDistChoices() {
+    const d = trueDistance();
+    // build four options around true value
+    const opts = new Set();
+    const round1 = Math.round(d * 10) / 10;
+    opts.add(round1.toFixed(1));
+    while (opts.size < 4) {
+        const delta = (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 1.6);
+        const v = Math.max(0.4, round1 + delta);
+        opts.add((Math.round(v * 10) / 10).toFixed(1));
+    }
+    const arr = Array.from(opts).sort(() => Math.random() - 0.5);
+    distChoices.innerHTML = "";
+    arr.forEach(v => {
+        const b = document.createElement("button");
+        b.className = "choice"; b.type = "button"; b.textContent = v + " km";
+        b.addEventListener("click", () => {
+            Array.from(distChoices.children).forEach(c => c.disabled = true);
+            const chosen = parseFloat(v);
+            const exact = trueDistance();
+            if (Math.abs(chosen - exact) <= 0.25) {
+                b.classList.add("good");
+                setFb(distFb, "good", "&#x2705; Correct, the straight line is about <b>" + exact.toFixed(1) + " km</b>. You read the markers, used the scale (1 square = 1 km), and measured corner to corner.");
+                bump(true);
+            } else {
+                b.classList.add("bad");
+                // mark the right one
+                Array.from(distChoices.children).forEach(c => {
+                    if (Math.abs(parseFloat(c.textContent) - exact) <= 0.25) c.classList.add("good");
+                });
+                setFb(distFb, "bad", "&#x274C; Not quite. The true straight line is <b>" + exact.toFixed(1) + " km</b>. Count squares across and up between A and B, then estimate the diagonal: it is longer than either side but less than both added together.");
+                bump(false);
+            }
+        });
+        distChoices.appendChild(b);
+    });
+}
+function fmtRef(m) {
+    const e1 = Math.floor(m.e), n1 = Math.floor(m.n);
+    const eT = Math.round((m.e - e1) * 10), nT = Math.round((m.n - n1) * 10);
+    return "" + e1 + eT + n1 + nT;
+}
+function updateDistInfo() {
+    aRefEl.textContent = fmtRef(markerA);
+    bRefEl.textContent = fmtRef(markerB);
+    liveDistEl.textContent = trueDistance().toFixed(1) + " km";
+}
+document.getElementById("distNext").addEventListener("click", newDistRoute);
+newDistRoute();
+
+/* ============================================================
+   MARKER DRAGGING (Pointer Events) + keyboard
+   Works for distance AND profile panels.
+   ============================================================ */
+let dragging = null; // 'A' | 'B' | null
+function canvasPoint(ev) {
+    const rect = cv.getBoundingClientRect();
+    const scaleX = cv.width / rect.width, scaleY = cv.height / rect.height;
+    return { x: (ev.clientX - rect.left) * scaleX, y: (ev.clientY - rect.top) * scaleY };
+}
+function nearMarker(pt, m) {
+    const p = gridToXY(m.e, m.n);
+    return Math.hypot(pt.x - p.x, pt.y - p.y) < 22;
+}
+function clampGrid(g) {
+    g.e = Math.min(E_MIN + 5, Math.max(E_MIN, g.e));
+    g.n = Math.min(N_MIN + 5, Math.max(N_MIN, g.n));
+    return g;
+}
+cv.addEventListener("pointerdown", (ev) => {
+    if (!showMarkers) return;
+    const pt = canvasPoint(ev);
+    if (nearMarker(pt, markerA)) dragging = "A";
+    else if (nearMarker(pt, markerB)) dragging = "B";
+    if (dragging) {
+        cv.setPointerCapture(ev.pointerId);
+        ev.preventDefault();
+    }
+});
+cv.addEventListener("pointermove", (ev) => {
+    if (!dragging) return;
+    const pt = canvasPoint(ev);
+    const g = xyToGrid(pt.x, pt.y);
+    // snap to tenths
+    g.e = Math.round(g.e * 10) / 10;
+    g.n = Math.round(g.n * 10) / 10;
+    clampGrid(g);
+    if (dragging === "A") markerA = g; else markerB = g;
+    afterMarkerMove();
+    ev.preventDefault();
+});
+function endDrag(ev) {
+    if (dragging) { try { cv.releasePointerCapture(ev.pointerId); } catch (e) {} dragging = null; }
+}
+cv.addEventListener("pointerup", endDrag);
+cv.addEventListener("pointercancel", endDrag);
+
+function afterMarkerMove() {
+    drawMap();
+    updateDistInfo();
+    const profilePanel = document.getElementById("panel-profile");
+    if (profilePanel.classList.contains("active")) drawProfile();
+}
+
+// Keyboard control for markers: make canvas focusable and respond to arrows when on distance/profile tabs.
+cv.setAttribute("tabindex", "0");
+let kbMarker = "A";
+cv.addEventListener("keydown", (ev) => {
+    if (!showMarkers) return;
+    const stepK = ev.shiftKey ? 0.5 : 0.1;
+    let handled = true;
+    if (ev.key === "Tab") return; // allow normal tabbing
+    if (ev.key.toLowerCase() === "m") { kbMarker = kbMarker === "A" ? "B" : "A"; announce("Now moving marker " + kbMarker); }
+    else {
+        const m = kbMarker === "A" ? markerA : markerB;
+        if (ev.key === "ArrowLeft") m.e -= stepK;
+        else if (ev.key === "ArrowRight") m.e += stepK;
+        else if (ev.key === "ArrowUp") m.n += stepK;
+        else if (ev.key === "ArrowDown") m.n -= stepK;
+        else handled = false;
+        if (handled) { m.e = Math.round(m.e * 10) / 10; m.n = Math.round(m.n * 10) / 10; clampGrid(m); afterMarkerMove(); }
+    }
+    if (handled) ev.preventDefault();
+});
+function announce(msg) {
+    const d = document.getElementById("profileDesc");
+    d.textContent = msg;
+}
+
+/* ============================================================
+   PANEL 4: RELIEF PROFILE
+   ============================================================ */
+const pCanvas = document.getElementById("profileCanvas");
+const pctx = pCanvas.getContext("2d");
+const pAref = document.getElementById("pAref"), pBref = document.getElementById("pBref");
+const pHigh = document.getElementById("pHigh"), pLow = document.getElementById("pLow");
+const pRange = document.getElementById("pRange"), pShape = document.getElementById("pShape");
+const profileFb = document.getElementById("profileFb");
+let profileChallenge = null;
+
+function sampleProfile() {
+    const N = 60;
+    const pts = [];
+    for (let i = 0; i <= N; i++) {
+        const t = i / N;
+        const e = markerA.e + (markerB.e - markerA.e) * t;
+        const n = markerA.n + (markerB.n - markerA.n) * t;
+        pts.push(heightAt(e, n));
+    }
+    return pts;
+}
+function drawProfile() {
+    pAref.textContent = fmtRef(markerA);
+    pBref.textContent = fmtRef(markerB);
+    const W = pCanvas.width, H = pCanvas.height;
+    pctx.clearRect(0, 0, W, H);
+    const pts = sampleProfile();
+    const maxH = Math.max(...pts, 60);
+    const minH = Math.min(...pts, 0);
+    const padL = 44, padR = 12, padT = 14, padB = 26;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+
+    // axes
+    pctx.strokeStyle = "#cbd5d3"; pctx.lineWidth = 1;
+    pctx.beginPath();
+    pctx.moveTo(padL, padT); pctx.lineTo(padL, padT + plotH); pctx.lineTo(padL + plotW, padT + plotH);
+    pctx.stroke();
+
+    // y gridlines + labels
+    pctx.fillStyle = "#5b6b65"; pctx.font = "11px sans-serif"; pctx.textAlign = "right";
+    const yTop = Math.ceil(maxH / 50) * 50;
+    for (let h = 0; h <= yTop; h += 50) {
+        const y = padT + plotH - (h / yTop) * plotH;
+        pctx.strokeStyle = "#eef2f1"; pctx.beginPath(); pctx.moveTo(padL, y); pctx.lineTo(padL + plotW, y); pctx.stroke();
+        pctx.fillStyle = "#5b6b65"; pctx.fillText(h + " m", padL - 6, y + 4);
+    }
+
+    // filled relief
+    pctx.beginPath();
+    pctx.moveTo(padL, padT + plotH);
+    pts.forEach((h, i) => {
+        const x = padL + (i / (pts.length - 1)) * plotW;
+        const y = padT + plotH - (h / yTop) * plotH;
+        pctx.lineTo(x, y);
+    });
+    pctx.lineTo(padL + plotW, padT + plotH);
+    pctx.closePath();
+    const grad = pctx.createLinearGradient(0, padT, 0, padT + plotH);
+    grad.addColorStop(0, "#a16207"); grad.addColorStop(1, "#d6c79a");
+    pctx.fillStyle = grad; pctx.fill();
+    // outline
+    pctx.beginPath();
+    pts.forEach((h, i) => {
+        const x = padL + (i / (pts.length - 1)) * plotW;
+        const y = padT + plotH - (h / yTop) * plotH;
+        i === 0 ? pctx.moveTo(x, y) : pctx.lineTo(x, y);
+    });
+    pctx.strokeStyle = "#7c4a02"; pctx.lineWidth = 2; pctx.stroke();
+
+    // A / B labels
+    pctx.fillStyle = "#0f766e"; pctx.textAlign = "left"; pctx.font = "800 12px sans-serif";
+    pctx.fillText("A", padL + 1, padT + plotH + 18);
+    pctx.fillStyle = "#b45309"; pctx.textAlign = "right";
+    pctx.fillText("B", padL + plotW - 1, padT + plotH + 18);
+
+    // stats
+    const hi = Math.max(...pts), lo = Math.min(...pts);
+    pHigh.textContent = hi + " m";
+    pLow.textContent = lo + " m";
+    pRange.textContent = (hi - lo) + " m";
+    const shape = classifyShape(pts);
+    pShape.textContent = shape;
+
+    const distKm = trueDistance().toFixed(1);
+    announce("Profile from " + fmtRef(markerA) + " to " + fmtRef(markerB) + ", length " + distKm
+        + " kilometres. Highest " + hi + " metres, lowest " + lo + " metres, range " + (hi - lo) + " metres. Shape: " + shape + ".");
+
+    // grade challenge if set
+    if (profileChallenge) gradeProfileChallenge(hi, lo, shape);
+}
+function classifyShape(pts) {
+    const start = pts[0], end = pts[pts.length - 1], mid = pts[Math.floor(pts.length / 2)];
+    const max = Math.max(...pts), min = Math.min(...pts);
+    if (max - min < 15) return "Flat";
+    const peakIdx = pts.indexOf(max);
+    const rel = peakIdx / (pts.length - 1);
+    if (rel > 0.25 && rel < 0.75 && max > start + 25 && max > end + 25) return "Hill (rise then fall)";
+    if (end - start > 30) return "Uphill slope";
+    if (start - end > 30) return "Downhill slope";
+    const valIdx = pts.indexOf(min);
+    const vrel = valIdx / (pts.length - 1);
+    if (vrel > 0.2 && vrel < 0.8 && min < start - 20 && min < end - 20) return "Valley (dip)";
+    return "Undulating";
+}
+document.getElementById("profileChallenge").addEventListener("click", () => {
+    // pose a challenge: drag a profile that crosses the summit
+    profileChallenge = { type: "summit" };
+    setFb(profileFb, "tip", "&#x1F3AF; Challenge: drag markers A and B so the cross section goes <b>over the summit of Brackrigg Tor</b>. Aim for a hill shape with a highest point above 180 m. The app will check your profile as you move.");
+});
+function gradeProfileChallenge(hi, lo, shape) {
+    if (profileChallenge.type === "summit") {
+        if (hi >= 180 && shape.startsWith("Hill")) {
+            setFb(profileFb, "good", "&#x2705; Done. Your line crosses the high ground: peak " + hi + " m with a clear hill shape. That is a relief profile over Brackrigg Tor.");
+            if (!profileChallenge.scored) { profileChallenge.scored = true; bump(true); }
+        } else if (hi >= 150) {
+            setFb(profileFb, "tip", "&#x1F501; Getting there: peak " + hi + " m. Push one marker right over the summit (near 3463) to climb above 180 m and make a clear hill.");
+        }
+    }
+}
+// set a sensible default profile line
+markerA = { e: 31.0, n: 61.0 };
+markerB = { e: 34.0, n: 64.0 };
+drawProfile();
+
+/* ============================================================
+   PANEL 5: GIS ENQUIRY
+   ============================================================ */
+const enqFb = document.getElementById("enqFb");
+let enqStep = 0;
+const ENQ = [
+    {
+        host: "enq0",
+        opts: [
+            { t: "Where is the best site for a new visitor car park near Brackrigg Tor?", ok: true },
+            { t: "Is Brackrigg Tor a nice place?", ok: false },
+            { t: "What colour should the signs be?", ok: false },
+            { t: "How old is the church?", ok: false }
+        ],
+        good: "Yes. A good enquiry question is geographical, focused and answerable with data: it names a place, a purpose and a decision.",
+        bad: "Pick the question that is geographical, focused and answerable with map data: it should name the place, the purpose (a car park) and ask for a decision."
+    },
+    {
+        host: "enq1",
+        opts: [
+            { t: "Flood risk layer (low ground by the river)", ok: true },
+            { t: "Woodland layer", ok: false },
+            { t: "Church locations layer", ok: false },
+            { t: "Road sign layer", ok: false }
+        ],
+        good: "Correct. The flood risk layer matters most for safety. Low, flat ground beside the River Tamar can flood, so a car park there would be at risk.",
+        bad: "For flood safety you need the layer that shows low ground near the river. The flood risk layer is the one that keeps visitors safe."
+    },
+    {
+        host: "enq2",
+        table: true,
+        opts: [
+            { t: "Square 3363", ok: true },
+            { t: "Square 3061", ok: false },
+            { t: "Square 3262", ok: false },
+            { t: "Square 3060", ok: false }
+        ],
+        good: "Correct. Square 3363 has 480 visitors per day, the highest in the table. Reading data carefully is the heart of GIS analysis.",
+        bad: "Compare every figure in the table. The busiest square (480 per day) is 3363, nearest the Tor path."
+    },
+    {
+        host: "enq3",
+        opts: [
+            { t: "Square 3362: near demand, off the flood plain, gentle lower slope, close to the A38", ok: true },
+            { t: "Square 3161: on the river flood plain", ok: false },
+            { t: "Square 3463: the steep summit of the Tor", ok: false },
+            { t: "Square 3060: far from the Tor and demand", ok: false }
+        ],
+        good: "Excellent decision. Square 3362 balances every layer: close to the busy Tor path, above the flood plain, on gentle ground, and beside the A38 for access. That is GIS layering in action.",
+        bad: "Combine the layers: you need high demand, no flood risk, gentle ground and road access. Square 3362 meets all four; the others fail at least one."
+    }
+];
+const VISITOR_TABLE = [
+    ["Square", "Visitors per day"],
+    ["3061", "120"], ["3262", "260"], ["3363", "480"], ["3060", "40"]
+];
+
+function renderEnqStep() {
+    document.querySelectorAll(".enquiry-step").forEach(s => {
+        s.classList.toggle("active", Number(s.dataset.step) === enqStep);
+    });
+    // dots
+    const dots = document.getElementById("enqDots");
+    dots.innerHTML = "";
+    for (let i = 0; i < 5; i++) {
+        const d = document.createElement("span");
+        d.className = "dot" + (i <= enqStep ? " on" : "");
+        dots.appendChild(d);
+    }
+    setFb(enqFb, "", "");
+    if (enqStep < 4) buildEnqChoices(ENQ[enqStep]);
+    if (enqStep === 2) buildEnqTable();
+    if (enqStep === 4) {
+        document.getElementById("enqDone").innerHTML =
+            "&#x1F3C6; You completed the whole enquiry cycle: <b>question, data, analysis, conclusion</b>. You used flood risk, relief, visitor counts and road access as GIS layers, then recommended square <b>3362</b> for the car park. That is exactly how geographers and planners use GIS.";
+    }
+}
+function buildEnqChoices(cfg) {
+    const host = document.getElementById(cfg.host);
+    host.innerHTML = "";
+    cfg.opts.forEach(o => {
+        const b = document.createElement("button");
+        b.className = "choice"; b.type = "button"; b.textContent = o.t;
+        b.addEventListener("click", () => {
+            Array.from(host.children).forEach(c => c.disabled = true);
+            if (o.ok) {
+                b.classList.add("good");
+                setFb(enqFb, "good", "&#x2705; " + cfg.good);
+                bump(true);
+                setTimeout(() => { enqStep++; renderEnqStep(); }, 1500);
+            } else {
+                b.classList.add("bad");
+                Array.from(host.children).forEach(c => { if (cfg.opts[Array.from(host.children).indexOf(c)].ok) c.classList.add("good"); });
+                setFb(enqFb, "bad", "&#x274C; " + cfg.bad);
+                bump(false);
+                setTimeout(() => { enqStep++; renderEnqStep(); }, 2400);
+            }
+        });
+        host.appendChild(b);
+    });
+}
+function buildEnqTable() {
+    const host = document.getElementById("enqTable");
+    let html = "<table style='width:100%;border-collapse:collapse;margin:6px 0 12px;font-size:0.88rem;'>";
+    VISITOR_TABLE.forEach((row, ri) => {
+        html += "<tr>";
+        row.forEach(cell => {
+            if (ri === 0) html += "<th style='text-align:left;padding:7px 10px;background:#ccfbf1;border:1px solid #99f6e4;'>" + cell + "</th>";
+            else html += "<td style='padding:7px 10px;border:1px solid #d8e1dd;'>" + cell + "</td>";
+        });
+        html += "</tr>";
+    });
+    html += "</table>";
+    host.innerHTML = html;
+}
+document.getElementById("enqRestart").addEventListener("click", () => {
+    enqStep = 0;
+    document.querySelectorAll(".enquiry-step .choice").forEach(c => { c.disabled = false; c.classList.remove("good", "bad"); });
+    renderEnqStep();
+});
+renderEnqStep();
+
+/* Redraw map crisply on resize for hi-dpi whiteboards is not needed since canvas is fixed-resolution and CSS-scaled. */
+</script>
+</body>
+</html>

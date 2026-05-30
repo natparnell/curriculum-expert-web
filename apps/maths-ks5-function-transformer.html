@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Function Transformer</title>
+<style>
+  :root {
+    --ink: #14213d;
+    --paper: #f7f8fc;
+    --card: #ffffff;
+    --accent: #2a5db0;
+    --accent-2: #c2410c;
+    --good: #1a7a4c;
+    --bad: #b91c1c;
+    --line: #d9deeb;
+    --muted: #5b6478;
+    --grid: #e7ebf4;
+    --axis: #9aa3b8;
+    --base-curve: #94a3b8;
+    --new-curve: #2a5db0;
+    --shadow: 0 2px 10px rgba(20,33,61,.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  header.app {
+    background: linear-gradient(135deg, #14213d, #2a5db0);
+    color: #fff;
+    padding: 18px 20px 16px;
+  }
+  header.app h1 {
+    margin: 0 0 4px;
+    font-size: clamp(1.3rem, 4vw, 1.9rem);
+    letter-spacing: .2px;
+  }
+  header.app .aim {
+    margin: 0;
+    font-size: .92rem;
+    color: #d7e2f7;
+    max-width: 70ch;
+  }
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+  .grid-main {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  @media (min-width: 920px) {
+    .grid-main { grid-template-columns: minmax(360px, 1.15fr) minmax(320px, 1fr); align-items: start; }
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 14px 16px 16px;
+  }
+  .card h2 {
+    margin: 0 0 10px;
+    font-size: 1.02rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card h2 .tag {
+    font-size: .7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--accent);
+    background: #eaf0fb;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .base-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .base-pick button {
+    font: inherit;
+    font-size: .82rem;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: all .12s;
+  }
+  .base-pick button:hover { border-color: var(--accent); }
+  .base-pick button[aria-pressed="true"] {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .plot-shell { position: relative; }
+  svg.plot { width: 100%; height: auto; display: block; touch-action: none; border-radius: 8px; background: #fff; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: .8rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 22px; height: 0; border-top: 3px solid; border-radius: 2px; }
+  .swatch.base { border-color: var(--base-curve); border-top-style: dashed; }
+  .swatch.new { border-color: var(--new-curve); }
+
+  .controls .row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--line);
+  }
+  .controls .row:last-child { border-bottom: none; }
+  .ctrl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .ctrl-head label { font-weight: 600; font-size: .9rem; }
+  .ctrl-head .val { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); }
+  .ctrl-sub { font-size: .76rem; color: var(--muted); margin: 0 0 2px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 28px; }
+
+  .algebra {
+    margin-top: 12px;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: "Cambria Math", "Times New Roman", Georgia, serif;
+  }
+  .algebra .eqline {
+    font-size: 1.18rem;
+    margin: 0 0 6px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .algebra .eqline .hl { color: #fbbf24; }
+  .algebra .why { font-family: inherit; }
+  .algebra .why p { margin: 6px 0 0; font-size: .82rem; color: #aab4c8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.45; }
+  sub, sup { font-size: .72em; }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .stat {
+    background: #f1f5fc;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .stat .k { font-size: .72rem; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); }
+  .stat .v { font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .reset { margin-top: 12px; }
+  .btn {
+    font: inherit; cursor: pointer; border-radius: 8px; padding: 8px 14px;
+    border: 1px solid var(--accent); background: #fff; color: var(--accent); font-weight: 600;
+  }
+  .btn:hover { background: #eaf0fb; }
+  .btn.solid { background: var(--accent); color: #fff; }
+  .btn.solid:hover { background: #1f4a92; }
+
+  /* Mapping diagram */
+  .map-wrap svg { width: 100%; height: auto; display: block; }
+  .map-note { font-size: .8rem; color: var(--muted); margin: 8px 0 0; }
+  .map-input { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; flex-wrap: wrap; }
+  .map-input label { font-weight: 600; font-size: .85rem; }
+  .map-input input[type=range] { flex: 1 1 160px; min-width: 140px; }
+  .pill { display: inline-block; font-variant-numeric: tabular-nums; font-weight: 700; background: #eaf0fb; color: var(--accent); border-radius: 6px; padding: 1px 8px; }
+
+  /* Challenge */
+  .challenge .q { font-size: .95rem; margin: 0 0 10px; }
+  .challenge .q .target { font-weight: 700; color: var(--accent-2); }
+  .feedback {
+    margin-top: 12px; border-radius: 8px; padding: 10px 12px; font-size: .88rem;
+    border: 1px solid var(--line); background: #f7f9fd; min-height: 1.2em;
+  }
+  .feedback.good { background: #e8f6ee; border-color: #b6e2c8; color: #155f3a; }
+  .feedback.warn { background: #fdf3e7; border-color: #f3d8a8; color: #8a5106; }
+  .feedback.bad  { background: #fdeaea; border-color: #f3c0c0; color: #8a1d1d; }
+  .challenge-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs button {
+    font: inherit; font-size: .85rem; border: 1px solid var(--line); background: #fff;
+    border-radius: 8px 8px 0 0; padding: 7px 12px; cursor: pointer; color: var(--muted); font-weight: 600;
+  }
+  .tabs button[aria-selected="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tabpanel[hidden] { display: none; }
+
+  footer.note { text-align: center; color: var(--muted); font-size: .76rem; padding: 18px 12px 28px; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .kbd-hint { font-size: .74rem; color: var(--muted); margin-top: 4px; }
+  details.help { margin-top: 12px; font-size: .84rem; }
+  details.help summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+  details.help p { color: var(--muted); }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="app">
+  <h1>Function Transformer</h1>
+  <p class="aim">Teacher aim: move sliders to translate, stretch and reflect a function. Read off the exact algebra, watch the domain and range update, and use the mapping diagram to see composite and inverse functions. Pure A-level: functions and transformations.</p>
+</header>
+
+<div class="wrap">
+  <div class="grid-main">
+
+    <!-- LEFT: graph + algebra -->
+    <section class="card" aria-labelledby="graph-h">
+      <h2 id="graph-h">Graph <span class="tag">y = a&middot;f(b(x + c)) + d</span></h2>
+
+      <div class="base-pick" role="group" aria-label="Choose the base function f(x)">
+        <button type="button" data-base="sq" aria-pressed="true">f(x) = x&sup2;</button>
+        <button type="button" data-base="cube">f(x) = x&sup3;</button>
+        <button type="button" data-base="recip">f(x) = 1/x</button>
+        <button type="button" data-base="sqrt">f(x) = &radic;x</button>
+        <button type="button" data-base="sin">f(x) = sin x</button>
+        <button type="button" data-base="exp">f(x) = e&#x02E3;</button>
+      </div>
+
+      <div class="plot-shell">
+        <svg class="plot" id="plot" viewBox="0 0 440 360" role="img"
+             aria-label="Coordinate graph showing the base function as a dashed grey curve and the transformed function as a solid blue curve."
+             tabindex="0">
+          <!-- filled by JS -->
+        </svg>
+      </div>
+      <div class="legend" aria-hidden="true">
+        <span><span class="swatch base"></span>Base f(x)</span>
+        <span><span class="swatch new"></span>Transformed</span>
+      </div>
+
+      <div class="algebra" aria-live="polite">
+        <p class="eqline" id="eq-display">y = f(x)</p>
+        <div class="why">
+          <p id="why-text">Slide a control to transform the function. The yellow term shows what just changed.</p>
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><div class="k">Domain</div><div class="v" id="domain-out">all real x</div></div>
+        <div class="stat"><div class="k">Range</div><div class="v" id="range-out">y &ge; 0</div></div>
+      </div>
+
+      <div class="reset">
+        <button type="button" class="btn" id="reset-btn">Reset transforms</button>
+      </div>
+    </section>
+
+    <!-- RIGHT: controls + tabs -->
+    <section class="card" aria-labelledby="ctrl-h">
+      <h2 id="ctrl-h">Controls</h2>
+
+      <div class="controls">
+        <div class="row">
+          <div class="ctrl-head"><label for="s-a">Vertical stretch <em>a</em></label><span class="val" id="v-a">1</span></div>
+          <p class="ctrl-sub">y &rarr; a&middot;f(x). |a| &gt; 1 stretches, 0 &lt; |a| &lt; 1 squashes, a &lt; 0 reflects in the x-axis.</p>
+          <input type="range" id="s-a" min="-3" max="3" step="0.25" value="1" aria-describedby="v-a">
+        </div>
+        <div class="row">
+          <div class="ctrl-head"><label for="s-b">Horizontal stretch <em>b</em></label><span class="val" id="v-b">1</span></div>
+          <p class="ctrl-sub">y &rarr; f(b&middot;x). Scale factor 1/b. b &lt; 0 reflects in the y-axis.</p>
+          <input type="range" id="s-b" min="-3" max="3" step="0.25" value="1" aria-describedby="v-b">
+        </div>
+        <div class="row">
+          <div class="ctrl-head"><label for="s-c">Horizontal translation <em>c</em></label><span class="val" id="v-c">0</span></div>
+          <p class="ctrl-sub">y &rarr; f(x + c). Replace x with x + c shifts left by c (note the sign).</p>
+          <input type="range" id="s-c" min="-4" max="4" step="0.25" value="0" aria-describedby="v-c">
+        </div>
+        <div class="row">
+          <div class="ctrl-head"><label for="s-d">Vertical translation <em>d</em></label><span class="val" id="v-d">0</span></div>
+          <p class="ctrl-sub">y &rarr; f(x) + d. Shifts the whole curve up by d.</p>
+          <input type="range" id="s-d" min="-4" max="4" step="0.25" value="0" aria-describedby="v-d">
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Extra views">
+        <button role="tab" id="tab-map" aria-controls="panel-map" aria-selected="true">Mapping diagram</button>
+        <button role="tab" id="tab-chal" aria-controls="panel-chal" aria-selected="false">Challenge</button>
+        <button role="tab" id="tab-proof" aria-controls="panel-proof" aria-selected="false">Proof builder</button>
+      </div>
+
+      <!-- Mapping diagram panel -->
+      <div class="tabpanel" id="panel-map" role="tabpanel" aria-labelledby="tab-map">
+        <p class="map-note" id="map-mode-note">Composite view: an input x is fed through the transformed function. Drag the input slider and watch it map to an output.</p>
+        <div class="map-wrap">
+          <svg id="mapsvg" viewBox="0 0 440 230" role="img" aria-label="Mapping diagram showing an input value mapping to an output value through the function."></svg>
+        </div>
+        <div class="map-input">
+          <label for="map-x">Input x</label>
+          <input type="range" id="map-x" min="-4" max="4" step="0.1" value="1" aria-describedby="map-readout">
+          <span id="map-readout" class="pill" aria-live="polite">x = 1</span>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">
+          <button type="button" class="btn" id="map-toggle">Show inverse mapping</button>
+        </div>
+        <p class="map-note" id="map-explain"></p>
+      </div>
+
+      <!-- Challenge panel -->
+      <div class="tabpanel" id="panel-chal" role="tabpanel" aria-labelledby="tab-chal" hidden>
+        <p class="challenge q" id="chal-q">Press "New challenge" to begin.</p>
+        <div class="challenge-btns">
+          <button type="button" class="btn solid" id="chal-new">New challenge</button>
+          <button type="button" class="btn" id="chal-check">Check my graph</button>
+        </div>
+        <div class="feedback" id="chal-feedback" aria-live="polite" role="status">Match the target curve using the sliders, then check.</div>
+      </div>
+
+      <!-- Proof builder panel -->
+      <div class="tabpanel" id="panel-proof" role="tabpanel" aria-labelledby="tab-proof" hidden>
+        <p class="map-note">Order the four steps to prove that the transformation <strong>y = f(x + c) + d</strong> maps the point (p, q) on y = f(x) to (p &minus; c, q + d). Use the arrows or drag.</p>
+        <ol id="proof-list" style="list-style:none; padding:0; margin:8px 0 0;"></ol>
+        <div class="challenge-btns">
+          <button type="button" class="btn" id="proof-shuffle">Shuffle</button>
+          <button type="button" class="btn solid" id="proof-check">Check order</button>
+        </div>
+        <div class="feedback" id="proof-feedback" aria-live="polite" role="status">Build the proof in logical order.</div>
+      </div>
+
+      <details class="help">
+        <summary>How do I drive this with a keyboard?</summary>
+        <p>Tab to any slider, then use the left and right arrow keys to change each value by one step. The graph, algebra, domain and range update live and are announced. The graph itself can be focused to read its description.</p>
+      </details>
+    </section>
+
+  </div>
+</div>
+
+<div class="sr-only" id="live-summary" aria-live="polite"></div>
+
+<footer class="note">
+  Function Transformer &middot; KS5 Pure Mathematics &middot; Demonstration tool for WeST. All values are illustrative.
+</footer>
+
+<script>
+"use strict";
+(function () {
+  /* ---------- Base function library ---------- */
+  // Each: f(x), label, naturalDomain test, range descriptor for a*f(b(x+c))+d
+  var BASES = {
+    sq:   { name: "x²",  f: function (x) { return x * x; },                dom: function () { return true; }, key: "sq" },
+    cube: { name: "x³",  f: function (x) { return x * x * x; },            dom: function () { return true; }, key: "cube" },
+    recip:{ name: "1/x",      f: function (x) { return x === 0 ? null : 1 / x; }, dom: function (x) { return x !== 0; }, key: "recip" },
+    sqrt: { name: "√x",  f: function (x) { return x < 0 ? null : Math.sqrt(x); }, dom: function (x) { return x >= 0; }, key: "sqrt" },
+    sin:  { name: "sin x",    f: function (x) { return Math.sin(x); },          dom: function () { return true; }, key: "sin" },
+    exp:  { name: "eˣ",  f: function (x) { return Math.exp(x); },          dom: function () { return true; }, key: "exp" }
+  };
+
+  var state = { base: "sq", a: 1, b: 1, c: 0, d: 0, lastChanged: null, mapInverse: false };
+
+  /* ---------- Plot geometry ---------- */
+  var W = 440, H = 360, PAD = 18;
+  var X_MIN = -5, X_MAX = 5, Y_MIN = -5, Y_MAX = 5;
+  function sx(x) { return PAD + (x - X_MIN) / (X_MAX - X_MIN) * (W - 2 * PAD); }
+  function sy(y) { return H - PAD - (y - Y_MIN) / (Y_MAX - Y_MIN) * (H - 2 * PAD); }
+
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs) {
+    var e = document.createElementNS(SVGNS, tag);
+    for (var k in attrs) { if (attrs.hasOwnProperty(k)) e.setAttribute(k, attrs[k]); }
+    return e;
+  }
+
+  /* ---------- Transformed evaluation ---------- */
+  // y = a * f( b*(x + c) ) + d
+  function evalTransformed(x) {
+    var base = BASES[state.base];
+    var inner = state.b * (x + state.c);
+    var fv = base.f(inner);
+    if (fv === null || !isFinite(fv)) return null;
+    return state.a * fv + state.d;
+  }
+
+  /* ---------- Build static plot scaffold ---------- */
+  var plot = document.getElementById("plot");
+  function buildAxes() {
+    plot.innerHTML = "";
+    // grid
+    var i;
+    for (i = X_MIN; i <= X_MAX; i++) {
+      plot.appendChild(el("line", { x1: sx(i), y1: sy(Y_MIN), x2: sx(i), y2: sy(Y_MAX), stroke: "var(--grid)", "stroke-width": 1 }));
+    }
+    for (i = Y_MIN; i <= Y_MAX; i++) {
+      plot.appendChild(el("line", { x1: sx(X_MIN), y1: sy(i), x2: sx(X_MAX), y2: sy(i), stroke: "var(--grid)", "stroke-width": 1 }));
+    }
+    // axes
+    plot.appendChild(el("line", { x1: sx(X_MIN), y1: sy(0), x2: sx(X_MAX), y2: sy(0), stroke: "var(--axis)", "stroke-width": 1.6 }));
+    plot.appendChild(el("line", { x1: sx(0), y1: sy(Y_MIN), x2: sx(0), y2: sy(Y_MAX), stroke: "var(--axis)", "stroke-width": 1.6 }));
+    // tick numbers
+    for (i = X_MIN + 1; i <= X_MAX - 1; i++) {
+      if (i === 0) continue;
+      var tx = el("text", { x: sx(i), y: sy(0) + 13, "text-anchor": "middle", "font-size": 9, fill: "var(--muted)" });
+      tx.textContent = i; plot.appendChild(tx);
+    }
+    for (i = Y_MIN + 1; i <= Y_MAX - 1; i++) {
+      if (i === 0) continue;
+      var ty = el("text", { x: sx(0) - 5, y: sy(i) + 3, "text-anchor": "end", "font-size": 9, fill: "var(--muted)" });
+      ty.textContent = i; plot.appendChild(ty);
+    }
+    // axis labels
+    var lx = el("text", { x: sx(X_MAX) - 2, y: sy(0) - 5, "text-anchor": "end", "font-size": 11, fill: "var(--ink)", "font-style": "italic" }); lx.textContent = "x"; plot.appendChild(lx);
+    var ly = el("text", { x: sx(0) + 6, y: sy(Y_MAX) + 10, "font-size": 11, fill: "var(--ink)", "font-style": "italic" }); ly.textContent = "y"; plot.appendChild(ly);
+
+    // placeholders for curves
+    var baseGroup = el("g", { id: "base-curve-g" });
+    var newGroup = el("g", { id: "new-curve-g" });
+    plot.appendChild(baseGroup);
+    plot.appendChild(newGroup);
+  }
+
+  function curvePath(evalFn, domTest) {
+    // sample, splitting into segments at undefined / asymptote jumps
+    var segs = [], cur = [], N = 480;
+    var prevY = null;
+    for (var k = 0; k <= N; k++) {
+      var x = X_MIN + (X_MAX - X_MIN) * k / N;
+      var inDom = domTest ? domTest(x) : true;
+      var y = inDom ? evalFn(x) : null;
+      var visible = (y !== null && isFinite(y) && y >= Y_MIN - 3 && y <= Y_MAX + 3);
+      // break on large jump (asymptote) or out of domain
+      if (!visible) { if (cur.length > 1) segs.push(cur); cur = []; prevY = null; continue; }
+      if (prevY !== null && Math.abs(y - prevY) > 6) { if (cur.length > 1) segs.push(cur); cur = []; }
+      cur.push([sx(x), sy(Math.max(Y_MIN - 2, Math.min(Y_MAX + 2, y)))]);
+      prevY = y;
+    }
+    if (cur.length > 1) segs.push(cur);
+    return segs.map(function (s) {
+      return "M" + s.map(function (p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" L ");
+    });
+  }
+
+  function drawCurves() {
+    var base = BASES[state.base];
+    var bg = document.getElementById("base-curve-g");
+    var ng = document.getElementById("new-curve-g");
+    bg.innerHTML = ""; ng.innerHTML = "";
+
+    // base curve (identity transform)
+    curvePath(function (x) { return base.f(x); }, base.dom).forEach(function (d) {
+      bg.appendChild(el("path", { d: d, fill: "none", stroke: "var(--base-curve)", "stroke-width": 2, "stroke-dasharray": "5 4", "stroke-linecap": "round", "stroke-linejoin": "round" }));
+    });
+    // transformed curve
+    var domTestT = function (x) { return base.dom(state.b * (x + state.c)); };
+    curvePath(evalTransformed, domTestT).forEach(function (d) {
+      ng.appendChild(el("path", { d: d, fill: "none", stroke: "var(--new-curve)", "stroke-width": 3, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+    });
+  }
+
+  /* ---------- Algebra display ---------- */
+  function fmt(n) {
+    if (n === 0) return "0";
+    if (Math.round(n) === n) return String(n);
+    return n.toFixed(2).replace(/0$/, "");
+  }
+  // build the equation string with optional highlight on the lastChanged param
+  function buildEquation() {
+    var name = BASES[state.base].name;
+    var a = state.a, b = state.b, c = state.c, d = state.d;
+    var hl = state.lastChanged;
+    function wrap(param, txt) { return (hl === param) ? '<span class="hl">' + txt + '</span>' : txt; }
+
+    // inner argument: b(x + c) shown sensibly
+    var innerArg;
+    var cTerm;
+    if (c === 0) cTerm = "x";
+    else if (c > 0) cTerm = "x + " + wrap("c", fmt(c));
+    else cTerm = "x − " + wrap("c", fmt(-c));
+
+    if (b === 1) innerArg = cTerm;
+    else if (b === -1) innerArg = "−(" + cTerm + ")";
+    else innerArg = wrap("b", fmt(b)) + "(" + cTerm + ")";
+
+    var fpart = name === "x²" || name === "x³"
+      ? "f(" + innerArg + ")"   // keep generic f for clarity
+      : "f(" + innerArg + ")";
+    fpart = "f(" + innerArg + ")";
+
+    var aPart;
+    if (a === 1) aPart = fpart;
+    else if (a === -1) aPart = "−" + fpart;
+    else aPart = wrap("a", fmt(a)) + fpart;
+
+    var dPart = "";
+    if (d > 0) dPart = " + " + wrap("d", fmt(d));
+    else if (d < 0) dPart = " − " + wrap("d", fmt(-d));
+
+    return "y = " + aPart + dPart;
+  }
+
+  var WHY = {
+    a: function () {
+      var a = state.a;
+      if (a < 0 && Math.abs(a) === 1) return "Multiplying f(x) by " + fmt(a) + " reflects the curve in the x-axis (every y becomes its negative).";
+      if (a < 0) return "Factor a = " + fmt(a) + " gives a vertical stretch of scale factor " + fmt(Math.abs(a)) + " and a reflection in the x-axis (because a is negative).";
+      if (a > 1) return "Vertical stretch, scale factor " + fmt(a) + ": each y-coordinate is multiplied by " + fmt(a) + ", so the curve gets taller.";
+      if (a > 0 && a < 1) return "Vertical compression, scale factor " + fmt(a) + ": y-values shrink towards the x-axis.";
+      return "a = 1, so there is no vertical stretch yet.";
+    },
+    b: function () {
+      var b = state.b;
+      if (b === 1) return "b = 1, so there is no horizontal stretch yet.";
+      if (b < 0 && Math.abs(b) === 1) return "Replacing x with −x reflects the curve in the y-axis.";
+      var sf = 1 / Math.abs(b);
+      var ref = b < 0 ? " and a reflection in the y-axis" : "";
+      return "Horizontal stretch, scale factor " + fmt(sf) + " (that is 1 over |b|)" + ref + ". Inside-the-bracket changes act in reverse.";
+    },
+    c: function () {
+      var c = state.c;
+      if (c === 0) return "c = 0, so there is no horizontal shift yet.";
+      var dir = c > 0 ? "left" : "right";
+      return "Replacing x with x " + (c > 0 ? "+ " : "− ") + fmt(Math.abs(c)) + " shifts the curve " + fmt(Math.abs(c)) + " unit(s) to the " + dir + ". Inside the bracket, the shift is opposite to the sign.";
+    },
+    d: function () {
+      var d = state.d;
+      if (d === 0) return "d = 0, so there is no vertical shift yet.";
+      var dir = d > 0 ? "up" : "down";
+      return "Adding " + fmt(d) + " outside the function shifts the whole curve " + fmt(Math.abs(d)) + " unit(s) " + dir + ".";
+    }
+  };
+
+  /* ---------- Domain & range ---------- */
+  function computeDomainRange() {
+    var base = BASES[state.base], a = state.a, b = state.b, c = state.c, d = state.d, key = base.key;
+    var domain, range;
+
+    // Domain: solve for inner = b(x+c) constraints
+    if (key === "recip") {
+      // b(x+c) != 0  =>  x != -c (since b != 0). If b = 0 whole thing degenerate; sliders avoid exactly 0? b can be 0.
+      if (b === 0) { domain = "f undefined (b = 0)"; }
+      else domain = "x ≠ " + fmt(-c);
+    } else if (key === "sqrt") {
+      // need inner >= 0: b(x+c) >= 0
+      if (b > 0) domain = "x ≥ " + fmt(-c);
+      else if (b < 0) domain = "x ≤ " + fmt(-c);
+      else domain = "f undefined (b = 0)";
+    } else {
+      domain = "all real x";
+    }
+
+    // Range of a*f(.)+d
+    if (key === "sq") {
+      // f >= 0. a*f >= 0 if a>0 (min 0) ; <=0 if a<0
+      if (a > 0) range = "y ≥ " + fmt(d);
+      else if (a < 0) range = "y ≤ " + fmt(d);
+      else range = "y = " + fmt(d);
+    } else if (key === "sqrt") {
+      // f in [0, inf). a*f from d.
+      if (a > 0) range = "y ≥ " + fmt(d);
+      else if (a < 0) range = "y ≤ " + fmt(d);
+      else range = "y = " + fmt(d);
+    } else if (key === "exp") {
+      // f in (0, inf). a*f + d.
+      if (a > 0) range = "y > " + fmt(d);
+      else if (a < 0) range = "y < " + fmt(d);
+      else range = "y = " + fmt(d);
+    } else if (key === "sin") {
+      var amp = Math.abs(a);
+      range = fmt(d - amp) + " ≤ y ≤ " + fmt(d + amp);
+      if (a === 0) range = "y = " + fmt(d);
+    } else if (key === "recip") {
+      range = "y ≠ " + fmt(d);
+      if (a === 0) range = "y = " + fmt(d);
+    } else { // cube
+      range = "all real y";
+    }
+
+    return { domain: domain, range: range };
+  }
+
+  /* ---------- Mapping diagram ---------- */
+  var mapsvg = document.getElementById("mapsvg");
+  var MAPW = 440, MAPH = 230;
+  function drawMapping() {
+    mapsvg.innerHTML = "";
+    var leftX = 90, rightX = 350, topY = 30, botY = 200;
+    var inverse = state.mapInverse;
+    var inLabel = inverse ? "Output set" : "Input x";
+    var outLabel = inverse ? "Input set" : "Output f-transformed";
+
+    // ovals
+    function oval(cx, label, colour) {
+      mapsvg.appendChild(el("ellipse", { cx: cx, cy: (topY + botY) / 2, rx: 56, ry: (botY - topY) / 2 + 12, fill: "none", stroke: colour, "stroke-width": 1.6 }));
+      var t = el("text", { x: cx, y: topY - 8, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" });
+      t.textContent = label; mapsvg.appendChild(t);
+    }
+    oval(leftX, inverse ? "y" : "x", "#94a3b8");
+    oval(rightX, inverse ? "x" : "y", "var(--accent)");
+
+    var x = parseFloat(document.getElementById("map-x").value);
+    var fullY = evalTransformed(x);
+
+    // For the diagram we show x -> y. In inverse mode we show y on left, x on right (same pair, swapped).
+    var pairs = [];
+    // sample a few representative inputs around the chosen one
+    var samples = [x - 2, x, x + 2];
+    samples.forEach(function (xi) {
+      var yi = evalTransformed(xi);
+      if (yi !== null && isFinite(yi)) pairs.push({ x: xi, y: yi, active: (xi === x) });
+    });
+
+    // map values to vertical positions within ovals (clamp)
+    function posFor(val, lo, hi) {
+      var t = (val - lo) / (hi - lo);
+      t = Math.max(0, Math.min(1, t));
+      return botY - t * (botY - topY);
+    }
+    // determine value ranges for left/right
+    var leftVals = pairs.map(function (p) { return inverse ? p.y : p.x; });
+    var rightVals = pairs.map(function (p) { return inverse ? p.x : p.y; });
+    var lLo = Math.min.apply(null, leftVals), lHi = Math.max.apply(null, leftVals);
+    var rLo = Math.min.apply(null, rightVals), rHi = Math.max.apply(null, rightVals);
+    if (lLo === lHi) { lLo -= 1; lHi += 1; }
+    if (rLo === rHi) { rLo -= 1; rHi += 1; }
+
+    pairs.forEach(function (p) {
+      var lv = inverse ? p.y : p.x;
+      var rv = inverse ? p.x : p.y;
+      var ly = posFor(lv, lLo, lHi);
+      var ry = posFor(rv, rLo, rHi);
+      var stroke = p.active ? "var(--accent-2)" : "#cbd5e1";
+      var sw = p.active ? 2.6 : 1.4;
+      mapsvg.appendChild(el("line", { x1: leftX + 40, y1: ly, x2: rightX - 40, y2: ry, stroke: stroke, "stroke-width": sw, "marker-end": "url(#arrow)" }));
+      // dots + labels
+      mapsvg.appendChild(el("circle", { cx: leftX + 14, cy: ly, r: p.active ? 5 : 3.5, fill: p.active ? "var(--accent-2)" : "#94a3b8" }));
+      mapsvg.appendChild(el("circle", { cx: rightX - 14, cy: ry, r: p.active ? 5 : 3.5, fill: p.active ? "var(--accent-2)" : "var(--accent)" }));
+      var lt = el("text", { x: leftX - 6, y: ly + 4, "text-anchor": "end", "font-size": 11, fill: "var(--ink)", "font-weight": p.active ? 700 : 400 });
+      lt.textContent = fmt(Math.round(lv * 100) / 100); mapsvg.appendChild(lt);
+      var rt = el("text", { x: rightX + 8, y: ry + 4, "font-size": 11, fill: "var(--ink)", "font-weight": p.active ? 700 : 400 });
+      rt.textContent = fmt(Math.round(rv * 100) / 100); mapsvg.appendChild(rt);
+    });
+
+    // arrow marker def
+    var defs = el("defs", {});
+    var marker = el("marker", { id: "arrow", markerWidth: 8, markerHeight: 8, refX: 6, refY: 3, orient: "auto", markerUnits: "strokeWidth" });
+    marker.appendChild(el("path", { d: "M0 0 L6 3 L0 6 z", fill: "var(--accent-2)" }));
+    defs.appendChild(marker);
+    mapsvg.insertBefore(defs, mapsvg.firstChild);
+
+    // explanation
+    var name = BASES[state.base].name;
+    var yval = (fullY === null || !isFinite(fullY)) ? "undefined (outside the domain)" : fmt(Math.round(fullY * 100) / 100);
+    var exp = document.getElementById("map-explain");
+    if (inverse) {
+      exp.innerHTML = "Inverse view: the arrows are read right to left. The inverse f&#8315;&#185; sends each output back to the input that produced it. An inverse exists only where the function is one-to-one; for f(x) = " + name + " you may need to restrict the domain.";
+    } else {
+      exp.innerHTML = "Composite view: input <strong>x = " + fmt(Math.round(x * 100) / 100) + "</strong> is processed by the transformed function to give <strong>y = " + yval + "</strong>. Feeding the output into another function would form a composite.";
+    }
+    document.getElementById("map-readout").textContent = "x = " + fmt(Math.round(x * 100) / 100);
+  }
+
+  /* ---------- Master render ---------- */
+  function render() {
+    drawCurves();
+    document.getElementById("eq-display").innerHTML = buildEquation();
+    var why = state.lastChanged && WHY[state.lastChanged] ? WHY[state.lastChanged]() :
+      "Slide a control to transform the function. The yellow term shows what just changed.";
+    document.getElementById("why-text").textContent = why;
+    var dr = computeDomainRange();
+    document.getElementById("domain-out").textContent = dr.domain;
+    document.getElementById("range-out").textContent = dr.range;
+    document.getElementById("v-a").textContent = fmt(state.a);
+    document.getElementById("v-b").textContent = fmt(state.b);
+    document.getElementById("v-c").textContent = fmt(state.c);
+    document.getElementById("v-d").textContent = fmt(state.d);
+    if (!document.getElementById("panel-map").hidden) drawMapping();
+
+    var plain = "Function " + BASES[state.base].name + ". a equals " + fmt(state.a) + ", b equals " + fmt(state.b) +
+      ", c equals " + fmt(state.c) + ", d equals " + fmt(state.d) + ". Domain " + dr.domain.replace("≠", "not equal to").replace("≥", "at least").replace("≤", "at most") +
+      ". Range " + dr.range.replace("≠", "not equal to").replace("≥", "at least").replace("≤", "at most") + ".";
+    document.getElementById("live-summary").textContent = plain;
+  }
+
+  /* ---------- Wire controls ---------- */
+  function bindSlider(id, prop, label) {
+    var s = document.getElementById(id);
+    s.addEventListener("input", function () {
+      state[prop] = parseFloat(s.value);
+      state.lastChanged = prop;
+      render();
+    });
+  }
+  bindSlider("s-a", "a");
+  bindSlider("s-b", "b");
+  bindSlider("s-c", "c");
+  bindSlider("s-d", "d");
+
+  // base picker
+  var pickBtns = document.querySelectorAll(".base-pick button");
+  pickBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      pickBtns.forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
+      btn.setAttribute("aria-pressed", "true");
+      state.base = btn.getAttribute("data-base");
+      state.lastChanged = null;
+      render();
+    });
+  });
+
+  document.getElementById("reset-btn").addEventListener("click", function () {
+    state.a = 1; state.b = 1; state.c = 0; state.d = 0; state.lastChanged = null;
+    document.getElementById("s-a").value = 1;
+    document.getElementById("s-b").value = 1;
+    document.getElementById("s-c").value = 0;
+    document.getElementById("s-d").value = 0;
+    render();
+  });
+
+  // map input
+  document.getElementById("map-x").addEventListener("input", function () {
+    if (!document.getElementById("panel-map").hidden) drawMapping();
+  });
+  document.getElementById("map-toggle").addEventListener("click", function () {
+    state.mapInverse = !state.mapInverse;
+    this.textContent = state.mapInverse ? "Show composite mapping" : "Show inverse mapping";
+    document.getElementById("map-mode-note").textContent = state.mapInverse
+      ? "Inverse view: arrows run from output back to input. The inverse undoes the function where it is one-to-one."
+      : "Composite view: an input x is fed through the transformed function. Drag the input slider and watch it map to an output.";
+    drawMapping();
+  });
+
+  /* ---------- Tabs ---------- */
+  var tabs = [
+    { tab: "tab-map", panel: "panel-map" },
+    { tab: "tab-chal", panel: "panel-chal" },
+    { tab: "tab-proof", panel: "panel-proof" }
+  ];
+  tabs.forEach(function (t) {
+    document.getElementById(t.tab).addEventListener("click", function () {
+      tabs.forEach(function (o) {
+        var sel = (o.tab === t.tab);
+        document.getElementById(o.tab).setAttribute("aria-selected", sel ? "true" : "false");
+        document.getElementById(o.panel).hidden = !sel;
+      });
+      if (t.panel === "panel-map") drawMapping();
+      if (t.panel === "panel-proof") renderProof();
+    });
+  });
+
+  /* ---------- Challenge engine ---------- */
+  var challenge = null;
+  function randPick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function newChallenge() {
+    var baseKeys = ["sq", "cube", "sqrt", "sin"];
+    var bk = randPick(baseKeys);
+    var aOpts = [1, 2, -1, 0.5, -2];
+    var cOpts = [-2, -1, 1, 2, 0];
+    var dOpts = [-2, -1, 1, 2, 0];
+    var target = {
+      base: bk,
+      a: randPick(aOpts),
+      b: 1,
+      c: randPick(cOpts),
+      d: randPick(dOpts)
+    };
+    // avoid the trivial all-identity target
+    if (target.a === 1 && target.c === 0 && target.d === 0) target.c = 1;
+    challenge = target;
+
+    // set base button
+    pickBtns.forEach(function (b) {
+      var on = b.getAttribute("data-base") === bk;
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    state.base = bk; state.lastChanged = null;
+
+    var name = BASES[bk].name;
+    var desc = describeTarget(target, name);
+    document.getElementById("chal-q").innerHTML =
+      'Starting from f(x) = ' + name + ', set the sliders so the transformed curve becomes <span class="target">' + desc + '</span>. Then press Check.';
+    var fb = document.getElementById("chal-feedback");
+    fb.className = "feedback";
+    fb.textContent = "Match the target with the sliders, then check.";
+    render();
+  }
+  function describeTarget(t, name) {
+    // build target equation y = a f(x + c) + d
+    var inner = t.c === 0 ? "x" : (t.c > 0 ? "x + " + t.c : "x − " + (-t.c));
+    var fp = "f(" + inner + ")";
+    var ap = t.a === 1 ? fp : (t.a === -1 ? "−" + fp : t.a + fp);
+    var dp = t.d === 0 ? "" : (t.d > 0 ? " + " + t.d : " − " + (-t.d));
+    return "y = " + ap + dp;
+  }
+  function checkChallenge() {
+    var fb = document.getElementById("chal-feedback");
+    if (!challenge) { fb.className = "feedback warn"; fb.textContent = "Press New challenge first."; return; }
+    if (state.base !== challenge.base) {
+      fb.className = "feedback bad";
+      fb.textContent = "Different base function selected. Choose f(x) = " + BASES[challenge.base].name + " first.";
+      return;
+    }
+    var checks = [
+      { p: "a", label: "vertical stretch a" },
+      { p: "b", label: "horizontal stretch b" },
+      { p: "c", label: "horizontal shift c" },
+      { p: "d", label: "vertical shift d" }
+    ];
+    var wrong = [];
+    checks.forEach(function (ch) {
+      if (Math.abs(state[ch.p] - challenge[ch.p]) > 0.001) wrong.push(ch);
+    });
+    if (wrong.length === 0) {
+      fb.className = "feedback good";
+      fb.textContent = "Correct. The curves match exactly: y = " + buildEquation().replace(/<[^>]+>/g, "").replace("y = ", "") + ". Well reasoned.";
+      return;
+    }
+    // give targeted hint on the first wrong parameter
+    var first = wrong[0];
+    var diff = challenge[first.p] - state[first.p];
+    var hint;
+    if (first.p === "c") {
+      hint = "Your " + first.label + " is off. Remember the shift is opposite to the sign inside the bracket. " +
+        (diff > 0 ? "Increase c." : "Decrease c.");
+    } else if (first.p === "a") {
+      hint = "The " + first.label + " is not right. " +
+        (challenge.a < 0 ? "The target is reflected in the x-axis, so a should be negative. " : "") +
+        (Math.abs(challenge.a) > Math.abs(state.a) ? "Make |a| larger." : "Make |a| smaller.");
+    } else {
+      hint = "The " + first.label + " is off by " + fmt(Math.abs(diff)) + ". " + (diff > 0 ? "Increase it." : "Decrease it.");
+    }
+    fb.className = "feedback warn";
+    fb.textContent = "Close. " + wrong.length + " parameter(s) still wrong. Hint: " + hint;
+  }
+  document.getElementById("chal-new").addEventListener("click", newChallenge);
+  document.getElementById("chal-check").addEventListener("click", checkChallenge);
+
+  /* ---------- Proof builder ---------- */
+  var PROOF_STEPS = [
+    { id: 1, text: "Let (p, q) be a point on y = f(x), so q = f(p)." },
+    { id: 2, text: "The transformed curve is y = f(x + c) + d." },
+    { id: 3, text: "The same height q is reached when x + c = p, that is x = p − c." },
+    { id: 4, text: "At that x the y-value is q + d, so the image point is (p − c, q + d)." }
+  ];
+  var proofOrder = [];
+  function shuffleProof() {
+    proofOrder = PROOF_STEPS.slice();
+    for (var i = proofOrder.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = proofOrder[i]; proofOrder[i] = proofOrder[j]; proofOrder[j] = tmp;
+    }
+    // ensure not already solved
+    if (proofOrder.every(function (s, idx) { return s.id === idx + 1; })) {
+      proofOrder.reverse();
+    }
+    renderProof();
+    var fb = document.getElementById("proof-feedback");
+    fb.className = "feedback"; fb.textContent = "Build the proof in logical order.";
+  }
+  function renderProof() {
+    var ol = document.getElementById("proof-list");
+    ol.innerHTML = "";
+    if (!proofOrder.length) proofOrder = PROOF_STEPS.slice();
+    proofOrder.forEach(function (step, idx) {
+      var li = document.createElement("li");
+      li.style.cssText = "display:flex; gap:8px; align-items:flex-start; background:#f1f5fc; border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-bottom:6px; font-size:.84rem;";
+      var txt = document.createElement("span");
+      txt.style.flex = "1";
+      txt.textContent = step.text;
+      var ctrls = document.createElement("span");
+      ctrls.style.cssText = "display:flex; flex-direction:column; gap:2px;";
+      var up = document.createElement("button");
+      up.className = "btn"; up.style.cssText = "padding:1px 7px; font-size:.8rem;";
+      up.setAttribute("aria-label", "Move step up"); up.textContent = "▲";
+      up.disabled = (idx === 0);
+      up.addEventListener("click", function () { moveStep(idx, -1); });
+      var dn = document.createElement("button");
+      dn.className = "btn"; dn.style.cssText = "padding:1px 7px; font-size:.8rem;";
+      dn.setAttribute("aria-label", "Move step down"); dn.textContent = "▼";
+      dn.disabled = (idx === proofOrder.length - 1);
+      dn.addEventListener("click", function () { moveStep(idx, 1); });
+      ctrls.appendChild(up); ctrls.appendChild(dn);
+      li.appendChild(txt); li.appendChild(ctrls);
+      ol.appendChild(li);
+    });
+  }
+  function moveStep(idx, dir) {
+    var j = idx + dir;
+    if (j < 0 || j >= proofOrder.length) return;
+    var tmp = proofOrder[idx]; proofOrder[idx] = proofOrder[j]; proofOrder[j] = tmp;
+    renderProof();
+  }
+  function checkProof() {
+    var fb = document.getElementById("proof-feedback");
+    var firstWrong = -1;
+    for (var i = 0; i < proofOrder.length; i++) {
+      if (proofOrder[i].id !== i + 1) { firstWrong = i; break; }
+    }
+    if (firstWrong === -1) {
+      fb.className = "feedback good";
+      fb.textContent = "Correct order. The argument is sound: a point (p, q) on y = f(x) maps to (p − c, q + d) under y = f(x + c) + d. This is exactly why x + c shifts left and + d shifts up.";
+    } else {
+      fb.className = "feedback warn";
+      fb.textContent = "Not yet. Step in position " + (firstWrong + 1) + " is out of place. Tip: start by naming a general point on the original curve, then substitute into the new equation.";
+    }
+  }
+  document.getElementById("proof-shuffle").addEventListener("click", shuffleProof);
+  document.getElementById("proof-check").addEventListener("click", checkProof);
+
+  /* ---------- Keyboard nudge on graph focus reads summary ---------- */
+  plot.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      // move the d slider as a quick demonstration of focus interaction
+      var s = document.getElementById("s-d");
+      var step = (e.key === "ArrowRight") ? 0.25 : -0.25;
+      var nv = Math.max(-4, Math.min(4, parseFloat(s.value) + step));
+      s.value = nv; state.d = nv; state.lastChanged = "d"; render();
+      e.preventDefault();
+    }
+  });
+
+  /* ---------- Init ---------- */
+  buildAxes();
+  proofOrder = PROOF_STEPS.slice();
+  render();
+})();
+</script>
+</body>
+</html>

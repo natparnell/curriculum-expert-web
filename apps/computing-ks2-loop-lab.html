@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loop Lab &#x2014; Computing KS2</title>
+<style>
+  :root{
+    --ink:#1c2433; --muted:#5a6477; --line:#d8dde7; --bg:#f4f6fb; --card:#ffffff;
+    --brand:#1664c0; --brand-d:#0f4d96; --gold:#e8a317; --green:#1f8a52; --red:#c0392b;
+    --repeat:#f0a23c; --selection:#7b5bd6; --variable:#2aa6a0; --move:#3d8bf0; --turn:#e06a9c;
+    --shadow:0 2px 8px rgba(20,40,80,.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:var(--bg); line-height:1.5; -webkit-text-size-adjust:100%;
+  }
+  header.page{
+    background:linear-gradient(135deg,var(--brand-d),var(--brand));
+    color:#fff; padding:18px 20px;
+  }
+  header.page h1{margin:0; font-size:1.55rem; letter-spacing:.2px;}
+  header.page .tagline{margin:4px 0 0; font-size:.95rem; opacity:.92;}
+  .aim{
+    background:#fff7e6; border-left:5px solid var(--gold); color:#5a4708;
+    padding:10px 14px; margin:0; font-size:.92rem;
+  }
+  .aim strong{color:#7a5e00;}
+  .wrap{max-width:1180px; margin:0 auto; padding:16px;}
+  .layout{display:grid; grid-template-columns:300px 1fr 280px; gap:16px;}
+  @media (max-width:960px){ .layout{grid-template-columns:1fr;} }
+
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow);}
+  .panel h2{
+    margin:0; padding:11px 14px; font-size:1rem; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:8px;
+  }
+  .panel .body{padding:12px 14px;}
+
+  /* Block palette */
+  .palette-hint{font-size:.82rem; color:var(--muted); margin:0 0 10px;}
+  .block{
+    display:flex; align-items:center; gap:8px; width:100%;
+    border:none; border-radius:9px; padding:10px 12px; margin:0 0 9px;
+    color:#fff; font-size:.92rem; font-weight:600; text-align:left;
+    cursor:grab; touch-action:none; box-shadow:var(--shadow);
+  }
+  .block:focus-visible{outline:3px solid #ffd45e; outline-offset:2px;}
+  .block .ico{font-size:1.1rem;}
+  .block.repeat{background:var(--repeat);}
+  .block.selection{background:var(--selection);}
+  .block.variable{background:var(--variable);}
+  .block.move{background:var(--move);}
+  .block.turn{background:var(--turn);}
+  .block small{display:block; font-weight:400; opacity:.9; font-size:.72rem;}
+
+  /* Stage / canvas */
+  .stage-wrap{position:relative;}
+  canvas#stage{
+    width:100%; height:auto; display:block; background:#0e1a2b; border-radius:10px;
+    touch-action:none;
+  }
+  .scoreboard{
+    position:absolute; top:10px; left:10px; right:10px;
+    display:flex; gap:8px; flex-wrap:wrap; pointer-events:none;
+  }
+  .score-chip{
+    background:rgba(255,255,255,.92); border-radius:8px; padding:5px 10px;
+    font-size:.82rem; font-weight:700; color:var(--ink); box-shadow:var(--shadow);
+  }
+  .score-chip span{color:var(--brand-d);}
+  .stage-controls{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+  .btn{
+    border:1px solid var(--line); background:#fff; color:var(--ink);
+    border-radius:9px; padding:9px 14px; font-size:.9rem; font-weight:600; cursor:pointer;
+  }
+  .btn:focus-visible{outline:3px solid #ffd45e; outline-offset:2px;}
+  .btn.primary{background:var(--green); color:#fff; border-color:var(--green);}
+  .btn.brand{background:var(--brand); color:#fff; border-color:var(--brand);}
+  .btn:disabled{opacity:.5; cursor:not-allowed;}
+
+  /* Program (script) area */
+  .script-zone{
+    min-height:120px; border:2px dashed var(--line); border-radius:10px; padding:10px;
+    background:#fbfcfe; transition:border-color .15s, background .15s;
+  }
+  .script-zone.drop-on{border-color:var(--brand); background:#eef5ff;}
+  .empty-note{color:var(--muted); font-size:.86rem; text-align:center; margin:18px 6px;}
+
+  .loop-card{
+    border:2px solid var(--repeat); border-radius:10px; padding:10px; margin-bottom:10px;
+    background:#fff6ec;
+  }
+  .loop-head{display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:700; color:#9a5a09;}
+  .loop-head .ico{font-size:1.1rem;}
+  .ctrl-num{
+    width:64px; padding:6px 8px; border:1px solid var(--repeat); border-radius:7px;
+    font-size:.95rem; font-weight:700; text-align:center;
+  }
+  .loop-body{margin-top:10px; padding-left:14px; border-left:3px solid var(--repeat);}
+  .stmt{
+    display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line);
+    border-radius:8px; padding:7px 10px; margin-bottom:7px; font-size:.86rem; font-weight:600;
+  }
+  .stmt.move{border-left:5px solid var(--move);}
+  .stmt.turn{border-left:5px solid var(--turn);}
+  .stmt.selection{border-left:5px solid var(--selection);}
+  .stmt.variable{border-left:5px solid var(--variable);}
+  .stmt .x{
+    margin-left:auto; border:none; background:#f0f2f6; border-radius:6px; width:26px; height:26px;
+    cursor:pointer; font-weight:800; color:var(--muted); font-size:.95rem;
+  }
+  .stmt .x:focus-visible{outline:2px solid var(--brand);}
+  .stmt-row-ctrl{display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+  .inline-num{width:54px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; text-align:center; font-weight:700;}
+  select.inline{padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-weight:600;}
+
+  .if-card{border:2px solid var(--selection); border-radius:9px; padding:8px; margin-bottom:7px; background:#f6f2ff;}
+  .if-head{font-weight:700; color:#5a3fb0; font-size:.84rem; display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+
+  /* Feedback */
+  #feedback{
+    border-radius:10px; padding:11px 13px; font-size:.9rem; min-height:46px;
+    border:1px solid var(--line); background:#fff;
+  }
+  #feedback.good{background:#eafaf0; border-color:#bfe6cd; color:#16633a;}
+  #feedback.info{background:#eef5ff; border-color:#cfe1fb; color:#10437f;}
+  #feedback.warn{background:#fdeeee; border-color:#f3cccc; color:#9a2b22;}
+  #feedback b{font-weight:800;}
+
+  .challenge{
+    background:#10325f; color:#eaf2ff; border-radius:10px; padding:12px 14px; margin-bottom:12px;
+  }
+  .challenge h3{margin:0 0 4px; font-size:.95rem;}
+  .challenge p{margin:0; font-size:.86rem; opacity:.93;}
+  .challenge .target{font-weight:800; color:#ffd45e;}
+
+  .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0;}
+
+  .legend{display:flex; gap:14px; flex-wrap:wrap; font-size:.78rem; color:var(--muted); margin-top:10px;}
+  .legend span{display:inline-flex; align-items:center; gap:5px;}
+  .dot{width:11px; height:11px; border-radius:3px; display:inline-block;}
+
+  details.help{margin-top:12px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:0 14px;}
+  details.help summary{padding:11px 0; font-weight:700; cursor:pointer;}
+  details.help p{margin:0 0 11px; font-size:.86rem; color:var(--muted);}
+  footer{padding:18px; text-align:center; color:var(--muted); font-size:.8rem;}
+  .vocab{font-weight:700; color:var(--brand-d); border-bottom:1px dotted var(--brand);}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="page">
+  <h1>&#x1F300; Loop Lab</h1>
+  <p class="tagline">Build a Scratch-style program: drag a repeat block and watch the spiral tighten.</p>
+</header>
+<p class="aim"><strong>Teacher aim:</strong> Pupils use <em>sequence, selection, repetition and variables</em> to control a sprite. They predict, change the repeat count and condition, then explain how each block changes the on-screen result.</p>
+
+<div class="wrap">
+
+  <div class="challenge" role="region" aria-label="Current challenge">
+    <h3>&#x1F3AF; Challenge for the class</h3>
+    <p id="challengeText">Make Pixel draw a neat spiral that finishes with the pen colour set to <span class="target">gold</span>. Aim for a spiral that uses <span class="target">about 30 to 40 steps</span> in total.</p>
+  </div>
+
+  <div class="layout">
+
+    <!-- LEFT: palette -->
+    <section class="panel" aria-labelledby="palTitle">
+      <h2 id="palTitle">&#x1F9F1; Blocks</h2>
+      <div class="body">
+        <p class="palette-hint">Drag a block onto your program, or press <b>Enter</b> on a block to add it.</p>
+
+        <button class="block repeat" data-add="repeat" draggable="false"
+          aria-label="Add repeat loop block. Repeats the blocks inside a set number of times.">
+          <span class="ico" aria-hidden="true">&#x1F501;</span>
+          <span>Repeat ( ) times<small>repetition: do the inside blocks again and again</small></span>
+        </button>
+
+        <button class="block move" data-add="move"
+          aria-label="Add move forward block. Moves the sprite forward by a number of steps.">
+          <span class="ico" aria-hidden="true">&#x27A1;&#xFE0F;</span>
+          <span>Move forward ( )<small>sequence: a single instruction</small></span>
+        </button>
+
+        <button class="block turn" data-add="turn"
+          aria-label="Add turn block. Turns the sprite by a number of degrees.">
+          <span class="ico" aria-hidden="true">&#x21BB;</span>
+          <span>Turn ( ) degrees<small>sequence: change direction</small></span>
+        </button>
+
+        <button class="block selection" data-add="selection"
+          aria-label="Add if block. Selection: only runs when the chosen condition is true.">
+          <span class="ico" aria-hidden="true">&#x2753;</span>
+          <span>If ( ) then<small>selection: a choice, runs only if true</small></span>
+        </button>
+
+        <button class="block variable" data-add="variable"
+          aria-label="Add change variable block. Changes the value of a variable such as score.">
+          <span class="ico" aria-hidden="true">&#x1F4E6;</span>
+          <span>Change score by ( )<small>variable: store and change a number</small></span>
+        </button>
+
+        <div class="legend" aria-hidden="true">
+          <span><i class="dot" style="background:var(--repeat)"></i>repeat</span>
+          <span><i class="dot" style="background:var(--move)"></i>move</span>
+          <span><i class="dot" style="background:var(--turn)"></i>turn</span>
+          <span><i class="dot" style="background:var(--selection)"></i>if</span>
+          <span><i class="dot" style="background:var(--variable)"></i>variable</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CENTRE: stage + program -->
+    <section class="panel" aria-labelledby="stageTitle">
+      <h2 id="stageTitle">&#x1F4FA; Stage</h2>
+      <div class="body">
+        <div class="stage-wrap">
+          <canvas id="stage" width="640" height="480"
+            aria-label="Drawing stage. Pixel the sprite draws lines here when you run the program."></canvas>
+          <div class="scoreboard" aria-hidden="true">
+            <div class="score-chip">Loops left: <span id="chipLoop">0</span></div>
+            <div class="score-chip">Score: <span id="chipScore">0</span></div>
+            <div class="score-chip">Pen: <span id="chipPen">blue</span></div>
+          </div>
+        </div>
+        <div class="stage-controls">
+          <button class="btn primary" id="runBtn">&#x25B6; Run program</button>
+          <button class="btn brand" id="stepBtn">&#x23ED; One loop at a time</button>
+          <button class="btn" id="clearStageBtn">&#x1F9F9; Clear stage</button>
+        </div>
+
+        <h2 style="margin-top:16px; border:0; padding:14px 0 6px; font-size:1rem;">&#x1F4DD; Your program</h2>
+        <div id="scriptZone" class="script-zone" role="list" aria-label="Your program. Blocks run from top to bottom.">
+          <p class="empty-note" id="emptyNote">Drag a <b>Repeat</b> block here first, then drop <b>Move</b> and <b>Turn</b> blocks inside it to draw a spiral.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: feedback -->
+    <aside class="panel" aria-labelledby="fbTitle">
+      <h2 id="fbTitle">&#x1F4A1; Lab notes</h2>
+      <div class="body">
+        <div id="feedback" class="info" role="status" aria-live="polite">
+          Drag the <b>Repeat</b> block into your program to begin. Then add a <b>Move</b> and a <b>Turn</b> inside it.
+        </div>
+
+        <details class="help">
+          <summary>What do the words mean?</summary>
+          <p><span class="vocab">Sequence</span>: instructions run in order, top to bottom.</p>
+          <p><span class="vocab">Repetition</span>: a loop repeats the inside blocks a number of times. More repeats make the spiral longer.</p>
+          <p><span class="vocab">Selection</span>: an <em>if</em> block makes a choice. The blocks inside only run when the condition is true.</p>
+          <p><span class="vocab">Variable</span>: a labelled box that stores a number you can change, like a score.</p>
+        </details>
+
+        <details class="help">
+          <summary>Tips for a tidy spiral</summary>
+          <p>Keep <b>Move</b> small (about 4 to 8) and <b>Turn</b> a bit under or over 90 degrees. Then raise the <b>Repeat</b> count and watch the spiral tighten.</p>
+        </details>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<footer>
+  Loop Lab &#x2022; WeST Computing &#x2022; KS2 Programming: sequence, selection, repetition and variables. Demonstration only.
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- model ---------- */
+  // The program is a single repeat loop containing an ordered list of statements.
+  var loop = {
+    count: 6,
+    body: [
+      { type:"move", value:6 },
+      { type:"turn", value:92 }
+    ]
+  };
+
+  var STMT_LABELS = {
+    move:"Move forward",
+    turn:"Turn",
+    selection:"If",
+    variable:"Change score by"
+  };
+
+  /* ---------- DOM ---------- */
+  var scriptZone = document.getElementById("scriptZone");
+  var emptyNote  = document.getElementById("emptyNote");
+  var feedback   = document.getElementById("feedback");
+  var canvas     = document.getElementById("stage");
+  var ctx        = canvas.getContext("2d");
+  var chipLoop   = document.getElementById("chipLoop");
+  var chipScore  = document.getElementById("chipScore");
+  var chipPen    = document.getElementById("chipPen");
+
+  var hasLoop = true;          // start with a loop so pupils see the spiral immediately
+  var runState = null;         // for step mode
+
+  /* ---------- feedback helper ---------- */
+  function say(msg, kind){
+    feedback.className = kind || "info";
+    feedback.innerHTML = msg;
+  }
+
+  /* ---------- render the program blocks ---------- */
+  function render(){
+    // clear everything except the empty note
+    var cards = scriptZone.querySelectorAll(".loop-card");
+    cards.forEach(function(c){ c.remove(); });
+
+    if(!hasLoop){
+      emptyNote.style.display = "block";
+      return;
+    }
+    emptyNote.style.display = "none";
+
+    var card = document.createElement("div");
+    card.className = "loop-card";
+    card.setAttribute("role","listitem");
+
+    var head = document.createElement("div");
+    head.className = "loop-head";
+    head.innerHTML = '<span class="ico" aria-hidden="true">\u{1F501}</span> Repeat ';
+    var num = document.createElement("input");
+    num.type = "number"; num.min = "0"; num.max = "80"; num.value = loop.count;
+    num.className = "ctrl-num";
+    num.setAttribute("aria-label","Repeat count: number of times the inside blocks run");
+    num.addEventListener("input", function(){
+      var v = clamp(parseInt(num.value,10)||0, 0, 80);
+      loop.count = v; num.value = v;
+      describeCount(v);
+    });
+    head.appendChild(num);
+    var times = document.createElement("span");
+    times.textContent = " times";
+    head.appendChild(times);
+    card.appendChild(head);
+
+    var body = document.createElement("div");
+    body.className = "loop-body";
+    body.setAttribute("aria-label","Blocks inside the loop");
+
+    if(loop.body.length === 0){
+      var none = document.createElement("p");
+      none.className = "empty-note";
+      none.style.margin = "6px";
+      none.textContent = "Drop Move, Turn, If or Change-score blocks here.";
+      body.appendChild(none);
+    }
+
+    loop.body.forEach(function(st, i){
+      body.appendChild(buildStatement(st, i));
+    });
+
+    card.appendChild(body);
+    scriptZone.appendChild(card);
+  }
+
+  function buildStatement(st, i){
+    if(st.type === "selection"){
+      var ifc = document.createElement("div");
+      ifc.className = "if-card"; ifc.setAttribute("role","listitem");
+      var h = document.createElement("div");
+      h.className = "if-head";
+      h.innerHTML = '<span aria-hidden="true">\u{2753}</span> If ';
+      var sel = document.createElement("select");
+      sel.className = "inline";
+      sel.setAttribute("aria-label","Condition for the if block");
+      [["every3","step number can be divided by 3"],
+       ["half","past half the loops"],
+       ["always","always (true)"]].forEach(function(o){
+        var opt = document.createElement("option");
+        opt.value = o[0]; opt.textContent = o[1];
+        if(o[0]===st.cond) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener("change", function(){ st.cond = sel.value; say("The <b>if</b> block now runs <b>"+sel.options[sel.selectedIndex].text+"</b>. That is <b>selection</b>: a choice inside your loop.","info"); });
+      h.appendChild(sel);
+      var then = document.createElement("span"); then.textContent = " then change pen to gold"; h.appendChild(then);
+      ifc.appendChild(h);
+      ifc.appendChild(makeRemove(i, "if block"));
+      return ifc;
+    }
+
+    var row = document.createElement("div");
+    row.className = "stmt " + st.type;
+    row.setAttribute("role","listitem");
+    var label = document.createElement("span");
+    label.textContent = STMT_LABELS[st.type] + " ";
+    row.appendChild(label);
+
+    var ctrl = document.createElement("div");
+    ctrl.className = "stmt-row-ctrl";
+    var inp = document.createElement("input");
+    inp.type = "number";
+    inp.className = "inline-num";
+    inp.value = st.value;
+    if(st.type === "move"){ inp.min="0"; inp.max="40"; inp.setAttribute("aria-label","Steps to move forward"); }
+    else if(st.type === "turn"){ inp.min="-180"; inp.max="180"; inp.setAttribute("aria-label","Degrees to turn"); }
+    else { inp.min="-10"; inp.max="10"; inp.setAttribute("aria-label","Amount to change the score variable"); }
+    inp.addEventListener("input", function(){
+      var v = parseInt(inp.value,10); if(isNaN(v)) v = 0;
+      st.value = v;
+      if(st.type==="move") say("Each loop now moves <b>"+v+"</b> steps. Bigger moves make a bigger, looser spiral.","info");
+      else if(st.type==="turn") say("Each loop now turns <b>"+v+"</b> degrees. Exactly 90 makes a square; just above or below makes a spiral.","info");
+      else say("This loop now changes <b>score</b> by <b>"+v+"</b> each time. That is your <b>variable</b> at work.","info");
+    });
+    ctrl.appendChild(inp);
+    if(st.type==="move"){ var s1=document.createElement("span"); s1.textContent="steps"; ctrl.appendChild(s1); }
+    if(st.type==="turn"){ var s2=document.createElement("span"); s2.textContent="degrees"; ctrl.appendChild(s2); }
+    row.appendChild(ctrl);
+    row.appendChild(makeRemove(i, STMT_LABELS[st.type]+" block"));
+    return row;
+  }
+
+  function makeRemove(i, name){
+    var x = document.createElement("button");
+    x.className = "x"; x.type="button"; x.innerHTML = "&times;";
+    x.setAttribute("aria-label","Remove "+name);
+    x.addEventListener("click", function(){
+      loop.body.splice(i,1);
+      render();
+      say("Removed a block. The program is the <b>sequence</b> of blocks left, top to bottom.","info");
+    });
+    return x;
+  }
+
+  function describeCount(v){
+    if(v===0) say("Repeat is <b>0</b>: the loop runs <b>no</b> times, so nothing is drawn. A loop count of 0 means skip the inside blocks.","warn");
+    else if(v<4) say("Only <b>"+v+"</b> repeats: a short, open shape. Raise the count to close the spiral.","info");
+    else say("<b>"+v+"</b> repeats means the inside blocks run "+v+" times. More repeats make the spiral wind round more.","info");
+  }
+
+  function clamp(n,lo,hi){ return Math.max(lo, Math.min(hi, n)); }
+
+  /* ---------- add a block ---------- */
+  function addBlock(kind){
+    if(kind === "repeat"){
+      if(hasLoop){ say("You already have one <b>Repeat</b> loop. Drop other blocks <b>inside</b> it.","warn"); return; }
+      hasLoop = true;
+      if(loop.body.length===0){ loop.body = [ {type:"move",value:6}, {type:"turn",value:92} ]; loop.count = 6; }
+      render();
+      say("Loop added. Anything <b>inside</b> it will repeat. Try changing the count and pressing <b>Run</b>.","good");
+      return;
+    }
+    if(!hasLoop){
+      // create the loop on first inner block too, for convenience
+      hasLoop = true; loop.count = 6; loop.body = [];
+    }
+    var st;
+    if(kind==="move") st = {type:"move", value:6};
+    else if(kind==="turn") st = {type:"turn", value:92};
+    else if(kind==="selection") st = {type:"selection", cond:"half"};
+    else if(kind==="variable") st = {type:"variable", value:1};
+    loop.body.push(st);
+    render();
+    var names = {move:"Move", turn:"Turn", selection:"If (selection)", variable:"Change score (variable)"};
+    say("Added <b>"+names[kind]+"</b> inside the loop. It now runs once every repeat.","good");
+  }
+
+  /* ---------- palette interactions: click/keyboard + drag ---------- */
+  var blocks = document.querySelectorAll(".block");
+  blocks.forEach(function(b){
+    var kind = b.getAttribute("data-add");
+    b.addEventListener("click", function(){ addBlock(kind); });
+    b.addEventListener("keydown", function(e){
+      if(e.key==="Enter" || e.key===" "){ e.preventDefault(); addBlock(kind); }
+    });
+    // Pointer-based drag (works with mouse, touch, pen)
+    b.addEventListener("pointerdown", startDrag);
+  });
+
+  var ghost = null, dragKind = null;
+  function startDrag(e){
+    if(e.button && e.button!==0) return;
+    dragKind = e.currentTarget.getAttribute("data-add");
+    try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(err){}
+    ghost = document.createElement("div");
+    ghost.textContent = e.currentTarget.textContent.split("\n")[0].trim();
+    ghost.style.cssText = "position:fixed;z-index:9999;pointer-events:none;background:#10325f;color:#fff;padding:7px 12px;border-radius:8px;font-size:.82rem;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,.3);transform:translate(-50%,-50%);opacity:.95;";
+    document.body.appendChild(ghost);
+    moveGhost(e);
+    e.currentTarget.addEventListener("pointermove", moveGhost);
+    e.currentTarget.addEventListener("pointerup", endDrag);
+    e.currentTarget.addEventListener("pointercancel", endDrag);
+    e.preventDefault();
+  }
+  function moveGhost(e){
+    if(!ghost) return;
+    ghost.style.left = e.clientX + "px";
+    ghost.style.top  = e.clientY + "px";
+    var over = isOverZone(e.clientX, e.clientY);
+    scriptZone.classList.toggle("drop-on", over);
+  }
+  function endDrag(e){
+    var over = isOverZone(e.clientX, e.clientY);
+    scriptZone.classList.remove("drop-on");
+    if(ghost){ ghost.remove(); ghost = null; }
+    var t = e.currentTarget;
+    t.removeEventListener("pointermove", moveGhost);
+    t.removeEventListener("pointerup", endDrag);
+    t.removeEventListener("pointercancel", endDrag);
+    try{ t.releasePointerCapture(e.pointerId); }catch(err){}
+    if(over && dragKind){ addBlock(dragKind); }
+    dragKind = null;
+  }
+  function isOverZone(x,y){
+    var r = scriptZone.getBoundingClientRect();
+    return x>=r.left && x<=r.right && y>=r.top && y<=r.bottom;
+  }
+
+  /* ---------- run the program (the sprite drawing) ---------- */
+  var STAGE_W = 640, STAGE_H = 480;
+
+  function penColour(){ return runVars.penGold ? "#e8a317" : "#3aa0ff"; }
+
+  var runVars = { score:0, penGold:false };
+
+  function resetCanvas(){
+    ctx.fillStyle = "#0e1a2b";
+    ctx.fillRect(0,0,STAGE_W,STAGE_H);
+    // subtle grid
+    ctx.strokeStyle = "rgba(255,255,255,.05)";
+    ctx.lineWidth = 1;
+    for(var gx=0; gx<=STAGE_W; gx+=40){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,STAGE_H); ctx.stroke(); }
+    for(var gy=0; gy<=STAGE_H; gy+=40){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(STAGE_W,gy); ctx.stroke(); }
+  }
+
+  // Build the list of drawing steps from one full run of the loop.
+  function buildSteps(){
+    var steps = [];
+    runVars = { score:0, penGold:false };
+    var n = loop.count;
+    for(var i=0; i<n; i++){
+      for(var j=0; j<loop.body.length; j++){
+        var st = loop.body[j];
+        steps.push({ st:st, iter:i });
+      }
+    }
+    return steps;
+  }
+
+  // Turtle state
+  var turtle;
+  function resetTurtle(){
+    turtle = { x:STAGE_W/2, y:STAGE_H/2, angle:-90, score:0, penGold:false };
+  }
+
+  function applyStep(item){
+    var st = item.st, iter = item.iter;
+    if(st.type === "move"){
+      // scale steps up a little so movement is visible
+      var dist = st.value * 7;
+      var rad = turtle.angle * Math.PI/180;
+      var nx = turtle.x + Math.cos(rad)*dist;
+      var ny = turtle.y + Math.sin(rad)*dist;
+      ctx.strokeStyle = turtle.penGold ? "#e8a317" : "#3aa0ff";
+      ctx.lineWidth = 3; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(turtle.x, turtle.y); ctx.lineTo(nx, ny); ctx.stroke();
+      turtle.x = nx; turtle.y = ny;
+    } else if(st.type === "turn"){
+      turtle.angle += st.value;
+    } else if(st.type === "variable"){
+      turtle.score += st.value;
+    } else if(st.type === "selection"){
+      var fire = false;
+      if(st.cond === "always") fire = true;
+      else if(st.cond === "every3") fire = ((iter+1) % 3 === 0);
+      else if(st.cond === "half") fire = (iter >= Math.floor(loop.count/2));
+      if(fire) turtle.penGold = true;
+    }
+  }
+
+  function drawSprite(){
+    // draw Pixel as a little glowing dot with a heading triangle
+    ctx.save();
+    ctx.translate(turtle.x, turtle.y);
+    ctx.rotate(turtle.angle * Math.PI/180);
+    ctx.fillStyle = "#ffd45e";
+    ctx.beginPath();
+    ctx.moveTo(10,0); ctx.lineTo(-6,-6); ctx.lineTo(-6,6); ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(turtle.x, turtle.y, 3, 0, Math.PI*2); ctx.fill();
+  }
+
+  function updateChips(){
+    chipScore.textContent = turtle ? turtle.score : 0;
+    chipPen.textContent = turtle && turtle.penGold ? "gold" : "blue";
+  }
+
+  function validate(){
+    if(!hasLoop){ say("Add a <b>Repeat</b> block first. That is the <b>repetition</b> your spiral needs.","warn"); return false; }
+    if(loop.count === 0){ say("Your loop count is <b>0</b>, so nothing draws. Set it to a number above 0.","warn"); return false; }
+    var hasMove = loop.body.some(function(s){return s.type==="move";});
+    var hasTurn = loop.body.some(function(s){return s.type==="turn";});
+    if(!hasMove){ say("There is no <b>Move</b> block inside the loop, so Pixel cannot draw a line. Add one.","warn"); return false; }
+    if(!hasTurn){ say("Add a <b>Turn</b> block too, or Pixel will only draw a straight line, not a spiral.","warn"); return false; }
+    return true;
+  }
+
+  function runFull(){
+    if(!validate()) return;
+    resetCanvas(); resetTurtle();
+    var steps = buildSteps();
+    var k = 0;
+    chipLoop.textContent = loop.count;
+    (function frame(){
+      // draw a chunk per frame so it animates
+      var perFrame = Math.max(1, Math.floor(steps.length/60));
+      for(var c=0; c<perFrame && k<steps.length; c++, k++){
+        applyStep(steps[k]);
+        chipLoop.textContent = (loop.count - 1 - steps[k-1>=0?k-1:0].iter);
+      }
+      drawSprite();
+      updateChips();
+      if(k < steps.length){ requestAnimationFrame(frame); }
+      else { afterRun(); }
+    })();
+  }
+
+  function afterRun(){
+    chipLoop.textContent = 0;
+    var mv = loop.body.filter(function(s){return s.type==="move";}).reduce(function(a,s){return a+Math.abs(s.value);},0);
+    var totalSteps = mv * loop.count;
+    var hasIf = loop.body.some(function(s){return s.type==="selection";});
+    var msg = "Done. Pixel ran the loop <b>"+loop.count+"</b> times. ";
+    msg += "Total steps moved: <b>"+totalSteps+"</b> (move &times; repeats). ";
+    if(turtle.penGold) msg += "The pen finished <b>gold</b>";
+    else msg += "The pen finished <b>blue</b>";
+    if(hasIf) msg += ", set by your <b>if</b> block (selection).";
+    else msg += ".";
+    if(turtle.score!==0) msg += " Score variable ended on <b>"+turtle.score+"</b>.";
+    // challenge check
+    var ok = turtle.penGold && totalSteps>=30 && totalSteps<=40;
+    if(ok){ say("&#x2705; Challenge met. "+msg+" Gold pen and "+totalSteps+" steps is right in the target range.","good"); }
+    else if(turtle.penGold && (totalSteps<30||totalSteps>40)){
+      say(msg+" Pen is gold, but total steps is <b>"+totalSteps+"</b>. Adjust <b>move</b> or <b>repeat</b> to land between 30 and 40.","info");
+    } else {
+      say(msg+" To meet the challenge, add an <b>if</b> block that turns the pen <b>gold</b>, and tune steps to 30 to 40.","info");
+    }
+  }
+
+  /* ---------- step mode: run one loop iteration at a time ---------- */
+  function stepOnce(){
+    if(!validate()) return;
+    if(!runState){
+      resetCanvas(); resetTurtle();
+      runState = { iter:0 };
+      chipLoop.textContent = loop.count;
+    }
+    if(runState.iter >= loop.count){
+      say("All <b>"+loop.count+"</b> loops have finished. Press <b>Run</b> to replay, or change a block.","good");
+      runState = null;
+      afterRun();
+      return;
+    }
+    // run one full pass of the body
+    for(var j=0; j<loop.body.length; j++){
+      applyStep({ st:loop.body[j], iter:runState.iter });
+    }
+    drawSprite();
+    updateChips();
+    runState.iter++;
+    chipLoop.textContent = loop.count - runState.iter;
+    say("Ran loop <b>"+runState.iter+"</b> of <b>"+loop.count+"</b>. Watch one segment of the spiral appear each time. This is what <b>repetition</b> does.","info");
+    if(runState.iter >= loop.count){ runState = null; }
+  }
+
+  /* ---------- buttons ---------- */
+  document.getElementById("runBtn").addEventListener("click", function(){ runState=null; runFull(); });
+  document.getElementById("stepBtn").addEventListener("click", stepOnce);
+  document.getElementById("clearStageBtn").addEventListener("click", function(){
+    runState=null; resetCanvas(); resetTurtle(); updateChips(); chipLoop.textContent=0;
+    say("Stage cleared. Press <b>Run</b> to draw again. Your program is still set up.","info");
+  });
+
+  /* ---------- keyboard help for canvas ---------- */
+  canvas.setAttribute("tabindex","0");
+  canvas.addEventListener("keydown", function(e){
+    if(e.key==="Enter" || e.key===" "){ e.preventDefault(); runState=null; runFull(); }
+  });
+
+  /* ---------- init ---------- */
+  resetCanvas(); resetTurtle(); updateChips();
+  render();
+  // draw an initial preview so the stage is not empty
+  setTimeout(function(){ runFull(); }, 250);
+
+})();
+</script>
+</body>
+</html>

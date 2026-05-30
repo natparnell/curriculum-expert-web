@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Upstander Simulator</title>
+<style>
+  :root {
+    --ink: #1c2530;
+    --muted: #5a6b7b;
+    --line: #d7e0e8;
+    --bg: #eef3f7;
+    --card: #ffffff;
+    --accent: #2f6f8f;
+    --accent-dk: #1f4f66;
+    --safe: #2e8b57;
+    --safe-bg: #e4f4ec;
+    --warn: #c87b1d;
+    --warn-bg: #fbf0df;
+    --risk: #b6433f;
+    --risk-bg: #f8e6e5;
+    --gold: #c8a24a;
+    --shadow: 0 4px 18px rgba(28,37,48,0.10);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 18px 16px 60px; }
+
+  header.app-head {
+    background: linear-gradient(135deg, var(--accent-dk), var(--accent));
+    color: #fff;
+    border-radius: var(--radius);
+    padding: 22px 22px 20px;
+    box-shadow: var(--shadow);
+  }
+  header.app-head h1 {
+    margin: 0 0 4px;
+    font-size: clamp(1.5rem, 4vw, 2.1rem);
+    letter-spacing: 0.2px;
+  }
+  header.app-head .tag { font-size: 0.92rem; opacity: 0.92; }
+  .aim {
+    background: rgba(255,255,255,0.14);
+    border-left: 4px solid var(--gold);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-top: 14px;
+    font-size: 0.93rem;
+  }
+  .aim strong { letter-spacing: 0.3px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+    margin-top: 18px;
+  }
+  h2.section-title {
+    margin: 0 0 4px;
+    font-size: 1.15rem;
+    color: var(--accent-dk);
+  }
+  .section-sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 14px; }
+
+  /* Progress / ripple meter */
+  .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+  @media (max-width: 560px) { .meters { grid-template-columns: 1fr; } }
+  .meter {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #f7fafc;
+  }
+  .meter .lab { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+  .meter .num { font-weight: 700; font-size: 1.05rem; }
+  .bar { height: 12px; border-radius: 7px; background: #e3eaf0; overflow: hidden; margin-top: 6px; }
+  .bar > span { display: block; height: 100%; width: 50%; border-radius: 7px; transition: width 0.6s ease, background 0.6s ease; }
+  .bar.support > span { background: var(--safe); }
+  .bar.target > span { background: var(--warn); }
+
+  /* Scenario */
+  .scenario-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .chip {
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #eaf1f6;
+    color: var(--accent-dk);
+    border: 1px solid var(--line);
+  }
+  .chip.prej { background: var(--risk-bg); color: var(--risk); border-color: #eccac8; }
+  .scene-text {
+    font-size: 1.02rem;
+    background: #f6f9fb;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .scene-text .said { font-style: italic; color: var(--accent-dk); }
+  .speak-btn {
+    margin-top: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #eef5f8;
+    border: 1px solid var(--line);
+    color: var(--accent-dk);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .speak-btn:hover { background: #e2eef3; }
+
+  /* Choices */
+  .choices { margin-top: 16px; display: grid; gap: 10px; }
+  .choice {
+    text-align: left;
+    background: #fff;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    padding: 13px 15px;
+    font-size: 0.97rem;
+    color: var(--ink);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    font-family: inherit;
+    line-height: 1.45;
+  }
+  .choice:hover:not(:disabled) { border-color: var(--accent); background: #f4f9fb; }
+  .choice:focus-visible { outline: 3px solid #8fc3da; outline-offset: 2px; }
+  .choice .ckey {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    margin-right: 6px;
+  }
+  .choice:disabled { cursor: default; opacity: 0.96; }
+  .choice.picked-safe { border-color: var(--safe); background: var(--safe-bg); }
+  .choice.picked-warn { border-color: var(--warn); background: var(--warn-bg); }
+  .choice.picked-risk { border-color: var(--risk); background: var(--risk-bg); }
+  .choice.dimmed { opacity: 0.5; }
+
+  /* Feedback */
+  .feedback {
+    margin-top: 16px;
+    border-radius: 12px;
+    padding: 15px 16px;
+    border: 1px solid var(--line);
+    display: none;
+  }
+  .feedback.show { display: block; animation: fade 0.35s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .feedback.safe { background: var(--safe-bg); border-color: #bfe2cf; }
+  .feedback.warn { background: var(--warn-bg); border-color: #ecd7ab; }
+  .feedback.risk { background: var(--risk-bg); border-color: #eccac8; }
+  .feedback .verdict { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+  .feedback.safe .verdict { color: var(--safe); }
+  .feedback.warn .verdict { color: var(--warn); }
+  .feedback.risk .verdict { color: var(--risk); }
+  .feedback .ripple {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    background: rgba(255,255,255,0.6);
+    border-radius: 8px;
+    padding: 9px 11px;
+  }
+  .feedback .ripple b { color: var(--accent-dk); }
+
+  .principle {
+    margin-top: 12px;
+    font-size: 0.88rem;
+    color: var(--muted);
+    border-top: 1px dashed var(--line);
+    padding-top: 10px;
+  }
+  .principle b { color: var(--ink); }
+
+  .row-btns { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn {
+    border: none;
+    border-radius: 10px;
+    padding: 11px 20px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-dk); }
+  .btn-ghost { background: #eef3f7; color: var(--accent-dk); border: 1px solid var(--line); }
+  .btn-ghost:hover { background: #e3ebf1; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn:focus-visible { outline: 3px solid #8fc3da; outline-offset: 2px; }
+
+  /* Stepper */
+  .stepper { display: flex; gap: 6px; margin: 4px 0 0; flex-wrap: wrap; }
+  .step-dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: #cdd9e2; border: 1px solid #b6c5d0;
+  }
+  .step-dot.done { background: var(--safe); border-color: var(--safe); }
+  .step-dot.current { background: var(--accent); border-color: var(--accent-dk); box-shadow: 0 0 0 3px rgba(47,111,143,0.18); }
+
+  /* Class group ripple visual */
+  .group-wrap { margin-top: 14px; }
+  .group-lab { font-size: 0.82rem; color: var(--muted); margin-bottom: 6px; }
+  .people { display: flex; flex-wrap: wrap; gap: 8px; }
+  .person {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; background: #e3eaf0; border: 2px solid #cdd9e2;
+    transition: background 0.5s, border-color 0.5s, transform 0.4s;
+  }
+  .person.support { background: var(--safe-bg); border-color: var(--safe); transform: scale(1.06); }
+  .person.unsure { background: var(--warn-bg); border-color: var(--warn); }
+  .person.harm { background: var(--risk-bg); border-color: var(--risk); }
+
+  /* Summary screen */
+  .summary { display: none; }
+  .summary.show { display: block; }
+  .badge-big {
+    text-align: center;
+    padding: 18px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #f6f1df, #fbf7ea);
+    border: 1px solid #ecdfb6;
+    margin-bottom: 16px;
+  }
+  .badge-big .b-emoji { font-size: 2.6rem; }
+  .badge-big .b-title { font-size: 1.25rem; font-weight: 700; color: var(--accent-dk); margin-top: 4px; }
+  .badge-big .b-sub { color: var(--muted); font-size: 0.92rem; }
+  .recap { display: grid; gap: 10px; margin-top: 6px; }
+  .recap-item {
+    border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px;
+    background: #f8fafc; font-size: 0.92rem;
+  }
+  .recap-item .rk { font-weight: 700; color: var(--accent-dk); }
+  .recap-item .rtag {
+    float: right; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .rtag.safe { background: var(--safe-bg); color: var(--safe); }
+  .rtag.warn { background: var(--warn-bg); color: var(--warn); }
+  .rtag.risk { background: var(--risk-bg); color: var(--risk); }
+
+  .toolkit {
+    margin-top: 18px; background: #eef5f8; border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px;
+  }
+  .toolkit h3 { margin: 0 0 8px; color: var(--accent-dk); font-size: 1rem; }
+  .toolkit ul { margin: 0; padding-left: 18px; }
+  .toolkit li { margin-bottom: 5px; font-size: 0.91rem; }
+  .toolkit .five-d { font-weight: 700; color: var(--accent); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); border: 0;
+  }
+  footer.foot { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 26px; }
+  .hint { font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
+  kbd {
+    background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;
+    padding:1px 6px;font-size:0.78rem;font-family:inherit;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <h1>Upstander Simulator</h1>
+    <div class="tag">Behaviour &amp; Pastoral &middot; Key Stage 3 &middot; Tackling prejudice, discrimination and being an upstander</div>
+    <div class="aim">
+      <strong>Teacher aim:</strong> Pupils explore real-feeling bystander moments involving prejudice and discrimination, choose how to step in safely, and watch the ripple effect their choice has on the whole group. The goal is a shared toolkit of upstander strategies, not a single "right" answer.
+    </div>
+  </header>
+
+  <!-- LIVE METERS -->
+  <section class="card" aria-labelledby="meters-h">
+    <h2 class="section-title" id="meters-h">Ripple meter</h2>
+    <p class="section-sub">Every choice changes how safe and supported the group feels. Watch these move.</p>
+    <div class="meters">
+      <div class="meter">
+        <div class="lab">Group feels supported</div>
+        <div class="num"><span id="supportNum">50</span>%</div>
+        <div class="bar support"><span id="supportBar" style="width:50%"></span></div>
+      </div>
+      <div class="meter">
+        <div class="lab">Targeted pupil feels safe</div>
+        <div class="num"><span id="targetNum">50</span>%</div>
+        <div class="bar target"><span id="targetBar" style="width:50%"></span></div>
+      </div>
+    </div>
+
+    <div class="group-wrap">
+      <div class="group-lab">The watching group (a fictional Year 8 class). Their reactions shift with your choice:</div>
+      <div class="people" id="people" role="img" aria-label="A row of pupils who react to your choice">
+        <!-- people injected -->
+      </div>
+    </div>
+
+    <div class="stepper" id="stepper" aria-hidden="true"></div>
+  </section>
+
+  <!-- SCENARIO CARD -->
+  <section class="card" id="scenarioCard" aria-labelledby="scene-h">
+    <div class="scenario-meta" id="sceneMeta"></div>
+    <h2 class="section-title" id="scene-h" aria-live="polite">Scenario</h2>
+    <p class="section-sub" id="sceneSub"></p>
+
+    <div class="scene-text" id="sceneText"></div>
+    <button class="speak-btn" id="speakBtn" type="button">
+      <span aria-hidden="true">&#x1F50A;</span> Read aloud
+    </button>
+
+    <h3 class="sr-only">Choose how to respond</h3>
+    <div class="choices" id="choices" role="group" aria-label="Ways you could respond"></div>
+
+    <div class="feedback" id="feedback" role="region" aria-live="polite" aria-label="Feedback on your choice"></div>
+
+    <div class="row-btns">
+      <button class="btn btn-primary" id="nextBtn" type="button" disabled>Next scenario &rarr;</button>
+      <button class="btn btn-ghost" id="retryBtn" type="button" style="display:none;">Try a different response</button>
+    </div>
+    <p class="hint">Tip: press <kbd>1</kbd>, <kbd>2</kbd>, <kbd>3</kbd> or <kbd>4</kbd> to choose an option, then <kbd>Enter</kbd> for the next scenario.</p>
+  </section>
+
+  <!-- SUMMARY -->
+  <section class="card summary" id="summaryCard" aria-labelledby="sum-h">
+    <h2 class="section-title" id="sum-h">Your upstander journey</h2>
+    <div class="badge-big" id="badgeBig" role="status"></div>
+    <p class="section-sub" id="summaryLine"></p>
+    <div class="recap" id="recap"></div>
+
+    <div class="toolkit">
+      <h3>The upstander toolkit your class has practised</h3>
+      <ul>
+        <li><span class="five-d">Direct:</span> calmly name what is happening as unfair, then move on. ("That is not okay.")</li>
+        <li><span class="five-d">Distract:</span> change the subject or start a new activity so the prejudice loses its audience.</li>
+        <li><span class="five-d">Delegate:</span> get a trusted adult or someone with more standing to step in. This is not telling tales; it is keeping people safe.</li>
+        <li><span class="five-d">Delay:</span> if it is not safe to act in the moment, check on the person afterwards and report it.</li>
+        <li><span class="five-d">Document:</span> note what was said or done so it can be reported honestly.</li>
+      </ul>
+      <p class="hint" style="margin-top:10px;">Prejudice is an unfair attitude or belief about a group of people. Discrimination is treating someone worse because they belong to that group. The Equality Act 2010 protects people in England from discrimination based on characteristics such as race, religion, disability, sex and sexual orientation. An upstander acts safely; a bystander stays silent.</p>
+    </div>
+
+    <div class="row-btns">
+      <button class="btn btn-primary" id="restartBtn" type="button">Start again</button>
+    </div>
+  </section>
+
+  <footer class="foot">
+    Upstander Simulator &middot; WeST &middot; Demonstration scenarios with fictional pupils. No real person is represented.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ----- Scenario data (KS3, prejudice & discrimination, safe upstander strategies) -----
+  // Each option: text, type (safe|warn|risk), verdict, why, ripple text, support/target deltas.
+  var SCENARIOS = [
+    {
+      tags: ["Corridor", "Religion / culture"],
+      prej: true,
+      sub: "Religion and culture",
+      text: "In the corridor, <b>Marcus</b> sees a group laughing at <b>Aisha</b>, who wears a hijab. One of them says, <span class='said'>\"You can't even play football dressed like that, can you?\"</span> Aisha looks down and says nothing. People nearby go quiet.",
+      speech: "In the corridor, Marcus sees a group laughing at Aisha, who wears a hijab. One of them says, you can't even play football dressed like that, can you? Aisha looks down and says nothing.",
+      options: [
+        { text: "Say clearly to the group: \"That's not fair, she can wear what she likes,\" then walk with Aisha to your next lesson.", type: "safe", verdict: "Strong upstander move.", why: "You named the unfairness calmly (the Direct strategy) and then offered Aisha support without making a big scene. You did not insult anyone, which keeps it safe.", ripple: "The group goes quiet and the joking stops. <b>Aisha</b> looks relieved and others start treating it as the wrong thing to say.", ds: 22, dt: 26 },
+        { text: "Step in and change the subject: \"Has anyone seen what's for lunch? Aisha, come with me.\"", type: "safe", verdict: "Smart, low-risk choice.", why: "This is the Distract strategy. Without arguing, you took away the audience the comment needed and gave Aisha an exit. Sometimes the calmest action is the most powerful.", ripple: "The moment fizzles out. <b>Aisha</b> walks off with you and the group loses interest.", ds: 14, dt: 20 },
+        { text: "Laugh along quietly so the group doesn't turn on you, but feel bad about it.", type: "risk", verdict: "This makes the harm worse.", why: "Laughing along, even quietly, tells the group their prejudice is acceptable. Staying silent here is what a bystander does. You do not have to be loud, but you should not add to it.", ripple: "The group feels encouraged and carries on. <b>Aisha</b> feels even more alone, and others learn that nobody will stand up for them.", ds: -22, dt: -26 },
+        { text: "Shout at the group, call them idiots and shove the one who spoke.", type: "warn", verdict: "Right instinct, unsafe action.", why: "Your heart is in the right place, but shoving or insulting can turn it into a fight and you could end up in trouble too. Upstanders act firmly but safely. Name the behaviour, do not attack the person.", ripple: "It becomes a shouting match. <b>Aisha</b> is now the centre of a scene she did not want, and an adult has to break it up.", ds: -6, dt: -4 }
+      ]
+    },
+    {
+      tags: ["Group chat", "Race"],
+      prej: true,
+      sub: "Race and online prejudice",
+      text: "In the class group chat, someone posts a meme mocking <b>Daniel's</b> accent and the country his family is from. Three people react with laughing emojis. Daniel has not replied. You can see he has read it.",
+      speech: "In the class group chat, someone posts a meme mocking Daniel's accent and the country his family is from. Three people react with laughing emojis. Daniel has not replied.",
+      options: [
+        { text: "Reply in the chat: \"Not cool, take it down,\" then message Daniel privately to check he's okay.", type: "safe", verdict: "Excellent online upstander move.", why: "You challenged it publicly so everyone sees it is not acceptable, then supported Daniel in private so he is not put on the spot. Online prejudice spreads fast, so a quick clear reply matters.", ripple: "The poster deletes the meme. <b>Daniel</b> thanks you privately. Others see that the chat has a line that should not be crossed.", ds: 20, dt: 24 },
+        { text: "Screenshot the message and show a trusted teacher or tutor.", type: "safe", verdict: "A safe, sensible delegate-and-document move.", why: "This is the Delegate and Document strategy. Saving the evidence and telling an adult is exactly right for online discrimination, which can count as bullying or even a hate incident. It is not telling tales; it is keeping people safe.", ripple: "The teacher follows it up calmly. <b>Daniel</b> feels the school takes it seriously, and the people who reacted think twice next time.", ds: 12, dt: 18 },
+        { text: "Leave the chat without saying anything so you're not part of it.", type: "warn", verdict: "Understandable, but not enough.", why: "Leaving keeps your own conscience clear, but it does nothing for Daniel and the meme stays up. A silent exit is closer to being a bystander. At least check on him or report it.", ripple: "The meme stays in the chat. <b>Daniel</b> still feels mocked and does not know anyone was on his side.", ds: -8, dt: -10 },
+        { text: "Add your own laughing emoji so you fit in with the group.", type: "risk", verdict: "This actively joins the discrimination.", why: "A laughing reaction is a choice to take part. It mocks Daniel for his race and background, which the Equality Act 2010 protects people from. You have moved from bystander to part of the harm.", ripple: "The pile-on grows. <b>Daniel</b> reads every reaction and feels singled out by his whole class.", ds: -24, dt: -28 }
+      ]
+    },
+    {
+      tags: ["PE lesson", "Disability"],
+      prej: true,
+      sub: "Disability",
+      text: "In PE, teams are being picked. <b>Leah</b>, who has a hearing aid and sometimes misses instructions, is left until last. <b>Sam</b> rolls his eyes and mutters, <span class='said'>\"Great, we get the one who never hears anything.\"</span> A couple of others snigger.",
+      speech: "In PE, teams are being picked. Leah, who has a hearing aid and sometimes misses instructions, is left until last. Sam rolls his eyes and mutters, great, we get the one who never hears anything. A couple of others snigger.",
+      options: [
+        { text: "Say \"Leah's quick, I'll partner her,\" and make sure she can see you when you explain the plan.", type: "safe", verdict: "Inclusive and thoughtful.", why: "You challenged the put-down by valuing Leah, then adjusted how you communicate so she is included. That is what fair treatment looks like: removing the barrier, not the person.", ripple: "Sam's comment lands flat. <b>Leah</b> joins in fully and plays well, and the team sees she was never the problem.", ds: 20, dt: 24 },
+        { text: "Quietly tell Sam: \"That's out of order, she just needs you to face her when you talk.\"", type: "safe", verdict: "Calm, direct, and educational.", why: "You used the Direct strategy without humiliating Sam, and you explained a simple adjustment. Many people are not deliberately cruel; they just do not know. Helping them understand is powerful.", ripple: "Sam looks a bit embarrassed and changes his tone. <b>Leah</b> feels backed up, and the snigger dies down.", ds: 16, dt: 18 },
+        { text: "Say nothing; it's only PE and Sam was probably joking.", type: "warn", verdict: "Letting it slide has a cost.", why: "Calling it a joke is how prejudice gets excused. Mocking someone for a disability is discrimination, even in a quick comment. Silence tells Leah and everyone else that it is allowed.", ripple: "Sam carries on. <b>Leah</b> hangs back and avoids the next group activity, feeling like a burden.", ds: -14, dt: -18 },
+        { text: "Join in: \"Yeah, put her in goal where she can't mess it up.\"", type: "risk", verdict: "This is discrimination, full stop.", why: "Singling Leah out and limiting her because of her hearing is exactly what the Equality Act 2010 protects against. You have made her difference into a punishment in front of everyone.", ripple: "The whole team treats <b>Leah</b> as a problem. She stops trying and asks to sit out next lesson.", ds: -22, dt: -26 }
+      ]
+    },
+    {
+      tags: ["Form time", "Identity"],
+      prej: true,
+      sub: "Identity and stereotypes",
+      text: "During form time, <b>Priya</b> mentions she wants to be an engineer. <b>Jordan</b> laughs: <span class='said'>\"Engineering's a boys' thing, you'll never keep up.\"</span> A few people look at Priya to see how she'll react. She forces a smile but stops talking.",
+      speech: "During form time, Priya mentions she wants to be an engineer. Jordan laughs, engineering's a boys' thing, you'll never keep up. A few people look at Priya to see how she'll react. She forces a smile but stops talking.",
+      options: [
+        { text: "Say: \"Loads of brilliant engineers are women, that's just a stereotype,\" and ask Priya what kind of engineering she's into.", type: "safe", verdict: "You challenged it and lifted her up.", why: "You named the stereotype as untrue (Direct) and then gave Priya the floor again so she was not silenced. Challenging sexist assumptions in the moment helps everyone, not just her.", ripple: "Jordan backs down and a couple of people nod. <b>Priya</b> relaxes and tells the group about a robotics project.", ds: 20, dt: 24 },
+        { text: "Catch Priya afterwards: \"Ignore Jordan, you'd be a great engineer.\"", type: "warn", verdict: "Kind, but the room stayed silent.", why: "This is the Delay strategy and it does support Priya, which matters. But because nobody challenged Jordan in the moment, the stereotype was left standing in front of everyone. Pairing private support with a public challenge is stronger.", ripple: "<b>Priya</b> feels a little better, but the group still heard the put-down go unanswered.", ds: 4, dt: 10 },
+        { text: "Laugh and agree: \"He's got a point, that's more of a lads' subject.\"", type: "risk", verdict: "This reinforces the prejudice.", why: "Agreeing turns one person's sexist comment into a shared opinion. Telling someone they cannot do a job because of their sex is discrimination, and it can shape the choices people make for years.", ripple: "<b>Priya</b> stops mentioning her ambitions in class. Other girls in the room quietly note what the group thinks.", ds: -20, dt: -24 },
+        { text: "Stay out of it; it's just banter and not your business.", type: "warn", verdict: "Calling it banter excuses it.", why: "Banter is a word often used to dodge responsibility. A bystander hopes it blows over; an upstander does something safe, even if it is just supporting Priya afterwards.", ripple: "The comment hangs in the air. <b>Priya</b> learns to keep her ideas to herself in this group.", ds: -12, dt: -14 }
+      ]
+    },
+    {
+      tags: ["Lunch queue", "Sexual orientation"],
+      prej: true,
+      sub: "Sexual orientation",
+      text: "In the lunch queue, <b>Theo</b> uses the word \"gay\" as an insult about someone's bag, then points at <b>Ben</b> and says, <span class='said'>\"like him.\"</span> Ben goes red. People around laugh nervously and look away.",
+      speech: "In the lunch queue, Theo uses the word gay as an insult about someone's bag, then points at Ben and says, like him. Ben goes red. People around laugh nervously and look away.",
+      options: [
+        { text: "Say evenly: \"Using 'gay' as an insult isn't okay, and pointing at Ben is out of order.\"", type: "safe", verdict: "Clear and brave.", why: "You challenged both the slur and the targeting of Ben (Direct). Naming why it is wrong, without shouting, makes it harder for the group to laugh it off. This kind of language is a form of prejudice the school takes seriously.", ripple: "The laughing stops awkwardly and Theo mutters an apology. <b>Ben</b> gives you a small grateful nod.", ds: 20, dt: 26 },
+        { text: "Distract the queue: \"Ben, save me a seat, I've got that thing to tell you,\" and move on together.", type: "safe", verdict: "A safe exit that still helps.", why: "If naming it out loud feels too risky in a crowded queue, the Distract strategy gets Ben out of the spotlight and signals you are on his side. You can report Theo's language to a tutor afterwards (Delay and Document).", ripple: "<b>Ben</b> escapes the moment and sits with you. The audience drifts off and the joke loses its power.", ds: 12, dt: 18 },
+        { text: "Tell Ben loudly to \"just laugh it off, don't be so sensitive.\"", type: "risk", verdict: "This puts the blame on the victim.", why: "Telling the targeted person to toughen up makes it their fault and lets Theo off the hook. That is not neutral; it sides with the prejudice. The problem is the insult, not Ben's feelings.", ripple: "<b>Ben</b> feels mocked twice over and stops sitting with the group at lunch.", ds: -18, dt: -24 },
+        { text: "Say nothing and hope a teacher heard it instead.", type: "warn", verdict: "Hoping is not acting.", why: "It is fine to involve an adult, that is the Delegate strategy. But quietly hoping someone else deals with it usually means nobody does. If you cannot speak up, go and tell a teacher on purpose.", ripple: "No adult heard it. The slur passes without comment and <b>Ben</b> assumes nobody minded.", ds: -10, dt: -12 }
+      ]
+    }
+  ];
+
+  // ----- State -----
+  var idx = 0;
+  var support = 50, target = 50;
+  var answered = false;
+  var picks = []; // {scenarioIdx, type, optText}
+  var PEOPLE_COUNT = 8;
+
+  // ----- Elements -----
+  var el = function (id) { return document.getElementById(id); };
+  var sceneMeta = el("sceneMeta"), sceneSub = el("sceneSub"),
+      sceneText = el("sceneText"), choicesEl = el("choices"),
+      feedbackEl = el("feedback"), nextBtn = el("nextBtn"),
+      retryBtn = el("retryBtn"), speakBtn = el("speakBtn"),
+      stepperEl = el("stepper"), peopleEl = el("people"),
+      scenarioCard = el("scenarioCard"), summaryCard = el("summaryCard");
+
+  // ----- Init people + stepper -----
+  function buildStatics() {
+    var faces = ["🙂","😐","🙂","😐","🙂","😐","🙂","😐"];
+    peopleEl.innerHTML = "";
+    for (var i = 0; i < PEOPLE_COUNT; i++) {
+      var p = document.createElement("div");
+      p.className = "person";
+      p.textContent = faces[i];
+      p.setAttribute("aria-hidden", "true");
+      peopleEl.appendChild(p);
+    }
+    stepperEl.innerHTML = "";
+    for (var j = 0; j < SCENARIOS.length; j++) {
+      var d = document.createElement("div");
+      d.className = "step-dot";
+      stepperEl.appendChild(d);
+    }
+  }
+
+  function updateStepper() {
+    var dots = stepperEl.children;
+    for (var i = 0; i < dots.length; i++) {
+      dots[i].className = "step-dot" + (i < idx ? " done" : (i === idx ? " current" : ""));
+    }
+  }
+
+  function setMeters() {
+    support = Math.max(0, Math.min(100, support));
+    target = Math.max(0, Math.min(100, target));
+    el("supportNum").textContent = support;
+    el("targetNum").textContent = target;
+    el("supportBar").style.width = support + "%";
+    el("targetBar").style.width = target + "%";
+  }
+
+  // Reflect overall mood on the group of people
+  function setPeopleMood(type) {
+    var people = peopleEl.children;
+    // Determine how many supportive vs harmed based on choice type
+    var supportN, harmN;
+    if (type === "safe") { supportN = 6; harmN = 0; }
+    else if (type === "warn") { supportN = 3; harmN = 2; }
+    else { supportN = 0; harmN = 6; }
+    var happy = "🙂", neutral = "😐", sad = "🙁";
+    for (var i = 0; i < people.length; i++) {
+      people[i].className = "person";
+      if (i < supportN) { people[i].classList.add("support"); people[i].textContent = happy; }
+      else if (i >= people.length - harmN) { people[i].classList.add("harm"); people[i].textContent = sad; }
+      else { people[i].classList.add("unsure"); people[i].textContent = neutral; }
+    }
+  }
+
+  function resetPeople() {
+    var people = peopleEl.children;
+    var faces = ["🙂","😐","🙂","😐","🙂","😐","🙂","😐"];
+    for (var i = 0; i < people.length; i++) {
+      people[i].className = "person";
+      people[i].textContent = faces[i];
+    }
+  }
+
+  // ----- Render a scenario -----
+  function renderScenario() {
+    answered = false;
+    var s = SCENARIOS[idx];
+    sceneMeta.innerHTML = "";
+    s.tags.forEach(function (t, i) {
+      var c = document.createElement("span");
+      c.className = "chip" + (i === s.tags.length - 1 && s.prej ? " prej" : "");
+      c.textContent = t;
+      sceneMeta.appendChild(c);
+    });
+    el("scene-h").textContent = "Scenario " + (idx + 1) + " of " + SCENARIOS.length;
+    sceneSub.textContent = "Theme: " + s.sub + ". Read what happens, then choose how you would respond.";
+    sceneText.innerHTML = s.text;
+
+    choicesEl.innerHTML = "";
+    s.options.forEach(function (opt, i) {
+      var b = document.createElement("button");
+      b.className = "choice";
+      b.type = "button";
+      b.setAttribute("data-i", i);
+      b.innerHTML = "<span class='ckey'>" + (i + 1) + ".</span>" + opt.text;
+      b.addEventListener("click", function () { choose(i); });
+      choicesEl.appendChild(b);
+    });
+
+    feedbackEl.className = "feedback";
+    feedbackEl.innerHTML = "";
+    nextBtn.disabled = true;
+    nextBtn.textContent = (idx === SCENARIOS.length - 1) ? "See your results →" : "Next scenario →";
+    retryBtn.style.display = "none";
+    resetPeople();
+    updateStepper();
+  }
+
+  // ----- Handle a choice -----
+  function choose(i) {
+    if (answered) return;
+    answered = true;
+    var s = SCENARIOS[idx];
+    var opt = s.options[i];
+
+    // Apply ripple deltas
+    support += opt.ds;
+    target += opt.dt;
+    setMeters();
+    setPeopleMood(opt.type);
+
+    // Mark buttons
+    var btns = choicesEl.querySelectorAll(".choice");
+    for (var k = 0; k < btns.length; k++) {
+      btns[k].disabled = true;
+      if (k === i) {
+        btns[k].classList.add(opt.type === "safe" ? "picked-safe" : (opt.type === "warn" ? "picked-warn" : "picked-risk"));
+      } else {
+        btns[k].classList.add("dimmed");
+      }
+    }
+
+    // Feedback
+    var label = opt.type === "safe" ? "Upstander" : (opt.type === "warn" ? "Could go further" : "Bystander / harmful");
+    feedbackEl.className = "feedback show " + opt.type;
+    feedbackEl.innerHTML =
+      "<div class='verdict'>" + opt.verdict + " <span style='font-weight:400;color:#5a6b7b;'>(" + label + ")</span></div>" +
+      "<div>" + opt.why + "</div>" +
+      "<div class='ripple'><b>Ripple effect:</b> " + opt.ripple + "</div>";
+
+    picks.push({ idx: idx, type: opt.type, text: opt.text, verdict: opt.verdict });
+
+    nextBtn.disabled = false;
+    retryBtn.style.display = "inline-block";
+    nextBtn.focus();
+  }
+
+  function retry() {
+    if (!answered) return;
+    // undo last delta
+    var last = picks.pop();
+    if (last) {
+      var s = SCENARIOS[last.idx];
+      // find option by text
+      for (var i = 0; i < s.options.length; i++) {
+        if (s.options[i].text === last.text) {
+          support -= s.options[i].ds;
+          target -= s.options[i].dt;
+          break;
+        }
+      }
+    }
+    setMeters();
+    renderScenario();
+    choicesEl.querySelectorAll(".choice")[0].focus();
+  }
+
+  function next() {
+    if (!answered) return;
+    if (idx === SCENARIOS.length - 1) {
+      showSummary();
+      return;
+    }
+    idx++;
+    renderScenario();
+    scenarioCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    choicesEl.querySelectorAll(".choice")[0].focus();
+  }
+
+  // ----- Summary -----
+  function showSummary() {
+    var safeN = picks.filter(function (p) { return p.type === "safe"; }).length;
+    var warnN = picks.filter(function (p) { return p.type === "warn"; }).length;
+    var riskN = picks.filter(function (p) { return p.type === "risk"; }).length;
+
+    var badge = el("badgeBig");
+    var emoji, title, sub;
+    if (safeN >= 4 && riskN === 0) {
+      emoji = "🌟"; title = "Consistent Upstander";
+      sub = "You stepped in safely almost every time. The group felt the difference.";
+    } else if (riskN >= 3) {
+      emoji = "🧭"; title = "Learning to Step Up";
+      sub = "A few choices added to the harm. Look at the toolkit below and try again.";
+    } else if (safeN >= 2) {
+      emoji = "👍"; title = "Growing Upstander";
+      sub = "Some strong moves and some to build on. You are getting the idea of acting safely.";
+    } else {
+      emoji = "🤔"; title = "Bystander, for now";
+      sub = "Often you stayed out of it. Silence has a cost. The toolkit below gives you safe ways in.";
+    }
+    badge.innerHTML = "<div class='b-emoji' aria-hidden='true'>" + emoji + "</div>" +
+                      "<div class='b-title'>" + title + "</div>" +
+                      "<div class='b-sub'>" + sub + "</div>";
+
+    el("summaryLine").textContent =
+      "Across " + SCENARIOS.length + " scenarios you made " + safeN + " upstander choice" + (safeN === 1 ? "" : "s") +
+      ", " + warnN + " that could go further, and " + riskN + " that added to the harm. " +
+      "Final group support: " + support + "%. Targeted pupil safety: " + target + "%.";
+
+    var recap = el("recap");
+    recap.innerHTML = "";
+    picks.forEach(function (p) {
+      var s = SCENARIOS[p.idx];
+      var item = document.createElement("div");
+      item.className = "recap-item";
+      var tagClass = p.type === "safe" ? "safe" : (p.type === "warn" ? "warn" : "risk");
+      var tagText = p.type === "safe" ? "Upstander" : (p.type === "warn" ? "Go further" : "Harmful");
+      item.innerHTML = "<span class='rtag " + tagClass + "'>" + tagText + "</span>" +
+        "<span class='rk'>" + s.sub + ":</span> " + p.verdict;
+      recap.appendChild(item);
+    });
+
+    scenarioCard.style.display = "none";
+    summaryCard.classList.add("show");
+    // mark stepper all done
+    var dots = stepperEl.children;
+    for (var i = 0; i < dots.length; i++) dots[i].className = "step-dot done";
+    summaryCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    badge.focus && badge.setAttribute("tabindex", "-1");
+  }
+
+  function restart() {
+    idx = 0; support = 50; target = 50; answered = false; picks = [];
+    setMeters();
+    summaryCard.classList.remove("show");
+    scenarioCard.style.display = "";
+    buildStatics();
+    renderScenario();
+    scenarioCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // ----- Read aloud -----
+  speakBtn.addEventListener("click", function () {
+    var s = SCENARIOS[idx];
+    if (window.westTTS && window.westTTS.ready()) {
+      window.westTTS.speak(s.speech, { lang: "en-GB", rate: 0.85, pitch: 1.1 });
+    }
+  });
+
+  // ----- Buttons -----
+  nextBtn.addEventListener("click", next);
+  retryBtn.addEventListener("click", retry);
+  el("restartBtn").addEventListener("click", restart);
+
+  // ----- Keyboard shortcuts -----
+  document.addEventListener("keydown", function (e) {
+    if (summaryCard.classList.contains("show")) return;
+    if (e.key >= "1" && e.key <= "4") {
+      var n = parseInt(e.key, 10) - 1;
+      var btns = choicesEl.querySelectorAll(".choice");
+      if (n < btns.length && !answered) { btns[n].click(); }
+    } else if (e.key === "Enter" && answered && !nextBtn.disabled) {
+      // avoid double-trigger when a button is focused
+      if (document.activeElement === nextBtn) return;
+      next();
+    }
+  });
+
+  // ----- Go -----
+  buildStatics();
+  setMeters();
+  renderScenario();
+})();
+</script>
+</body>
+</html>

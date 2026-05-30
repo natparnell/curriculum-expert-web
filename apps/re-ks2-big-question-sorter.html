@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Big Question Sorter</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #5b6472;
+    --paper: #f6f4ef;
+    --card: #ffffff;
+    --line: #d8d3c8;
+    --religious: #2b6cb0;
+    --religious-soft: #e4eef8;
+    --humanist: #2f855a;
+    --humanist-soft: #e3f3ea;
+    --accent: #b7791f;
+    --good: #2f855a;
+    --bad: #c53030;
+    --shadow: 0 4px 14px rgba(31,36,48,0.10);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+
+  header.app { text-align: left; margin-bottom: 14px; }
+  header.app .kicker {
+    font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700;
+  }
+  header.app h1 {
+    font-size: clamp(1.5rem, 4vw, 2.2rem); margin: 2px 0 4px; line-height: 1.1;
+  }
+  .aim {
+    background: #fffdf7; border: 1px solid var(--line); border-left: 5px solid var(--accent);
+    border-radius: 10px; padding: 10px 14px; font-size: 0.95rem; color: var(--muted);
+    max-width: 760px;
+  }
+  .aim strong { color: var(--ink); }
+
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin: 18px 0 8px;
+  }
+  .qcard {
+    flex: 1 1 100%;
+    background: linear-gradient(180deg, #fff, #fbfaf6);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .qcard .qlabel {
+    font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); font-weight: 700;
+  }
+  .qcard h2 { margin: 4px 0 0; font-size: clamp(1.15rem, 3vw, 1.55rem); }
+  .qmeta { margin-top: 8px; font-size: 0.85rem; color: var(--muted); }
+
+  .btn {
+    appearance: none; border: 1px solid var(--line); background: var(--card);
+    color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.92rem;
+    font-weight: 600; cursor: pointer; box-shadow: var(--shadow);
+    transition: transform .08s ease, background .15s ease;
+  }
+  .btn:hover { background: #fffdf7; }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn:focus-visible { outline: 3px solid #1f2430; outline-offset: 2px; }
+
+  .progress {
+    margin-left: auto; font-size: 0.85rem; color: var(--muted); font-weight: 600;
+  }
+
+  /* Board */
+  .board {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px;
+  }
+  .zone {
+    background: var(--card); border-radius: var(--radius); border: 2px dashed var(--line);
+    padding: 12px; min-height: 180px; transition: background .15s ease, border-color .15s ease;
+  }
+  .zone.religious { border-color: #9cc0e2; }
+  .zone.humanist { border-color: #9bd2b3; }
+  .zone.over { background: #fff8e8; border-style: solid; border-color: var(--accent); }
+  .zone h3 {
+    margin: 2px 0 10px; font-size: 1.02rem; display: flex; align-items: center; gap: 8px;
+  }
+  .zone.religious h3 { color: var(--religious); }
+  .zone.humanist h3 { color: var(--humanist); }
+  .zone .pill {
+    font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+    color: #fff;
+  }
+  .zone.religious .pill { background: var(--religious); }
+  .zone.humanist .pill { background: var(--humanist); }
+  .zone .hint { font-size: 0.8rem; color: var(--muted); margin: 0 0 8px; }
+
+  .dropped-list { display: flex; flex-direction: column; gap: 8px; min-height: 40px; }
+
+  /* Source tray */
+  .tray-head { margin: 22px 0 6px; font-size: 0.95rem; font-weight: 700; color: var(--muted); }
+  .tray {
+    display: flex; flex-wrap: wrap; gap: 10px; padding: 12px;
+    background: #efeae0; border-radius: var(--radius); border: 1px solid var(--line);
+    min-height: 70px;
+  }
+
+  .card {
+    position: relative;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 11px 12px 11px 14px; box-shadow: var(--shadow);
+    max-width: 320px; cursor: grab; touch-action: none; user-select: none;
+    font-size: 0.92rem;
+  }
+  .card.dragging { opacity: 0.55; cursor: grabbing; }
+  .card.selected { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .card .tag {
+    display: inline-block; font-size: 0.66rem; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; padding: 1px 7px; border-radius: 999px; margin-bottom: 5px;
+  }
+  .card.t-religious .tag { background: var(--religious-soft); color: var(--religious); }
+  .card.t-humanist .tag { background: var(--humanist-soft); color: var(--humanist); }
+  .card .who { font-size: 0.74rem; color: var(--muted); font-style: italic; margin-top: 4px; }
+  .card .ribbon {
+    position: absolute; top: 8px; right: 8px; font-size: 1.05rem; line-height: 1;
+  }
+  .card.correct { border-color: var(--good); background: #f3faf5; }
+  .card.wrong { border-color: var(--bad); background: #fdf2f2; animation: shake .35s ease; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+  .card:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+  /* Feedback bar */
+  .feedback {
+    margin-top: 16px; border-radius: var(--radius); padding: 13px 16px;
+    background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow);
+    font-size: 0.95rem; min-height: 22px;
+  }
+  .feedback.good { border-left: 5px solid var(--good); background: #f3faf5; }
+  .feedback.bad { border-left: 5px solid var(--bad); background: #fdf2f2; }
+  .feedback.info { border-left: 5px solid var(--accent); }
+  .feedback strong { display: block; margin-bottom: 2px; }
+
+  /* Compare panel */
+  .compare {
+    margin-top: 16px; background: #fff; border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow);
+    display: none;
+  }
+  .compare.show { display: block; }
+  .compare h3 { margin: 0 0 8px; }
+  .compare .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .compare .col h4 { margin: 0 0 4px; font-size: 0.9rem; }
+  .compare .col.r h4 { color: var(--religious); }
+  .compare .col.h h4 { color: var(--humanist); }
+  .compare .think {
+    margin-top: 12px; background: #fffdf7; border: 1px dashed var(--accent);
+    border-radius: 10px; padding: 10px 12px; font-size: 0.9rem;
+  }
+
+  .keyhelp { font-size: 0.78rem; color: var(--muted); margin-top: 14px; }
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    .board { grid-template-columns: 1fr; }
+    .compare .row { grid-template-columns: 1fr; }
+    .card { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <div class="kicker">Religious Education &bull; Key Stage 2</div>
+    <h1>Big Question Sorter</h1>
+    <p class="aim"><strong>Teacher aim:</strong> pupils explore how people answer life's biggest questions. They sort religious answers and Humanist (non-religious) answers side by side, then compare what is similar and what is different. Covers ultimate questions and non-religious worldviews.</p>
+  </header>
+
+  <div class="controls">
+    <div class="qcard">
+      <div class="qlabel">Today's big question</div>
+      <h2 id="question">&#x2728;</h2>
+      <div class="qmeta" id="qmeta"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn primary" id="nextBtn" type="button">Next big question &#x2192;</button>
+    <button class="btn" id="checkBtn" type="button">Check my sorting</button>
+    <button class="btn" id="resetBtn" type="button">Start this question again</button>
+    <span class="progress" id="progress" aria-live="polite"></span>
+  </div>
+
+  <p class="tray-head">Drag each answer card onto the correct side of the board. (Or click a card, then click a side.)</p>
+  <div class="tray" id="tray" aria-label="Answer cards to sort"></div>
+
+  <div class="board">
+    <section class="zone religious" id="zone-religious" data-type="religious" aria-label="Religious answers drop zone">
+      <h3>&#x1F54C; Religious answers <span class="pill">Faith</span></h3>
+      <p class="hint">Answers from people who follow a religion (for example Christians, Muslims, Hindus).</p>
+      <div class="dropped-list" id="list-religious"></div>
+    </section>
+    <section class="zone humanist" id="zone-humanist" data-type="humanist" aria-label="Humanist answers drop zone">
+      <h3>&#x1F30D; Humanist answers <span class="pill">Non-religious</span></h3>
+      <p class="hint">Answers from Humanists, who do not follow a religion and use reason, evidence and kindness.</p>
+      <div class="dropped-list" id="list-humanist"></div>
+    </section>
+  </div>
+
+  <div class="feedback info" id="feedback" role="status" aria-live="polite">
+    <strong>Ready to sort.</strong> Read the big question above, then place each answer card on the side it belongs to.
+  </div>
+
+  <div class="compare" id="compare" aria-live="polite">
+    <h3>&#x1F50E; Now let's compare</h3>
+    <div class="row">
+      <div class="col r"><h4>What religious people might say</h4><p id="cmp-r"></p></div>
+      <div class="col h"><h4>What Humanists might say</h4><p id="cmp-h"></p></div>
+    </div>
+    <div class="think"><strong>Think and talk:</strong> <span id="cmp-think"></span></div>
+  </div>
+
+  <p class="keyhelp">Keyboard: press <kbd>Tab</kbd> to reach a card, <kbd>Enter</kbd> or <kbd>Space</kbd> to pick it up, then <kbd>R</kbd> for the Religious side or <kbd>H</kbd> for the Humanist side. Press <kbd>Esc</kbd> to put a card down.</p>
+  <p class="visually-hidden" id="sr-live" aria-live="assertive"></p>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- Data: fictional, KS2-accurate, on-strand ---------- */
+const QUESTIONS = [
+  {
+    q: "Why are we here?",
+    meta: "An ultimate question about the purpose of human life.",
+    cards: [
+      { id: "q1a", type: "religious", text: "We are here because God created us with a purpose, to love God and care for the world.", who: "A Christian view" },
+      { id: "q1b", type: "religious", text: "Allah made people to worship him and to live a good life.", who: "A Muslim view" },
+      { id: "q1c", type: "humanist", text: "There may be no big plan; we are here through nature and evolution, so we make our own purpose.", who: "A Humanist view" },
+      { id: "q1d", type: "humanist", text: "Our purpose is the one we choose: to be kind, to learn, and to help other people enjoy this one life.", who: "A Humanist view" }
+    ],
+    compareR: "Many religious people believe a god gave humans a purpose, and that life has meaning because of that god.",
+    compareH: "Humanists believe we make our own meaning. There is no creator, but life is still precious and full of purpose we choose.",
+    think: "Both sides care about living a good life. The big difference is whether the purpose comes from a god or from people themselves. Which reasons did you find most interesting?"
+  },
+  {
+    q: "What happens when we die?",
+    meta: "An ultimate question about death and what might come next.",
+    cards: [
+      { id: "q2a", type: "religious", text: "The soul lives on, and a person may go to heaven to be with God.", who: "A Christian view" },
+      { id: "q2b", type: "religious", text: "After death the atman (soul) is reborn into a new life. This is reincarnation.", who: "A Hindu view" },
+      { id: "q2c", type: "humanist", text: "When we die our body stops working and our life ends, but we live on in people's memories.", who: "A Humanist view" },
+      { id: "q2d", type: "humanist", text: "There is no evidence of an afterlife, so what matters is making this life happy and good for others.", who: "A Humanist view" }
+    ],
+    compareR: "Religious answers often include life continuing after death: in heaven, or through being reborn.",
+    compareH: "Humanists think there is no afterlife. They focus on the difference a person made and the memories they leave behind.",
+    think: "Both sides find ways to deal with sad feelings about death. One looks forward to another life, the other looks back at a life well lived. How might each idea comfort someone?"
+  },
+  {
+    q: "How should we treat other people?",
+    meta: "An ultimate question about how to live well together.",
+    cards: [
+      { id: "q3a", type: "religious", text: "Treat others as you would like to be treated, because God teaches us to love our neighbour.", who: "A Christian view" },
+      { id: "q3b", type: "religious", text: "Be fair and generous to others, as the Prophet Muhammad taught kindness to all.", who: "A Muslim view" },
+      { id: "q3c", type: "humanist", text: "Be kind because it makes life better for everyone, not because a god tells us to.", who: "A Humanist view" },
+      { id: "q3d", type: "humanist", text: "Use reason and empathy: imagine how your actions feel to the other person.", who: "A Humanist view" }
+    ],
+    compareR: "Religious people often follow a rule from their holy teachings, such as loving your neighbour.",
+    compareH: "Humanists use reason and empathy. They believe being kind is right in itself, with or without a god.",
+    think: "Notice how the actual advice (be kind, be fair) is almost the same on both sides. The difference is the reason behind it. Does the reason change how it feels?"
+  },
+  {
+    q: "Where did the world come from?",
+    meta: "An ultimate question about how everything began.",
+    cards: [
+      { id: "q4a", type: "religious", text: "God created the world and everything in it.", who: "A Christian and Jewish view" },
+      { id: "q4b", type: "religious", text: "Brahman is the source of all things, and the universe goes through cycles of creation.", who: "A Hindu view" },
+      { id: "q4c", type: "humanist", text: "The universe began with the Big Bang, and life developed over a very long time.", who: "A Humanist view" },
+      { id: "q4d", type: "humanist", text: "Scientists keep studying the evidence; we trust careful observation, not a creator story.", who: "A Humanist view" }
+    ],
+    compareR: "Many religious people believe a god or divine source made the world on purpose.",
+    compareH: "Humanists trust scientific evidence, such as the Big Bang and evolution, to explain how the world began.",
+    think: "Some religious people also accept science and see God working through it. Can a person hold both ideas? What do you think?"
+  }
+];
+
+/* ---------- State ---------- */
+let qIndex = 0;
+let placed = {};      // cardId -> "religious" | "humanist"
+let pickedId = null;  // keyboard / click-select pickup
+
+const $ = (id) => document.getElementById(id);
+const tray = $("tray");
+const listR = $("list-religious");
+const listH = $("list-humanist");
+const feedback = $("feedback");
+const srLive = $("sr-live");
+const compare = $("compare");
+
+function announce(msg) { srLive.textContent = ""; setTimeout(() => { srLive.textContent = msg; }, 30); }
+
+function setFeedback(kind, title, body) {
+  feedback.className = "feedback " + kind;
+  feedback.innerHTML = "<strong>" + title + "</strong>" + (body ? body : "");
+}
+
+/* ---------- Render ---------- */
+function buildCard(c) {
+  const el = document.createElement("div");
+  el.className = "card t-" + c.type;
+  el.id = "card-" + c.id;
+  el.setAttribute("data-id", c.id);
+  el.setAttribute("data-type", c.type);
+  el.setAttribute("tabindex", "0");
+  el.setAttribute("role", "button");
+  const label = (c.type === "religious" ? "Religious answer" : "Humanist answer");
+  el.setAttribute("aria-label", label + ". " + c.text + " " + c.who + ". Press Enter to pick up.");
+  el.innerHTML =
+    '<span class="tag">' + label + '</span>' +
+    '<div class="ctext">' + c.text + '</div>' +
+    '<div class="who">' + c.who + '</div>' +
+    '<span class="ribbon" aria-hidden="true"></span>';
+  attachPointer(el);
+  el.addEventListener("keydown", onCardKey);
+  el.addEventListener("click", () => onCardClick(c.id));
+  return el;
+}
+
+function render() {
+  const Q = QUESTIONS[qIndex];
+  $("question").textContent = Q.q;
+  $("qmeta").textContent = Q.meta;
+  $("progress").textContent = "Question " + (qIndex + 1) + " of " + QUESTIONS.length;
+  tray.innerHTML = ""; listR.innerHTML = ""; listH.innerHTML = "";
+  placed = {}; pickedId = null;
+  compare.classList.remove("show");
+  // shuffle a copy so order varies
+  const cards = Q.cards.slice().sort(() => Math.random() - 0.5);
+  cards.forEach((c) => tray.appendChild(buildCard(c)));
+  setFeedback("info", "Ready to sort.", " Read the big question above, then place each answer card on the side it belongs to.");
+  announce("New question. " + Q.q + ". " + Q.cards.length + " cards to sort.");
+}
+
+/* ---------- Placing a card ---------- */
+function placeCard(cardId, type) {
+  const el = $("card-" + cardId);
+  if (!el) return;
+  placed[cardId] = type;
+  el.classList.remove("dragging", "selected", "correct", "wrong");
+  (type === "religious" ? listR : listH).appendChild(el);
+  el.style.position = ""; el.style.left = ""; el.style.top = "";
+  const correctType = el.getAttribute("data-type");
+  // Immediate, specific feedback
+  if (type === correctType) {
+    el.classList.add("correct");
+    el.querySelector(".ribbon").textContent = "✔";
+    setFeedback("good", "Good thinking.",
+      " That belongs on the " + sideName(type) + " side. " + reasonFor(el.getAttribute("data-type")));
+    announce("Correct. Placed on the " + sideName(type) + " side.");
+  } else {
+    el.classList.add("wrong");
+    el.querySelector(".ribbon").textContent = "✖";
+    setFeedback("bad", "Not quite, have another look.",
+      " You put this on the " + sideName(type) + " side, but read the clue words. " + reasonFor(correctType) +
+      " Drag it to the " + sideName(correctType) + " side instead.");
+    announce("Not quite. This card belongs on the " + sideName(correctType) + " side. Try again.");
+  }
+  pickedId = null;
+  checkComplete();
+}
+
+function sideName(t) { return t === "religious" ? "Religious answers" : "Humanist answers"; }
+function reasonFor(t) {
+  return t === "religious"
+    ? "Religious answers mention a god, holy teachings or a faith such as Christianity, Islam or Hinduism."
+    : "Humanist answers use reason, science, evidence and kindness, and do not rely on a god.";
+}
+
+function returnToTray(cardId) {
+  const el = $("card-" + cardId);
+  if (!el) return;
+  delete placed[cardId];
+  el.classList.remove("correct", "wrong", "selected", "dragging");
+  el.querySelector(".ribbon").textContent = "";
+  el.style.position = ""; el.style.left = ""; el.style.top = "";
+  tray.appendChild(el);
+}
+
+/* ---------- Completion / Check ---------- */
+function allPlaced() {
+  return QUESTIONS[qIndex].cards.every((c) => placed[c.id]);
+}
+function allCorrect() {
+  return QUESTIONS[qIndex].cards.every((c) => placed[c.id] === c.type);
+}
+function checkComplete() {
+  if (allPlaced() && allCorrect()) {
+    showCompare(true);
+  }
+}
+
+function showCompare(auto) {
+  const Q = QUESTIONS[qIndex];
+  $("cmp-r").textContent = Q.compareR;
+  $("cmp-h").textContent = Q.compareH;
+  $("cmp-think").textContent = Q.think;
+  compare.classList.add("show");
+  if (auto) {
+    setFeedback("good", "All sorted correctly!",
+      " Well done. Now read the comparison below: what is similar, and what is different, about the two kinds of answer?");
+    announce("All cards sorted correctly. Comparison is now shown below.");
+    compare.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+}
+
+function manualCheck() {
+  if (!allPlaced()) {
+    const left = QUESTIONS[qIndex].cards.filter((c) => !placed[c.id]).length;
+    setFeedback("info", "Keep going.", " You still have " + left + " card" + (left === 1 ? "" : "s") + " to place in the tray.");
+    announce(left + " cards still to place.");
+    return;
+  }
+  if (allCorrect()) { showCompare(true); return; }
+  // Mark which are wrong, count them
+  let wrong = 0;
+  QUESTIONS[qIndex].cards.forEach((c) => {
+    const el = $("card-" + c.id);
+    if (placed[c.id] !== c.type) {
+      wrong++;
+      el.classList.remove("correct"); el.classList.add("wrong");
+      el.querySelector(".ribbon").textContent = "✖";
+    }
+  });
+  setFeedback("bad", wrong + " card" + (wrong === 1 ? " is" : "s are") + " on the wrong side.",
+    " Look for the clue words. " + reasonFor("religious") + " " + reasonFor("humanist"));
+  announce(wrong + " cards are on the wrong side. Move them and try again.");
+}
+
+/* ---------- Pointer drag (mouse + touch + pen) ---------- */
+let drag = null;
+function attachPointer(el) {
+  el.addEventListener("pointerdown", (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    const rect = el.getBoundingClientRect();
+    drag = {
+      el,
+      id: el.getAttribute("data-id"),
+      offX: e.clientX - rect.left,
+      offY: e.clientY - rect.top,
+      w: rect.width,
+      moved: false,
+      homeNext: el.nextSibling,
+      homeParent: el.parentNode
+    };
+    el.setPointerCapture(e.pointerId);
+    el.classList.add("dragging");
+    el.style.width = rect.width + "px";
+    document.body.style.cursor = "grabbing";
+    e.preventDefault();
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!drag || drag.el !== el) return;
+    drag.moved = true;
+    el.style.position = "fixed";
+    el.style.zIndex = "999";
+    el.style.left = (e.clientX - drag.offX) + "px";
+    el.style.top = (e.clientY - drag.offY) + "px";
+    highlightZoneAt(e.clientX, e.clientY);
+  });
+
+  el.addEventListener("pointerup", (e) => {
+    if (!drag || drag.el !== el) return;
+    clearZoneHighlight();
+    document.body.style.cursor = "";
+    const wasMoved = drag.moved;
+    const zone = zoneAt(e.clientX, e.clientY);
+    el.classList.remove("dragging");
+    el.style.position = ""; el.style.left = ""; el.style.top = ""; el.style.zIndex = "";
+    el.style.width = "";
+    if (wasMoved && zone) {
+      placeCard(drag.id, zone.getAttribute("data-type"));
+    } else if (wasMoved && isOverTray(e.clientX, e.clientY)) {
+      returnToTray(drag.id);
+    } else if (wasMoved) {
+      // dropped nowhere useful: snap home
+      restoreHome();
+    }
+    drag = null;
+  });
+
+  el.addEventListener("pointercancel", () => {
+    if (!drag) return;
+    clearZoneHighlight();
+    document.body.style.cursor = "";
+    drag.el.classList.remove("dragging");
+    restoreHome();
+    drag = null;
+  });
+}
+
+function restoreHome() {
+  const el = drag.el;
+  el.style.position = ""; el.style.left = ""; el.style.top = ""; el.style.zIndex = ""; el.style.width = "";
+  if (drag.homeParent) {
+    if (drag.homeNext) drag.homeParent.insertBefore(el, drag.homeNext);
+    else drag.homeParent.appendChild(el);
+  }
+}
+
+function zoneAt(x, y) {
+  const elBelow = document.elementFromPoint(x, y);
+  if (!elBelow) return null;
+  return elBelow.closest(".zone");
+}
+function isOverTray(x, y) {
+  const elBelow = document.elementFromPoint(x, y);
+  return elBelow && elBelow.closest("#tray");
+}
+function highlightZoneAt(x, y) {
+  clearZoneHighlight();
+  const z = zoneAt(x, y);
+  if (z) z.classList.add("over");
+}
+function clearZoneHighlight() {
+  document.querySelectorAll(".zone.over").forEach((z) => z.classList.remove("over"));
+}
+
+/* ---------- Click-to-select fallback ---------- */
+function onCardClick(id) {
+  // If a click happened right after a drag, ignore (handled by pointerup)
+  if (drag) return;
+  selectCard(id);
+}
+function selectCard(id) {
+  if (pickedId === id) { deselect(); return; }
+  document.querySelectorAll(".card.selected").forEach((c) => c.classList.remove("selected"));
+  pickedId = id;
+  const el = $("card-" + id);
+  el.classList.add("selected");
+  setFeedback("info", "Card picked up.", " Now click a side of the board, or press R for Religious or H for Humanist.");
+  announce("Card selected. Choose a side: Religious or Humanist.");
+}
+function deselect() {
+  if (!pickedId) return;
+  const el = $("card-" + pickedId);
+  if (el) el.classList.remove("selected");
+  pickedId = null;
+}
+
+/* Zone clicks place a selected card */
+function zoneClick(type) {
+  if (pickedId) placeCard(pickedId, type);
+}
+$("zone-religious").addEventListener("click", () => zoneClick("religious"));
+$("zone-humanist").addEventListener("click", () => zoneClick("humanist"));
+
+/* ---------- Keyboard ---------- */
+function onCardKey(e) {
+  const id = e.currentTarget.getAttribute("data-id");
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    selectCard(id);
+  } else if (e.key === "Escape") {
+    deselect();
+  }
+}
+document.addEventListener("keydown", (e) => {
+  if (!pickedId) return;
+  const k = e.key.toLowerCase();
+  if (k === "r") { e.preventDefault(); placeCard(pickedId, "religious"); }
+  else if (k === "h") { e.preventDefault(); placeCard(pickedId, "humanist"); }
+  else if (e.key === "Escape") { deselect(); }
+});
+
+/* ---------- Buttons ---------- */
+$("nextBtn").addEventListener("click", () => {
+  qIndex = (qIndex + 1) % QUESTIONS.length;
+  render();
+  $("question").scrollIntoView({ behavior: "smooth", block: "nearest" });
+});
+$("checkBtn").addEventListener("click", manualCheck);
+$("resetBtn").addEventListener("click", () => {
+  render();
+  setFeedback("info", "Cards reset.", " The cards are back in the tray. Have another go at sorting them.");
+});
+
+/* ---------- Go ---------- */
+render();
+</script>
+</body>
+</html>

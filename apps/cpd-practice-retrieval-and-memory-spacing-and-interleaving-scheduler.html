@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spacing and Interleaving Scheduler</title>
+<style>
+  :root{
+    --bg:#f4f6fb;
+    --ink:#1d2433;
+    --muted:#5a6477;
+    --line:#d8deea;
+    --card:#ffffff;
+    --accent:#2f5fd0;
+    --accent-soft:#e7eefc;
+    --good:#1f8a5b;
+    --good-soft:#e2f3ea;
+    --warn:#c2710a;
+    --warn-soft:#fbeed7;
+    --bad:#c0392b;
+    --bad-soft:#fbe3e0;
+    --shadow:0 1px 3px rgba(20,30,60,.08),0 6px 18px rgba(20,30,60,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;
+    padding:clamp(12px,3vw,28px);
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+  header.app{
+    margin-bottom:18px;
+  }
+  .eyebrow{
+    font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin:0 0 4px;
+  }
+  h1{font-size:clamp(1.5rem,3.6vw,2.1rem);margin:0 0 6px;line-height:1.15}
+  .aim{
+    color:var(--muted);font-size:.98rem;max-width:62ch;margin:0;
+  }
+  .aim strong{color:var(--ink)}
+  .panel{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    box-shadow:var(--shadow);padding:clamp(14px,2.4vw,22px);margin-top:18px;
+  }
+  .panel h2{font-size:1.06rem;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .panel .sub{color:var(--muted);font-size:.9rem;margin:0 0 14px}
+  .toolbar{
+    display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px;
+  }
+  .topic-bank{
+    display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;
+  }
+  .legend{display:flex;flex-wrap:wrap;gap:12px;margin:4px 0 14px;font-size:.82rem;color:var(--muted)}
+  .legend .key{display:inline-flex;align-items:center;gap:6px}
+  .swatch{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid rgba(0,0,0,.12)}
+
+  /* Topic chips (draggable source + legend colours) */
+  .chip{
+    display:inline-flex;align-items:center;gap:7px;
+    border-radius:999px;padding:6px 13px 6px 11px;
+    font-size:.86rem;font-weight:600;cursor:grab;
+    border:1px solid rgba(0,0,0,.12);
+    color:#fff;user-select:none;touch-action:none;
+    box-shadow:0 1px 2px rgba(0,0,0,.12);
+  }
+  .chip:focus-visible{outline:3px solid #111;outline-offset:2px}
+  .chip .dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.85)}
+  .chip[aria-grabbed="true"]{outline:3px dashed #fff;outline-offset:-4px}
+
+  /* Grid */
+  .grid-scroll{overflow-x:auto;padding-bottom:6px}
+  table.sched{border-collapse:separate;border-spacing:0;width:100%;min-width:560px}
+  table.sched th,table.sched td{padding:0}
+  table.sched thead th{
+    font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+    font-weight:700;padding:6px 4px;text-align:center;border-bottom:2px solid var(--line);
+  }
+  table.sched thead th.rowhead{text-align:left;padding-left:6px;width:118px}
+  table.sched tbody th.rowhead{
+    text-align:left;font-size:.84rem;font-weight:600;padding:6px 8px 6px 6px;
+    color:var(--ink);border-right:2px solid var(--line);white-space:nowrap;vertical-align:middle;
+  }
+  .cell{
+    border:1px dashed var(--line);border-radius:9px;margin:3px;min-height:54px;
+    padding:4px;display:flex;flex-wrap:wrap;gap:3px;align-content:flex-start;
+    transition:background .12s,border-color .12s;background:#fbfcfe;
+    touch-action:none;
+  }
+  td{vertical-align:top}
+  .cell.dropok{background:var(--accent-soft);border-color:var(--accent);border-style:solid}
+  .cell:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+  .placed{
+    display:inline-flex;align-items:center;gap:4px;
+    font-size:.72rem;font-weight:700;color:#fff;border-radius:6px;
+    padding:3px 6px;line-height:1;border:1px solid rgba(0,0,0,.14);
+    box-shadow:0 1px 1px rgba(0,0,0,.15);cursor:pointer;
+  }
+  .placed .x{font-weight:700;opacity:.85;font-size:.78rem}
+  .placed:focus-visible{outline:2px solid #111;outline-offset:1px}
+
+  /* Buttons */
+  button{
+    font:inherit;border-radius:9px;border:1px solid var(--line);
+    background:#fff;color:var(--ink);padding:8px 14px;font-weight:600;cursor:pointer;
+    transition:background .12s,border-color .12s,transform .04s;
+  }
+  button:hover{border-color:var(--accent)}
+  button:active{transform:translateY(1px)}
+  button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button.primary:hover{background:#264fb0}
+  button.ghost{background:transparent}
+  .hint{font-size:.82rem;color:var(--muted)}
+
+  /* Feedback / scorecards */
+  .scoregrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px}
+  .scorecard{
+    border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:#fbfcfe;
+  }
+  .scorecard .label{font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+  .scorecard .value{font-size:1.55rem;font-weight:800;line-height:1.1;margin:3px 0 2px}
+  .scorecard .note{font-size:.82rem;color:var(--muted)}
+  .scorecard.good{background:var(--good-soft);border-color:#bfe6cf}
+  .scorecard.warn{background:var(--warn-soft);border-color:#f0d6a3}
+  .scorecard.bad{background:var(--bad-soft);border-color:#f1c2bb}
+  .scorecard.good .value{color:var(--good)}
+  .scorecard.warn .value{color:var(--warn)}
+  .scorecard.bad .value{color:var(--bad)}
+
+  .feedback-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .feedback-list li{
+    border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;
+    font-size:.92rem;display:flex;gap:10px;align-items:flex-start;
+  }
+  .feedback-list li .ic{font-size:1.05rem;line-height:1.3;flex:0 0 auto}
+  .feedback-list li.pos{background:var(--good-soft);border-color:#bfe6cf}
+  .feedback-list li.tip{background:var(--warn-soft);border-color:#f0d6a3}
+  .feedback-list li.neg{background:var(--bad-soft);border-color:#f1c2bb}
+  .feedback-list li b{font-weight:700}
+
+  .row-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  .empty-note{color:var(--muted);font-size:.92rem;font-style:italic}
+
+  details.explain{margin-top:18px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:0}
+  details.explain summary{
+    cursor:pointer;padding:12px 16px;font-weight:700;list-style:none;
+  }
+  details.explain summary::-webkit-details-marker{display:none}
+  details.explain summary::before{content:'\25B8';display:inline-block;margin-right:8px;color:var(--accent);transition:transform .15s}
+  details.explain[open] summary::before{transform:rotate(90deg)}
+  details.explain .body{padding:0 16px 16px;font-size:.92rem;color:var(--ink)}
+  details.explain .body p{margin:.4em 0}
+  details.explain ul{margin:.4em 0 .4em 1.1em;padding:0}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+  footer.note{margin-top:22px;color:var(--muted);font-size:.8rem;text-align:center}
+
+  @media (max-width:560px){
+    .scorecard .value{font-size:1.3rem}
+    table.sched{min-width:520px}
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <p class="eyebrow">CPD &amp; Staff Tools &#183; Practice, Retrieval and Memory</p>
+    <h1>Spacing and Interleaving Scheduler</h1>
+    <p class="aim"><strong>Teacher aim:</strong> plan when each topic is revisited across a half term so retrieval practice is <strong>distributed</strong> (spaced out, not crammed) and <strong>interleaved</strong> (topics mixed within a lesson, not blocked). Drag topics onto the grid, then check the schedule for spacing and interleaving quality.</p>
+  </header>
+
+  <!-- BUILDER -->
+  <section class="panel" aria-labelledby="builder-h">
+    <h2 id="builder-h">&#x1F4C5; Build the retrieval schedule</h2>
+    <p class="sub">A six-lesson sequence for a Year 8 Science unit. Each topic is first <em>taught</em> in its starter lesson (marked &#x2605;). Your job is to schedule the <em>retrieval revisits</em> in later lessons. Aim for each topic to come back at least twice, with gaps between revisits, and for revisits from different topics to share lessons.</p>
+
+    <div class="topic-bank" id="topicBank" role="list" aria-label="Topic bank. Pick up a topic, then drop it into a lesson cell to schedule a revisit.">
+      <!-- chips injected -->
+    </div>
+    <p class="hint" id="dragHelp">Drag a topic into a lesson, or use the keyboard: focus a topic and press Enter to pick it up, focus a lesson cell and press Enter to place it. A topic cannot be revisited in the lesson it was first taught.</p>
+
+    <div class="legend" id="legend" aria-hidden="true"><!-- legend keys injected --></div>
+
+    <div class="grid-scroll">
+      <table class="sched" id="schedGrid">
+        <thead>
+          <tr>
+            <th class="rowhead">Topic</th>
+            <th scope="col">Lesson 1</th>
+            <th scope="col">Lesson 2</th>
+            <th scope="col">Lesson 3</th>
+            <th scope="col">Lesson 4</th>
+            <th scope="col">Lesson 5</th>
+            <th scope="col">Lesson 6</th>
+          </tr>
+        </thead>
+        <tbody id="schedBody"><!-- rows injected --></tbody>
+      </table>
+    </div>
+
+    <div class="row-actions">
+      <button class="primary" id="checkBtn" type="button">Check schedule</button>
+      <button class="ghost" id="exampleBtn" type="button">Show a strong example</button>
+      <button class="ghost" id="clearBtn" type="button">Clear all revisits</button>
+    </div>
+  </section>
+
+  <!-- FEEDBACK -->
+  <section class="panel" aria-labelledby="fb-h">
+    <h2 id="fb-h">&#x1F4CA; Schedule diagnostics</h2>
+    <p class="sub">Specific feedback on your plan against the principles of spaced and interleaved practice.</p>
+
+    <div class="scoregrid" id="scoreGrid" role="group" aria-label="Schedule scores">
+      <!-- scorecards injected -->
+    </div>
+
+    <ul class="feedback-list" id="feedbackList" aria-live="polite">
+      <li class="empty-note" style="border:none;background:none">Build a schedule above, then press <b>Check schedule</b> for targeted feedback.</li>
+    </ul>
+  </section>
+
+  <details class="explain">
+    <summary>Why spacing and interleaving? (the evidence in brief)</summary>
+    <div class="body">
+      <p><strong>Spacing</strong> means revisiting a topic after a gap rather than massing all practice together. The forgetting that happens in the gap is the point: retrieving something you have started to forget strengthens the memory more than re-reading it while it is still fresh. This is the spacing effect, one of the most robust findings in cognitive science.</p>
+      <p><strong>Interleaving</strong> means mixing several topics within a single retrieval session rather than blocking one topic at a time. It feels harder and progress feels slower, but it forces pupils to discriminate between problem types and to retrieve the right strategy, which improves long-term transfer.</p>
+      <ul>
+        <li><b>Blocked and massed:</b> A A A then B B B in adjacent lessons. Feels fluent, fades fast.</li>
+        <li><b>Spaced and interleaved:</b> each topic taught once, then revisited in later lessons, with several topics revisited in the same lesson.</li>
+      </ul>
+      <p>This tool is a planning aid for distributed retrieval. It complements a quiz generator: the quiz writes the questions, this decides <em>when</em> each topic should reappear.</p>
+    </div>
+  </details>
+
+  <footer class="note">Demonstration tool for CPD. Topic names and the sample unit are illustrative only.</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ----- Data -----
+  // Six topics, each first taught (anchor) in one of six lessons.
+  // Colours chosen for contrast on white.
+  var TOPICS = [
+    { id:"cells",   name:"Cells",          anchor:1, colour:"#2f5fd0" },
+    { id:"forces",  name:"Forces",         anchor:2, colour:"#1f8a5b" },
+    { id:"acids",   name:"Acids & alkalis", anchor:3, colour:"#b5359c" },
+    { id:"energy",  name:"Energy stores",  anchor:4, colour:"#c2710a" },
+    { id:"react",   name:"Reactions",      anchor:5, colour:"#0f7d8c" },
+    { id:"space",   name:"Space",          anchor:6, colour:"#7a4ddb" }
+  ];
+  var LESSONS = 6;
+
+  // placements[topicId] = array of lesson numbers (1..6) where a REVISIT is scheduled.
+  var placements = {};
+  TOPICS.forEach(function(t){ placements[t.id] = []; });
+
+  var carried = null; // topicId currently "picked up" for keyboard placement
+
+  // ----- Helpers -----
+  function topicById(id){ return TOPICS.filter(function(t){return t.id===id;})[0]; }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g,function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  // ----- Build topic bank chips -----
+  var bank = document.getElementById("topicBank");
+  TOPICS.forEach(function(t){
+    var chip = document.createElement("button");
+    chip.className = "chip";
+    chip.type = "button";
+    chip.setAttribute("role","listitem");
+    chip.style.background = t.colour;
+    chip.dataset.topic = t.id;
+    chip.setAttribute("draggable","false");
+    chip.setAttribute("aria-grabbed","false");
+    chip.setAttribute("aria-label", t.name + ", first taught in lesson " + t.anchor + ". Press Enter to pick up for scheduling a revisit.");
+    chip.innerHTML = '<span class="dot" aria-hidden="true"></span>' + escapeHtml(t.name);
+    bank.appendChild(chip);
+  });
+
+  // ----- Legend -----
+  var legend = document.getElementById("legend");
+  TOPICS.forEach(function(t){
+    var k = document.createElement("span");
+    k.className = "key";
+    k.innerHTML = '<span class="swatch" style="background:'+t.colour+'"></span>' + escapeHtml(t.name);
+    legend.appendChild(k);
+  });
+  var starKey = document.createElement("span");
+  starKey.className = "key";
+  starKey.innerHTML = '★ first taught (anchor) · coloured tags are scheduled revisits';
+  legend.appendChild(starKey);
+
+  // ----- Build grid -----
+  var body = document.getElementById("schedBody");
+  TOPICS.forEach(function(t){
+    var tr = document.createElement("tr");
+    var th = document.createElement("th");
+    th.className = "rowhead";
+    th.scope = "row";
+    th.innerHTML = '<span style="color:'+t.colour+'">◆</span> ' + escapeHtml(t.name);
+    tr.appendChild(th);
+
+    for(var L=1; L<=LESSONS; L++){
+      var td = document.createElement("td");
+      var cell = document.createElement("div");
+      cell.className = "cell";
+      cell.dataset.lesson = String(L);
+      cell.dataset.topic = t.id;
+      cell.setAttribute("tabindex","0");
+      cell.setAttribute("role","gridcell");
+      cell.setAttribute("aria-label", t.name + ", lesson " + L + (L===t.anchor ? ", first taught here." : ", empty. Drop or place a revisit here."));
+      td.appendChild(cell);
+      tr.appendChild(td);
+    }
+    body.appendChild(tr);
+  });
+
+  // ----- Rendering placements into cells -----
+  function renderCells(){
+    var cells = body.querySelectorAll(".cell");
+    cells.forEach(function(cell){
+      var tid = cell.dataset.topic;
+      var L = parseInt(cell.dataset.lesson,10);
+      var t = topicById(tid);
+      cell.innerHTML = "";
+      cell.classList.remove("dropok");
+
+      if(L === t.anchor){
+        var star = document.createElement("span");
+        star.className = "placed";
+        star.style.background = t.colour;
+        star.style.cursor = "default";
+        star.innerHTML = '★ Taught';
+        star.setAttribute("aria-hidden","true");
+        cell.appendChild(star);
+        cell.setAttribute("aria-label", t.name + ", lesson " + L + ", first taught here.");
+        return;
+      }
+
+      var hasRevisit = placements[tid].indexOf(L) !== -1;
+      if(hasRevisit){
+        var tag = document.createElement("button");
+        tag.type = "button";
+        tag.className = "placed";
+        tag.style.background = t.colour;
+        tag.dataset.topic = tid;
+        tag.dataset.lesson = String(L);
+        tag.setAttribute("aria-label","Revisit of " + t.name + " in lesson " + L + ". Press Enter or Delete to remove.");
+        tag.innerHTML = 'Revisit <span class="x" aria-hidden="true">×</span>';
+        cell.appendChild(tag);
+        cell.setAttribute("aria-label", t.name + ", lesson " + L + ", revisit scheduled. Activate the tag to remove.");
+      } else {
+        cell.setAttribute("aria-label", t.name + ", lesson " + L + ", empty. Drop or place a revisit here." + (carried ? " A topic is picked up; press Enter to place." : ""));
+      }
+    });
+  }
+
+  // ----- Placement logic -----
+  function canPlace(tid, L){
+    var t = topicById(tid);
+    if(L === t.anchor) return false;            // cannot revisit in the teaching lesson
+    if(placements[tid].indexOf(L) !== -1) return false; // already there
+    return true;
+  }
+  function placeRevisit(tid, L){
+    if(!canPlace(tid,L)) return false;
+    placements[tid].push(L);
+    placements[tid].sort(function(a,b){return a-b;});
+    renderCells();
+    return true;
+  }
+  function removeRevisit(tid, L){
+    var arr = placements[tid];
+    var i = arr.indexOf(L);
+    if(i!==-1){ arr.splice(i,1); renderCells(); }
+  }
+
+  // ----- Pointer drag (Pointer Events) -----
+  var dragState = null; // {topicId, ghost}
+  function makeGhost(tid){
+    var t = topicById(tid);
+    var g = document.createElement("div");
+    g.className = "placed";
+    g.style.position = "fixed";
+    g.style.zIndex = "9999";
+    g.style.pointerEvents = "none";
+    g.style.background = t.colour;
+    g.style.opacity = ".92";
+    g.style.transform = "translate(-50%,-140%)";
+    g.textContent = t.name;
+    document.body.appendChild(g);
+    return g;
+  }
+  function moveGhost(x,y){ if(dragState&&dragState.ghost){dragState.ghost.style.left=x+"px";dragState.ghost.style.top=y+"px";} }
+  function cellFromPoint(x,y){
+    var el = document.elementFromPoint(x,y);
+    while(el && el !== document.body){
+      if(el.classList && el.classList.contains("cell")) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+  function clearDropHL(){
+    body.querySelectorAll(".cell.dropok").forEach(function(c){c.classList.remove("dropok");});
+  }
+
+  bank.addEventListener("pointerdown", function(e){
+    var chip = e.target.closest(".chip");
+    if(!chip) return;
+    e.preventDefault();
+    var tid = chip.dataset.topic;
+    chip.setPointerCapture(e.pointerId);
+    dragState = { topicId:tid, ghost:makeGhost(tid), pointerId:e.pointerId, chip:chip };
+    chip.setAttribute("aria-grabbed","true");
+    moveGhost(e.clientX,e.clientY);
+  });
+  bank.addEventListener("pointermove", function(e){
+    if(!dragState || e.pointerId!==dragState.pointerId) return;
+    moveGhost(e.clientX,e.clientY);
+    clearDropHL();
+    var cell = cellFromPoint(e.clientX,e.clientY);
+    if(cell){
+      var tid = cell.dataset.topic, L = parseInt(cell.dataset.lesson,10);
+      if(tid===dragState.topicId && canPlace(tid,L)) cell.classList.add("dropok");
+    }
+  });
+  function endDrag(e){
+    if(!dragState || e.pointerId!==dragState.pointerId) return;
+    var cell = cellFromPoint(e.clientX,e.clientY);
+    if(cell){
+      var tid = cell.dataset.topic, L = parseInt(cell.dataset.lesson,10);
+      if(tid===dragState.topicId){
+        if(placeRevisit(tid,L)){ announce("Revisit of " + topicById(tid).name + " placed in lesson " + L + "."); }
+        else { announce("Cannot place " + topicById(tid).name + " there."); }
+      } else {
+        announce("Drop a topic onto its own row only.");
+      }
+    }
+    if(dragState.ghost) dragState.ghost.remove();
+    if(dragState.chip) dragState.chip.setAttribute("aria-grabbed","false");
+    clearDropHL();
+    dragState = null;
+  }
+  bank.addEventListener("pointerup", endDrag);
+  bank.addEventListener("pointercancel", function(e){
+    if(dragState && dragState.ghost) dragState.ghost.remove();
+    if(dragState && dragState.chip) dragState.chip.setAttribute("aria-grabbed","false");
+    clearDropHL();
+    dragState = null;
+  });
+
+  // ----- Keyboard placement -----
+  bank.addEventListener("keydown", function(e){
+    var chip = e.target.closest(".chip");
+    if(!chip) return;
+    if(e.key==="Enter" || e.key===" "){
+      e.preventDefault();
+      var tid = chip.dataset.topic;
+      if(carried === tid){
+        carried = null;
+        chip.setAttribute("aria-grabbed","false");
+        announce(topicById(tid).name + " put down.");
+      } else {
+        // clear any previous carried highlight
+        bank.querySelectorAll('.chip[aria-grabbed="true"]').forEach(function(c){c.setAttribute("aria-grabbed","false");});
+        carried = tid;
+        chip.setAttribute("aria-grabbed","true");
+        announce(topicById(tid).name + " picked up. Move to a lesson cell on the " + topicById(tid).name + " row and press Enter to place a revisit.");
+      }
+      renderCells();
+    }
+  });
+
+  body.addEventListener("keydown", function(e){
+    var cell = e.target.closest(".cell");
+    var tag = e.target.closest(".placed");
+    if(tag && tag.tagName==="BUTTON" && (e.key==="Enter"||e.key===" "||e.key==="Delete"||e.key==="Backspace")){
+      e.preventDefault();
+      var tid0 = tag.dataset.topic, L0 = parseInt(tag.dataset.lesson,10);
+      removeRevisit(tid0,L0);
+      announce("Revisit removed from lesson " + L0 + ".");
+      return;
+    }
+    if(cell && (e.key==="Enter"||e.key===" ")){
+      e.preventDefault();
+      var tid = cell.dataset.topic, L = parseInt(cell.dataset.lesson,10);
+      // if a revisit already here, remove it
+      if(placements[tid].indexOf(L)!==-1){
+        removeRevisit(tid,L);
+        announce("Revisit removed from " + topicById(tid).name + " lesson " + L + ".");
+        return;
+      }
+      if(!carried){
+        announce("No topic picked up. Go to the topic bank, focus " + topicById(tid).name + " and press Enter first.");
+        return;
+      }
+      if(carried !== tid){
+        announce("This cell is on the " + topicById(tid).name + " row but you picked up " + topicById(carried).name + ". Place revisits on the matching row.");
+        return;
+      }
+      if(placeRevisit(tid,L)){
+        announce("Revisit of " + topicById(tid).name + " placed in lesson " + L + ".");
+      } else {
+        announce("Cannot place a revisit in lesson " + L + " for " + topicById(tid).name + ".");
+      }
+    }
+  });
+
+  // click-to-remove a placed revisit (mouse)
+  body.addEventListener("click", function(e){
+    var tag = e.target.closest(".placed");
+    if(tag && tag.tagName==="BUTTON"){
+      removeRevisit(tag.dataset.topic, parseInt(tag.dataset.lesson,10));
+    }
+  });
+
+  // ----- Live region for announcements -----
+  var live = document.createElement("div");
+  live.className = "sr-only";
+  live.setAttribute("aria-live","assertive");
+  document.body.appendChild(live);
+  function announce(msg){ live.textContent = ""; setTimeout(function(){ live.textContent = msg; }, 30); }
+
+  // ----- Diagnostics -----
+  // Build a per-lesson record: for each lesson, which topics are "active"
+  // (either taught that lesson or revisited that lesson). Interleaving counts
+  // lessons where 2+ distinct topics are practised/encountered together via revisits.
+  function analyse(){
+    var perTopic = TOPICS.map(function(t){
+      var revisits = placements[t.id].slice().sort(function(a,b){return a-b;});
+      var gaps = [];
+      var seq = [t.anchor].concat(revisits).sort(function(a,b){return a-b;});
+      for(var i=1;i<seq.length;i++){ gaps.push(seq[i]-seq[i-1]); }
+      return { topic:t, revisits:revisits, count:revisits.length, gaps:gaps, seq:seq };
+    });
+
+    // Interleaving: per lesson, count distinct topics revisited (revisits only).
+    var revisitsPerLesson = [];
+    for(var L=1;L<=LESSONS;L++){
+      var n=0;
+      TOPICS.forEach(function(t){ if(placements[t.id].indexOf(L)!==-1) n++; });
+      revisitsPerLesson.push(n);
+    }
+    var interleavedLessons = revisitsPerLesson.filter(function(n){return n>=2;}).length;
+    var lessonsWithAnyRevisit = revisitsPerLesson.filter(function(n){return n>=1;}).length;
+
+    var totalRevisits = perTopic.reduce(function(a,p){return a+p.count;},0);
+    var topicsRevisitedTwice = perTopic.filter(function(p){return p.count>=2;}).length;
+    var topicsNeverRevisited = perTopic.filter(function(p){return p.count===0;}).length;
+
+    // Massing flag: any topic whose first revisit is in the lesson immediately
+    // after its teaching lesson (gap of 1) counts as "massed" (no forgetting gap).
+    var massedTopics = perTopic.filter(function(p){
+      return p.gaps.some(function(g){return g===1;});
+    });
+
+    // Coverage score: how close to the ideal of every topic revisited 2+ times
+    var coverage = Math.round((topicsRevisitedTwice / TOPICS.length) * 100);
+
+    // Spacing quality: mean gap among all gaps (excludes single-event topics)
+    var allGaps = [];
+    perTopic.forEach(function(p){ p.gaps.forEach(function(g){allGaps.push(g);}); });
+    var meanGap = allGaps.length ? (allGaps.reduce(function(a,b){return a+b;},0)/allGaps.length) : 0;
+
+    return {
+      perTopic:perTopic, revisitsPerLesson:revisitsPerLesson,
+      interleavedLessons:interleavedLessons, lessonsWithAnyRevisit:lessonsWithAnyRevisit,
+      totalRevisits:totalRevisits, topicsRevisitedTwice:topicsRevisitedTwice,
+      topicsNeverRevisited:topicsNeverRevisited, massedTopics:massedTopics,
+      coverage:coverage, meanGap:meanGap, allGaps:allGaps
+    };
+  }
+
+  function scoreClass(ok,warn){ return ok ? "good" : (warn ? "warn" : "bad"); }
+
+  function renderDiagnostics(){
+    var a = analyse();
+    var sg = document.getElementById("scoreGrid");
+    var fl = document.getElementById("feedbackList");
+
+    if(a.totalRevisits === 0){
+      sg.innerHTML = "";
+      fl.innerHTML = '<li class="tip"><span class="ic" aria-hidden="true">✏️</span><div>No revisits scheduled yet. Each topic is only taught once. With no spaced retrieval, pupils will likely forget the early topics by the end of the unit. Add at least two revisits per topic, with gaps between them.</div></li>';
+      return;
+    }
+
+    // Scorecards
+    var cards = [];
+    cards.push({
+      label:"Topics revisited twice or more",
+      value:a.topicsRevisitedTwice + " of " + TOPICS.length,
+      note: a.topicsRevisitedTwice===TOPICS.length ? "Full distributed coverage." : "Aim for all six.",
+      cls: scoreClass(a.topicsRevisitedTwice===TOPICS.length, a.topicsRevisitedTwice>=TOPICS.length-2)
+    });
+    cards.push({
+      label:"Interleaved lessons",
+      value:a.interleavedLessons + " of " + LESSONS,
+      note: a.interleavedLessons>=3 ? "Topics are being mixed well." : "Mix more topics in the same lesson.",
+      cls: scoreClass(a.interleavedLessons>=3, a.interleavedLessons>=2)
+    });
+    cards.push({
+      label:"Average gap between revisits",
+      value: a.meanGap ? a.meanGap.toFixed(1)+" lessons" : "–",
+      note: a.meanGap>=2 ? "Healthy forgetting gaps." : "Spread revisits further apart.",
+      cls: scoreClass(a.meanGap>=2, a.meanGap>=1.5)
+    });
+    cards.push({
+      label:"Massed revisits (gap of 1)",
+      value:String(a.massedTopics.length),
+      note: a.massedTopics.length===0 ? "No back-to-back cramming." : "These skip the forgetting gap.",
+      cls: scoreClass(a.massedTopics.length===0, a.massedTopics.length<=1)
+    });
+
+    sg.innerHTML = cards.map(function(c){
+      return '<div class="scorecard '+c.cls+'">'+
+        '<div class="label">'+escapeHtml(c.label)+'</div>'+
+        '<div class="value">'+escapeHtml(c.value)+'</div>'+
+        '<div class="note">'+escapeHtml(c.note)+'</div></div>';
+    }).join("");
+
+    // Targeted feedback items
+    var items = [];
+
+    // 1. Coverage
+    if(a.topicsNeverRevisited>0){
+      var never = a.perTopic.filter(function(p){return p.count===0;}).map(function(p){return p.topic.name;});
+      items.push({cls:"neg",ic:"⚠️",html:"<b>"+never.join(", ")+"</b> "+(never.length===1?"is":"are")+" taught but never revisited. Without spaced retrieval "+(never.length===1?"this topic":"these topics")+" will fade. Schedule at least one later revisit for each."});
+    } else if(a.topicsRevisitedTwice===TOPICS.length){
+      items.push({cls:"pos",ic:"✅",html:"Every topic is revisited at least twice. This gives each one repeated, distributed retrieval across the unit."});
+    } else {
+      var once = a.perTopic.filter(function(p){return p.count===1;}).map(function(p){return p.topic.name;});
+      items.push({cls:"tip",ic:"🔁",html:"<b>"+once.join(", ")+"</b> "+(once.length===1?"is":"are")+" revisited only once. One revisit helps, but two or more spaced revisits make retrieval far more durable."});
+    }
+
+    // 2. Massing
+    if(a.massedTopics.length>0){
+      var mass = a.massedTopics.map(function(p){return p.topic.name;});
+      items.push({cls:"tip",ic:"⏱️",html:"<b>"+mass.join(", ")+"</b> "+(mass.length===1?"has":"have")+" a revisit in the very next lesson after teaching. With no time to forget, that revisit is closer to re-reading than retrieval. Push the first revisit back by a lesson or two so a forgetting gap can open up."});
+    } else {
+      items.push({cls:"pos",ic:"⏳",html:"No revisit sits immediately after its teaching lesson. Good: every revisit gives a forgetting gap to work with, which is what makes spaced retrieval effective."});
+    }
+
+    // 3. Interleaving
+    if(a.interleavedLessons>=3){
+      items.push({cls:"pos",ic:"🔀",html:"<b>"+a.interleavedLessons+" lessons</b> revisit two or more different topics together. That interleaving forces pupils to choose the right knowledge, not just run on autopilot."});
+    } else if(a.interleavedLessons>=1){
+      items.push({cls:"tip",ic:"🔀",html:"Only <b>"+a.interleavedLessons+" lesson"+(a.interleavedLessons===1?"":"s")+"</b> mix two or more topics. Try stacking revisits of different topics into the same later lessons so retrieval is interleaved, not one topic at a time."});
+    } else {
+      items.push({cls:"neg",ic:"🧱",html:"No lesson revisits more than one topic at once, so practice is blocked rather than interleaved. Group revisits of different topics into shared lessons (for example several topics all revisited in lessons 5 and 6)."});
+    }
+
+    // 4. End-loading / spacing spread
+    var lateRevisits = a.revisitsPerLesson[4] + a.revisitsPerLesson[5]; // lessons 5 and 6
+    var earlyRevisits = a.totalRevisits - lateRevisits;
+    if(a.totalRevisits>=4 && lateRevisits >= a.totalRevisits*0.75 && earlyRevisits < 2){
+      items.push({cls:"tip",ic:"📉",html:"Most revisits are crammed into the last two lessons. That is still better than nothing, but it edges back towards massing. Spread some revisits into the middle lessons so retrieval is distributed across the whole unit."});
+    }
+
+    fl.innerHTML = items.map(function(it){
+      return '<li class="'+it.cls+'"><span class="ic" aria-hidden="true">'+it.ic+'</span><div>'+it.html+'</div></li>';
+    }).join("");
+
+    announce("Schedule checked. " + a.topicsRevisitedTwice + " of " + TOPICS.length + " topics revisited twice or more, " + a.interleavedLessons + " interleaved lessons.");
+  }
+
+  // ----- Buttons -----
+  document.getElementById("checkBtn").addEventListener("click", renderDiagnostics);
+
+  document.getElementById("clearBtn").addEventListener("click", function(){
+    TOPICS.forEach(function(t){ placements[t.id] = []; });
+    carried = null;
+    bank.querySelectorAll('.chip[aria-grabbed="true"]').forEach(function(c){c.setAttribute("aria-grabbed","false");});
+    renderCells();
+    document.getElementById("scoreGrid").innerHTML = "";
+    document.getElementById("feedbackList").innerHTML = '<li class="empty-note" style="border:none;background:none">Build a schedule above, then press <b>Check schedule</b> for targeted feedback.</li>';
+    announce("All revisits cleared.");
+  });
+
+  // A strong, deliberately exemplary schedule. Anchors are fixed
+  // (cells 1, forces 2, acids 3, energy 4, react 5, space 6), so the
+  // early-taught topics carry the heavier revisit load. Every revisit has
+  // a forgetting gap of two or more lessons (no gap-of-1 massing), the
+  // earlier topics are revisited twice, and lessons 5 and 6 each interleave
+  // several different topics.
+  document.getElementById("exampleBtn").addEventListener("click", function(){
+    TOPICS.forEach(function(t){ placements[t.id] = []; });
+    placements.cells  = [3, 5];  // anchor 1, gaps 2, 2
+    placements.forces = [4, 6];  // anchor 2, gaps 2, 2
+    placements.acids  = [5];     // anchor 3, gap 2
+    placements.energy = [6];     // anchor 4, gap 2
+    placements.react  = [];      // anchor 5: only lesson 6 is later and that is a gap of 1, so leave it
+    placements.space  = [];      // anchor 6 is the final lesson, no later revisit possible
+    renderCells();
+    renderDiagnostics();
+    announce("A strong example schedule loaded. Notice the earlier topics carry more revisits and lessons five and six interleave several topics.");
+  });
+
+  // initial render
+  renderCells();
+
+})();
+</script>
+</body>
+</html>

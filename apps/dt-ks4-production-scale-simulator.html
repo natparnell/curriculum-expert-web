@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Production Scale Simulator</title>
+<style>
+  :root{
+    --ink:#1b2330;
+    --muted:#5a6678;
+    --line:#d9dee7;
+    --bg:#f4f6fa;
+    --card:#ffffff;
+    --accent:#0b6b53;
+    --accent-soft:#e3f1ec;
+    --amber:#a8741a;
+    --amber-soft:#fbf1dd;
+    --red:#9c2b2b;
+    --red-soft:#fbe6e6;
+    --blue:#1f4e79;
+    --blue-soft:#e7f0f8;
+    --shadow:0 1px 2px rgba(20,30,50,.06),0 8px 24px rgba(20,30,50,.06);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:20px 16px 64px}
+  header.app{margin-bottom:18px}
+  .eyebrow{
+    display:inline-block;font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;
+    font-weight:700;color:var(--accent);background:var(--accent-soft);
+    padding:5px 10px;border-radius:999px;
+  }
+  h1{font-size:1.7rem;line-height:1.15;margin:10px 0 4px}
+  .aim{
+    font-size:.95rem;color:var(--muted);background:var(--card);
+    border:1px solid var(--line);border-left:4px solid var(--accent);
+    padding:10px 14px;border-radius:10px;margin-top:12px;box-shadow:var(--shadow);
+  }
+  .aim strong{color:var(--ink)}
+  .grid{display:grid;gap:16px}
+  @media(min-width:820px){.main{grid-template-columns:1.05fr .95fr}}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px 16px 18px;box-shadow:var(--shadow);
+  }
+  .card h2{font-size:1.02rem;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .card .hint{font-size:.82rem;color:var(--muted);margin:0 0 14px}
+  .step-num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:24px;height:24px;border-radius:7px;background:var(--accent);color:#fff;
+    font-size:.8rem;font-weight:700;flex:0 0 auto;
+  }
+
+  /* Product picker */
+  .product-row{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{
+    border:1.5px solid var(--line);background:#fff;border-radius:999px;
+    padding:8px 14px;font-size:.88rem;font-weight:600;color:var(--ink);
+    cursor:pointer;display:flex;align-items:center;gap:7px;
+    transition:border-color .15s,background .15s,transform .05s;
+  }
+  .chip:hover{border-color:var(--accent)}
+  .chip:active{transform:translateY(1px)}
+  .chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+  .chip .em{font-size:1.05rem}
+
+  /* Scale selector as a slider-style segmented control */
+  .scale-track{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px;
+  }
+  .scale-btn{
+    border:1.5px solid var(--line);background:#fff;border-radius:12px;
+    padding:12px 10px;text-align:center;cursor:pointer;
+    transition:border-color .15s,background .15s,box-shadow .15s,transform .05s;
+  }
+  .scale-btn:active{transform:translateY(1px)}
+  .scale-btn .t{font-weight:700;font-size:.95rem;display:block}
+  .scale-btn .s{font-size:.74rem;color:var(--muted);display:block;margin-top:3px}
+  .scale-btn[aria-pressed="true"]{
+    border-color:var(--accent);background:var(--accent-soft);
+    box-shadow:0 0 0 3px rgba(11,107,83,.12);
+  }
+  .scale-btn[aria-pressed="true"] .s{color:var(--accent)}
+
+  /* Quantity */
+  .qty-wrap{margin-top:16px}
+  .qty-label{display:flex;justify-content:space-between;align-items:baseline;font-size:.85rem;color:var(--muted)}
+  .qty-label b{color:var(--ink);font-size:1.05rem}
+  input[type=range]{width:100%;margin-top:6px;accent-color:var(--accent);height:28px}
+
+  /* Metrics output */
+  .metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:4px}
+  @media(min-width:480px){.metrics{grid-template-columns:repeat(4,1fr)}}
+  .metric{
+    border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fbfcfe;
+  }
+  .metric .k{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
+  .metric .v{font-size:1.18rem;font-weight:700;margin-top:3px}
+  .metric .u{font-size:.74rem;color:var(--muted);font-weight:600}
+  .bar{height:6px;border-radius:99px;background:#eceff4;margin-top:8px;overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:99px;transition:width .4s ease}
+
+  .feedback{
+    margin-top:14px;border-radius:12px;padding:12px 14px;font-size:.9rem;
+    border:1px solid var(--line);background:#fbfcfe;
+  }
+  .feedback.good{border-color:#b6dccc;background:var(--accent-soft)}
+  .feedback.warn{border-color:#ecd6a8;background:var(--amber-soft)}
+  .feedback.bad{border-color:#edc4c4;background:var(--red-soft)}
+  .feedback .ftitle{font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+
+  /* CAD/CAM meter */
+  .cadcam{margin-top:16px}
+  .cadcam .row{display:flex;align-items:center;gap:10px;font-size:.85rem}
+  .cadcam .row .label{width:84px;color:var(--muted);font-weight:600;flex:0 0 auto}
+  .seg{flex:1;display:flex;gap:4px}
+  .seg span{flex:1;height:12px;border-radius:4px;background:#eceff4}
+  .seg span.on-cad{background:var(--blue)}
+  .seg span.on-cam{background:var(--accent)}
+
+  /* 6 Rs lifecycle interaction */
+  .rs-intro{font-size:.85rem;color:var(--muted);margin:0 0 12px}
+  .rs-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  @media(min-width:560px){.rs-grid{grid-template-columns:repeat(3,1fr)}}
+  .rcard{
+    border:1.5px solid var(--line);border-radius:12px;padding:11px;background:#fff;cursor:pointer;
+    transition:border-color .15s,background .15s,transform .05s;text-align:left;
+  }
+  .rcard:active{transform:translateY(1px)}
+  .rcard:focus-visible{outline:3px solid rgba(31,78,121,.4);outline-offset:2px}
+  .rcard .rname{font-weight:700;font-size:.92rem}
+  .rcard .rsub{font-size:.76rem;color:var(--muted);margin-top:2px}
+  .rcard[aria-pressed="true"]{border-color:var(--blue);background:var(--blue-soft)}
+  .rcard .pick{font-size:.72rem;font-weight:700;color:var(--blue);margin-top:7px;opacity:0;height:0;overflow:hidden;transition:opacity .15s}
+  .rcard[aria-pressed="true"] .pick{opacity:1;height:auto}
+
+  .score-pill{
+    display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:.9rem;
+    padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:#fbfcfe;
+  }
+  .lc-summary{margin-top:14px}
+
+  /* Decision verdict */
+  .verdict{
+    margin-top:18px;border-radius:14px;padding:0;overflow:hidden;border:1px solid var(--line);
+  }
+  .verdict .vhead{padding:12px 16px;font-weight:700;font-size:.95rem;color:#fff;background:var(--accent)}
+  .verdict.warn .vhead{background:var(--amber)}
+  .verdict.bad .vhead{background:var(--red)}
+  .verdict .vbody{padding:14px 16px;font-size:.9rem;background:#fff}
+  .verdict .vbody ul{margin:8px 0 0;padding-left:20px}
+  .verdict .vbody li{margin-bottom:5px}
+
+  .reset{
+    background:#fff;border:1.5px solid var(--line);border-radius:10px;
+    padding:9px 14px;font-weight:600;font-size:.85rem;cursor:pointer;color:var(--muted);
+  }
+  .reset:hover{border-color:var(--accent);color:var(--accent)}
+  .footer-note{font-size:.78rem;color:var(--muted);margin-top:18px;text-align:center}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  .legend{font-size:.74rem;color:var(--muted);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <span class="eyebrow">Design &amp; Technology &middot; KS4 &middot; Industry, manufacture &amp; sustainability</span>
+    <h1>Production Scale Simulator</h1>
+    <p class="aim"><strong>Teacher aim:</strong> Pupils choose a scale of production (one-off, batch or mass) for a product, compare the effect on cost, time, tooling and CAD/CAM use, then judge the lifecycle and 6 Rs impact. Project this and ask: which scale fits the order, and why?</p>
+  </header>
+
+  <div class="grid main">
+    <!-- LEFT: inputs -->
+    <section class="card" aria-labelledby="inputsH">
+      <h2 id="inputsH"><span class="step-num">1</span> Set up the production run</h2>
+      <p class="hint">Pick a product, choose a scale of production, then set how many units the order is for.</p>
+
+      <h3 style="font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 8px">Product</h3>
+      <div class="product-row" id="productRow" role="group" aria-label="Choose a product">
+        <button class="chip" data-prod="keyring" aria-pressed="true"><span class="em" aria-hidden="true">&#x1F511;</span> Acrylic keyring</button>
+        <button class="chip" data-prod="stool" aria-pressed="false"><span class="em" aria-hidden="true">&#x1FA91;</span> Wooden stool</button>
+        <button class="chip" data-prod="bottle" aria-pressed="false"><span class="em" aria-hidden="true">&#x1F37C;</span> Plastic bottle</button>
+        <button class="chip" data-prod="phonecase" aria-pressed="false"><span class="em" aria-hidden="true">&#x1F4F1;</span> Phone case</button>
+      </div>
+
+      <h3 style="font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:18px 0 8px">Scale of production</h3>
+      <div class="scale-track" id="scaleTrack" role="group" aria-label="Choose scale of production">
+        <button class="scale-btn" data-scale="oneoff" aria-pressed="true">
+          <span class="t">One-off</span><span class="s">Bespoke, single item</span>
+        </button>
+        <button class="scale-btn" data-scale="batch" aria-pressed="false">
+          <span class="t">Batch</span><span class="s">Set number, repeatable</span>
+        </button>
+        <button class="scale-btn" data-scale="mass" aria-pressed="false">
+          <span class="t">Mass</span><span class="s">Continuous, high volume</span>
+        </button>
+      </div>
+
+      <div class="qty-wrap">
+        <div class="qty-label">
+          <span>Order quantity</span>
+          <b><span id="qtyVal">1</span> units</b>
+        </div>
+        <input type="range" id="qty" min="1" max="100000" value="1" step="1"
+               aria-label="Order quantity in units" aria-valuetext="1 units">
+        <div class="legend">
+          <span>1 unit</span><span style="margin-left:auto">100,000 units</span>
+        </div>
+      </div>
+
+      <div style="margin-top:18px">
+        <button class="reset" id="resetBtn" type="button">Reset simulator</button>
+      </div>
+    </section>
+
+    <!-- RIGHT: live metrics -->
+    <section class="card" aria-labelledby="metricsH">
+      <h2 id="metricsH"><span class="step-num">2</span> Manufacturing outcomes</h2>
+      <p class="hint">These update instantly as you change the setup. Watch how unit cost and tooling cost behave differently with volume.</p>
+
+      <div class="metrics" id="metrics">
+        <div class="metric">
+          <div class="k">Cost per unit</div>
+          <div class="v" id="mUnit">&pound;0</div>
+          <div class="bar"><i id="bUnit" style="width:0%;background:var(--red)"></i></div>
+        </div>
+        <div class="metric">
+          <div class="k">Set-up / tooling</div>
+          <div class="v" id="mTool">&pound;0</div>
+          <div class="bar"><i id="bTool" style="width:0%;background:var(--amber)"></i></div>
+        </div>
+        <div class="metric">
+          <div class="k">Time per unit</div>
+          <div class="v" id="mTime">0 <span class="u">min</span></div>
+          <div class="bar"><i id="bTime" style="width:0%;background:var(--blue)"></i></div>
+        </div>
+        <div class="metric">
+          <div class="k">Total cost</div>
+          <div class="v" id="mTotal">&pound;0</div>
+          <div class="bar"><i id="bTotal" style="width:0%;background:var(--accent)"></i></div>
+        </div>
+      </div>
+
+      <div class="cadcam" aria-live="off">
+        <h3 style="font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:6px 0 8px">CAD / CAM use at this scale</h3>
+        <div class="row" style="margin-bottom:6px">
+          <span class="label">CAD design</span>
+          <span class="seg" id="cadSeg" aria-hidden="true"></span>
+        </div>
+        <div class="row">
+          <span class="label">CAM / automation</span>
+          <span class="seg" id="camSeg" aria-hidden="true"></span>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--blue)"></i>CAD (computer-aided design)</span>
+          <span><i style="background:var(--accent)"></i>CAM (computer-aided manufacture)</span>
+        </div>
+      </div>
+
+      <div class="feedback" id="liveFeedback" role="status" aria-live="polite">
+        <div class="ftitle"><span aria-hidden="true">&#x1F4A1;</span> Make a selection to see how the figures respond.</div>
+        <div id="liveFeedbackBody">Try moving the quantity slider to 50,000 with one-off versus mass production and compare the cost per unit.</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- STEP 3: lifecycle and 6 Rs -->
+  <section class="card" style="margin-top:16px" aria-labelledby="lcH">
+    <h2 id="lcH"><span class="step-num">3</span> Lifecycle &amp; the 6 Rs decision</h2>
+    <p class="rs-intro">Your scale and quantity shape the social and environmental footprint. Choose the 6 Rs strategies you would build into this product to reduce that footprint. Each choice updates the sustainability score and gives targeted feedback.</p>
+
+    <div class="rs-grid" id="rsGrid" role="group" aria-label="Choose 6 Rs strategies">
+      <button class="rcard" data-r="rethink" aria-pressed="false">
+        <span class="rname">Rethink</span>
+        <span class="rsub">Redesign for less material or a smarter function.</span>
+        <span class="pick" aria-hidden="true">&#x2713; Built in</span>
+      </button>
+      <button class="rcard" data-r="refuse" aria-pressed="false">
+        <span class="rname">Refuse</span>
+        <span class="rsub">Drop unneeded parts, finishes or packaging.</span>
+        <span class="pick" aria-hidden="true">&#x2713; Built in</span>
+      </button>
+      <button class="rcard" data-r="reduce" aria-pressed="false">
+        <span class="rname">Reduce</span>
+        <span class="rsub">Use less energy and raw material per unit.</span>
+        <span class="pick" aria-hidden="true">&#x2713; Built in</span>
+      </button>
+      <button class="rcard" data-r="reuse" aria-pressed="false">
+        <span class="rname">Reuse</span>
+        <span class="rsub">Design so parts can be used again or refilled.</span>
+        <span class="pick" aria-hidden="true">&#x2713; Built in</span>
+      </button>
+      <button class="rcard" data-r="repair" aria-pressed="false">
+        <span class="rname">Repair</span>
+        <span class="rsub">Make it easy to fix and replace worn parts.</span>
+        <span class="pick" aria-hidden="true">&#x2713; Built in</span>
+      </button>
+      <button class="rcard" data-r="recycle" aria-pressed="false">
+        <span class="rname">Recycle</span>
+        <span class="rsub">Choose recyclable materials, mark them clearly.</span>
+        <span class="pick" aria-hidden="true">&#x2713; Built in</span>
+      </button>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px">
+      <span class="score-pill"><span aria-hidden="true">&#x2618;</span> Sustainability score: <span id="susScore">0</span>/100</span>
+      <span class="bar" style="flex:1;min-width:140px;height:10px"><i id="susBar" style="width:0%;background:var(--accent)"></i></span>
+    </div>
+
+    <div class="feedback lc-summary" id="rsFeedback" role="status" aria-live="polite">
+      <div class="ftitle"><span aria-hidden="true">&#x267B;</span> Select 6 Rs strategies above.</div>
+      <div id="rsFeedbackBody">Mass production of 100,000 units carries a far larger footprint than one bespoke item, so the 6 Rs you choose matter more as volume rises.</div>
+    </div>
+  </section>
+
+  <!-- STEP 4: overall verdict -->
+  <section aria-labelledby="vH">
+    <div class="verdict" id="verdict">
+      <div class="vhead" id="vH"><span aria-hidden="true">&#x1F50D;</span> <span id="vHeadText">Production decision review</span></div>
+      <div class="vbody">
+        <div id="vBody">Set up a run and choose your 6 Rs to see whether your scale, cost and sustainability choices fit the brief.</div>
+      </div>
+    </div>
+  </section>
+
+  <p class="footer-note">Demonstration tool for Design &amp; Technology teaching. Figures are illustrative and modelled, not quotations from a real manufacturer. Fictional design scenarios only.</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---- Product base data (illustrative figures) ----
+  // baseMaterial: material cost per unit (raw); baseLabour: skilled minutes for one-off
+  var PRODUCTS = {
+    keyring:   { name:"acrylic keyring", baseMaterial:0.40, baseLabour:6,  unit:"keyrings", greenMat:"acrylic offcuts" },
+    stool:     { name:"wooden stool",    baseMaterial:9.50, baseLabour:90, unit:"stools",   greenMat:"FSC timber" },
+    bottle:    { name:"plastic bottle",  baseMaterial:0.12, baseLabour:3,  unit:"bottles",  greenMat:"rPET plastic" },
+    phonecase: { name:"phone case",      baseMaterial:0.80, baseLabour:8,  unit:"cases",    greenMat:"bio-based polymer" }
+  };
+
+  // ---- Scale characteristics ----
+  // tooling: fixed set-up cost; labourFactor: multiplier on baseLabour per unit;
+  // matFactor: bulk material discount multiplier; cad 0-4 ; cam 0-4
+  var SCALES = {
+    oneoff: { label:"one-off", tooling:60,     labourFactor:1.00, matFactor:1.00, cad:2, cam:0,
+              note:"Hand or single-machine work, no dedicated tooling, highest skill input per item." },
+    batch:  { label:"batch",   tooling:1800,   labourFactor:0.45, matFactor:0.80, cad:3, cam:3,
+              note:"Jigs, templates and CNC make repeats fast; tooling cost spreads across the batch." },
+    mass:   { label:"mass",    tooling:42000,  labourFactor:0.06, matFactor:0.62, cad:4, cam:4,
+              note:"Moulds and automated lines: huge set-up, tiny labour per unit, only viable at high volume." }
+  };
+
+  var R_INFO = {
+    rethink: { w:22, tag:"Rethink", note:"redesigning the product reduces its impact at source, the most powerful R." },
+    refuse:  { w:14, tag:"Refuse",  note:"removing unneeded parts and packaging cuts waste before it is made." },
+    reduce:  { w:18, tag:"Reduce",  note:"less material and energy per unit lowers the footprint of every item produced." },
+    reuse:   { w:16, tag:"Reuse",   note:"designing for reuse keeps the product in service longer." },
+    repair:  { w:16, tag:"Repair",  note:"a repairable product resists the throwaway cycle." },
+    recycle: { w:14, tag:"Recycle", note:"recyclable materials recover value at end of life, but it is the last resort." }
+  };
+
+  // ---- State ----
+  var state = { product:"keyring", scale:"oneoff", qty:1, rs:{} };
+
+  // ---- Helpers ----
+  function $(id){ return document.getElementById(id); }
+  function money(n){
+    if(n >= 100000) return "£" + (Math.round(n/1000)).toLocaleString("en-GB") + "k";
+    if(n >= 1000)   return "£" + (Math.round(n)).toLocaleString("en-GB");
+    if(n >= 100)    return "£" + Math.round(n).toLocaleString("en-GB");
+    return "£" + n.toFixed(2);
+  }
+  function clampPct(v){ return Math.max(0, Math.min(100, v)); }
+
+  // logarithmic-ish scaling for the bar widths so big numbers don't always peg at 100%
+  function logBar(v, max){
+    if(v <= 0) return 0;
+    return clampPct( (Math.log10(v+1) / Math.log10(max+1)) * 100 );
+  }
+
+  // ---- Core calculation ----
+  function compute(){
+    var p = PRODUCTS[state.product];
+    var s = SCALES[state.scale];
+    var qty = state.qty;
+
+    var material = p.baseMaterial * s.matFactor;        // per unit
+    var labourMin = p.baseLabour * s.labourFactor;       // minutes per unit
+    var labourCost = labourMin * (18/60);                // illustrative shop rate of 18 per hour
+    var unitCostNoTooling = material + labourCost;
+    var toolingPerUnit = s.tooling / qty;
+    var unitCost = unitCostNoTooling + toolingPerUnit;
+    var totalCost = (unitCostNoTooling * qty) + s.tooling;
+
+    return {
+      material:material,
+      labourMin:labourMin,
+      unitCost:unitCost,
+      tooling:s.tooling,
+      total:totalCost,
+      cad:s.cad, cam:s.cam,
+      toolingPerUnit:toolingPerUnit
+    };
+  }
+
+  // ---- Render metrics ----
+  function renderMetrics(){
+    var r = compute();
+    $("mUnit").innerHTML = money(r.unitCost);
+    $("mTool").innerHTML = money(r.tooling);
+    $("mTime").innerHTML = (r.labourMin >= 1 ? r.labourMin.toFixed(r.labourMin<10?1:0) : r.labourMin.toFixed(2)) + ' <span class="u">min</span>';
+    $("mTotal").innerHTML = money(r.total);
+
+    $("bUnit").style.width = logBar(r.unitCost, 200) + "%";
+    $("bTool").style.width = logBar(r.tooling, 50000) + "%";
+    $("bTime").style.width = clampPct((r.labourMin / (PRODUCTS[state.product].baseLabour||1)) * 100) + "%";
+    $("bTotal").style.width = logBar(r.total, 2000000) + "%";
+
+    renderCadCam(r.cad, r.cam);
+    renderLiveFeedback(r);
+  }
+
+  function renderCadCam(cad, cam){
+    paintSeg("cadSeg", cad, "on-cad");
+    paintSeg("camSeg", cam, "on-cam");
+  }
+  function paintSeg(id, level, cls){
+    var el = $(id);
+    el.innerHTML = "";
+    for(var i=0;i<4;i++){
+      var sp = document.createElement("span");
+      if(i < level) sp.className = cls;
+      el.appendChild(sp);
+    }
+  }
+
+  function renderLiveFeedback(r){
+    var s = state.scale, qty = state.qty;
+    var box = $("liveFeedback"), title = box.querySelector(".ftitle"), body = $("liveFeedbackBody");
+    box.className = "feedback";
+    var msg = "", cls = "", icon = "\u{1F4A1}";
+
+    // Mismatch detection: scale vs quantity
+    if(s === "mass" && qty < 5000){
+      cls = "bad"; icon = "⚠";
+      msg = "Mass production needs high volume to pay back its " + money(r.tooling) +
+            " tooling. At only " + qty.toLocaleString("en-GB") + " units, that set-up adds " +
+            money(r.toolingPerUnit) + " to every unit. The cost per unit is far higher than it should be: this scale does not fit the order.";
+    } else if(s === "oneoff" && qty > 200){
+      cls = "bad"; icon = "⚠";
+      msg = "One-off production repeats the full skilled labour for every single item, so at " +
+            qty.toLocaleString("en-GB") + " units the unit cost stays high (" + money(r.unitCost) +
+            ") and the total time would be enormous. A batch or mass run with tooling would be cheaper per unit here.";
+    } else if(s === "batch" && qty < 20){
+      cls = "warn"; icon = "\u{1F914}";
+      msg = "Batch tooling (" + money(r.tooling) + ") only pays off when shared across many units. With just " +
+            qty.toLocaleString("en-GB") + " units it adds " + money(r.toolingPerUnit) +
+            " each. For such a small order a one-off approach may be more economical.";
+    } else if(s === "batch" && qty > 20000){
+      cls = "warn"; icon = "\u{1F914}";
+      msg = "This is a large order for batch production. The figures still work, but at " +
+            qty.toLocaleString("en-GB") + " units mass production would spread an even bigger tooling cost over more items and could cut the unit cost further.";
+    } else {
+      cls = "good"; icon = "✅";
+      msg = "Good fit. At " + qty.toLocaleString("en-GB") + " units, " + SCALES[s].label +
+            " production gives a unit cost of " + money(r.unitCost) + ". " + SCALES[s].note;
+    }
+
+    box.classList.add(cls);
+    title.innerHTML = '<span aria-hidden="true">' + icon + '</span> Cost &amp; scale check';
+    body.textContent = msg;
+    updateVerdict();
+  }
+
+  // ---- 6 Rs ----
+  function renderRs(){
+    var keys = Object.keys(state.rs).filter(function(k){ return state.rs[k]; });
+    var raw = 0;
+    keys.forEach(function(k){ raw += R_INFO[k].w; });
+    var score = clampPct(raw);
+    $("susScore").textContent = score;
+    $("susBar").style.width = score + "%";
+    $("susBar").style.background = score >= 70 ? "var(--accent)" : (score >= 40 ? "var(--amber)" : "var(--red)");
+
+    var box = $("rsFeedback"), title = box.querySelector(".ftitle"), body = $("rsFeedbackBody");
+    box.className = "feedback";
+    var p = PRODUCTS[state.product];
+
+    if(keys.length === 0){
+      box.classList.add("warn");
+      title.innerHTML = '<span aria-hidden="true">♻</span> No strategies chosen yet';
+      body.textContent = "With no 6 Rs built in, this " + p.name + " heads straight to landfill at end of life. The higher your production volume, the bigger that impact. Choose strategies above.";
+      updateVerdict();
+      return;
+    }
+
+    var parts = [];
+    // Reward Rethink/Reduce most
+    if(state.rs.rethink){ parts.push("Rethink leads your strategy, " + R_INFO.rethink.note); }
+    else { parts.push("Tip: adding Rethink would have the biggest effect, " + R_INFO.rethink.note); }
+
+    var named = keys.filter(function(k){return k!=="rethink";}).map(function(k){return R_INFO[k].tag;});
+    if(named.length){ parts.push("You have also built in " + named.join(", ") + "."); }
+
+    // Material-specific nudge
+    if(state.rs.recycle){
+      parts.push("Specifying " + p.greenMat + " supports your Recycle choice.");
+    }
+
+    if(score >= 70){
+      box.classList.add("good");
+      title.innerHTML = '<span aria-hidden="true">♻</span> Strong sustainability strategy (' + score + '/100)';
+    } else if(score >= 40){
+      box.classList.add("warn");
+      title.innerHTML = '<span aria-hidden="true">♻</span> Partial strategy (' + score + '/100)';
+      parts.push("Layer on the earlier Rs (Rethink, Refuse, Reduce) for a bigger reduction; recycling alone is the weakest option.");
+    } else {
+      box.classList.add("bad");
+      title.innerHTML = '<span aria-hidden="true">♻</span> Limited strategy (' + score + '/100)';
+      parts.push("This relies on the weaker, later Rs. The first three Rs prevent waste; the later ones only manage it.");
+    }
+
+    body.textContent = parts.join(" ");
+    updateVerdict();
+  }
+
+  // ---- Overall verdict combining scale-fit and sustainability ----
+  function updateVerdict(){
+    var r = compute();
+    var s = state.scale, qty = state.qty;
+    var keys = Object.keys(state.rs).filter(function(k){ return state.rs[k]; });
+    var susRaw = 0; keys.forEach(function(k){ susRaw += R_INFO[k].w; });
+    var sus = clampPct(susRaw);
+
+    // scale-fit grade
+    var fitBad = (s==="mass" && qty<5000) || (s==="oneoff" && qty>200);
+    var fitWarn = (s==="batch" && qty<20) || (s==="batch" && qty>20000);
+
+    var v = $("verdict"), head = $("vHeadText"), body = $("vBody");
+    v.className = "verdict";
+    var lines = [];
+    var p = PRODUCTS[state.product];
+
+    lines.push("Product: " + p.name + ". Scale: " + SCALES[s].label + ". Order: " + qty.toLocaleString("en-GB") + " units. Modelled total cost: " + money(r.total) + " (" + money(r.unitCost) + " per unit).");
+
+    var overall;
+    if(fitBad || sus < 30){
+      overall = "bad";
+      head.textContent = "Needs rethinking";
+    } else if(fitWarn || sus < 60){
+      overall = "warn";
+      head.textContent = "Workable, with trade-offs";
+    } else {
+      overall = "good";
+      head.textContent = "Well-judged production decision";
+    }
+
+    var bullets = [];
+    if(fitBad){
+      bullets.push("Scale mismatch: the chosen scale does not suit this order quantity, pushing the unit cost up. Revisit step 1.");
+    } else if(fitWarn){
+      bullets.push("Scale is usable but not optimal for this quantity, check the cost-and-scale note above.");
+    } else {
+      bullets.push("Scale fits the quantity: tooling cost is spread sensibly across the run.");
+    }
+
+    bullets.push("CAD use is at level " + r.cad + " of 4 and CAM at level " + r.cam + " of 4: " +
+      (r.cam>=3 ? "automation drives the low labour time per unit." : "design is computer-aided but making is largely manual."));
+
+    if(sus >= 60){
+      bullets.push("Sustainability score " + sus + "/100: a credible lifecycle and 6 Rs response for this volume.");
+    } else if(sus >= 30){
+      bullets.push("Sustainability score " + sus + "/100: acceptable but leans on later Rs; add Rethink or Reduce.");
+    } else {
+      bullets.push("Sustainability score " + sus + "/100: too weak for this volume, the environmental impact is largely unmanaged.");
+    }
+
+    v.classList.add(overall);
+    var html = lines[0] + "<ul>";
+    bullets.forEach(function(b){ html += "<li>" + b + "</li>"; });
+    html += "</ul>";
+    body.innerHTML = html;
+  }
+
+  // ---- Wiring: product chips ----
+  var productBtns = document.querySelectorAll("#productRow .chip");
+  productBtns.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      productBtns.forEach(function(b){ b.setAttribute("aria-pressed","false"); });
+      btn.setAttribute("aria-pressed","true");
+      state.product = btn.getAttribute("data-prod");
+      renderMetrics();
+      renderRs();
+    });
+  });
+
+  // ---- Wiring: scale buttons ----
+  var scaleBtns = document.querySelectorAll("#scaleTrack .scale-btn");
+  scaleBtns.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      scaleBtns.forEach(function(b){ b.setAttribute("aria-pressed","false"); });
+      btn.setAttribute("aria-pressed","true");
+      state.scale = btn.getAttribute("data-scale");
+      // suggest a sensible default quantity for the scale to make the lesson land
+      renderMetrics();
+    });
+  });
+
+  // ---- Wiring: quantity slider (log-feel mapping for usability) ----
+  var qtyEl = $("qty");
+  // map slider 0..1000 to 1..100000 on a perceptual curve
+  qtyEl.min = 0; qtyEl.max = 1000; qtyEl.value = 0;
+  function sliderToQty(v){
+    var t = v/1000;                      // 0..1
+    var q = Math.round(Math.pow(10, t*5));  // 1..100000
+    return Math.max(1, Math.min(100000, q));
+  }
+  function setQtyDisplay(q){
+    $("qtyVal").textContent = q.toLocaleString("en-GB");
+    qtyEl.setAttribute("aria-valuetext", q.toLocaleString("en-GB") + " units");
+  }
+  qtyEl.addEventListener("input", function(){
+    state.qty = sliderToQty(parseInt(qtyEl.value,10));
+    setQtyDisplay(state.qty);
+    renderMetrics();
+  });
+
+  // ---- Wiring: 6 Rs ----
+  var rBtns = document.querySelectorAll("#rsGrid .rcard");
+  rBtns.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var k = btn.getAttribute("data-r");
+      var now = btn.getAttribute("aria-pressed") === "true";
+      btn.setAttribute("aria-pressed", now ? "false" : "true");
+      state.rs[k] = !now;
+      renderRs();
+    });
+  });
+
+  // ---- Reset ----
+  $("resetBtn").addEventListener("click", function(){
+    state = { product:"keyring", scale:"oneoff", qty:1, rs:{} };
+    productBtns.forEach(function(b){ b.setAttribute("aria-pressed", b.getAttribute("data-prod")==="keyring"?"true":"false"); });
+    scaleBtns.forEach(function(b){ b.setAttribute("aria-pressed", b.getAttribute("data-scale")==="oneoff"?"true":"false"); });
+    rBtns.forEach(function(b){ b.setAttribute("aria-pressed","false"); });
+    qtyEl.value = 0; state.qty = 1; setQtyDisplay(1);
+    renderMetrics();
+    renderRs();
+  });
+
+  // ---- Init ----
+  setQtyDisplay(1);
+  renderMetrics();
+  renderRs();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Least-Intrusive Response Rehearser</title>
+<style>
+  :root {
+    --ink: #1c2430;
+    --muted: #5a6776;
+    --line: #d9e0e8;
+    --bg: #f4f6f9;
+    --card: #ffffff;
+    --accent: #1f6f54;
+    --accent-soft: #e4f1ec;
+    --amber: #b06a00;
+    --amber-soft: #fdf2e0;
+    --red: #b3261e;
+    --red-soft: #fbe7e6;
+    --blue: #1b5e8c;
+    --blue-soft: #e3eef6;
+    --shadow: 0 2px 10px rgba(28,36,48,.07);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 20px 16px 64px; }
+  header.app { margin-bottom: 18px; }
+  .eyebrow {
+    font-size: .74rem; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700;
+  }
+  h1 { font-size: 1.55rem; margin: 4px 0 6px; line-height: 1.15; }
+  .aim {
+    background: var(--accent-soft); border-left: 4px solid var(--accent);
+    padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: .95rem;
+    color: #18493a;
+  }
+  .aim strong { color: var(--accent); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 18px; margin-top: 18px;
+  }
+  h2 { font-size: 1.12rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: .9rem; margin: 0 0 14px; }
+
+  /* Scenario */
+  .scenario-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; justify-content: space-between; }
+  .pill {
+    display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+    background: var(--blue-soft); color: var(--blue);
+  }
+  .progress { font-size: .82rem; color: var(--muted); font-weight: 600; }
+  .scenario-text {
+    font-size: 1.05rem; background: #fbfcfd; border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px 16px; margin: 4px 0 6px;
+  }
+  .scenario-text .who { font-weight: 700; color: var(--ink); }
+  .context-note { font-size: .86rem; color: var(--muted); margin: 6px 2px 0; font-style: italic; }
+
+  /* Ladder */
+  .ladder-label {
+    margin: 18px 0 8px; font-size: .82rem; font-weight: 700; color: var(--muted);
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  .ladder { display: flex; flex-direction: column; gap: 8px; }
+  .rung {
+    display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start;
+    width: 100%; text-align: left; cursor: pointer;
+    background: var(--card); border: 1.5px solid var(--line); border-radius: 10px;
+    padding: 11px 13px; font: inherit; color: var(--ink); transition: border-color .12s, background .12s, transform .06s;
+    touch-action: manipulation;
+  }
+  .rung:hover { border-color: #b9c4d0; }
+  .rung:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  .rung:active { transform: translateY(1px); }
+  .rung .step-num {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--bg);
+    border: 1.5px solid var(--line); display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: .9rem; color: var(--muted);
+  }
+  .rung .step-body .step-title { font-weight: 700; font-size: .98rem; }
+  .rung .step-body .step-desc { font-size: .86rem; color: var(--muted); margin-top: 2px; }
+  .rung[disabled] { cursor: default; opacity: .55; }
+
+  .rung.chosen-best { border-color: var(--accent); background: var(--accent-soft); }
+  .rung.chosen-best .step-num { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .rung.chosen-over { border-color: var(--red); background: var(--red-soft); }
+  .rung.chosen-over .step-num { background: var(--red); color: #fff; border-color: var(--red); }
+  .rung.chosen-under { border-color: var(--amber); background: var(--amber-soft); }
+  .rung.chosen-under .step-num { background: var(--amber); color: #fff; border-color: var(--amber); }
+  .rung.is-ideal-marker { border-style: dashed; border-color: var(--accent); }
+
+  /* Feedback */
+  .feedback { margin-top: 16px; border-radius: 10px; padding: 14px 16px; display: none; }
+  .feedback.show { display: block; }
+  .feedback.best { background: var(--accent-soft); border: 1px solid #bfe0d3; }
+  .feedback.over { background: var(--red-soft); border: 1px solid #f0c5c2; }
+  .feedback.under { background: var(--amber-soft); border: 1px solid #f0dcb6; }
+  .feedback h3 { margin: 0 0 6px; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+  .feedback .verdict-tag {
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 800;
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .feedback.best .verdict-tag { background: var(--accent); color: #fff; }
+  .feedback.over .verdict-tag { background: var(--red); color: #fff; }
+  .feedback.under .verdict-tag { background: var(--amber); color: #fff; }
+  .feedback p { margin: 6px 0; font-size: .92rem; }
+  .feedback .principle {
+    margin-top: 10px; font-size: .86rem; background: rgba(255,255,255,.6);
+    border-radius: 8px; padding: 9px 11px;
+  }
+  .feedback .principle b { color: var(--ink); }
+
+  /* Reflection */
+  .reflect { margin-top: 14px; display: none; }
+  .reflect.show { display: block; }
+  .reflect label { display: block; font-weight: 700; font-size: .9rem; margin-bottom: 6px; }
+  .reflect textarea {
+    width: 100%; min-height: 74px; border: 1.5px solid var(--line); border-radius: 8px;
+    padding: 10px; font: inherit; font-size: .92rem; resize: vertical; color: var(--ink);
+  }
+  .reflect textarea:focus-visible { outline: 3px solid var(--blue); outline-offset: 1px; border-color: var(--blue); }
+  .reflect .prompt-hint { font-size: .82rem; color: var(--muted); margin: 4px 0 0; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button.btn {
+    font: inherit; font-weight: 700; font-size: .92rem; cursor: pointer;
+    border-radius: 9px; padding: 10px 18px; border: 1.5px solid transparent;
+    transition: background .12s, border-color .12s; touch-action: manipulation;
+  }
+  button.btn:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #1a5f48; }
+  .btn-ghost { background: #fff; color: var(--ink); border-color: var(--line); }
+  .btn-ghost:hover { border-color: #b9c4d0; }
+  .btn-primary:disabled, .btn-ghost:disabled { opacity: .45; cursor: default; }
+
+  /* Log / pattern spotter */
+  .log-card { margin-top: 18px; }
+  .log-empty { color: var(--muted); font-size: .9rem; font-style: italic; }
+  table.log { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  table.log th, table.log td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.log th { font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .dot.best { background: var(--accent); }
+  .dot.over { background: var(--red); }
+  .dot.under { background: var(--amber); }
+
+  .insights { margin-top: 14px; display: grid; gap: 8px; }
+  .insight {
+    font-size: .9rem; border-radius: 8px; padding: 10px 12px; border: 1px solid var(--line);
+    background: #fbfcfd;
+  }
+  .insight.warn { background: var(--amber-soft); border-color: #f0dcb6; color: #6f4500; }
+  .insight.good { background: var(--accent-soft); border-color: #bfe0d3; color: #18493a; }
+
+  .bars { margin-top: 10px; display: grid; gap: 7px; }
+  .bar-row { display: grid; grid-template-columns: 130px 1fr 42px; gap: 8px; align-items: center; font-size: .84rem; }
+  .bar-track { background: var(--bg); border-radius: 6px; height: 18px; overflow: hidden; border: 1px solid var(--line); }
+  .bar-fill { height: 100%; border-radius: 5px 0 0 5px; transition: width .4s ease; }
+  .bar-fill.best { background: var(--accent); }
+  .bar-fill.over { background: var(--red); }
+  .bar-fill.under { background: var(--amber); }
+
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  footer.note { margin-top: 26px; font-size: .8rem; color: var(--muted); text-align: center; }
+  @media (max-width: 560px) {
+    h1 { font-size: 1.35rem; }
+    .bar-row { grid-template-columns: 96px 1fr 36px; }
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <div class="eyebrow">CPD &amp; Staff Tools &middot; Behaviour and Routines</div>
+    <h1>Least-Intrusive Response Rehearser</h1>
+    <div class="aim">
+      <strong>Aim for staff:</strong> rehearse a graduated, least-intrusive response to low-level disruption. For each scenario, choose the smallest intervention that re-engages the pupil and keeps the lesson flowing, then reflect on consistency.
+    </div>
+  </header>
+
+  <section class="card" aria-labelledby="scenario-h">
+    <div class="scenario-head">
+      <span class="pill" id="scenario-pill">Scenario</span>
+      <span class="progress" id="progress" aria-live="polite">Scenario 1 of 6</span>
+    </div>
+    <h2 id="scenario-h" class="visually-hidden">Current scenario</h2>
+    <p class="sub" id="setting-line">Year group and setting</p>
+    <div class="scenario-text" id="scenario-text">Loading scenario.</div>
+    <p class="context-note" id="context-note"></p>
+
+    <p class="ladder-label" id="ladder-label">Choose your response (least intrusive at the top)</p>
+    <div class="ladder" id="ladder" role="radiogroup" aria-labelledby="ladder-label">
+      <!-- rungs injected -->
+    </div>
+
+    <div class="feedback" id="feedback" role="region" aria-live="polite" aria-label="Feedback on your choice">
+      <h3><span class="verdict-tag" id="verdict-tag">Verdict</span> <span id="verdict-head"></span></h3>
+      <div id="feedback-body"></div>
+      <div class="principle" id="principle"></div>
+    </div>
+
+    <div class="reflect" id="reflect">
+      <label for="reflect-box" id="reflect-label">Reflective prompt</label>
+      <textarea id="reflect-box" aria-describedby="reflect-hint" placeholder="Type a short note. This stays on your screen only."></textarea>
+      <p class="prompt-hint" id="reflect-hint"></p>
+    </div>
+
+    <div class="row">
+      <button class="btn btn-ghost" id="reset-btn" type="button">Change my answer</button>
+      <button class="btn btn-primary" id="next-btn" type="button" disabled>Next scenario</button>
+    </div>
+  </section>
+
+  <section class="card log-card" aria-labelledby="log-h">
+    <h2 id="log-h">Behaviour log &amp; pattern spotter</h2>
+    <p class="sub">A running record of how you responded, with patterns flagged so you can check your consistency.</p>
+    <div id="log-area">
+      <p class="log-empty" id="log-empty">No responses logged yet. Work through a scenario above to begin.</p>
+      <table class="log" id="log-table" style="display:none">
+        <thead>
+          <tr><th scope="col">Scenario</th><th scope="col">Pupil</th><th scope="col">Your step</th><th scope="col">Pitch</th></tr>
+        </thead>
+        <tbody id="log-body"></tbody>
+      </table>
+    </div>
+    <div class="bars" id="bars" aria-hidden="true"></div>
+    <div class="insights" id="insights" aria-live="polite"></div>
+  </section>
+
+  <footer class="note">
+    Demonstration tool for staff CPD. All pupils and incidents are fictional. Notes you type are not saved or sent anywhere.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // The response ladder: index 0 = least intrusive, 5 = most intrusive (formal consequence).
+  var LADDER = [
+    { title: "Non-verbal cue", desc: "Pause, eye contact, a gesture, move closer." },
+    { title: "Positive recognition nearby", desc: "Praise a pupil on task to model the expectation." },
+    { title: "Brief private reminder", desc: "Quiet, calm restatement of the expectation, by name." },
+    { title: "Direct instruction with take-up time", desc: "Clear directive, then step away and give time to comply." },
+    { title: "Named warning (recorded)", desc: "Formal warning logged, consequence stated if it continues." },
+    { title: "Formal consequence", desc: "Apply the sanction, for example move, detention, referral." }
+  ];
+
+  // Scenarios. ideal = index into LADDER of the least-intrusive effective response.
+  var SCENARIOS = [
+    {
+      pill: "Settling in",
+      setting: "Year 8 Geography, first five minutes of the lesson",
+      pupil: "Maya",
+      text: "<span class=\"who\">Maya</span> is chatting to a neighbour while you give starter instructions. She is half-turned away but not loud, and the rest of the class is settling.",
+      context: "Low level, just started, no prior pattern this lesson.",
+      ideal: 0,
+      reflect: "What is the smallest signal that would re-engage Maya without stopping the whole class?"
+    },
+    {
+      pill: "Off task",
+      setting: "Year 6 Maths, independent work",
+      pupil: "Jaylen",
+      text: "<span class=\"who\">Jaylen</span> has stopped working and is doodling on the desk margin. He is quiet and not disturbing others, but has done no questions for a couple of minutes.",
+      context: "No disruption to others, but disengaged.",
+      ideal: 2,
+      reflect: "A non-verbal cue may not land if he is not looking up. What keeps the correction private and calm?"
+    },
+    {
+      pill: "Repeated",
+      setting: "Year 9 Science, mid-lesson",
+      pupil: "Sofia",
+      text: "You gave <span class=\"who\">Sofia</span> a quiet reminder two minutes ago. She settled briefly, but is now turned round talking again, a little louder.",
+      context: "Earlier least-intrusive steps already tried this lesson.",
+      ideal: 3,
+      reflect: "Steps 0 to 2 have not held. Why does take-up time matter more than an immediate sanction here?"
+    },
+    {
+      pill: "Calling out",
+      setting: "Year 7 English, whole-class discussion",
+      pupil: "Dev",
+      text: "<span class=\"who\">Dev</span> keeps calling out answers without putting his hand up. He is engaged and keen, but it is cutting across other pupils.",
+      context: "Enthusiastic, not defiant. Several quick interruptions.",
+      ideal: 1,
+      reflect: "How can you correct the behaviour while protecting Dev's enthusiasm and showing the routine you want?"
+    },
+    {
+      pill: "Escalating",
+      setting: "Year 10 History, after two prior reminders",
+      pupil: "Aisha",
+      text: "<span class=\"who\">Aisha</span> has ignored a non-verbal cue and a private reminder, and has now told a neighbour, loud enough for you to hear, that the task is pointless. Others are watching to see what happens.",
+      context: "Clear refusal after graduated steps. Audience effect.",
+      ideal: 4,
+      reflect: "The ladder has been climbed fairly. What makes a recorded warning the right, still-not-final, step now?"
+    },
+    {
+      pill: "Safety / final step",
+      setting: "Year 11 Maths, after a recorded warning",
+      pupil: "Riley",
+      text: "After a recorded warning, <span class=\"who\">Riley</span> stands, knocks a chair and continues to talk over you, refusing to sit. The disruption is now stopping others learning.",
+      context: "Warning already given and logged. Continued, escalating refusal.",
+      ideal: 5,
+      reflect: "Every prior step has been offered. How do you apply the consequence calmly and without it becoming a confrontation?"
+    }
+  ];
+
+  // Diagnostic messages keyed by relationship of choice to ideal.
+  function classifyChoice(choice, ideal) {
+    if (choice === ideal) return "best";
+    if (choice > ideal) return "over";
+    return "under";
+  }
+
+  var PRINCIPLES = {
+    best: "<b>Least-intrusive principle:</b> the goal is the smallest action that re-engages the pupil and keeps the lesson moving. You matched the response to the behaviour.",
+    over: "<b>Over-reaching:</b> jumping the ladder can feel unfair to the pupil and to onlookers, escalates the moment, and leaves you nowhere to go next time. Reserve higher steps for when lower ones have genuinely been tried.",
+    under: "<b>Under-reaching:</b> a response that is too soft for a behaviour that has already been corrected lets disruption continue and erodes the routine. Calmly move one rung up so the expectation is clear."
+  };
+
+  // State
+  var idx = 0;
+  var answered = false;
+  var log = []; // { scenario, pupil, step, pitch }
+  var stepCounts = [0,0,0,0,0,0];
+
+  // DOM refs
+  var ladderEl = document.getElementById("ladder");
+  var scenarioText = document.getElementById("scenario-text");
+  var settingLine = document.getElementById("setting-line");
+  var contextNote = document.getElementById("context-note");
+  var pillEl = document.getElementById("scenario-pill");
+  var progressEl = document.getElementById("progress");
+  var feedbackEl = document.getElementById("feedback");
+  var verdictTag = document.getElementById("verdict-tag");
+  var verdictHead = document.getElementById("verdict-head");
+  var feedbackBody = document.getElementById("feedback-body");
+  var principleEl = document.getElementById("principle");
+  var reflectEl = document.getElementById("reflect");
+  var reflectBox = document.getElementById("reflect-box");
+  var reflectHint = document.getElementById("reflect-hint");
+  var nextBtn = document.getElementById("next-btn");
+  var resetBtn = document.getElementById("reset-btn");
+
+  function buildLadder() {
+    ladderEl.innerHTML = "";
+    for (var i = 0; i < LADDER.length; i++) {
+      (function (i) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "rung";
+        btn.setAttribute("role", "radio");
+        btn.setAttribute("aria-checked", "false");
+        btn.dataset.step = String(i);
+        btn.setAttribute("aria-label",
+          "Step " + (i + 1) + " of 6, " + LADDER[i].title + ". " + LADDER[i].desc);
+        btn.innerHTML =
+          '<span class="step-num" aria-hidden="true">' + (i + 1) + '</span>' +
+          '<span class="step-body">' +
+            '<span class="step-title">' + LADDER[i].title + '</span>' +
+            '<span class="step-desc">' + LADDER[i].desc + '</span>' +
+          '</span>';
+        btn.addEventListener("click", function () { choose(i); });
+        btn.addEventListener("keydown", function (e) { ladderKey(e, i); });
+        ladderEl.appendChild(btn);
+      })(i);
+    }
+  }
+
+  function rungs() {
+    return Array.prototype.slice.call(ladderEl.querySelectorAll(".rung"));
+  }
+
+  function ladderKey(e, i) {
+    if (answered) return;
+    var key = e.key;
+    var r = rungs();
+    var to = -1;
+    if (key === "ArrowDown" || key === "ArrowRight") to = (i + 1) % r.length;
+    else if (key === "ArrowUp" || key === "ArrowLeft") to = (i - 1 + r.length) % r.length;
+    if (to > -1) {
+      e.preventDefault();
+      r[to].focus();
+    }
+  }
+
+  function loadScenario() {
+    var s = SCENARIOS[idx];
+    answered = false;
+    pillEl.textContent = s.pill;
+    progressEl.textContent = "Scenario " + (idx + 1) + " of " + SCENARIOS.length;
+    settingLine.textContent = s.setting;
+    scenarioText.innerHTML = s.text;
+    contextNote.textContent = "Context: " + s.context;
+
+    feedbackEl.className = "feedback";
+    feedbackEl.classList.remove("show");
+    reflectEl.classList.remove("show");
+    reflectBox.value = "";
+    nextBtn.disabled = true;
+    resetBtn.disabled = true;
+
+    var r = rungs();
+    r.forEach(function (btn, i) {
+      btn.disabled = false;
+      btn.classList.remove("chosen-best", "chosen-over", "chosen-under", "is-ideal-marker");
+      btn.setAttribute("aria-checked", "false");
+      btn.removeAttribute("tabindex");
+    });
+    // first rung tabbable in the radiogroup
+    if (r[0]) r[0].setAttribute("tabindex", "0");
+    for (var k = 1; k < r.length; k++) r[k].setAttribute("tabindex", "-1");
+  }
+
+  function choose(step) {
+    if (answered) return;
+    answered = true;
+    var s = SCENARIOS[idx];
+    var pitch = classifyChoice(step, s.ideal);
+    var r = rungs();
+
+    r.forEach(function (btn, i) {
+      btn.disabled = true;
+      btn.setAttribute("aria-checked", i === step ? "true" : "false");
+      btn.setAttribute("tabindex", i === step ? "0" : "-1");
+      if (i === s.ideal && step !== s.ideal) btn.classList.add("is-ideal-marker");
+    });
+    r[step].classList.add(pitch === "best" ? "chosen-best" : pitch === "over" ? "chosen-over" : "chosen-under");
+
+    showFeedback(s, step, pitch);
+    logResponse(s, step, pitch);
+
+    nextBtn.disabled = false;
+    resetBtn.disabled = false;
+    feedbackEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function showFeedback(s, step, pitch) {
+    feedbackEl.className = "feedback show " + pitch;
+    var heads = {
+      best: "Well pitched. You chose the least-intrusive effective response.",
+      over: "That climbs the ladder faster than this behaviour needs.",
+      under: "That is gentler than this moment now calls for."
+    };
+    var tags = { best: "On the ladder", over: "Too far up", under: "Too far down" };
+    verdictTag.textContent = tags[pitch];
+    verdictHead.textContent = heads[pitch];
+
+    var idealTitle = LADDER[s.ideal].title;
+    var chosenTitle = LADDER[step].title;
+    var body = "";
+    if (pitch === "best") {
+      body = "<p>A <b>" + chosenTitle.toLowerCase() + "</b> fits this behaviour. It corrects " +
+        s.pupil + " with minimal disruption and keeps your options open if it continues.</p>";
+    } else if (pitch === "over") {
+      body = "<p>You chose <b>" + chosenTitle.toLowerCase() + "</b>, but a <b>" + idealTitle.toLowerCase() +
+        "</b> would re-engage " + s.pupil + " here. Going higher than needed can read as unfair to the class and removes your room to escalate fairly later.</p>";
+    } else {
+      body = "<p>You chose <b>" + chosenTitle.toLowerCase() + "</b>. Given the context, a <b>" + idealTitle.toLowerCase() +
+        "</b> is the consistent next step. Staying too low here lets the disruption sit and weakens the routine for everyone.</p>";
+    }
+    feedbackBody.innerHTML = body;
+    principleEl.innerHTML = PRINCIPLES[pitch];
+
+    // Reflection
+    reflectEl.classList.add("show");
+    reflectHint.textContent = "Prompt: " + s.reflect;
+  }
+
+  function logResponse(s, step, pitch) {
+    log.push({ scenario: idx + 1, pill: s.pill, pupil: s.pupil, step: step, pitch: pitch });
+    stepCounts[step]++;
+    renderLog();
+  }
+
+  var PITCH_LABEL = { best: "On the ladder", over: "Over-reached", under: "Under-reached" };
+
+  function renderLog() {
+    var empty = document.getElementById("log-empty");
+    var table = document.getElementById("log-table");
+    var body = document.getElementById("log-body");
+    if (!log.length) {
+      empty.style.display = "";
+      table.style.display = "none";
+    } else {
+      empty.style.display = "none";
+      table.style.display = "";
+      body.innerHTML = "";
+      log.forEach(function (e) {
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          '<td>' + e.scenario + '. ' + e.pill + '</td>' +
+          '<td>' + e.pupil + '</td>' +
+          '<td>Step ' + (e.step + 1) + ': ' + LADDER[e.step].title + '</td>' +
+          '<td><span class="dot ' + e.pitch + '" aria-hidden="true"></span>' + PITCH_LABEL[e.pitch] + '</td>';
+        body.appendChild(tr);
+      });
+    }
+    renderPatterns();
+  }
+
+  function renderPatterns() {
+    var bars = document.getElementById("bars");
+    var insights = document.getElementById("insights");
+    bars.innerHTML = "";
+    insights.innerHTML = "";
+    if (!log.length) return;
+
+    var counts = { best: 0, over: 0, under: 0 };
+    log.forEach(function (e) { counts[e.pitch]++; });
+    var total = log.length;
+
+    var rows = [
+      { key: "best", label: "On the ladder" },
+      { key: "over", label: "Over-reached" },
+      { key: "under", label: "Under-reached" }
+    ];
+    rows.forEach(function (r) {
+      var n = counts[r.key];
+      var pct = Math.round((n / total) * 100);
+      var row = document.createElement("div");
+      row.className = "bar-row";
+      row.innerHTML =
+        '<span>' + r.label + '</span>' +
+        '<span class="bar-track"><span class="bar-fill ' + r.key + '" style="width:' + pct + '%"></span></span>' +
+        '<span>' + n + '/' + total + '</span>';
+      bars.appendChild(row);
+    });
+
+    // Pattern insights for consistency reflection
+    function add(cls, html) {
+      var d = document.createElement("div");
+      d.className = "insight " + cls;
+      d.innerHTML = html;
+      insights.appendChild(d);
+    }
+
+    if (counts.over >= 2) {
+      add("warn", "<b>Pattern:</b> you reached for a higher step than needed " + counts.over +
+        " times. Consistently over-reaching can feel harsh and erodes trust. Try a smaller intervention first and give take-up time.");
+    }
+    if (counts.under >= 2) {
+      add("warn", "<b>Pattern:</b> " + counts.under +
+        " responses sat below the consistent step. Under-reaching repeatedly lets low-level disruption build. Move calmly one rung up when a behaviour has already been corrected.");
+    }
+    if (counts.best >= 1 && counts.over === 0 && counts.under === 0) {
+      add("good", "<b>Consistent so far:</b> every response matched the behaviour. This is exactly the predictability pupils respond to.");
+    } else if (counts.best > counts.over + counts.under) {
+      add("good", "<b>Mostly consistent:</b> most responses were well pitched. Look at the flagged scenarios above and decide what you would do differently.");
+    }
+
+    if (log.length === SCENARIOS.length) {
+      add("good", "<b>Round complete.</b> Re-run the scenarios and try to keep every response on the ladder. Notice how the same pupil names can need different steps depending on what has come before.");
+    }
+  }
+
+  function next() {
+    if (idx < SCENARIOS.length - 1) {
+      idx++;
+      loadScenario();
+      document.getElementById("scenario-h").scrollIntoView({ behavior: "smooth", block: "start" });
+      var first = rungs()[0];
+      if (first) first.focus();
+    } else {
+      idx = 0;
+      loadScenario();
+      nextBtn.textContent = "Next scenario";
+      document.getElementById("scenario-pill").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  function resetCurrent() {
+    if (!answered) return;
+    // Remove the most recent log entry for this scenario so the pattern stays accurate.
+    if (log.length) {
+      var last = log[log.length - 1];
+      if (last.scenario === idx + 1) {
+        log.pop();
+        stepCounts[last.step] = Math.max(0, stepCounts[last.step] - 1);
+      }
+    }
+    loadScenario();
+    renderLog();
+    var first = rungs()[0];
+    if (first) first.focus();
+  }
+
+  nextBtn.addEventListener("click", next);
+  resetBtn.addEventListener("click", resetCurrent);
+
+  // Update Next button label on last scenario
+  function syncNextLabel() {
+    nextBtn.textContent = (idx === SCENARIOS.length - 1) ? "Restart round" : "Next scenario";
+  }
+  var origLoad = loadScenario;
+  loadScenario = function () { origLoad(); syncNextLabel(); };
+
+  // Init
+  buildLadder();
+  loadScenario();
+})();
+</script>
+</body>
+</html>

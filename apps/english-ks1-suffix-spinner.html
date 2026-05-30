@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suffix Spinner</title>
+<style>
+:root {
+    --bg: #eef6ff;
+    --card-bg: #ffffff;
+    --text: #14304f;
+    --text-light: #5a7794;
+    --accent: #2563eb;
+    --accent-dark: #1d4ed8;
+    --accent-light: #dbeafe;
+    --root-bg: #fef3c7;
+    --root-border: #f59e0b;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --warn: #dc2626;
+    --warn-light: #fee2e2;
+    --border: #c7ddf7;
+    --shadow: 0 4px 16px rgba(20,48,79,0.10);
+    --shadow-lg: 0 10px 34px rgba(20,48,79,0.20);
+    --radius: 18px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+}
+
+.header {
+    background: linear-gradient(135deg, #1d4ed8, #2563eb, #60a5fa);
+    color: #fff;
+    padding: 16px 20px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    position: relative; z-index: 10;
+}
+.header h1 { font-size: 1.55rem; font-weight: 900; letter-spacing: -0.01em; }
+.header .aim {
+    font-size: 0.82rem; opacity: 0.95; font-weight: 600; margin-top: 4px;
+    max-width: 640px; margin-left: auto; margin-right: auto;
+}
+
+.main { max-width: 680px; margin: 0 auto; padding: 16px; }
+
+.info-bar {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    align-items: center; justify-content: space-between;
+    padding: 10px 14px; background: var(--card-bg);
+    border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 14px;
+    font-weight: 700; font-size: 0.85rem;
+}
+.info-bar .pill { display: flex; align-items: center; gap: 6px; }
+.info-bar .label { color: var(--text-light); font-weight: 600; }
+.info-bar .score { color: var(--accent); font-size: 1.05rem; }
+.info-bar .streak { color: var(--root-border); }
+
+.card {
+    background: var(--card-bg); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px 16px; margin-bottom: 16px;
+}
+
+.prompt {
+    text-align: center; margin-bottom: 6px;
+}
+.prompt .task {
+    font-size: 0.92rem; color: var(--text-light); font-weight: 600;
+}
+.prompt .target {
+    font-size: 1.15rem; font-weight: 800; color: var(--accent-dark); margin-top: 2px;
+}
+
+/* The spinner stage */
+.stage {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; flex-wrap: wrap; margin: 18px 0 8px;
+    min-height: 86px;
+}
+.tile {
+    font-size: 2rem; font-weight: 800; letter-spacing: 0.5px;
+    padding: 10px 14px; border-radius: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    line-height: 1; min-height: 64px;
+}
+.tile.root {
+    background: var(--root-bg); border: 3px solid var(--root-border);
+    color: #7c3f00;
+}
+.tile.spliced { /* part dropped */ }
+.tile.dropped {
+    text-decoration: line-through;
+    color: #b91c1c; opacity: 0.55;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.tile.doubled {
+    background: var(--success-light); border: 3px solid var(--success);
+    color: var(--success);
+    animation: pop 0.5s ease;
+}
+.tile.suffix-fixed {
+    background: var(--accent-light); border: 3px solid var(--accent);
+    color: var(--accent-dark);
+    animation: pop 0.5s ease;
+}
+@keyframes pop {
+    0% { transform: scale(0.4); opacity: 0; }
+    60% { transform: scale(1.18); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Drop slot */
+.dropslot {
+    min-width: 96px; min-height: 64px;
+    border: 3px dashed var(--border); border-radius: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-light); font-weight: 700; font-size: 0.85rem;
+    padding: 6px 10px; transition: all 0.18s ease;
+    touch-action: none;
+}
+.dropslot.over {
+    border-color: var(--accent); background: var(--accent-light);
+    transform: scale(1.05);
+}
+.dropslot.filled {
+    border-style: solid; border-color: var(--success); background: var(--success-light);
+}
+
+/* result word */
+.result-word {
+    text-align: center; margin: 10px 0 4px; min-height: 30px;
+}
+.result-word .built {
+    font-size: 1.9rem; font-weight: 900; color: var(--text);
+    letter-spacing: 0.5px;
+}
+
+/* feedback */
+.feedback {
+    margin-top: 8px; padding: 12px 14px; border-radius: 12px;
+    font-weight: 700; font-size: 0.9rem; text-align: center;
+    min-height: 0; display: none;
+}
+.feedback.show { display: block; animation: slidein 0.3s ease; }
+.feedback.ok { background: var(--success-light); color: var(--success); border: 2px solid var(--success); }
+.feedback.no { background: var(--warn-light); color: var(--warn); border: 2px solid var(--warn); }
+@keyframes slidein { from { transform: translateY(-6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.rule-line {
+    margin-top: 6px; font-size: 0.82rem; font-weight: 600; opacity: 0.92;
+}
+
+/* Suffix tray */
+.tray-title {
+    font-size: 0.85rem; font-weight: 700; color: var(--text-light);
+    text-align: center; margin-bottom: 10px;
+}
+.tray {
+    display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+}
+.suffix {
+    font-size: 1.4rem; font-weight: 900; color: var(--accent-dark);
+    background: var(--accent-light); border: 3px solid var(--accent);
+    border-radius: 14px; padding: 12px 16px; cursor: grab;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    min-height: 56px; display: inline-flex; align-items: center; justify-content: center;
+}
+.suffix:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.suffix:focus-visible { outline: 4px solid #93c5fd; outline-offset: 2px; }
+.suffix.dragging { opacity: 0.35; }
+.suffix.kb-selected {
+    box-shadow: 0 0 0 4px #93c5fd, var(--shadow);
+    transform: translateY(-3px);
+}
+.suffix.used { opacity: 0.25; pointer-events: none; }
+
+.dragclone {
+    position: fixed; z-index: 1000; pointer-events: none;
+    font-size: 1.4rem; font-weight: 900; color: var(--accent-dark);
+    background: var(--accent-light); border: 3px solid var(--accent);
+    border-radius: 14px; padding: 12px 16px;
+    box-shadow: var(--shadow-lg); transform: translate(-50%, -50%) scale(1.08);
+}
+
+.kb-hint {
+    text-align: center; font-size: 0.76rem; color: var(--text-light);
+    margin-top: 12px; font-weight: 600;
+}
+
+.actions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+.btn {
+    border: none; border-radius: 12px; padding: 12px 20px;
+    font-size: 0.95rem; font-weight: 800; cursor: pointer;
+    font-family: inherit; transition: transform 0.1s ease, background 0.15s ease;
+    min-height: 48px;
+}
+.btn:active { transform: scale(0.97); }
+.btn:focus-visible { outline: 4px solid #93c5fd; outline-offset: 2px; }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent-dark); }
+.btn.ghost { background: var(--accent-light); color: var(--accent-dark); }
+.btn.ghost:hover { background: #c7e0fc; }
+.btn:disabled { opacity: 0.4; cursor: default; }
+
+/* progress dots */
+.progress { display: flex; gap: 6px; justify-content: center; margin-bottom: 12px; }
+.dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--border);
+}
+.dot.done { background: var(--success); }
+.dot.current { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+
+/* end screen */
+.endcard { text-align: center; }
+.endcard h2 { font-size: 1.4rem; font-weight: 900; color: var(--accent-dark); margin-bottom: 8px; }
+.endcard .big { font-size: 2.4rem; font-weight: 900; color: var(--accent); margin: 8px 0; }
+.endcard .stars { font-size: 2rem; margin: 6px 0; letter-spacing: 4px; }
+.endcard p { color: var(--text-light); font-weight: 600; margin-bottom: 12px; }
+
+.legend {
+    font-size: 0.78rem; color: var(--text-light); text-align: center;
+    margin-top: 4px; font-weight: 600;
+}
+
+.sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+@media (max-width: 420px) {
+    .tile { font-size: 1.6rem; min-height: 56px; padding: 8px 11px; }
+    .result-word .built { font-size: 1.5rem; }
+    .suffix { font-size: 1.2rem; }
+}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+
+<header class="header">
+    <h1>Suffix Spinner</h1>
+    <p class="aim">Teacher aim: add suffixes (-s, -es, -ing, -ed, -er) to root words and watch the spelling rule happen, so KS1 pupils see why some words double a letter or drop the e.</p>
+</header>
+
+<main class="main">
+
+    <div class="info-bar" aria-hidden="false">
+        <div class="pill"><span class="label">Word</span> <span id="wordNum">1</span> of <span id="wordTotal">8</span></div>
+        <div class="pill"><span class="label">Score</span> <span class="score" id="score">0</span></div>
+        <div class="pill"><span class="label">Streak</span> <span class="streak" id="streak">0 &#x1F525;</span></div>
+    </div>
+
+    <div class="progress" id="progress" aria-hidden="true"></div>
+
+    <div class="card" id="playCard">
+        <div class="prompt">
+            <div class="task" id="taskText">Make this word mean more than one:</div>
+            <div class="target" id="targetText">one cat &#x2192; lots of <strong>?</strong></div>
+        </div>
+
+        <div class="stage" id="stage" aria-hidden="false">
+            <span class="tile root" id="rootTile">cat</span>
+            <span class="dropslot" id="dropslot"
+                  role="button" tabindex="0"
+                  aria-label="Drop the suffix here, or press Enter to place the selected suffix">
+                drop here
+            </span>
+        </div>
+
+        <div class="result-word" id="resultWord" aria-live="polite"></div>
+
+        <div class="feedback" id="feedback" role="status" aria-live="assertive"></div>
+
+        <div class="tray-title">Choose a suffix to add:</div>
+        <div class="tray" id="tray" role="group" aria-label="Suffixes you can drag onto the word"></div>
+
+        <p class="kb-hint">On a keyboard: press <strong>Tab</strong> to a suffix, press <strong>Enter</strong> or <strong>Space</strong> to pick it up, then press <strong>Enter</strong> on the drop box to add it.</p>
+
+        <div class="actions">
+            <button class="btn ghost" id="resetBtn" type="button">Try again</button>
+            <button class="btn primary" id="nextBtn" type="button" disabled>Next word &#x2192;</button>
+        </div>
+
+        <p class="legend">Yellow box is the root word. Blue box is the suffix you add.</p>
+    </div>
+
+    <div class="card endcard" id="endCard" style="display:none;">
+        <h2>Spinning complete!</h2>
+        <div class="stars" id="endStars">&#x2B50;&#x2B50;&#x2B50;</div>
+        <div class="big" id="endScore">0 / 8</div>
+        <p id="endMsg">Great spelling work.</p>
+        <div class="actions">
+            <button class="btn primary" id="playAgainBtn" type="button">Play again</button>
+        </div>
+    </div>
+
+    <p class="sr-only" id="liveStatus" aria-live="polite"></p>
+
+</main>
+
+<script>
+"use strict";
+
+/*
+  Suffix Spinner: KS1 spelling and transcription.
+  Strand: suffixes, plurals.
+  Each round gives a root word and asks pupil to add the correct suffix.
+  When the correct suffix lands, a worked rule animates:
+   - plural -s          (cat -> cats)
+   - plural -es         (bus -> buses, box -> boxes)
+   - double consonant   (run + ing -> running, hop + ed -> hopped)
+   - drop the e         (make + ing -> making, bake + er -> baker)
+   - just add           (jump + ed -> jumped, play + er -> player)
+*/
+
+// Rule types:
+// "add"    : root + suffix straight on
+// "es"     : choose -es not -s (hissing endings) -> root + "es"
+// "double" : double the final consonant then add suffix
+// "drope"  : drop the silent e then add suffix
+const WORDS = [
+    {
+        root: "cat", suffix: "s", rule: "add",
+        task: "Make this word mean more than one:",
+        target: "one cat → lots of <strong>?</strong>",
+        answer: "cats",
+        why: "Most words just add <strong>s</strong> to mean more than one. cat → cats."
+    },
+    {
+        root: "bus", suffix: "es", rule: "es",
+        task: "Make this word mean more than one:",
+        target: "one bus → lots of <strong>?</strong>",
+        answer: "buses",
+        why: "Words ending in <strong>s</strong> add <strong>es</strong>, not just s. bus → buses."
+    },
+    {
+        root: "box", suffix: "es", rule: "es",
+        task: "Make this word mean more than one:",
+        target: "one box → lots of <strong>?</strong>",
+        answer: "boxes",
+        why: "Words ending in <strong>x</strong> add <strong>es</strong>. box → boxes."
+    },
+    {
+        root: "jump", suffix: "ed", rule: "add",
+        task: "Make this word happen in the past:",
+        target: "today I jump, yesterday I <strong>?</strong>",
+        answer: "jumped",
+        why: "Just add <strong>ed</strong> for the past. jump → jumped."
+    },
+    {
+        root: "hop", suffix: "ing", rule: "double",
+        task: "Add the doing word ending:",
+        target: "the rabbit is <strong>?</strong>",
+        answer: "hopping",
+        why: "Short word, one vowel then one consonant: double the <strong>p</strong>, then add ing. hop → hopping."
+    },
+    {
+        root: "run", suffix: "ing", rule: "double",
+        task: "Add the doing word ending:",
+        target: "the dog is <strong>?</strong>",
+        answer: "running",
+        why: "Double the <strong>n</strong> first, then add ing. run → running."
+    },
+    {
+        root: "make", suffix: "ing", rule: "drope",
+        task: "Add the doing word ending:",
+        target: "she is <strong>?</strong> a cake",
+        answer: "making",
+        why: "Drop the silent <strong>e</strong>, then add ing. make → making."
+    },
+    {
+        root: "bake", suffix: "er", rule: "drope",
+        task: "Make the person who does it:",
+        target: "a person who bakes is a <strong>?</strong>",
+        answer: "baker",
+        why: "Drop the silent <strong>e</strong>, then add er. bake → baker."
+    }
+];
+
+// distractor suffixes always available
+const ALL_SUFFIXES = ["s", "es", "ing", "ed", "er"];
+
+// State
+let order = [];
+let idx = 0;
+let score = 0;
+let streak = 0;
+let solved = false;       // current word solved correctly
+let selectedSuffix = null; // keyboard pick-up
+let attempted = false;     // attempted current word at all
+
+// Elements
+const el = (id) => document.getElementById(id);
+const stage = el("stage");
+const rootTile = el("rootTile");
+const dropslot = el("dropslot");
+const tray = el("tray");
+const feedback = el("feedback");
+const resultWord = el("resultWord");
+const liveStatus = el("liveStatus");
+const nextBtn = el("nextBtn");
+const resetBtn = el("resetBtn");
+
+function shuffle(a) {
+    const arr = a.slice();
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function startGame() {
+    order = shuffle(WORDS.map((_, i) => i));
+    idx = 0; score = 0; streak = 0;
+    el("wordTotal").textContent = WORDS.length;
+    el("endCard").style.display = "none";
+    el("playCard").style.display = "block";
+    buildProgress();
+    loadWord();
+    updateInfo();
+}
+
+function buildProgress() {
+    const p = el("progress");
+    p.innerHTML = "";
+    for (let i = 0; i < WORDS.length; i++) {
+        const d = document.createElement("div");
+        d.className = "dot";
+        p.appendChild(d);
+    }
+}
+function paintProgress() {
+    const dots = el("progress").children;
+    for (let i = 0; i < dots.length; i++) {
+        dots[i].className = "dot" + (i < idx ? " done" : (i === idx ? " current" : ""));
+    }
+}
+
+function currentWord() { return WORDS[order[idx]]; }
+
+function loadWord() {
+    solved = false;
+    attempted = false;
+    selectedSuffix = null;
+    const w = currentWord();
+
+    el("taskText").textContent = w.task;
+    el("targetText").innerHTML = w.target;
+    rootTile.className = "tile root";
+    rootTile.textContent = w.root;
+
+    dropslot.className = "dropslot";
+    dropslot.textContent = "drop here";
+
+    resultWord.innerHTML = "";
+    feedback.className = "feedback";
+    feedback.innerHTML = "";
+
+    nextBtn.disabled = true;
+
+    buildTray();
+    paintProgress();
+    el("wordNum").textContent = (idx + 1);
+    setLive("New word. " + w.task.replace(":", "") + " The root word is " + w.root + ".");
+}
+
+function buildTray() {
+    tray.innerHTML = "";
+    // Always show all suffixes, shuffled, so there is real choice (distractors).
+    const list = shuffle(ALL_SUFFIXES);
+    list.forEach((sfx) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "suffix";
+        b.textContent = "-" + sfx_label(sfx);
+        b.setAttribute("data-suffix", sfx);
+        b.setAttribute("aria-label", "Suffix minus " + spellOut(sfx) + ". Press Enter to pick it up.");
+        b.addEventListener("pointerdown", onSuffixPointerDown);
+        b.addEventListener("click", onSuffixClick);
+        b.addEventListener("keydown", onSuffixKeydown);
+        tray.appendChild(b);
+    });
+}
+
+function sfx_label(s) { return s; }
+function spellOut(s) {
+    return s.split("").join(" ");
+}
+
+function updateInfo() {
+    el("score").textContent = score;
+    el("streak").innerHTML = streak + " \u{1F525}";
+}
+
+function setLive(msg) { liveStatus.textContent = msg; }
+
+/* ---------- Core: applying a suffix ---------- */
+
+// Build the correct spelling for the current word given a chosen suffix,
+// and return an object describing the transformation for the animation.
+function attemptSuffix(chosen) {
+    const w = currentWord();
+    attempted = true;
+
+    if (chosen === w.suffix) {
+        // Correct suffix chosen. Animate the rule and show built word.
+        doCorrect(w, chosen);
+    } else {
+        doWrong(w, chosen);
+    }
+}
+
+function doCorrect(w, chosen) {
+    solved = true;
+    score += 1;
+    streak += 1;
+    updateInfo();
+
+    // Fill the drop slot
+    dropslot.className = "dropslot filled";
+    dropslot.textContent = "-" + chosen;
+
+    // Animate the rule on the stage, then reveal final word.
+    animateRule(w, chosen);
+
+    // Mark used suffix
+    Array.from(tray.children).forEach((b) => {
+        if (b.getAttribute("data-suffix") === chosen) b.classList.add("used");
+    });
+
+    feedback.className = "feedback ok show";
+    feedback.innerHTML = "&#x2705; Yes! <strong>" + w.answer + "</strong>"
+        + "<div class='rule-line'>" + w.why + "</div>";
+
+    nextBtn.disabled = false;
+    nextBtn.focus();
+
+    setLive("Correct. The word is " + w.answer + ". " + stripTags(w.why));
+}
+
+function doWrong(w, chosen) {
+    streak = 0;
+    updateInfo();
+
+    // Show what that wrong choice would make, briefly, then keep trying.
+    const wrongAttempt = w.root + chosen; // naive join, deliberately to show it looks wrong
+    resultWord.innerHTML = "<span class='built' style='color:#dc2626'>" + wrongAttempt + "</span>";
+
+    dropslot.className = "dropslot";
+    dropslot.textContent = "drop here";
+
+    feedback.className = "feedback no show";
+    feedback.innerHTML = "&#x274C; Not quite. <strong>-" + chosen + "</strong> does not fit here."
+        + "<div class='rule-line'>" + hintFor(w) + "</div>";
+
+    setLive("Not quite. Minus " + spellOut(chosen) + " does not fit. " + stripTags(hintFor(w)));
+}
+
+function hintFor(w) {
+    switch (w.rule) {
+        case "add":
+            return "Try the ending that just adds straight on to <strong>" + w.root + "</strong>.";
+        case "es":
+            return "This word hisses at the end, so it needs <strong>-es</strong>.";
+        case "double":
+            return "This is a short word with one vowel, so look for the ending that lets us double the last letter.";
+        case "drope":
+            return "This word ends in a silent <strong>e</strong>, so look for the ending we add after dropping it.";
+        default:
+            return "Look at how the word sounds at the end.";
+    }
+}
+
+function stripTags(html) {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = html;
+    return tmp.textContent || "";
+}
+
+/* ---------- The animated worked rule ---------- */
+function animateRule(w, chosen) {
+    // Reset the stage to a clean root + slot, then morph step by step.
+    rootTile.className = "tile root";
+    rootTile.textContent = w.root;
+
+    if (w.rule === "add" || w.rule === "es") {
+        // Simple: root tile + suffix tile join into final word.
+        setTimeout(() => {
+            const fx = document.createElement("span");
+            fx.className = "tile suffix-fixed";
+            fx.textContent = chosen;
+            // place suffix into drop slot visually handled already; build final word
+            revealFinal(w.answer, 350);
+        }, 200);
+
+    } else if (w.rule === "double") {
+        // Show: highlight last letter, then add a doubled copy, then add suffix.
+        const lastLetter = w.root[w.root.length - 1];
+        // Step 1: glow the last consonant
+        rootTile.innerHTML = w.root.slice(0, -1) +
+            "<span style='color:#16a34a;text-shadow:0 0 0 #16a34a'>" + lastLetter + "</span>";
+        setTimeout(() => {
+            // Step 2: show the doubled letter appearing
+            rootTile.classList.add("doubled");
+            rootTile.innerHTML = w.root +
+                "<span style='color:#16a34a'>" + lastLetter + "</span>";
+            setLive("Double the " + lastLetter + ".");
+        }, 400);
+        setTimeout(() => {
+            revealFinal(w.answer, 0);
+        }, 950);
+
+    } else if (w.rule === "drope") {
+        // Show: strike through the silent e, then it fades, then add suffix.
+        const eIndex = w.root.lastIndexOf("e");
+        const before = w.root.slice(0, eIndex);
+        setTimeout(() => {
+            rootTile.innerHTML = before +
+                "<span style='color:#b91c1c;text-decoration:line-through'>e</span>";
+            rootTile.classList.add("dropped");
+            setLive("Drop the silent e.");
+        }, 300);
+        setTimeout(() => {
+            rootTile.className = "tile root";
+            rootTile.textContent = before; // e gone
+            revealFinal(w.answer, 0);
+        }, 1000);
+    }
+}
+
+function revealFinal(answer, delay) {
+    setTimeout(() => {
+        resultWord.innerHTML = "<span class='built'>" + answer + "</span>";
+    }, delay);
+}
+
+/* ---------- Drag with Pointer Events ---------- */
+let dragState = null;
+
+function onSuffixPointerDown(e) {
+    if (solved) return;
+    const btn = e.currentTarget;
+    // Only start a drag for primary pointer
+    if (e.button && e.button !== 0) return;
+    e.preventDefault();
+
+    const sfx = btn.getAttribute("data-suffix");
+    btn.classList.add("dragging");
+
+    // create floating clone
+    const clone = document.createElement("div");
+    clone.className = "dragclone";
+    clone.textContent = "-" + sfx;
+    document.body.appendChild(clone);
+    moveClone(clone, e.clientX, e.clientY);
+
+    dragState = { btn, sfx, clone, pointerId: e.pointerId, moved: false };
+
+    try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+
+    btn.addEventListener("pointermove", onSuffixPointerMove);
+    btn.addEventListener("pointerup", onSuffixPointerUp);
+    btn.addEventListener("pointercancel", onSuffixPointerUp);
+}
+
+function moveClone(clone, x, y) {
+    clone.style.left = x + "px";
+    clone.style.top = y + "px";
+}
+
+function onSuffixPointerMove(e) {
+    if (!dragState) return;
+    dragState.moved = true;
+    moveClone(dragState.clone, e.clientX, e.clientY);
+    // highlight drop slot if over it
+    const over = isOverDrop(e.clientX, e.clientY);
+    dropslot.classList.toggle("over", over && !solved);
+}
+
+function isOverDrop(x, y) {
+    const r = dropslot.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
+
+function onSuffixPointerUp(e) {
+    if (!dragState) return;
+    const { btn, sfx, clone, moved } = dragState;
+    btn.classList.remove("dragging");
+    dropslot.classList.remove("over");
+
+    if (clone && clone.parentNode) clone.parentNode.removeChild(clone);
+
+    btn.removeEventListener("pointermove", onSuffixPointerMove);
+    btn.removeEventListener("pointerup", onSuffixPointerUp);
+    btn.removeEventListener("pointercancel", onSuffixPointerUp);
+    try { btn.releasePointerCapture(e.pointerId); } catch (err) {}
+
+    const dropped = isOverDrop(e.clientX, e.clientY);
+    dragState = null;
+
+    if (dropped && moved) {
+        attemptSuffix(sfx);
+    } else if (!moved) {
+        // treated as a tap: pick up for keyboard-style flow handled by click
+    }
+}
+
+/* ---------- Click and keyboard flow ---------- */
+function onSuffixClick(e) {
+    // A plain click (no drag movement) selects the suffix, then user taps drop slot.
+    if (solved) return;
+    // If this click was the tail of a drag that already resolved, ignore.
+    const btn = e.currentTarget;
+    selectSuffix(btn);
+}
+
+function onSuffixKeydown(e) {
+    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        selectSuffix(e.currentTarget);
+    }
+}
+
+function selectSuffix(btn) {
+    if (solved) return;
+    // clear previous selection
+    Array.from(tray.children).forEach((b) => b.classList.remove("kb-selected"));
+    selectedSuffix = btn.getAttribute("data-suffix");
+    btn.classList.add("kb-selected");
+    dropslot.textContent = "tap to add -" + selectedSuffix;
+    setLive("Picked up minus " + spellOut(selectedSuffix) + ". Now choose the drop box to add it.");
+}
+
+function placeSelected() {
+    if (solved) return;
+    if (!selectedSuffix) {
+        feedback.className = "feedback no show";
+        feedback.innerHTML = "Pick a suffix first, then add it here.";
+        setLive("Pick a suffix first.");
+        return;
+    }
+    attemptSuffix(selectedSuffix);
+}
+
+dropslot.addEventListener("click", placeSelected);
+dropslot.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        placeSelected();
+    }
+});
+
+/* ---------- Buttons ---------- */
+nextBtn.addEventListener("click", () => {
+    if (idx < WORDS.length - 1) {
+        idx += 1;
+        loadWord();
+    } else {
+        endGame();
+    }
+});
+
+resetBtn.addEventListener("click", () => {
+    // reload the current word fresh
+    loadWord();
+    setLive("Cleared. Try this word again.");
+});
+
+function endGame() {
+    el("playCard").style.display = "none";
+    const end = el("endCard");
+    end.style.display = "block";
+    el("endScore").textContent = score + " / " + WORDS.length;
+
+    let stars = 1;
+    const pct = score / WORDS.length;
+    if (pct >= 0.5) stars = 2;
+    if (pct >= 0.75) stars = 3;
+    let starStr = "";
+    for (let i = 0; i < 3; i++) starStr += (i < stars ? "⭐" : "☆");
+    el("endStars").textContent = starStr;
+
+    let msg = "Keep practising those suffix rules.";
+    if (pct >= 0.75) msg = "Brilliant spelling. You know your suffix rules well.";
+    else if (pct >= 0.5) msg = "Good work. A little more practice on the tricky rules.";
+    el("endMsg").textContent = msg;
+
+    setLive("Finished. You scored " + score + " out of " + WORDS.length + ".");
+    end.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+el("playAgainBtn").addEventListener("click", startGame);
+
+// Guard: prevent default touch scrolling while dragging on the stage area only
+stage.addEventListener("touchmove", (e) => {
+    if (dragState) e.preventDefault();
+}, { passive: false });
+
+// Go
+startGame();
+</script>
+</body>
+</html>

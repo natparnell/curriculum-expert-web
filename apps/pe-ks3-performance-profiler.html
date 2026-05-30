@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Performance Profiler &#8226; KS3 PE</title>
+<style>
+  :root {
+    --ink: #14213d;
+    --ink-soft: #45506b;
+    --paper: #f7f9fc;
+    --card: #ffffff;
+    --line: #d9e0ec;
+    --accent: #1f6feb;
+    --accent-dark: #14213d;
+    --good: #1a8a4f;
+    --warn: #b8860b;
+    --weak: #c0392b;
+    --ring: rgba(31,111,235,0.35);
+    --shadow: 0 6px 22px rgba(20,33,61,0.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  header.app {
+    background: linear-gradient(135deg, #14213d 0%, #1f6feb 100%);
+    color: #fff;
+    padding: 22px 20px 26px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+  header.app h1 { margin: 0 0 4px; font-size: 1.6rem; letter-spacing: 0.2px; }
+  header.app .strand {
+    display: inline-block; font-size: 0.78rem; font-weight: 600;
+    background: rgba(255,255,255,0.18); padding: 3px 10px; border-radius: 999px;
+    margin-bottom: 8px;
+  }
+  header.app .aim {
+    margin: 8px 0 0; font-size: 0.95rem; max-width: 760px; color: #e6eefc;
+  }
+  main { padding: 22px 0 60px; }
+  .grid {
+    display: grid; gap: 20px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 860px) {
+    .grid { grid-template-columns: 1.05fr 0.95fr; align-items: start; }
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px; box-shadow: var(--shadow);
+  }
+  .card h2 {
+    margin: 0 0 4px; font-size: 1.12rem; color: var(--accent-dark);
+  }
+  .card p.lead { margin: 0 0 14px; color: var(--ink-soft); font-size: 0.92rem; }
+
+  .scenario {
+    background: #eef4ff; border: 1px solid #cdddff; border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 16px; font-size: 0.92rem;
+  }
+  .scenario strong { color: var(--accent-dark); }
+  .scenario .swap {
+    margin-top: 8px;
+    background: #fff; border: 1px solid var(--line); color: var(--accent-dark);
+    border-radius: 8px; padding: 6px 12px; font-size: 0.85rem; font-weight: 600;
+    cursor: pointer;
+  }
+  .scenario .swap:hover { background: #f0f5ff; }
+  .scenario .swap:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+
+  /* Sliders */
+  .criteria { display: grid; gap: 14px; }
+  .crit {
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px 12px 10px;
+    background: #fcfdff;
+  }
+  .crit .top {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  }
+  .crit .name { font-weight: 700; font-size: 0.98rem; color: var(--accent-dark); }
+  .crit .desc { font-size: 0.8rem; color: var(--ink-soft); margin: 2px 0 8px; }
+  .crit .val {
+    font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.95rem;
+    min-width: 86px; text-align: right; color: var(--accent);
+  }
+  .crit input[type=range] {
+    width: 100%; margin: 4px 0 2px; accent-color: var(--accent);
+    height: 26px;
+  }
+  .crit input[type=range]:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; border-radius: 6px; }
+  .scaleband { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--ink-soft); }
+
+  /* Radar */
+  .radarwrap { text-align: center; }
+  svg.radar { width: 100%; max-width: 420px; height: auto; touch-action: none; display: block; margin: 0 auto; }
+  .radar .grid-line { fill: none; stroke: #e2e8f3; stroke-width: 1; }
+  .radar .axis { stroke: #c4cee0; stroke-width: 1; }
+  .radar .axis-label { font-size: 11px; fill: var(--ink-soft); font-weight: 600; }
+  .radar .poly { fill: rgba(31,111,235,0.18); stroke: var(--accent); stroke-width: 2.5; }
+  .radar .handle { fill: #fff; stroke: var(--accent); stroke-width: 2.5; cursor: grab; }
+  .radar .handle.active { fill: var(--accent); cursor: grabbing; }
+  .radar .handle.target { stroke: var(--weak); }
+  .radar .ringval { font-size: 9px; fill: #aab4c8; }
+
+  /* Result panel */
+  .result {
+    margin-top: 16px; border-radius: 12px; padding: 16px;
+    border: 1px solid var(--line); background: #fbfdff;
+  }
+  .result h3 { margin: 0 0 6px; font-size: 1.05rem; color: var(--accent-dark); }
+  .priority {
+    border-left: 5px solid var(--weak); background: #fff5f3;
+    border-radius: 8px; padding: 12px 14px; margin: 10px 0 6px;
+  }
+  .priority .label {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--weak); font-weight: 700;
+  }
+  .priority .crit-name { font-weight: 800; font-size: 1.05rem; color: var(--accent-dark); margin: 2px 0 6px; }
+  .priority .why { font-size: 0.9rem; color: var(--ink-soft); margin: 0 0 8px; }
+  .priority .action { font-size: 0.92rem; }
+  .priority .action strong { color: var(--accent-dark); }
+
+  .summary-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+  .chip {
+    font-size: 0.78rem; padding: 5px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: #fff; display: inline-flex; gap: 6px; align-items: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .chip .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .chip.good .dot { background: var(--good); }
+  .chip.warn .dot { background: var(--warn); }
+  .chip.weak .dot { background: var(--weak); }
+
+  .strengths { font-size: 0.9rem; color: var(--ink-soft); margin: 6px 0 0; }
+  .strengths b { color: var(--good); }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button.act {
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    border-radius: 9px; padding: 9px 16px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  }
+  button.act.ghost { background: #fff; color: var(--accent); }
+  button.act:hover { filter: brightness(0.96); }
+  button.act:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+
+  .hint { font-size: 0.8rem; color: var(--ink-soft); margin-top: 10px; }
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  footer.app { text-align: center; font-size: 0.8rem; color: var(--ink-soft); padding: 18px; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="app">
+  <div class="wrap">
+    <span class="strand">PE &#8226; KS3 &#8226; Analysing and evaluating performance</span>
+    <h1>Performance Profiler</h1>
+    <p class="aim"><strong>Teacher aim:</strong> pupils watch a performance, rate it against agreed success criteria on a radar chart, then use the data to justify one clear development target. Builds the National Curriculum skill of analysing and evaluating to improve.</p>
+  </div>
+</header>
+
+<main>
+<div class="wrap">
+  <div class="grid">
+
+    <!-- LEFT: criteria + scenario -->
+    <section class="card" aria-labelledby="rateHead">
+      <h2 id="rateHead">1. Rate the performance</h2>
+      <p class="lead">Score each criterion from 1 (rarely shown) to 5 (consistently excellent). Be honest: the profile is only useful if the scores are accurate.</p>
+
+      <div class="scenario" id="scenario" aria-live="polite">
+        <strong id="scenName">Loading...</strong>
+        <div id="scenText"></div>
+        <button type="button" class="swap" id="swapBtn">Change performance &#8635;</button>
+      </div>
+
+      <div class="criteria" id="criteria"></div>
+    </section>
+
+    <!-- RIGHT: radar + result -->
+    <section class="card" aria-labelledby="profileHead">
+      <h2 id="profileHead">2. Read the profile</h2>
+      <p class="lead">The radar shows the shape of this performance. Drag a point, or use the sliders on the left. A balanced shape is well rounded; a dent points to a weakness.</p>
+
+      <div class="radarwrap">
+        <svg class="radar" id="radar" viewBox="0 0 360 360" role="application"
+             aria-label="Radar chart of performance criteria. Use the sliders on the left, or focus a point and press arrow keys to change its score.">
+        </svg>
+      </div>
+
+      <div class="result" aria-live="polite">
+        <h3>3. Development priority</h3>
+        <div class="priority" id="priority">
+          <div class="label">Top target to improve</div>
+          <div class="crit-name" id="prioName">&#8212;</div>
+          <div class="why" id="prioWhy"></div>
+          <div class="action" id="prioAction"></div>
+        </div>
+
+        <div class="summary-row" id="chips"></div>
+        <p class="strengths" id="strengths"></p>
+      </div>
+
+      <div class="controls">
+        <button type="button" class="act" id="confirmBtn">Confirm my target</button>
+        <button type="button" class="act ghost" id="resetBtn">Reset scores</button>
+      </div>
+      <p class="hint" id="liveStatus" aria-live="assertive"></p>
+    </section>
+
+  </div>
+</div>
+</main>
+
+<footer class="app">
+  Performance Profiler &#8226; WeST KS3 Physical Education &#8226; Demonstration tool. All performers are fictional.
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- Performance scenarios (fictional) ----
+  var SCENARIOS = [
+    {
+      name: "Badminton: Priya's overhead clear",
+      text: "Priya plays a singles rally. Watch how she moves to the shuttle, strikes the overhead clear, and recovers to the centre.",
+      criteria: [
+        { key: "tech", label: "Technique", desc: "Racket preparation and clean contact", start: 4 },
+        { key: "foot", label: "Footwork", desc: "Moving to the shuttle and recovering", start: 2 },
+        { key: "decn", label: "Decision making", desc: "Choosing the right shot at the right time", start: 3 },
+        { key: "tact", label: "Tactical awareness", desc: "Using court space to pressure the opponent", start: 3 },
+        { key: "cons", label: "Consistency", desc: "Repeating quality under rally pressure", start: 2 }
+      ]
+    },
+    {
+      name: "Football: Marcus's passing in midfield",
+      text: "Marcus receives in central midfield during a small-sided game. Watch his first touch, passing and movement off the ball.",
+      criteria: [
+        { key: "tech", label: "First touch", desc: "Controlling the ball into space", start: 3 },
+        { key: "foot", label: "Movement", desc: "Finding space to receive the next pass", start: 4 },
+        { key: "decn", label: "Decision making", desc: "Pass, dribble or hold? Right choice?", start: 2 },
+        { key: "tact", label: "Tactical awareness", desc: "Supporting team shape and width", start: 3 },
+        { key: "cons", label: "Consistency", desc: "Repeating quality across the game", start: 2 }
+      ]
+    },
+    {
+      name: "Gymnastics: Sofia's floor sequence",
+      text: "Sofia performs a short floor sequence with a balance, a roll and a jump. Watch her control, shape and flow between moves.",
+      criteria: [
+        { key: "tech", label: "Technique", desc: "Correct body shapes and pointed extension", start: 4 },
+        { key: "foot", label: "Control", desc: "Steady landings and held balances", start: 3 },
+        { key: "decn", label: "Composition", desc: "Sensible order and linking of moves", start: 4 },
+        { key: "tact", label: "Performance quality", desc: "Confidence, projection and focus", start: 3 },
+        { key: "cons", label: "Fluency", desc: "Smooth flow with no hesitation", start: 2 }
+      ]
+    }
+  ];
+
+  // Coaching actions keyed by criterion key + a generic fallback
+  var ACTIONS = {
+    tech: "Break the skill into phases (preparation, action, recovery). Practise the weakest phase in isolation, then rebuild the whole movement at half pace.",
+    foot: "Set up a footwork ladder or cone shuttle. Aim for small, quick adjusting steps and a balanced base before contact.",
+    decn: "Use conditioned games that reward the correct choice. Pause and replay key moments, asking what the better option was.",
+    tact: "Walk through positioning without the ball or apparatus first, so the player learns where to be before adding speed.",
+    cons: "Use repetition under light pressure: set a target number of quality attempts in a row before progressing.",
+    generic: "Isolate the skill, slow it down, then rebuild it with frequent, low-pressure repetitions and quick feedback."
+  };
+
+  var MAX = 5, MIN = 1, RINGS = 5;
+  var CX = 180, CY = 180, R = 120;
+
+  var state = { scenarioIndex: 0, scores: {}, criteria: [], confirmed: false };
+
+  // ---- DOM refs ----
+  var critWrap = document.getElementById("criteria");
+  var radar = document.getElementById("radar");
+  var scenName = document.getElementById("scenName");
+  var scenText = document.getElementById("scenText");
+  var prioName = document.getElementById("prioName");
+  var prioWhy = document.getElementById("prioWhy");
+  var prioAction = document.getElementById("prioAction");
+  var chips = document.getElementById("chips");
+  var strengthsEl = document.getElementById("strengths");
+  var liveStatus = document.getElementById("liveStatus");
+
+  // ---- Helpers ----
+  function angleFor(i, n) { return (-Math.PI / 2) + (i * 2 * Math.PI / n); }
+  function pointFor(i, n, value) {
+    var frac = (value - 0) / MAX; // value 0..5 -> 0..1 (we still draw from centre)
+    var ratio = (value) / MAX;
+    var a = angleFor(i, n);
+    return {
+      x: CX + Math.cos(a) * R * ratio,
+      y: CY + Math.sin(a) * R * ratio
+    };
+  }
+  function clampScore(v) { return Math.max(MIN, Math.min(MAX, Math.round(v))); }
+
+  // ---- Build scenario ----
+  function loadScenario(idx) {
+    var s = SCENARIOS[idx];
+    state.scenarioIndex = idx;
+    state.criteria = s.criteria;
+    state.confirmed = false;
+    state.scores = {};
+    s.criteria.forEach(function (c) { state.scores[c.key] = c.start; });
+
+    scenName.textContent = s.name;
+    scenText.textContent = s.text;
+
+    buildSliders();
+    buildRadarStatic();
+    render();
+    liveStatus.textContent = "";
+  }
+
+  // ---- Sliders ----
+  function buildSliders() {
+    critWrap.innerHTML = "";
+    state.criteria.forEach(function (c) {
+      var box = document.createElement("div");
+      box.className = "crit";
+
+      var top = document.createElement("div");
+      top.className = "top";
+      var nm = document.createElement("span");
+      nm.className = "name";
+      nm.textContent = c.label;
+      var val = document.createElement("span");
+      val.className = "val";
+      val.id = "val-" + c.key;
+      top.appendChild(nm); top.appendChild(val);
+
+      var desc = document.createElement("div");
+      desc.className = "desc";
+      desc.textContent = c.desc;
+
+      var range = document.createElement("input");
+      range.type = "range";
+      range.min = String(MIN); range.max = String(MAX); range.step = "1";
+      range.value = String(state.scores[c.key]);
+      range.id = "slider-" + c.key;
+      range.setAttribute("aria-label", c.label + ", score 1 to 5");
+      range.addEventListener("input", function () {
+        state.scores[c.key] = clampScore(parseInt(range.value, 10));
+        state.confirmed = false;
+        render();
+      });
+
+      var band = document.createElement("div");
+      band.className = "scaleband";
+      band.innerHTML = "<span>1 Developing</span><span>3 Secure</span><span>5 Excellent</span>";
+
+      box.appendChild(top); box.appendChild(desc); box.appendChild(range); box.appendChild(band);
+      critWrap.appendChild(box);
+    });
+  }
+
+  // ---- Radar (static frame) ----
+  function buildRadarStatic() {
+    var n = state.criteria.length;
+    var svg = radar;
+    svg.innerHTML = "";
+
+    // rings
+    for (var ring = 1; ring <= RINGS; ring++) {
+      var pts = [];
+      for (var i = 0; i < n; i++) {
+        var a = angleFor(i, n);
+        var rr = R * (ring / RINGS);
+        pts.push((CX + Math.cos(a) * rr).toFixed(1) + "," + (CY + Math.sin(a) * rr).toFixed(1));
+      }
+      var poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+      poly.setAttribute("points", pts.join(" "));
+      poly.setAttribute("class", "grid-line");
+      svg.appendChild(poly);
+    }
+
+    // axes + labels
+    for (var j = 0; j < n; j++) {
+      var aa = angleFor(j, n);
+      var ex = CX + Math.cos(aa) * R;
+      var ey = CY + Math.sin(aa) * R;
+      var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", CX); line.setAttribute("y1", CY);
+      line.setAttribute("x2", ex.toFixed(1)); line.setAttribute("y2", ey.toFixed(1));
+      line.setAttribute("class", "axis");
+      svg.appendChild(line);
+
+      var lx = CX + Math.cos(aa) * (R + 22);
+      var ly = CY + Math.sin(aa) * (R + 22);
+      var txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      txt.setAttribute("x", lx.toFixed(1)); txt.setAttribute("y", ly.toFixed(1));
+      txt.setAttribute("class", "axis-label");
+      var anchor = "middle";
+      if (Math.cos(aa) > 0.3) anchor = "start";
+      else if (Math.cos(aa) < -0.3) anchor = "end";
+      txt.setAttribute("text-anchor", anchor);
+      txt.setAttribute("dominant-baseline", "middle");
+      txt.textContent = state.criteria[j].label;
+      svg.appendChild(txt);
+    }
+
+    // data polygon
+    var dataPoly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+    dataPoly.setAttribute("class", "poly");
+    dataPoly.setAttribute("id", "dataPoly");
+    svg.appendChild(dataPoly);
+
+    // handles
+    state.criteria.forEach(function (c, i) {
+      var circ = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circ.setAttribute("class", "handle");
+      circ.setAttribute("r", "8");
+      circ.setAttribute("id", "handle-" + c.key);
+      circ.setAttribute("tabindex", "0");
+      circ.setAttribute("role", "slider");
+      circ.setAttribute("aria-valuemin", String(MIN));
+      circ.setAttribute("aria-valuemax", String(MAX));
+      circ.setAttribute("data-key", c.key);
+      circ.setAttribute("data-index", String(i));
+      attachHandle(circ, c.key, i);
+      svg.appendChild(circ);
+    });
+  }
+
+  function attachHandle(circ, key, index) {
+    var n = state.criteria.length;
+
+    circ.addEventListener("pointerdown", function (e) {
+      circ.setPointerCapture(e.pointerId);
+      circ.classList.add("active");
+      e.preventDefault();
+    });
+    circ.addEventListener("pointermove", function (e) {
+      if (!circ.classList.contains("active")) return;
+      var pt = clientToScore(e.clientX, e.clientY, index, n);
+      if (pt !== state.scores[key]) {
+        state.scores[key] = pt;
+        state.confirmed = false;
+        render();
+      }
+    });
+    function release(e) {
+      if (circ.classList.contains("active")) {
+        circ.classList.remove("active");
+        try { circ.releasePointerCapture(e.pointerId); } catch (err) {}
+      }
+    }
+    circ.addEventListener("pointerup", release);
+    circ.addEventListener("pointercancel", release);
+
+    circ.addEventListener("keydown", function (e) {
+      var k = e.key, delta = 0;
+      if (k === "ArrowUp" || k === "ArrowRight") delta = 1;
+      else if (k === "ArrowDown" || k === "ArrowLeft") delta = -1;
+      else if (k === "Home") { state.scores[key] = MIN; state.confirmed = false; render(); e.preventDefault(); return; }
+      else if (k === "End") { state.scores[key] = MAX; state.confirmed = false; render(); e.preventDefault(); return; }
+      else return;
+      state.scores[key] = clampScore(state.scores[key] + delta);
+      state.confirmed = false;
+      render();
+      e.preventDefault();
+    });
+  }
+
+  // Convert pointer position to a 1..5 score along this axis
+  function clientToScore(clientX, clientY, index, n) {
+    var rect = radar.getBoundingClientRect();
+    var scale = 360 / rect.width;
+    var sx = (clientX - rect.left) * scale;
+    var sy = (clientY - rect.top) * scale;
+    var a = angleFor(index, n);
+    // project (sx-CX, sy-CY) onto axis direction
+    var dx = sx - CX, dy = sy - CY;
+    var proj = dx * Math.cos(a) + dy * Math.sin(a); // distance along axis in px
+    var ratio = proj / R; // 0..1
+    var score = ratio * MAX;
+    return clampScore(score);
+  }
+
+  // ---- Render everything from state ----
+  function render() {
+    var n = state.criteria.length;
+
+    // update slider displays + values
+    state.criteria.forEach(function (c) {
+      var v = state.scores[c.key];
+      var valEl = document.getElementById("val-" + c.key);
+      if (valEl) valEl.textContent = v + " / 5";
+      var slider = document.getElementById("slider-" + c.key);
+      if (slider && parseInt(slider.value, 10) !== v) slider.value = String(v);
+    });
+
+    // polygon + handles
+    var pts = [];
+    state.criteria.forEach(function (c, i) {
+      var p = pointFor(i, n, state.scores[c.key]);
+      pts.push(p.x.toFixed(1) + "," + p.y.toFixed(1));
+      var h = document.getElementById("handle-" + c.key);
+      if (h) {
+        h.setAttribute("cx", p.x.toFixed(1));
+        h.setAttribute("cy", p.y.toFixed(1));
+        h.setAttribute("aria-valuenow", String(state.scores[c.key]));
+        h.setAttribute("aria-valuetext", state.scores[c.key] + " out of 5 for " + c.label);
+        h.setAttribute("aria-label", c.label + " score");
+      }
+    });
+    var dp = document.getElementById("dataPoly");
+    if (dp) dp.setAttribute("points", pts.join(" "));
+
+    updateResult();
+    highlightTarget();
+  }
+
+  // ---- Analysis: priority + strengths ----
+  function computePriority() {
+    // lowest score is the development priority; tie-break by criterion order (earlier = more foundational)
+    var lowest = null;
+    state.criteria.forEach(function (c) {
+      var v = state.scores[c.key];
+      if (lowest === null || v < lowest.v) lowest = { key: c.key, label: c.label, desc: c.desc, v: v };
+    });
+    return lowest;
+  }
+
+  function ratingWord(v) {
+    if (v <= 2) return "developing";
+    if (v === 3) return "secure";
+    if (v === 4) return "strong";
+    return "excellent";
+  }
+
+  function updateResult() {
+    var p = computePriority();
+    var avg = 0;
+    state.criteria.forEach(function (c) { avg += state.scores[c.key]; });
+    avg = avg / state.criteria.length;
+
+    prioName.textContent = p.label;
+    prioWhy.textContent = "Scored " + p.v + " / 5 (" + ratingWord(p.v) + "), the lowest criterion in this profile. " +
+      "Focus here gives the biggest gain, because " + p.desc.toLowerCase() + " is currently holding the overall performance back.";
+    var action = ACTIONS[p.key] || ACTIONS.generic;
+    prioAction.innerHTML = "<strong>Try this:</strong> " + action;
+
+    // chips
+    chips.innerHTML = "";
+    state.criteria.forEach(function (c) {
+      var v = state.scores[c.key];
+      var cls = v <= 2 ? "weak" : (v === 3 ? "warn" : "good");
+      var chip = document.createElement("span");
+      chip.className = "chip " + cls;
+      chip.innerHTML = "<span class='dot'></span>" + c.label + " " + v;
+      chips.appendChild(chip);
+    });
+
+    // strengths
+    var strong = state.criteria.filter(function (c) { return state.scores[c.key] >= 4; })
+      .map(function (c) { return c.label; });
+    if (strong.length) {
+      strengthsEl.innerHTML = "<b>Strengths to keep:</b> " + strong.join(", ") +
+        ". Average profile score " + avg.toFixed(1) + " / 5.";
+    } else {
+      strengthsEl.innerHTML = "No criterion has reached 4 yet. Average profile score " + avg.toFixed(1) +
+        " / 5. Pick the priority below and build from there.";
+    }
+  }
+
+  function highlightTarget() {
+    var p = computePriority();
+    state.criteria.forEach(function (c) {
+      var h = document.getElementById("handle-" + c.key);
+      if (h) h.classList.toggle("target", c.key === p.key);
+    });
+  }
+
+  // ---- Buttons ----
+  document.getElementById("swapBtn").addEventListener("click", function () {
+    var next = (state.scenarioIndex + 1) % SCENARIOS.length;
+    loadScenario(next);
+    liveStatus.textContent = "Loaded new performance: " + SCENARIOS[next].name;
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    var s = SCENARIOS[state.scenarioIndex];
+    s.criteria.forEach(function (c) { state.scores[c.key] = c.start; });
+    state.confirmed = false;
+    render();
+    liveStatus.textContent = "Scores reset to the starting profile.";
+  });
+
+  document.getElementById("confirmBtn").addEventListener("click", function () {
+    var p = computePriority();
+    state.confirmed = true;
+    liveStatus.textContent = "Target confirmed: improve " + p.label + " (currently " + p.v +
+      " out of 5). Strong work, your evaluation is backed by the radar data.";
+  });
+
+  // ---- Init ----
+  loadScenario(0);
+})();
+</script>
+</body>
+</html>

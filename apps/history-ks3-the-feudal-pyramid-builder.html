@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Feudal Pyramid Builder</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0f1a2e;--navy-light:#1a2a4a;--navy-mid:#152240;
+  --gold:#d4a843;--gold-light:#f0d080;--gold-dim:#a07830;
+  --white:#f0ece4;--text:#ddd8cc;--muted:#8a8577;
+  --king:#9b2d30;--baron:#7a4ba0;--knight:#2f6fb0;--peasant:#3e8c54;
+  --card-bg:#1e2f50;--card-border:#2a4070;
+  --panel-bg:#141e34;--panel-border:#253560;
+  --good:#50b86c;--bad:#d04040;--warn:#e0a040;
+  --radius:10px;--shadow:0 6px 24px rgba(0,0,0,.45);
+}
+html,body{min-height:100%;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:radial-gradient(circle at 50% -10%,#1a2747,#0f1a2e 60%);color:var(--text);line-height:1.5}
+button{cursor:pointer;font-family:inherit;border:none;border-radius:var(--radius);transition:all .18s}
+button:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--gold-light);outline-offset:2px}
+
+/* HEADER */
+header{padding:14px 22px;background:linear-gradient(135deg,#0c1524,#162040);border-bottom:2px solid var(--gold-dim)}
+header h1{font-size:1.55rem;color:var(--gold);letter-spacing:.5px;font-weight:700}
+header h1 .crown{margin-right:8px}
+.aim{font-size:.86rem;color:var(--gold-light);margin-top:4px;max-width:900px}
+.nc-tag{display:inline-block;margin-top:8px;font-size:.68rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border:1px solid var(--panel-border);padding:3px 10px;border-radius:20px}
+
+main{max-width:1180px;margin:0 auto;padding:18px 16px 60px}
+
+/* STAGE TABS */
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 14px}
+.tab{background:var(--navy-light);color:var(--text);padding:9px 16px;font-size:.85rem;border:1px solid var(--panel-border);font-weight:600}
+.tab[aria-selected="true"]{background:var(--gold-dim);color:#fff;border-color:var(--gold)}
+.tab:hover{filter:brightness(1.15)}
+
+.panel{display:none}
+.panel.active{display:block;animation:fade .3s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.section-intro{background:var(--panel-bg);border:1px solid var(--panel-border);border-left:4px solid var(--gold);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;font-size:.9rem}
+.section-intro strong{color:var(--gold-light)}
+
+/* LAYOUT: builder */
+.builder-grid{display:grid;grid-template-columns:300px 1fr;gap:18px}
+@media(max-width:820px){.builder-grid{grid-template-columns:1fr}}
+
+.bank{background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);padding:14px}
+.bank h2{font-size:.78rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--gold);margin-bottom:10px}
+.bank p.hint{font-size:.74rem;color:var(--muted);margin-bottom:12px}
+
+/* DRAGGABLE TOKENS */
+.token{
+  display:flex;align-items:center;gap:10px;background:var(--card-bg);border:1px solid var(--card-border);
+  border-radius:var(--radius);padding:11px 13px;margin-bottom:10px;cursor:grab;touch-action:none;
+  border-left:5px solid var(--gold);user-select:none;position:relative
+}
+.token:active{cursor:grabbing}
+.token.dragging{opacity:.45}
+.token.placed{opacity:.3;pointer-events:none;filter:grayscale(.6)}
+.token .ico{font-size:1.5rem;line-height:1}
+.token .tk-body{flex:1;min-width:0}
+.token .tk-name{font-size:.92rem;font-weight:700;color:var(--white)}
+.token .tk-sub{font-size:.7rem;color:var(--muted)}
+.token[data-rank="king"]{border-left-color:var(--king)}
+.token[data-rank="baron"]{border-left-color:var(--baron)}
+.token[data-rank="knight"]{border-left-color:var(--knight)}
+.token[data-rank="peasant"]{border-left-color:var(--peasant)}
+
+/* PYRAMID */
+.pyramid-wrap{background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);padding:18px 14px}
+.pyramid-wrap h2{font-size:.78rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--gold);margin-bottom:4px}
+.pyramid-wrap p.sub{font-size:.74rem;color:var(--muted);margin-bottom:16px}
+.pyramid{display:flex;flex-direction:column;align-items:center;gap:12px}
+.slot{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  border:2px dashed var(--panel-border);border-radius:var(--radius);
+  min-height:74px;color:var(--muted);font-size:.85rem;text-align:center;
+  transition:all .2s;position:relative;background:rgba(255,255,255,.02);padding:10px
+}
+.slot[data-tier="0"]{width:48%}
+.slot[data-tier="1"]{width:64%}
+.slot[data-tier="2"]{width:80%}
+.slot[data-tier="3"]{width:96%}
+@media(max-width:820px){.slot[data-tier="0"]{width:70%}.slot[data-tier="1"]{width:82%}.slot[data-tier="2"]{width:92%}.slot[data-tier="3"]{width:100%}}
+.slot.over{border-color:var(--gold-light);background:rgba(212,168,67,.14);transform:scale(1.02)}
+.slot.correct{border-style:solid;border-color:var(--good);background:rgba(80,184,108,.12);cursor:pointer}
+.slot.wrong{border-style:solid;border-color:var(--bad);background:rgba(208,64,64,.14);animation:shake .35s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.slot .slot-label{font-size:.72rem;letter-spacing:1px;text-transform:uppercase}
+.slot .filled{display:flex;align-items:center;gap:10px;color:var(--white)}
+.slot .filled .ico{font-size:1.7rem}
+.slot .filled .fl-name{font-weight:700;font-size:1rem}
+.slot .filled .fl-sub{font-size:.68rem;color:var(--gold-light)}
+
+.kbd-place{margin-top:6px;font-size:.66rem;color:var(--muted)}
+.kbd-place button{background:var(--navy-light);color:var(--gold);font-size:.66rem;padding:3px 8px;border:1px solid var(--gold-dim);margin-left:4px}
+
+/* FEEDBACK / live region */
+.feedback{margin-top:16px;min-height:30px}
+.fb-msg{padding:11px 15px;border-radius:var(--radius);font-size:.9rem;margin-bottom:8px;border-left:4px solid}
+.fb-good{background:rgba(80,184,108,.12);border-color:var(--good);color:#cdeecf}
+.fb-bad{background:rgba(208,64,64,.12);border-color:var(--bad);color:#f0c9c9}
+.fb-info{background:rgba(212,168,67,.1);border-color:var(--gold);color:var(--gold-light)}
+
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.btn{padding:10px 18px;font-size:.85rem;font-weight:600;border:1px solid var(--gold-dim);background:var(--navy-light);color:var(--gold)}
+.btn:hover{background:var(--gold-dim);color:#fff}
+.btn.primary{background:var(--gold-dim);color:#fff}
+.btn.primary:hover{background:var(--gold)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* OBLIGATIONS RIPPLE PANEL */
+.pull-zone{margin-top:24px;background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);padding:16px}
+.pull-zone h2{font-size:1.05rem;color:var(--gold);margin-bottom:4px}
+.pull-zone p.sub{font-size:.8rem;color:var(--muted);margin-bottom:14px}
+.pull-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.pull-btn{padding:9px 15px;font-size:.84rem;font-weight:600;border:1px solid var(--panel-border);background:var(--card-bg);color:var(--text)}
+.pull-btn[data-rank="king"]{border-left:5px solid var(--king)}
+.pull-btn[data-rank="baron"]{border-left:5px solid var(--baron)}
+.pull-btn[data-rank="knight"]{border-left:5px solid var(--knight)}
+.pull-btn[data-rank="peasant"]{border-left:5px solid var(--peasant)}
+.pull-btn[aria-pressed="true"]{background:var(--gold-dim);color:#fff;border-color:var(--gold)}
+.pull-btn:disabled{opacity:.4;cursor:not-allowed}
+
+.ripple-out{display:grid;gap:12px}
+.ripple-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius);padding:13px 15px;animation:slidein .4s ease}
+@keyframes slidein{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+.ripple-card h3{font-size:.92rem;color:var(--gold-light);margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.ripple-card .dir{font-size:.62rem;text-transform:uppercase;letter-spacing:1px;padding:2px 8px;border-radius:12px;font-weight:700}
+.dir-up{background:var(--knight);color:#fff}
+.dir-down{background:var(--peasant);color:#fff}
+.ripple-card p{font-size:.84rem;color:var(--text)}
+.ripple-card.collapse-note{border-color:var(--bad);background:rgba(208,64,64,.1)}
+.ripple-card.collapse-note h3{color:#f0c9c9}
+
+/* QUIZ / CHECK */
+.quiz-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.quiz-card .q{font-size:.95rem;color:var(--white);font-weight:600;margin-bottom:12px}
+.options{display:grid;gap:8px}
+.opt{text-align:left;padding:11px 14px;font-size:.86rem;background:var(--navy-mid);color:var(--text);border:1px solid var(--panel-border)}
+.opt:hover{border-color:var(--gold-dim)}
+.opt.right{background:rgba(80,184,108,.18);border-color:var(--good);color:#cdeecf}
+.opt.wrong{background:rgba(208,64,64,.16);border-color:var(--bad);color:#f0c9c9}
+.opt:disabled{cursor:default}
+.q-explain{margin-top:10px;font-size:.82rem;color:var(--gold-light);display:none}
+.q-explain.show{display:block}
+.score-banner{background:var(--panel-bg);border:1px solid var(--gold-dim);border-radius:var(--radius);padding:14px 18px;font-size:.95rem;color:var(--gold-light);text-align:center;margin-top:10px}
+
+/* BLACK DEATH MINI-SIM */
+.bd-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:760px){.bd-grid{grid-template-columns:1fr}}
+.bd-controls label{display:block;font-size:.82rem;margin:14px 0 4px;color:var(--gold-light)}
+.bd-controls input[type=range]{width:100%;accent-color:var(--gold)}
+.bd-readout{display:flex;justify-content:space-between;font-size:.74rem;color:var(--muted);margin-top:2px}
+.bd-stage{background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:var(--radius);padding:14px;text-align:center}
+.bd-people{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:14px 0;min-height:120px;align-content:flex-start}
+.person{font-size:1.4rem;transition:opacity .3s,filter .3s}
+.person.dead{opacity:.22;filter:grayscale(1)}
+.bd-stat{font-size:1.6rem;font-weight:700;color:var(--gold);margin-top:6px}
+.bd-stat span{font-size:.8rem;color:var(--muted);font-weight:400;display:block}
+.bd-insight{margin-top:14px;font-size:.84rem;background:rgba(212,168,67,.1);border-left:4px solid var(--gold);border-radius:var(--radius);padding:12px 14px;color:var(--gold-light)}
+
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+footer{text-align:center;font-size:.72rem;color:var(--muted);margin-top:40px}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header>
+  <h1><span class="crown">&#x1F451;</span>The Feudal Pyramid Builder</h1>
+  <p class="aim"><strong>Teacher aim:</strong> pupils build the feudal hierarchy of Norman England, then test how obligations and consequences rippled up and down it, and what happened when the Black Death pulled a layer out.</p>
+  <span class="nc-tag">KS3 History &middot; Medieval Britain 1066 to 1509: Church, state and society</span>
+</header>
+
+<main>
+  <div class="tabs" role="tablist" aria-label="Activity stages">
+    <button class="tab" role="tab" id="tab-build" aria-controls="panel-build" aria-selected="true">1. Build the pyramid</button>
+    <button class="tab" role="tab" id="tab-ripple" aria-controls="panel-ripple" aria-selected="false">2. Pull a layer</button>
+    <button class="tab" role="tab" id="tab-bd" aria-controls="panel-bd" aria-selected="false">3. Black Death shock</button>
+    <button class="tab" role="tab" id="tab-check" aria-controls="panel-check" aria-selected="false">4. Quick check</button>
+  </div>
+
+  <!-- PANEL 1: BUILD -->
+  <section class="panel active" id="panel-build" role="tabpanel" aria-labelledby="tab-build" tabindex="0">
+    <div class="section-intro">
+      After 1066 William the Conqueror reshaped England as a <strong>feudal pyramid</strong>. Drag each group to its correct level. The king owned all the land; everyone below held land in return for service. Top to bottom: most power and least number first.
+    </div>
+    <div class="builder-grid">
+      <div class="bank">
+        <h2>The four groups</h2>
+        <p class="hint">Drag a card into a slot, or select a card then press a slot's <em>Place here</em> button to use the keyboard.</p>
+        <div id="tokenBank"></div>
+      </div>
+      <div class="pyramid-wrap">
+        <h2>The feudal pyramid</h2>
+        <p class="sub">Tier 1 is the narrowest (fewest people, most power). Build downwards.</p>
+        <div class="pyramid" id="pyramid"></div>
+        <div class="feedback" id="buildFeedback" role="status" aria-live="polite"></div>
+        <div class="controls">
+          <button class="btn" id="resetBuild">Reset</button>
+          <button class="btn primary" id="checkBuild" disabled>Continue to ripple &#x2192;</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PANEL 2: RIPPLE -->
+  <section class="panel" id="panel-ripple" role="tabpanel" aria-labelledby="tab-ripple" tabindex="0">
+    <div class="section-intro">
+      The pyramid only held together because of <strong>two-way obligations</strong>. Each group gave something and got something back. Pick a group to pull out of the structure and watch the consequences ripple <strong>up</strong> (who loses support) and <strong>down</strong> (who loses protection).
+    </div>
+    <div class="pull-zone">
+      <h2>Pull a layer out</h2>
+      <p class="sub">Build the pyramid first if these buttons are locked.</p>
+      <div class="pull-buttons" role="group" aria-label="Choose a group to remove">
+        <button class="pull-btn" data-rank="king" aria-pressed="false" disabled>Remove the King</button>
+        <button class="pull-btn" data-rank="baron" aria-pressed="false" disabled>Remove the Barons</button>
+        <button class="pull-btn" data-rank="knight" aria-pressed="false" disabled>Remove the Knights</button>
+        <button class="pull-btn" data-rank="peasant" aria-pressed="false" disabled>Remove the Peasants</button>
+      </div>
+      <div class="ripple-out" id="rippleOut" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- PANEL 3: BLACK DEATH -->
+  <section class="panel" id="panel-bd" role="tabpanel" aria-labelledby="tab-bd" tabindex="0">
+    <div class="section-intro">
+      In <strong>1348 to 1349</strong> the Black Death killed roughly one in three people in England. Most deaths were at the bottom of the pyramid: the peasants. Drag the slider to set how many peasants survive, then run the outbreak to see how a shock at the base changed power for everyone.
+    </div>
+    <div class="bd-grid">
+      <div class="bd-controls bank">
+        <h2>Outbreak settings</h2>
+        <label for="bdSeverity">Death rate among peasants</label>
+        <input type="range" id="bdSeverity" min="10" max="60" value="35" step="5" aria-describedby="bdSevRead">
+        <div class="bd-readout" id="bdSevRead"><span>Mild (10%)</span><span>Severe (60%)</span></div>
+        <div class="controls">
+          <button class="btn primary" id="bdRun">Run the outbreak</button>
+          <button class="btn" id="bdReset">Reset village</button>
+        </div>
+        <div class="bd-insight" id="bdInsight">Set a death rate, then run the outbreak to see the social and economic results.</div>
+      </div>
+      <div class="bd-stage">
+        <h2 style="font-size:.78rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--gold);margin-bottom:6px">Fictional village of Oakmere (30 peasants)</h2>
+        <div class="bd-people" id="bdPeople" role="img" aria-label="Village of 30 peasant figures"></div>
+        <div class="bd-stat" id="bdSurvivors">30 <span>survivors</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PANEL 4: CHECK -->
+  <section class="panel" id="panel-check" role="tabpanel" aria-labelledby="tab-check" tabindex="0">
+    <div class="section-intro">
+      Four questions on Church, state and society in medieval England. Pick an answer to get instant feedback and an explanation.
+    </div>
+    <div id="quizHost"></div>
+    <div class="score-banner" id="scoreBanner" aria-live="polite">Answer the questions to see your score.</div>
+    <div class="controls"><button class="btn" id="quizReset">Try again</button></div>
+  </section>
+
+  <footer>The Feudal Pyramid Builder &middot; KS3 History demonstration resource &middot; all names and figures are illustrative.</footer>
+</main>
+
+<script>
+"use strict";
+
+/* ---------- DATA ---------- */
+const RANKS = {
+  king:    {name:"The King",   sub:"e.g. William the Conqueror", ico:"\u{1F451}", tier:0, count:"One person"},
+  baron:   {name:"Barons & Bishops", sub:"Tenants-in-chief", ico:"\u{1F3F0}", tier:1, count:"A few hundred"},
+  knight:  {name:"Knights",    sub:"Lesser nobles", ico:"\u{2694}\u{FE0F}", tier:2, count:"A few thousand"},
+  peasant: {name:"Peasants",   sub:"Villeins & freemen", ico:"\u{1F33E}", tier:3, count:"The vast majority"}
+};
+const ORDER = ["king","baron","knight","peasant"];
+
+const RIPPLE = {
+  king: {
+    up: {dir:"down", title:"No one to grant the land", text:"The king was the source of all land and law. With no monarch there is no one to grant fiefs to the barons or to settle their disputes. Royal justice and central authority collapse."},
+    down:{dir:"down", title:"Barons fight for the crown", text:"Powerful barons compete to seize royal power. Civil war (like the Anarchy of 1135 to 1153) breaks out, and ordinary people suffer raids and lawlessness across the country."}
+  },
+  baron: {
+    up: {dir:"up", title:"The king loses his army and taxes", text:"Barons supplied knights for the royal army and collected taxes and dues. Without them the king has no way to raise a feudal host or fund the kingdom."},
+    down:{dir:"down", title:"Knights and peasants lose their lord", text:"Knights held their land from barons and peasants worked baronial manors. With no local lord there is no one to organise defence, courts or farming on the estate."}
+  },
+  knight: {
+    up: {dir:"up", title:"Barons cannot field an army", text:"Knights owed about 40 days of military service a year (knight service). Remove them and the barons can no longer answer the king's call to arms or garrison castles."},
+    down:{dir:"down", title:"Peasants lose day-to-day protection", text:"Knights enforced order on the manor and defended villages from raiders. Without them peasants are exposed and manorial courts have no enforcer."}
+  },
+  peasant: {
+    up: {dir:"up", title:"The whole pyramid loses its food and labour", text:"Peasants grew the food, paid rents and worked the land for everyone above them. Remove them and there is no produce, no income and no workforce. The entire structure starves."},
+    down:{dir:"down", title:"Nothing below to support", text:"Peasants were the base. There is no group beneath them, which is exactly why a shock at the bottom (like the Black Death) shook every level above."}
+  }
+};
+
+const QUIZ = [
+  {q:"Who sat at the very top of the feudal pyramid and was said to own all the land in England?",
+   opts:["The Pope","The King","The Barons","The Knights"],a:1,
+   ex:"The king owned all the land. He granted it to barons in return for loyalty, knights and taxes."},
+  {q:"What did knights mainly owe their lord in the feudal system?",
+   opts:["Gold coins each week","Military service for about 40 days a year","Free farm produce","Prayers in the cathedral"],a:1,
+   ex:"Knight service: a knight gave armed military service (often around 40 days a year) in return for land called a fief."},
+  {q:"Magna Carta (1215) is significant in the story of medieval Church, state and society because it:",
+   opts:["Abolished the feudal system","Limited the power of the king and protected some rights of his barons","Started the Black Death","Crowned William the Conqueror"],a:1,
+   ex:"Rebellious barons forced King John to seal Magna Carta. It established that even the king was subject to the law."},
+  {q:"One major social consequence of the Black Death (1348 to 1349) was that:",
+   opts:["Peasants became less important","Surviving peasants could demand higher wages because labour was scarce","The king gained more peasants","Castles were no longer needed"],a:1,
+   ex:"So many peasants died that survivors were in demand. They could ask for higher wages and better terms, weakening the old feudal ties and helping spark events like the Peasants' Revolt of 1381."}
+];
+
+/* ---------- TABS ---------- */
+const tabs = [...document.querySelectorAll('.tab')];
+const panels = [...document.querySelectorAll('.panel')];
+function activateTab(tab){
+  tabs.forEach(t=>t.setAttribute('aria-selected', t===tab?'true':'false'));
+  panels.forEach(p=>p.classList.toggle('active', p.id==='panel-'+tab.id.split('-')[1]));
+}
+tabs.forEach((tab,i)=>{
+  tab.addEventListener('click',()=>activateTab(tab));
+  tab.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+      e.preventDefault();
+      const dir=e.key==='ArrowRight'?1:-1;
+      const next=tabs[(i+dir+tabs.length)%tabs.length];
+      next.focus();activateTab(next);
+    }
+  });
+});
+
+/* ---------- STATE ---------- */
+let placed = {};          // tier -> rank
+let selectedToken = null; // rank id selected via keyboard
+let builtCorrectly = false;
+
+/* ---------- BUILD: render bank + slots ---------- */
+const bank = document.getElementById('tokenBank');
+const pyramid = document.getElementById('pyramid');
+const buildFeedback = document.getElementById('buildFeedback');
+
+// shuffle order for the bank so it is not pre-sorted
+function shuffled(arr){const a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function renderBank(){
+  bank.innerHTML='';
+  shuffled(ORDER).forEach(rank=>{
+    const r=RANKS[rank];
+    const el=document.createElement('div');
+    el.className='token';
+    el.dataset.rank=rank;
+    el.setAttribute('tabindex','0');
+    el.setAttribute('role','button');
+    el.setAttribute('aria-label',r.name+', '+r.count+'. Activate to select for placing, or drag into a slot.');
+    el.innerHTML='<span class="ico" aria-hidden="true">'+r.ico+'</span><div class="tk-body"><div class="tk-name">'+r.name+'</div><div class="tk-sub">'+r.sub+'</div></div>';
+    if(placed && Object.values(placed).includes(rank)) el.classList.add('placed');
+    attachTokenHandlers(el,rank);
+    bank.appendChild(el);
+  });
+}
+
+function renderSlots(){
+  pyramid.innerHTML='';
+  for(let tier=0;tier<4;tier++){
+    const slot=document.createElement('div');
+    slot.className='slot';
+    slot.dataset.tier=tier;
+    slot.setAttribute('aria-label','Tier '+(tier+1)+' of the pyramid');
+    renderSlotContent(slot,tier);
+    pyramid.appendChild(slot);
+  }
+}
+
+function renderSlotContent(slot,tier){
+  const rank=placed[tier];
+  if(rank){
+    const r=RANKS[rank];
+    slot.innerHTML='<div class="filled"><span class="ico" aria-hidden="true">'+r.ico+'</span><div><div class="fl-name">'+r.name+'</div><div class="fl-sub">'+r.count+'</div></div></div>';
+  }else{
+    slot.innerHTML='<span class="slot-label">Tier '+(tier+1)+' (drop a group here)</span>'+
+      '<div class="kbd-place">Keyboard: <button class="kplace" data-tier="'+tier+'">Place selected here</button></div>';
+    slot.querySelector('.kplace').addEventListener('click',()=>{
+      if(!selectedToken){say(buildFeedback,'Select a group card first, then press Place here.','info');return;}
+      tryPlace(tier,selectedToken);
+    });
+  }
+}
+
+/* drag + keyboard select for tokens */
+function attachTokenHandlers(el,rank){
+  el.addEventListener('pointerdown',e=>startDrag(e,el,rank));
+  el.addEventListener('click',()=>{ // keyboard / tap select
+    if(el.classList.contains('placed'))return;
+    selectToken(rank,el);
+  });
+  el.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===' '){e.preventDefault();if(el.classList.contains('placed'))return;selectToken(rank,el);}
+  });
+}
+function selectToken(rank,el){
+  selectedToken=rank;
+  document.querySelectorAll('.token').forEach(t=>t.style.boxShadow='');
+  el.style.boxShadow='0 0 0 3px var(--gold-light)';
+  say(buildFeedback,RANKS[rank].name+' selected. Now choose a tier and press Place here, or just drag the card.','info');
+}
+
+/* POINTER DRAG */
+let dragGhost=null, dragRank=null, dragEl=null;
+function startDrag(e,el,rank){
+  if(el.classList.contains('placed'))return;
+  e.preventDefault();
+  dragRank=rank; dragEl=el;
+  el.classList.add('dragging');
+  el.setPointerCapture(e.pointerId);
+  dragGhost=el.cloneNode(true);
+  dragGhost.style.position='fixed';
+  dragGhost.style.pointerEvents='none';
+  dragGhost.style.width=el.offsetWidth+'px';
+  dragGhost.style.zIndex='999';
+  dragGhost.style.opacity='.9';
+  dragGhost.classList.remove('dragging');
+  document.body.appendChild(dragGhost);
+  moveGhost(e);
+  el.addEventListener('pointermove',onMove);
+  el.addEventListener('pointerup',onUp);
+  el.addEventListener('pointercancel',onUp);
+}
+function moveGhost(e){
+  if(!dragGhost)return;
+  dragGhost.style.left=(e.clientX-30)+'px';
+  dragGhost.style.top=(e.clientY-25)+'px';
+}
+function slotAtPoint(x,y){
+  const elem=document.elementFromPoint(x,y);
+  return elem?elem.closest('.slot'):null;
+}
+function onMove(e){
+  moveGhost(e);
+  document.querySelectorAll('.slot').forEach(s=>s.classList.remove('over'));
+  const s=slotAtPoint(e.clientX,e.clientY);
+  if(s && !placed[s.dataset.tier]) s.classList.add('over');
+}
+function onUp(e){
+  if(dragGhost){dragGhost.remove();dragGhost=null;}
+  if(dragEl){dragEl.classList.remove('dragging');try{dragEl.releasePointerCapture(e.pointerId);}catch(_){}}
+  document.querySelectorAll('.slot').forEach(s=>s.classList.remove('over'));
+  const s=slotAtPoint(e.clientX,e.clientY);
+  if(s && !placed[s.dataset.tier]) tryPlace(parseInt(s.dataset.tier,10),dragRank);
+  dragEl&&dragEl.removeEventListener('pointermove',onMove);
+  dragEl&&dragEl.removeEventListener('pointerup',onUp);
+  dragEl&&dragEl.removeEventListener('pointercancel',onUp);
+  dragRank=null;dragEl=null;
+}
+
+/* PLACEMENT LOGIC with targeted feedback */
+function tryPlace(tier,rank){
+  if(placed[tier])return;
+  const correctRank=ORDER[tier];
+  const slot=pyramid.querySelector('.slot[data-tier="'+tier+'"]');
+  if(rank===correctRank){
+    placed[tier]=rank;
+    selectedToken=null;
+    renderSlotContent(slot,tier);
+    slot.classList.add('correct');
+    document.querySelectorAll('.token').forEach(t=>t.style.boxShadow='');
+    markPlaced();
+    const r=RANKS[rank];
+    say(buildFeedback,'Correct. '+r.name+' belong on tier '+(tier+1)+': '+r.count+'. '+tierReason(rank),'good');
+    checkComplete();
+  }else{
+    slot.classList.add('wrong');
+    setTimeout(()=>slot.classList.remove('wrong'),400);
+    const wrong=RANKS[rank], right=RANKS[correctRank];
+    say(buildFeedback,'Not quite. Tier '+(tier+1)+' should hold a group with '+(tier===0?'the most power':(tier===3?'the most people':'this much power'))+'. '+wrong.name+' do not fit here because '+misfitReason(rank,tier)+' Try '+right.name+'.','bad');
+  }
+}
+function tierReason(rank){
+  return ({
+    king:"Above them sits no one: the king answered only to God.",
+    baron:"They held land directly from the king as tenants-in-chief and owed him knights and taxes.",
+    knight:"They held land from barons and owed military service.",
+    peasant:"They worked the land for everyone above and were the largest group by far."
+  })[rank];
+}
+function misfitReason(rank,tier){
+  if(tier===0) return "only the single most powerful person belongs at the top.";
+  if(tier===3) return "the bottom tier is for the largest, least powerful group.";
+  return "their level of power does not match this position.";
+}
+function markPlaced(){
+  document.querySelectorAll('.token').forEach(t=>{
+    if(Object.values(placed).includes(t.dataset.rank)) t.classList.add('placed');
+  });
+}
+function checkComplete(){
+  builtCorrectly = Object.keys(placed).length===4;
+  document.getElementById('checkBuild').disabled = !builtCorrectly;
+  if(builtCorrectly){
+    say(buildFeedback,'Pyramid complete. You have built the feudal hierarchy from king to peasant. Now move to step 2 and pull a layer out.','good');
+    unlockRipple();
+  }
+}
+
+/* feedback helper */
+function say(node,msg,kind){
+  node.innerHTML='<div class="fb-msg fb-'+kind+'">'+msg+'</div>';
+}
+
+document.getElementById('resetBuild').addEventListener('click',()=>{
+  placed={};selectedToken=null;builtCorrectly=false;
+  renderBank();renderSlots();
+  buildFeedback.innerHTML='';
+  document.getElementById('checkBuild').disabled=true;
+  lockRipple();
+});
+document.getElementById('checkBuild').addEventListener('click',()=>activateTab(document.getElementById('tab-ripple')));
+
+/* ---------- RIPPLE ---------- */
+const pullBtns=[...document.querySelectorAll('.pull-btn')];
+const rippleOut=document.getElementById('rippleOut');
+function unlockRipple(){pullBtns.forEach(b=>b.disabled=false);}
+function lockRipple(){pullBtns.forEach(b=>{b.disabled=true;b.setAttribute('aria-pressed','false');});rippleOut.innerHTML='';}
+pullBtns.forEach(b=>{
+  b.addEventListener('click',()=>{
+    const rank=b.dataset.rank;
+    pullBtns.forEach(x=>x.setAttribute('aria-pressed', x===b?'true':'false'));
+    showRipple(rank);
+  });
+});
+function showRipple(rank){
+  const r=RANKS[rank], data=RIPPLE[rank];
+  let html='<div class="ripple-card collapse-note"><h3><span aria-hidden="true">'+r.ico+'</span> You pulled out: '+r.name+'</h3>'+
+    '<p>The pyramid wobbles. Here is how the obligations break.</p></div>';
+  [data.up,data.down].forEach(d=>{
+    html+='<div class="ripple-card"><h3><span class="dir dir-'+d.dir+'">ripples '+d.dir+'</span> '+d.title+'</h3><p>'+d.text+'</p></div>';
+  });
+  if(rank==='peasant'){
+    html+='<div class="ripple-card collapse-note"><h3><span aria-hidden="true">\u{2620}\u{FE0F}</span> This is the Black Death lesson</h3>'+
+      '<p>In 1348 to 1349 disease pulled out a huge share of the peasant layer. Go to step 3 to model what scarcity of peasants did to wages and power.</p></div>';
+  }
+  rippleOut.innerHTML=html;
+}
+
+/* ---------- BLACK DEATH SIM ---------- */
+const TOTAL=30;
+const bdPeople=document.getElementById('bdPeople');
+const bdSeverity=document.getElementById('bdSeverity');
+const bdSurvivors=document.getElementById('bdSurvivors');
+const bdInsight=document.getElementById('bdInsight');
+function renderVillage(deadCount){
+  bdPeople.innerHTML='';
+  for(let i=0;i<TOTAL;i++){
+    const p=document.createElement('span');
+    p.className='person'+(i<deadCount?' dead':'');
+    p.textContent='\u{1F9CD}';
+    p.setAttribute('aria-hidden','true');
+    bdPeople.appendChild(p);
+  }
+  const surv=TOTAL-deadCount;
+  bdSurvivors.innerHTML=surv+' <span>survivors of '+TOTAL+'</span>';
+  bdPeople.setAttribute('aria-label','Village now has '+surv+' surviving peasants out of '+TOTAL+'.');
+}
+function bdInsightText(rate,dead){
+  const surv=TOTAL-dead;
+  if(rate<=15) return 'A mild outbreak: '+surv+' of '+TOTAL+' survive. Labour is barely affected, so lords keep the old order and wages stay low.';
+  if(rate<=35) return 'A serious outbreak: '+surv+' survive. Labour becomes scarce. Surviving peasants can ask for higher wages and even leave bad lords. The old feudal bonds start to loosen.';
+  return 'A devastating outbreak: only '+surv+' of '+TOTAL+' survive. Fields lie unworked and lords are desperate for labour. Wages rise sharply, the Statute of Labourers (1351) tries to cap them, and anger builds towards the Peasants\u{2019} Revolt of 1381.';
+}
+document.getElementById('bdRun').addEventListener('click',()=>{
+  const rate=parseInt(bdSeverity.value,10);
+  const dead=Math.round(TOTAL*rate/100);
+  // animate deaths one by one
+  let i=0;
+  renderVillage(0);
+  const ppl=[...bdPeople.querySelectorAll('.person')];
+  const timer=setInterval(()=>{
+    if(i>=dead){clearInterval(timer);bdInsight.textContent=bdInsightText(rate,dead);return;}
+    ppl[i].classList.add('dead');
+    i++;
+    bdSurvivors.innerHTML=(TOTAL-i)+' <span>survivors of '+TOTAL+'</span>';
+  },45);
+});
+document.getElementById('bdReset').addEventListener('click',()=>{
+  bdSeverity.value=35;
+  renderVillage(0);
+  bdInsight.textContent='Set a death rate, then run the outbreak to see the social and economic results.';
+});
+
+/* ---------- QUIZ ---------- */
+const quizHost=document.getElementById('quizHost');
+const scoreBanner=document.getElementById('scoreBanner');
+let answered=0,correct=0;
+function renderQuiz(){
+  answered=0;correct=0;
+  scoreBanner.textContent='Answer the questions to see your score.';
+  quizHost.innerHTML='';
+  QUIZ.forEach((item,qi)=>{
+    const card=document.createElement('div');
+    card.className='quiz-card';
+    let opts='<div class="options" role="group" aria-label="Question '+(qi+1)+' options">';
+    item.opts.forEach((o,oi)=>{opts+='<button class="opt" data-q="'+qi+'" data-o="'+oi+'">'+o+'</button>';});
+    opts+='</div><div class="q-explain" id="ex'+qi+'"></div>';
+    card.innerHTML='<div class="q">'+(qi+1)+'. '+item.q+'</div>'+opts;
+    quizHost.appendChild(card);
+  });
+  quizHost.querySelectorAll('.opt').forEach(btn=>{
+    btn.addEventListener('click',()=>handleAnswer(btn));
+  });
+}
+function handleAnswer(btn){
+  const qi=+btn.dataset.q, oi=+btn.dataset.o, item=QUIZ[qi];
+  const card=btn.closest('.quiz-card');
+  if(card.dataset.done)return;
+  card.dataset.done='1';
+  answered++;
+  const ex=document.getElementById('ex'+qi);
+  card.querySelectorAll('.opt').forEach((b,bi)=>{
+    b.disabled=true;
+    if(bi===item.a) b.classList.add('right');
+  });
+  if(oi===item.a){correct++;btn.classList.add('right');ex.textContent='Correct. '+item.ex;}
+  else{btn.classList.add('wrong');ex.textContent='Not quite. '+item.ex;}
+  ex.classList.add('show');
+  updateScore();
+}
+function updateScore(){
+  let msg='Score: '+correct+' of '+answered+' answered';
+  if(answered===QUIZ.length){
+    msg+='. All done: '+(correct===QUIZ.length?'full marks on Church, state and society.':'review the explanations and try again.');
+  }else{ msg+='.'; }
+  scoreBanner.textContent=msg;
+}
+document.getElementById('quizReset').addEventListener('click',renderQuiz);
+
+/* ---------- INIT ---------- */
+renderBank();
+renderSlots();
+renderVillage(0);
+renderQuiz();
+</script>
+</body>
+</html>

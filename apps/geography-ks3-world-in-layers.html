@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World in Layers &middot; KS3 Geography</title>
+<style>
+  :root {
+    --ink: #11212e;
+    --paper: #f4f1ea;
+    --panel: #ffffff;
+    --line: #d8d2c4;
+    --sea: #cfe6ef;
+    --land: #e9e1cf;
+    --accent: #1f7a8c;
+    --accent-dark: #155b69;
+    --warm: #c1605a;
+    --good: #2f7d52;
+    --good-bg: #e3f1e8;
+    --bad: #b23b34;
+    --bad-bg: #f8e6e4;
+    --shadow: 0 2px 10px rgba(17,33,46,0.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  header.page {
+    background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+    color: #fff;
+    padding: 18px 20px 22px;
+  }
+  header.page h1 {
+    margin: 0 0 4px;
+    font-size: clamp(1.4rem, 4vw, 2.1rem);
+    letter-spacing: 0.5px;
+  }
+  header.page .aim {
+    margin: 0;
+    font-size: 0.95rem;
+    max-width: 70ch;
+    opacity: 0.95;
+  }
+  header.page .crumb {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    opacity: 0.85;
+    margin-bottom: 6px;
+  }
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 18px 16px 60px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  @media (min-width: 940px) {
+    .grid { grid-template-columns: 1fr 320px; align-items: start; }
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  h2.section {
+    font-size: 1.05rem;
+    margin: 0 0 10px;
+    color: var(--accent-dark);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .layer-btn {
+    border: 1.5px solid var(--line);
+    background: #fbfaf6;
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: transform .08s ease, background .15s ease, border-color .15s ease;
+    touch-action: manipulation;
+  }
+  .layer-btn:hover { transform: translateY(-1px); }
+  .layer-btn:focus-visible {
+    outline: 3px solid #ffcf4d;
+    outline-offset: 2px;
+  }
+  .layer-btn .dot {
+    width: 13px; height: 13px; border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.15);
+    flex: 0 0 auto;
+  }
+  .layer-btn[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent-dark);
+    color: #fff;
+  }
+  .layer-btn[aria-pressed="true"] .dot { border-color: rgba(255,255,255,0.6); }
+
+  .map-wrap {
+    position: relative;
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--sea);
+  }
+  svg.map {
+    display: block;
+    width: 100%;
+    height: auto;
+    touch-action: none;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 10px;
+    font-size: 0.78rem;
+    color: #4a5963;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i {
+    width: 12px; height: 12px; border-radius: 3px; display: inline-block;
+    border: 1px solid rgba(0,0,0,0.12);
+  }
+
+  /* Map feature default look */
+  .feat { cursor: pointer; }
+  .feat:focus-visible { outline: none; }
+  .place-label {
+    font-size: 9px;
+    fill: #2c3a44;
+    pointer-events: none;
+    font-weight: 600;
+    paint-order: stroke;
+    stroke: rgba(255,255,255,0.85);
+    stroke-width: 2px;
+  }
+  .ocean-label {
+    font-size: 10px;
+    fill: #2f6478;
+    pointer-events: none;
+    font-style: italic;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .focus-ring {
+    fill: none;
+    stroke: #ffcf4d;
+    stroke-width: 3;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  /* Side panel */
+  .side h2.section { margin-top: 0; }
+  .readout {
+    min-height: 70px;
+    font-size: 0.92rem;
+    background: #fbfaf6;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .readout strong { color: var(--accent-dark); }
+
+  .quiz {
+    margin-top: 16px;
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+  }
+  .quiz .qtext {
+    font-weight: 600;
+    margin: 4px 0 8px;
+    font-size: 0.95rem;
+  }
+  .hint {
+    font-size: 0.8rem;
+    color: #5b6970;
+    margin: 0 0 10px;
+  }
+  .feedback {
+    margin-top: 10px;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    display: none;
+  }
+  .feedback.show { display: block; }
+  .feedback.good { background: var(--good-bg); color: #1d5236; border: 1px solid #b7dcc4; }
+  .feedback.bad { background: var(--bad-bg); color: #7e2620; border: 1px solid #eebab4; }
+  .controls-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  button.action {
+    border: none;
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--accent);
+    color: #fff;
+    touch-action: manipulation;
+  }
+  button.action.ghost {
+    background: #fff;
+    color: var(--accent-dark);
+    border: 1.5px solid var(--accent);
+  }
+  button.action:focus-visible { outline: 3px solid #ffcf4d; outline-offset: 2px; }
+  .score {
+    font-size: 0.82rem;
+    color: #4a5963;
+    margin-top: 10px;
+  }
+  .score b { color: var(--accent-dark); }
+
+  .target-flag {
+    fill: var(--warm);
+    stroke: #fff;
+    stroke-width: 1.2;
+    pointer-events: none;
+    opacity: 0;
+  }
+  .pulse { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.35); }
+  }
+
+  .tip {
+    font-size: 0.78rem;
+    color: #5b6970;
+    margin-top: 8px;
+  }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0,0,0,0); border: 0;
+  }
+  footer.note {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 16px 30px;
+    font-size: 0.78rem;
+    color: #6a7882;
+  }
+  details summary { cursor: pointer; font-weight: 600; color: var(--accent-dark); }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="page">
+  <div class="crumb">KS3 Geography &middot; Locational knowledge</div>
+  <h1>&#x1F30D; World in Layers</h1>
+  <p class="aim"><strong>Teacher aim:</strong> pupils build a mental map of globally significant places, oceans and marine features by toggling thematic overlays (relief, climate, oceans, cities) and noticing how physical and human patterns line up.</p>
+</header>
+
+<main>
+  <div class="grid">
+    <!-- LEFT: map and toggles -->
+    <section class="card" aria-label="Interactive world map">
+      <h2 class="section">&#x1F5FA;&#xFE0F; Layered world map</h2>
+      <div class="toolbar" role="group" aria-label="Map overlay toggles">
+        <button class="layer-btn" id="toggle-relief" aria-pressed="false" data-layer="relief">
+          <span class="dot" style="background:#9c7a4d"></span>Relief
+        </button>
+        <button class="layer-btn" id="toggle-climate" aria-pressed="false" data-layer="climate">
+          <span class="dot" style="background:#d98c3a"></span>Climate
+        </button>
+        <button class="layer-btn" id="toggle-oceans" aria-pressed="true" data-layer="oceans">
+          <span class="dot" style="background:#2f6478"></span>Oceans &amp; seas
+        </button>
+        <button class="layer-btn" id="toggle-cities" aria-pressed="false" data-layer="cities">
+          <span class="dot" style="background:#b23b34"></span>Cities
+        </button>
+      </div>
+
+      <div class="map-wrap">
+        <!-- Stylised equirectangular world. viewBox 0..360 lon (x), 0..180 lat-ish (y). -->
+        <svg class="map" id="worldmap" viewBox="0 0 360 200" role="application"
+             aria-label="Stylised world map. Use Tab to move between marked places and oceans, then press Enter to inspect one.">
+          <!-- gridlines -->
+          <g stroke="#b9d8e3" stroke-width="0.4" opacity="0.7">
+            <line x1="0" y1="50" x2="360" y2="50"></line>
+            <line x1="0" y1="100" x2="360" y2="100"></line>
+            <line x1="0" y1="150" x2="360" y2="150"></line>
+            <line x1="90" y1="0" x2="90" y2="200"></line>
+            <line x1="180" y1="0" x2="180" y2="200"></line>
+            <line x1="270" y1="0" x2="270" y2="200"></line>
+          </g>
+          <!-- Equator label -->
+          <text x="4" y="103" font-size="6" fill="#5b8a9a" font-style="italic">Equator</text>
+
+          <!-- Ocean labels group (toggled) -->
+          <g id="layer-oceans">
+            <text class="ocean-label" x="40" y="80">North Atlantic</text>
+            <text class="ocean-label" x="42" y="135">South Atlantic</text>
+            <text class="ocean-label" x="300" y="70">North Pacific</text>
+            <text class="ocean-label" x="255" y="150">South Pacific</text>
+            <text class="ocean-label" x="135" y="150">Indian Ocean</text>
+            <text class="ocean-label" x="150" y="22">Arctic Ocean</text>
+            <text class="ocean-label" x="150" y="192">Southern Ocean</text>
+          </g>
+
+          <!-- Stylised continents (simple blocks, not survey-accurate) -->
+          <g id="continents">
+            <!-- North America -->
+            <path class="land-block" d="M20,40 L80,30 L95,60 L80,95 L55,110 L40,90 L30,70 Z"></path>
+            <!-- South America -->
+            <path class="land-block" d="M70,110 L95,115 L92,150 L78,178 L68,160 L66,130 Z"></path>
+            <!-- Africa -->
+            <path class="land-block" d="M150,80 L185,78 L188,110 L172,150 L158,150 L150,120 Z"></path>
+            <!-- Europe -->
+            <path class="land-block" d="M148,45 L185,42 L188,68 L150,72 Z"></path>
+            <!-- Asia -->
+            <path class="land-block" d="M188,38 L300,32 L305,70 L255,95 L210,90 L190,70 Z"></path>
+            <!-- Australia -->
+            <path class="land-block" d="M280,135 L320,132 L322,160 L290,165 Z"></path>
+            <!-- Antarctica strip -->
+            <path class="land-block" d="M10,188 L350,188 L350,198 L10,198 Z"></path>
+          </g>
+
+          <!-- Relief overlay (mountain ranges) -->
+          <g id="layer-relief" opacity="0">
+            <g fill="#9c7a4d" opacity="0.85">
+              <!-- Andes -->
+              <polygon points="72,118 76,116 79,160 75,160"></polygon>
+              <!-- Rockies -->
+              <polygon points="42,55 46,53 50,95 46,95"></polygon>
+              <!-- Himalayas -->
+              <polygon points="222,72 250,70 252,78 224,80"></polygon>
+              <!-- Alps -->
+              <polygon points="162,58 176,57 177,62 163,63"></polygon>
+              <!-- Great Dividing Range -->
+              <polygon points="316,135 320,135 321,160 317,160"></polygon>
+            </g>
+            <text x="78" y="140" font-size="5" fill="#7a5e38" font-weight="700">Andes</text>
+            <text x="225" y="68" font-size="5" fill="#7a5e38" font-weight="700">Himalayas</text>
+          </g>
+
+          <!-- Climate overlay (banded warmth) -->
+          <g id="layer-climate" opacity="0">
+            <rect x="0" y="86" width="360" height="28" fill="#e0852f" opacity="0.28"></rect>
+            <rect x="0" y="70" width="360" height="16" fill="#e8b04e" opacity="0.22"></rect>
+            <rect x="0" y="114" width="360" height="16" fill="#e8b04e" opacity="0.22"></rect>
+            <rect x="0" y="0" width="360" height="40" fill="#7fb3c9" opacity="0.30"></rect>
+            <rect x="0" y="160" width="360" height="40" fill="#7fb3c9" opacity="0.30"></rect>
+            <text x="6" y="100" font-size="5.5" fill="#8a4d18" font-weight="700">Tropics: hot, wet</text>
+            <text x="6" y="20" font-size="5.5" fill="#36697d" font-weight="700">Polar: cold</text>
+          </g>
+
+          <!-- Cities overlay -->
+          <g id="layer-cities" opacity="0">
+            <g fill="#b23b34">
+              <circle cx="58" cy="50" r="2"></circle><text class="place-label" x="61" y="51">New York</text>
+              <circle cx="160" cy="54" r="2"></circle><text class="place-label" x="146" y="50">London</text>
+              <circle cx="83" cy="160" r="2"></circle><text class="place-label" x="86" y="161">Sao Paulo</text>
+              <circle cx="172" cy="120" r="2"></circle><text class="place-label" x="155" y="122">Lagos</text>
+              <circle cx="248" cy="62" r="2"></circle><text class="place-label" x="251" y="63">Beijing</text>
+              <circle cx="262" cy="78" r="2"></circle><text class="place-label" x="265" y="80">Mumbai</text>
+              <circle cx="300" cy="150" r="2"></circle><text class="place-label" x="282" y="158">Sydney</text>
+            </g>
+          </g>
+
+          <!-- Interactive markers: globally significant places + marine features -->
+          <g id="markers"></g>
+
+          <!-- focus ring + quiz target -->
+          <circle class="focus-ring" id="focusRing" r="6"></circle>
+          <circle class="target-flag" id="targetFlag" r="4"></circle>
+        </svg>
+      </div>
+
+      <div class="legend" aria-hidden="true">
+        <span><i style="background:#e9e1cf"></i>Land</span>
+        <span><i style="background:#cfe6ef"></i>Sea</span>
+        <span><i style="background:#9c7a4d"></i>Mountains</span>
+        <span><i style="background:#e0852f"></i>Tropical band</span>
+        <span><i style="background:#b23b34"></i>City</span>
+        <span><i style="background:#1f7a8c"></i>Marked place / marine feature</span>
+      </div>
+      <p class="tip">Tap a marked point to inspect it. The points show globally significant places and marine features (oceans, seas, a strait and the Great Barrier Reef). Turn layers on and off to spot patterns: where do the big cities sit relative to the tropics and the coast?</p>
+    </section>
+
+    <!-- RIGHT: readout + quiz -->
+    <aside class="card side" aria-label="Inspector and challenge">
+      <h2 class="section">&#x1F50E; Inspector</h2>
+      <div class="readout" id="readout" role="status" aria-live="polite">
+        Select a marked point on the map to read about it. Try turning on the <strong>Oceans &amp; seas</strong> layer first.
+      </div>
+
+      <div class="quiz">
+        <h2 class="section">&#x1F3AF; Pattern challenge</h2>
+        <p class="qtext" id="qtext">Loading challenge...</p>
+        <p class="hint" id="qhint"></p>
+        <div class="controls-row" id="answerArea"></div>
+        <div class="feedback" id="feedback" role="alert" aria-live="assertive"></div>
+        <div class="controls-row">
+          <button class="action" id="nextBtn">Next challenge</button>
+          <button class="action ghost" id="showBtn">Show me on the map</button>
+        </div>
+        <div class="score" aria-live="polite">
+          Score: <b id="scoreNum">0</b> / <span id="scoreTot">0</span>
+          <span id="streakTxt"></span>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <p class="sr-only" id="liveRegion" aria-live="polite"></p>
+</main>
+
+<footer class="note">
+  <details>
+    <summary>Teacher notes and curriculum link</summary>
+    <p><strong>Strand:</strong> KS3 Locational knowledge, extending pupils' world map to globally significant places and the world's oceans and key marine features (terrestrial and marine). The map is a deliberately simplified, stylised diagram for pattern spotting, not a survey-accurate atlas.</p>
+    <p><strong>How to use:</strong> project the map, work through the layers as a class, then set pupils the pattern challenges. The "Show me on the map" button models where to look. Names and figures are illustrative.</p>
+  </details>
+</footer>
+
+<script>
+"use strict";
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  var svg = document.getElementById("worldmap");
+  var markersG = document.getElementById("markers");
+  var readout = document.getElementById("readout");
+  var focusRing = document.getElementById("focusRing");
+  var targetFlag = document.getElementById("targetFlag");
+  var live = document.getElementById("liveRegion");
+
+  /* ---- Marked places: globally significant places + marine features ---- */
+  // x,y in viewBox coords. type: place | ocean | sea | strait | reef
+  var POINTS = [
+    { id:"atlantic", name:"Atlantic Ocean", type:"ocean", x:45, y:95,
+      info:"The Atlantic is the second largest ocean. It separates the Americas from Europe and Africa, and it stretches from the Arctic to the Southern Ocean." },
+    { id:"pacific", name:"Pacific Ocean", type:"ocean", x:300, y:95,
+      info:"The Pacific is the largest and deepest ocean on Earth. It holds the deepest point known, the Mariana Trench, and is ringed by volcanoes (the Ring of Fire)." },
+    { id:"indian", name:"Indian Ocean", type:"ocean", x:215, y:130,
+      info:"The Indian Ocean lies between Africa, southern Asia and Australia. Its monsoon winds reverse with the seasons and shape rainfall across South Asia." },
+    { id:"southern", name:"Southern Ocean", type:"ocean", x:180, y:185,
+      info:"The Southern Ocean encircles Antarctica. Its cold, powerful current loops right around the globe with no land to block it." },
+    { id:"arctic", name:"Arctic Ocean", type:"ocean", x:160, y:14,
+      info:"The Arctic is the smallest, shallowest ocean and is largely covered by sea ice that grows and shrinks with the seasons." },
+    { id:"med", name:"Mediterranean Sea", type:"sea", x:158, y:66,
+      info:"A nearly enclosed sea between Europe, Africa and Asia. It connects to the Atlantic through one narrow gateway, the Strait of Gibraltar." },
+    { id:"caribbean", name:"Caribbean Sea", type:"sea", x:62, y:80,
+      info:"A warm sea bordered by Central America and island chains. Warm waters here help feed Atlantic hurricanes." },
+    { id:"gibraltar", name:"Strait of Gibraltar", type:"strait", x:148, y:68,
+      info:"A narrow strait, only about 14 km wide at its tightest, linking the Mediterranean Sea to the Atlantic Ocean between Europe and Africa." },
+    { id:"reef", name:"Great Barrier Reef", type:"reef", x:322, y:140,
+      info:"The world's largest coral reef system, off northeast Australia in the Coral Sea. It depends on warm, shallow tropical water." },
+    { id:"everest", name:"Himalayas (Mount Everest)", type:"place", x:240, y:70,
+      info:"The Himalayas hold the highest land on Earth, including Mount Everest. They formed where two continental plates collided." },
+    { id:"amazon", name:"Amazon Basin", type:"place", x:82, y:128,
+      info:"The Amazon Basin in South America holds the largest tropical rainforest. It sits on the Equator where it is hot and very wet." },
+    { id:"sahara", name:"Sahara Desert", type:"place", x:165, y:88,
+      info:"The Sahara, in North Africa, is the largest hot desert. It sits in a dry belt just north of the tropical rainforests." }
+  ];
+
+  var pointById = {};
+  POINTS.forEach(function (p) { pointById[p.id] = p; });
+
+  function typeColour(t) {
+    if (t === "ocean" || t === "sea") return "#1f7a8c";
+    if (t === "strait") return "#7a3e9c";
+    if (t === "reef") return "#c1605a";
+    return "#155b69";
+  }
+
+  /* ---- Build interactive markers ---- */
+  POINTS.forEach(function (p) {
+    var g = document.createElementNS(NS, "g");
+    g.setAttribute("class", "feat");
+    g.setAttribute("tabindex", "0");
+    g.setAttribute("role", "button");
+    g.setAttribute("data-id", p.id);
+    g.setAttribute("aria-label", p.name + ". " + labelType(p.type) + ". Activate to inspect.");
+
+    var halo = document.createElementNS(NS, "circle");
+    halo.setAttribute("cx", p.x); halo.setAttribute("cy", p.y);
+    halo.setAttribute("r", 4.6);
+    halo.setAttribute("fill", "rgba(255,255,255,0.65)");
+
+    var c = document.createElementNS(NS, "circle");
+    c.setAttribute("cx", p.x); c.setAttribute("cy", p.y);
+    c.setAttribute("r", 2.6);
+    c.setAttribute("fill", typeColour(p.type));
+    c.setAttribute("stroke", "#fff");
+    c.setAttribute("stroke-width", "0.8");
+
+    g.appendChild(halo);
+    g.appendChild(c);
+    markersG.appendChild(g);
+
+    g.addEventListener("pointerdown", function (ev) {
+      ev.preventDefault();
+      inspect(p.id);
+    });
+    g.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        inspect(p.id);
+      }
+    });
+    g.addEventListener("focus", function () { moveFocusRing(p.x, p.y); });
+  });
+
+  function labelType(t) {
+    if (t === "ocean") return "ocean";
+    if (t === "sea") return "sea";
+    if (t === "strait") return "marine feature, a strait";
+    if (t === "reef") return "marine feature, a coral reef";
+    return "significant place";
+  }
+
+  function moveFocusRing(x, y) {
+    focusRing.setAttribute("cx", x);
+    focusRing.setAttribute("cy", y);
+    focusRing.style.opacity = "1";
+  }
+
+  function inspect(id) {
+    var p = pointById[id];
+    if (!p) return;
+    moveFocusRing(p.x, p.y);
+    readout.innerHTML = "<strong>" + esc(p.name) + "</strong> &middot; <em>" +
+      esc(labelType(p.type)) + "</em><br>" + esc(p.info);
+    live.textContent = p.name + " selected.";
+    // also feed the quiz: if a "find" challenge is active, check it
+    checkSelectionForQuiz(id);
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (ch) {
+      return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" })[ch];
+    });
+  }
+
+  /* ---- Layer toggles ---- */
+  var layerEls = {
+    relief: document.getElementById("layer-relief"),
+    climate: document.getElementById("layer-climate"),
+    oceans: document.getElementById("layer-oceans"),
+    cities: document.getElementById("layer-cities")
+  };
+  function setLayer(name, on) {
+    layerEls[name].style.opacity = on ? "1" : "0";
+    layerEls[name].setAttribute("aria-hidden", on ? "false" : "true");
+  }
+  // initial state: oceans on
+  setLayer("oceans", true);
+  setLayer("relief", false);
+  setLayer("climate", false);
+  setLayer("cities", false);
+
+  Array.prototype.forEach.call(document.querySelectorAll(".layer-btn"), function (btn) {
+    btn.addEventListener("click", function () {
+      var name = btn.getAttribute("data-layer");
+      var on = btn.getAttribute("aria-pressed") !== "true";
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      setLayer(name, on);
+      live.textContent = name + " layer " + (on ? "on" : "off") + ".";
+    });
+  });
+
+  /* ---- Pattern challenges ---- */
+  // Two kinds: multiple-choice pattern questions, and "find on map" tasks.
+  var CHALLENGES = [
+    { kind:"mc",
+      q:"Turn on Cities and Climate. Most of the largest cities are clustered in which band?",
+      hint:"Look at where the red city dots sit relative to the orange tropical band and the blue polar bands.",
+      options:[
+        "Spread across the warm and temperate middle latitudes, not the poles",
+        "All exactly on the Equator",
+        "Mainly inside the polar bands"
+      ],
+      answer:0,
+      why:"Big cities cluster in the temperate and tropical middle latitudes where the climate is liveable. Almost none sit in the polar bands, which are too cold." ,
+      layers:["cities","climate"] },
+
+    { kind:"find", target:"pacific",
+      q:"Find the largest and deepest ocean on the map.",
+      hint:"It is huge and sits between Asia and the Americas, wrapping around the edges of the map.",
+      why:"The Pacific Ocean is the largest and deepest ocean and is ringed by the volcanic Ring of Fire.",
+      layers:["oceans"] },
+
+    { kind:"mc",
+      q:"Turn on Relief. The Himalayas and the Andes are both long mountain ranges. What do they have in common?",
+      hint:"Think about plate tectonics and where mountain ranges form.",
+      options:[
+        "Both formed at the boundaries where tectonic plates push together",
+        "Both sit on the Equator",
+        "Both lie under the ocean"
+      ],
+      answer:0,
+      why:"Both ranges formed where plates collide. Where plates push together the crust is forced up into mountains.",
+      layers:["relief"] },
+
+    { kind:"find", target:"gibraltar",
+      q:"Find the narrow strait that links the Mediterranean Sea to the Atlantic Ocean.",
+      hint:"It sits between Europe and Africa, at the western end of the Mediterranean.",
+      why:"The Strait of Gibraltar is a narrow gateway, about 14 km wide at its tightest, between the Atlantic and the Mediterranean.",
+      layers:["oceans"] },
+
+    { kind:"mc",
+      q:"The Amazon rainforest and the Sahara desert are close together in latitude but very different. Why?",
+      hint:"Turn on Climate. The Amazon sits on the Equator; the Sahara sits just north of it.",
+      options:[
+        "The Amazon is on the wet Equator; the Sahara is in a dry belt just north of it",
+        "The Sahara gets more rain than the Amazon",
+        "They are on different continents so the climate must differ"
+      ],
+      answer:0,
+      why:"Global air circulation makes the Equator wet (rising, raining air) and creates a dry belt a little to the north and south, where the Sahara sits.",
+      layers:["climate"] },
+
+    { kind:"find", target:"reef",
+      q:"Find the world's largest coral reef system.",
+      hint:"It lies off northeast Australia, in warm tropical water.",
+      why:"The Great Barrier Reef is the largest coral reef system. Corals need warm, shallow, sunlit tropical seas.",
+      layers:["oceans","climate"] },
+
+    { kind:"mc",
+      q:"Why does the Great Barrier Reef sit where it does and not, say, off northern Canada?",
+      hint:"Turn on Climate and Oceans. Look at the water temperature band the reef is in.",
+      options:[
+        "Corals need warm, shallow tropical seas, found near Australia not the cold north",
+        "Reefs only grow in deep cold water",
+        "It is just chance where reefs grow"
+      ],
+      answer:0,
+      why:"Coral reefs need warm, shallow, sunlit tropical water. Northern Canada is far too cold, so reefs do not form there.",
+      layers:["oceans","climate"] }
+  ];
+
+  var qtext = document.getElementById("qtext");
+  var qhint = document.getElementById("qhint");
+  var answerArea = document.getElementById("answerArea");
+  var feedback = document.getElementById("feedback");
+  var nextBtn = document.getElementById("nextBtn");
+  var showBtn = document.getElementById("showBtn");
+  var scoreNum = document.getElementById("scoreNum");
+  var scoreTot = document.getElementById("scoreTot");
+  var streakTxt = document.getElementById("streakTxt");
+
+  var order = shuffle(CHALLENGES.map(function (_, i) { return i; }));
+  var cur = 0;          // index into order
+  var answered = false; // current challenge resolved
+  var score = 0, total = 0, streak = 0;
+
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function currentChallenge() { return CHALLENGES[order[cur]]; }
+
+  function suggestLayers(ch) {
+    if (!ch.layers) return;
+    ["relief","climate","oceans","cities"].forEach(function (name) {
+      var on = ch.layers.indexOf(name) !== -1;
+      var btn = document.getElementById("toggle-" + name);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      setLayer(name, on);
+    });
+  }
+
+  function renderChallenge() {
+    var ch = currentChallenge();
+    answered = false;
+    feedback.className = "feedback";
+    feedback.textContent = "";
+    targetFlag.style.opacity = "0";
+    targetFlag.classList.remove("pulse");
+    qtext.textContent = ch.q;
+    qhint.textContent = ch.hint ? ("Hint: " + ch.hint) : "";
+    answerArea.innerHTML = "";
+    suggestLayers(ch);
+
+    if (ch.kind === "mc") {
+      ch.options.forEach(function (opt, i) {
+        var b = document.createElement("button");
+        b.className = "action ghost";
+        b.style.flex = "1 1 100%";
+        b.style.textAlign = "left";
+        b.textContent = opt;
+        b.addEventListener("click", function () {
+          if (answered) return;
+          resolveMC(i === ch.answer, ch);
+          // mark chosen
+          Array.prototype.forEach.call(answerArea.children, function (cc) {
+            cc.disabled = true; cc.style.opacity = "0.7";
+          });
+          b.style.opacity = "1";
+          b.style.borderColor = (i === ch.answer) ? "var(--good)" : "var(--bad)";
+        });
+        answerArea.appendChild(b);
+      });
+    } else if (ch.kind === "find") {
+      var inst = document.createElement("p");
+      inst.style.margin = "0";
+      inst.style.fontSize = "0.85rem";
+      inst.style.color = "#4a5963";
+      inst.textContent = "Click the matching point on the map.";
+      answerArea.appendChild(inst);
+    }
+  }
+
+  function resolveMC(correct, ch) {
+    answered = true;
+    total++;
+    if (correct) {
+      score++; streak++;
+      showFeedback(true, "Correct. " + ch.why);
+    } else {
+      streak = 0;
+      showFeedback(false, "Not quite. " + ch.why);
+    }
+    updateScore();
+  }
+
+  function checkSelectionForQuiz(id) {
+    var ch = currentChallenge();
+    if (ch.kind !== "find" || answered) return;
+    answered = true;
+    total++;
+    if (id === ch.target) {
+      score++; streak++;
+      showFeedback(true, "Spot on. " + ch.why);
+    } else {
+      streak = 0;
+      var t = pointById[ch.target];
+      showFeedback(false, "That was " + pointById[id].name + ". The answer is the " +
+        t.name + ". " + ch.why);
+      flagTarget(t);
+    }
+    updateScore();
+  }
+
+  function showFeedback(good, msg) {
+    feedback.textContent = msg;
+    feedback.className = "feedback show " + (good ? "good" : "bad");
+    live.textContent = (good ? "Correct. " : "Try again next time. ") + msg;
+  }
+
+  function flagTarget(p) {
+    targetFlag.setAttribute("cx", p.x);
+    targetFlag.setAttribute("cy", p.y);
+    targetFlag.style.opacity = "1";
+    targetFlag.classList.add("pulse");
+  }
+
+  function updateScore() {
+    scoreNum.textContent = score;
+    scoreTot.textContent = total;
+    streakTxt.textContent = streak >= 2 ? ("  &middot; streak " + streak).replace("&middot;", "·") : "";
+    streakTxt.textContent = streak >= 2 ? ("  · streak " + streak + "!") : "";
+  }
+
+  nextBtn.addEventListener("click", function () {
+    cur = (cur + 1) % order.length;
+    if (cur === 0) order = shuffle(order);
+    renderChallenge();
+    live.textContent = "New challenge loaded.";
+  });
+
+  showBtn.addEventListener("click", function () {
+    var ch = currentChallenge();
+    if (ch.kind === "find") {
+      flagTarget(pointById[ch.target]);
+      inspect(ch.target);
+    } else {
+      // For MC, point at a relevant place if defined, else just nudge layers.
+      suggestLayers(ch);
+      live.textContent = "Relevant layers turned on. Read the question again.";
+      feedback.textContent = "Look at the layers now showing, then choose an answer.";
+      feedback.className = "feedback show good";
+    }
+  });
+
+  renderChallenge();
+  updateScore();
+})();
+</script>
+</body>
+</html>

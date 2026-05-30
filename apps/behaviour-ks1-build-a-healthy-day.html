@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build a Healthy Day</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --ink: #1d2b3a;
+    --muted: #5a6b7b;
+    --paper: #f4f7fb;
+    --card: #ffffff;
+    --line: #d8e2ec;
+    --green: #2e9e5b;
+    --green-soft: #d8f2e1;
+    --amber: #e08a16;
+    --blue: #2a6fb0;
+    --accent: #6a4fd0;
+    --shadow: 0 6px 20px rgba(29,43,58,.10);
+  }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app { margin-bottom: 14px; }
+  h1 { font-size: clamp(1.5rem, 3.4vw, 2.2rem); margin: 0 0 4px; }
+  .aim {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 5px solid var(--accent);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: .95rem;
+    color: var(--muted);
+    box-shadow: var(--shadow);
+  }
+  .aim strong { color: var(--ink); }
+  .layout { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 18px; }
+  @media (min-width: 860px) {
+    .layout { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: start; }
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  .panel h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  .panel h2 .hint { font-weight: 400; color: var(--muted); font-size: .82rem; display: block; }
+
+  /* Wheel */
+  .wheel-stage { display: flex; flex-direction: column; align-items: center; }
+  svg.wheel { width: 100%; max-width: 420px; height: auto; touch-action: none; }
+  .slot {
+    fill: #eef3f8;
+    stroke: #ffffff;
+    stroke-width: 2;
+    cursor: pointer;
+    transition: fill .2s ease;
+  }
+  .slot:hover { fill: #e2ebf4; }
+  .slot.filled { fill: var(--green-soft); }
+  .slot.droptarget { fill: #cfe6ff; }
+  .slot:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  .slot-label { font-size: 7px; fill: var(--muted); pointer-events: none; }
+  .slot-emoji { font-size: 13px; pointer-events: none; text-anchor: middle; }
+  .wheel-centre { font-size: 11px; font-weight: 700; fill: var(--ink); text-anchor: middle; }
+  .wheel-centre-sub { font-size: 7px; fill: var(--muted); text-anchor: middle; }
+
+  .meter-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 12px; width: 100%; }
+  .meter {
+    flex: 1 1 90px;
+    min-width: 84px;
+    background: #f0f4f8;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px;
+    text-align: center;
+  }
+  .meter .cat { font-size: .72rem; color: var(--muted); display: block; }
+  .meter .count { font-size: 1.15rem; font-weight: 700; }
+  .meter.done { background: var(--green-soft); border-color: var(--green); }
+  .meter.done .count { color: var(--green); }
+
+  /* Activity tray */
+  .tray { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 520px) { .tray { grid-template-columns: repeat(3, 1fr); } }
+  .chip {
+    border: 2px solid var(--line);
+    background: #fbfdff;
+    border-radius: 12px;
+    padding: 10px 8px;
+    text-align: center;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  }
+  .chip:hover { border-color: var(--blue); box-shadow: var(--shadow); }
+  .chip:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  .chip.dragging { opacity: .45; }
+  .chip.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(106,79,208,.18); }
+  .chip .ic { font-size: 1.8rem; display: block; line-height: 1; }
+  .chip .nm { font-size: .82rem; font-weight: 600; margin-top: 4px; }
+  .chip .tag {
+    display: inline-block; font-size: .64rem; color: #fff; border-radius: 20px;
+    padding: 1px 7px; margin-top: 4px;
+  }
+  .tag.cat-hygiene { background: var(--blue); }
+  .tag.cat-food { background: var(--green); }
+  .tag.cat-active { background: var(--amber); }
+  .tag.cat-sleep { background: var(--accent); }
+  .tag.cat-rest { background: #8a98a6; }
+
+  .drag-ghost {
+    position: fixed; z-index: 999; pointer-events: none;
+    background: #fff; border: 2px solid var(--accent); border-radius: 12px;
+    padding: 6px 10px; font-size: 1.4rem; box-shadow: var(--shadow);
+    transform: translate(-50%, -50%);
+  }
+
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  button.btn {
+    font: inherit; font-weight: 600; border: 1px solid var(--line);
+    background: #fff; color: var(--ink); border-radius: 10px; padding: 9px 14px;
+    cursor: pointer;
+  }
+  button.btn:hover { background: #f0f4f8; }
+  button.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.btn.primary:hover { background: #5a41bd; }
+  button.btn:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+
+  .feedback {
+    margin-top: 14px;
+    border: 1px solid var(--line);
+    border-left: 5px solid var(--blue);
+    background: #f3f8fd;
+    border-radius: 10px;
+    padding: 12px 14px;
+    min-height: 58px;
+    font-size: .95rem;
+  }
+  .feedback.good { border-left-color: var(--green); background: var(--green-soft); }
+  .feedback.tip { border-left-color: var(--amber); background: #fdf3e0; }
+  .feedback .big { font-weight: 700; display: block; margin-bottom: 2px; }
+
+  .legend { font-size: .78rem; color: var(--muted); margin-top: 10px; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  footer.note { margin-top: 26px; font-size: .78rem; color: var(--muted); text-align: center; }
+  .kbd-hint { font-size: .78rem; color: var(--muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <h1>Build a Healthy Day &#x2600;&#xFE0F;</h1>
+    <div class="aim">
+      <strong>Teacher aim:</strong> KS1 pupils plan a balanced healthy day by placing daily activities on a 24-hour wheel,
+      covering hygiene, sleep, healthy eating and physical activity. The wheel turns green when the day is balanced.
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: WHEEL -->
+    <section class="panel" aria-labelledby="wheelHead">
+      <h2 id="wheelHead">My day wheel
+        <span class="hint">Drop an activity onto a time of day, or tap a slot to fill it.</span>
+      </h2>
+      <div class="wheel-stage">
+        <svg class="wheel" viewBox="0 0 200 200" role="group" aria-label="24 hour day wheel with twelve time slots">
+          <circle cx="100" cy="100" r="96" fill="#ffffff" stroke="#d8e2ec" stroke-width="1"></circle>
+          <g id="slots"></g>
+          <circle cx="100" cy="100" r="30" fill="#ffffff" stroke="#d8e2ec" stroke-width="1"></circle>
+          <text class="wheel-centre" x="100" y="98">Healthy</text>
+          <text class="wheel-centre" x="100" y="111">Day</text>
+          <text class="wheel-centre-sub" x="100" y="123" id="centreScore">0 / 12 filled</text>
+        </svg>
+      </div>
+
+      <div class="meter-row" id="meters" aria-hidden="false">
+        <div class="meter" data-cat="hygiene"><span class="cat">Clean &amp; tidy</span><span class="count" id="m-hygiene">0</span></div>
+        <div class="meter" data-cat="food"><span class="cat">Healthy food</span><span class="count" id="m-food">0</span></div>
+        <div class="meter" data-cat="active"><span class="cat">Active play</span><span class="count" id="m-active">0</span></div>
+        <div class="meter" data-cat="sleep"><span class="cat">Good sleep</span><span class="count" id="m-sleep">0</span></div>
+      </div>
+      <p class="legend">A balanced day needs at least: 2 clean &amp; tidy, 2 healthy food, 2 active play and 2 good sleep.</p>
+    </section>
+
+    <!-- RIGHT: TRAY + FEEDBACK -->
+    <section class="panel" aria-labelledby="trayHead">
+      <h2 id="trayHead">Activity cards
+        <span class="hint">Drag a card to the wheel, or use the keyboard (see below).</span>
+      </h2>
+      <div class="tray" id="tray" role="listbox" aria-label="Activity cards. Select a card then choose a time slot."></div>
+
+      <div class="controls">
+        <button class="btn primary" id="checkBtn" type="button">Check my day</button>
+        <button class="btn" id="resetBtn" type="button">Start again</button>
+      </div>
+
+      <div class="feedback" id="feedback" role="status" aria-live="polite">
+        <span class="big">Let's plan a healthy day!</span>
+        Pick activities and place them around the wheel. Try to fill every time of day.
+      </div>
+
+      <p class="kbd-hint">
+        <strong>Keyboard:</strong> Tab to a card and press Enter to pick it up, then Tab to a wheel slot and press Enter to drop it. Press Delete on a filled slot to clear it.
+      </p>
+    </section>
+  </div>
+
+  <footer class="note">
+    Demonstration activity for teaching. Fictional examples only; no real pupil information is used.
+  </footer>
+</div>
+
+<div id="liveRegion" class="sr-only" aria-live="assertive"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- Activity definitions (KS1 health strand) ----
+  // cat: hygiene | food | active | sleep | rest (rest is neutral / balancing)
+  var ACTIVITIES = [
+    { id: "teeth",  name: "Brush teeth",   emoji: "\u{1FAA5}", cat: "hygiene" },
+    { id: "wash",   name: "Wash hands",    emoji: "\u{1F9FC}", cat: "hygiene" },
+    { id: "bath",   name: "Have a bath",   emoji: "\u{1F6C1}", cat: "hygiene" },
+    { id: "fruit",  name: "Eat fruit",     emoji: "\u{1F34E}", cat: "food" },
+    { id: "veg",    name: "Eat vegetables",emoji: "\u{1F955}", cat: "food" },
+    { id: "water",  name: "Drink water",   emoji: "\u{1F4A7}", cat: "food" },
+    { id: "play",   name: "Play outside",  emoji: "\u{26BD}",  cat: "active" },
+    { id: "run",    name: "Run and jump",  emoji: "\u{1F3C3}", cat: "active" },
+    { id: "ride",   name: "Ride a bike",   emoji: "\u{1F6B2}", cat: "active" },
+    { id: "sleep",  name: "Night sleep",   emoji: "\u{1F634}", cat: "sleep" },
+    { id: "nap",    name: "Quiet rest",    emoji: "\u{1F6CF}", cat: "sleep" },
+    { id: "story",  name: "Bedtime story", emoji: "\u{1F4D6}", cat: "rest" },
+    { id: "sweets", name: "Lots of sweets",emoji: "\u{1F36C}", cat: "junk" },
+    { id: "screen", name: "Long TV time",  emoji: "\u{1F4FA}", cat: "junk" }
+  ];
+
+  var CAT_LABEL = {
+    hygiene: "Clean & tidy", food: "Healthy food", active: "Active play",
+    sleep: "Good sleep", rest: "Calm time", junk: "Treat / screen"
+  };
+  var CAT_TAGCLASS = {
+    hygiene: "cat-hygiene", food: "cat-food", active: "cat-active",
+    sleep: "cat-sleep", rest: "cat-rest", junk: "cat-rest"
+  };
+
+  // 12 time slots (2-hour blocks) around 24h wheel, 12 = top (midnight)
+  var SLOT_HOURS = ["12am","2am","4am","6am","8am","10am","12pm","2pm","4pm","6pm","8pm","10pm"];
+  var NUM_SLOTS = 12;
+  var slots = new Array(NUM_SLOTS).fill(null); // each holds activity id or null
+
+  var TARGET = { hygiene: 2, food: 2, active: 2, sleep: 2 };
+
+  // ---- DOM refs ----
+  var slotsG = document.getElementById("slots");
+  var tray = document.getElementById("tray");
+  var feedback = document.getElementById("feedback");
+  var live = document.getElementById("liveRegion");
+  var centreScore = document.getElementById("centreScore");
+
+  var selectedActivity = null; // id picked up via keyboard/tap
+  var ghost = null;
+  var pointerDragId = null;
+
+  function byId(id) {
+    for (var i = 0; i < ACTIVITIES.length; i++) { if (ACTIVITIES[i].id === id) return ACTIVITIES[i]; }
+    return null;
+  }
+
+  // ---- Build wheel slots (SVG) ----
+  var R_OUTER = 96, R_INNER = 30, CX = 100, CY = 100;
+  function polar(angleDeg, r) {
+    var a = (angleDeg - 90) * Math.PI / 180;
+    return { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) };
+  }
+  function wedgePath(i) {
+    var step = 360 / NUM_SLOTS;
+    var start = i * step, end = start + step;
+    var o1 = polar(start, R_OUTER), o2 = polar(end, R_OUTER);
+    var i2 = polar(end, R_INNER), i1 = polar(start, R_INNER);
+    return ["M", o1.x, o1.y,
+            "A", R_OUTER, R_OUTER, 0, 0, 1, o2.x, o2.y,
+            "L", i2.x, i2.y,
+            "A", R_INNER, R_INNER, 0, 0, 0, i1.x, i1.y,
+            "Z"].join(" ");
+  }
+
+  function buildSlots() {
+    slotsG.innerHTML = "";
+    var step = 360 / NUM_SLOTS;
+    for (var i = 0; i < NUM_SLOTS; i++) {
+      var mid = i * step + step / 2;
+      var labelPos = polar(mid, (R_OUTER + R_INNER) / 2 - 6);
+      var emojiPos = polar(mid, (R_OUTER + R_INNER) / 2 + 8);
+
+      var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", wedgePath(i));
+      path.setAttribute("class", "slot");
+      path.setAttribute("data-slot", String(i));
+      path.setAttribute("tabindex", "0");
+      path.setAttribute("role", "button");
+      path.setAttribute("aria-label", SLOT_HOURS[i] + ", empty time slot");
+      slotsG.appendChild(path);
+
+      var lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      lbl.setAttribute("class", "slot-label");
+      lbl.setAttribute("x", labelPos.x);
+      lbl.setAttribute("y", labelPos.y);
+      lbl.setAttribute("text-anchor", "middle");
+      lbl.setAttribute("data-slot-time", String(i));
+      lbl.textContent = SLOT_HOURS[i];
+      slotsG.appendChild(lbl);
+
+      var em = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      em.setAttribute("class", "slot-emoji");
+      em.setAttribute("x", emojiPos.x);
+      em.setAttribute("y", emojiPos.y + 3);
+      em.setAttribute("data-slot-emoji", String(i));
+      em.textContent = "";
+      slotsG.appendChild(em);
+    }
+  }
+
+  // ---- Build tray chips ----
+  function buildTray() {
+    tray.innerHTML = "";
+    ACTIVITIES.forEach(function (act) {
+      var chip = document.createElement("div");
+      chip.className = "chip";
+      chip.setAttribute("role", "option");
+      chip.setAttribute("tabindex", "0");
+      chip.setAttribute("aria-selected", "false");
+      chip.setAttribute("data-act", act.id);
+      chip.setAttribute("aria-label", act.name + ", category " + CAT_LABEL[act.cat] + ". Press Enter to pick up.");
+      chip.innerHTML =
+        '<span class="ic" aria-hidden="true">' + act.emoji + '</span>' +
+        '<span class="nm">' + act.name + '</span>' +
+        '<span class="tag ' + CAT_TAGCLASS[act.cat] + '">' + CAT_LABEL[act.cat] + '</span>';
+      tray.appendChild(chip);
+
+      // Pointer drag
+      chip.addEventListener("pointerdown", onChipPointerDown);
+      // Keyboard / tap select
+      chip.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickUp(act.id); }
+      });
+      chip.addEventListener("click", function () { pickUp(act.id); });
+    });
+  }
+
+  function pickUp(id) {
+    selectedActivity = id;
+    Array.prototype.forEach.call(tray.children, function (c) {
+      var on = c.getAttribute("data-act") === id;
+      c.classList.toggle("selected", on);
+      c.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    var a = byId(id);
+    announce("Picked up " + a.name + ". Now choose a time slot on the wheel and press Enter.");
+    setFeedback("tip", "Card ready: " + a.name,
+      "Now tap a time of day on the wheel to place it. You can also drag it.");
+  }
+
+  function clearSelection() {
+    selectedActivity = null;
+    Array.prototype.forEach.call(tray.children, function (c) {
+      c.classList.remove("selected");
+      c.setAttribute("aria-selected", "false");
+    });
+  }
+
+  // ---- Place / clear in slot ----
+  function placeInSlot(slotIndex, actId) {
+    var a = byId(actId);
+    if (!a) return;
+    slots[slotIndex] = actId;
+    renderSlot(slotIndex);
+    react(slotIndex, a);
+    updateMeters();
+  }
+
+  function clearSlot(slotIndex) {
+    if (slots[slotIndex] == null) return;
+    var prev = byId(slots[slotIndex]);
+    slots[slotIndex] = null;
+    renderSlot(slotIndex);
+    updateMeters();
+    announce("Cleared " + (prev ? prev.name : "slot") + " from " + SLOT_HOURS[slotIndex] + ".");
+    setFeedback("", "Cleared " + SLOT_HOURS[slotIndex] + ".", "That time of day is empty again. Place another activity.");
+  }
+
+  function renderSlot(i) {
+    var path = slotsG.querySelector('path[data-slot="' + i + '"]');
+    var em = slotsG.querySelector('text[data-slot-emoji="' + i + '"]');
+    if (slots[i] != null) {
+      var a = byId(slots[i]);
+      path.classList.add("filled");
+      em.textContent = a.emoji;
+      path.setAttribute("aria-label", SLOT_HOURS[i] + ", " + a.name + " (" + CAT_LABEL[a.cat] + "). Press Delete to clear.");
+    } else {
+      path.classList.remove("filled");
+      em.textContent = "";
+      path.setAttribute("aria-label", SLOT_HOURS[i] + ", empty time slot");
+    }
+    var filled = slots.filter(function (s) { return s != null; }).length;
+    centreScore.textContent = filled + " / " + NUM_SLOTS + " filled";
+  }
+
+  // ---- Immediate, specific feedback per placement ----
+  function react(slotIndex, a) {
+    var hour = SLOT_HOURS[slotIndex];
+    var msg, kind = "good", title;
+
+    // time-aware coaching
+    var nightSlots = [0, 1, 2, 11]; // 12am,2am,4am,10pm
+    var morningSlots = [3, 4]; // 6am, 8am
+    var isNight = nightSlots.indexOf(slotIndex) !== -1;
+
+    switch (a.cat) {
+      case "hygiene":
+        title = "Good hygiene choice!";
+        if (a.id === "teeth") {
+          if (morningSlots.indexOf(slotIndex) !== -1 || slotIndex === 11) {
+            msg = "Brushing teeth at " + hour + " is perfect. We brush twice a day: morning and before bed.";
+          } else {
+            msg = "Brushing teeth keeps them strong. The best times are morning and just before bed.";
+            kind = "tip";
+          }
+        } else if (a.id === "wash") {
+          msg = "Washing hands stops germs spreading. We wash before eating and after the toilet.";
+        } else {
+          msg = "Staying clean helps us feel fresh and healthy.";
+        }
+        break;
+      case "food":
+        title = "Healthy food choice!";
+        if (a.id === "water") msg = "Water keeps our body working well. We need lots of it every day.";
+        else if (a.id === "fruit") msg = "Fruit gives us vitamins and energy. Try for five fruit and veg a day.";
+        else msg = "Vegetables help us grow strong. Add colour to your plate.";
+        break;
+      case "active":
+        title = "Active play, brilliant!";
+        if (isNight) {
+          msg = "Running about is great, but " + hour + " is sleep time. Move active play to the daytime.";
+          kind = "tip";
+        } else {
+          msg = "Being active keeps our heart and muscles strong. Aim for an hour of play each day.";
+        }
+        break;
+      case "sleep":
+        title = "Rest and sleep, lovely!";
+        if (a.id === "sleep" && !isNight) {
+          msg = "Night sleep belongs in the night time (10pm to 6am). Children need about 10 to 12 hours.";
+          kind = "tip";
+        } else if (a.id === "sleep") {
+          msg = "Night sleep at " + hour + " is just right. Good sleep helps us learn and feel happy.";
+        } else {
+          msg = "A little quiet rest helps the body recharge.";
+        }
+        break;
+      case "rest":
+        title = "Calm time added.";
+        msg = "A bedtime story is a lovely calm way to wind down before sleep.";
+        kind = "";
+        break;
+      case "junk":
+        title = "Hmm, think again.";
+        kind = "tip";
+        if (a.id === "sweets") msg = "Lots of sweets can harm our teeth. Sweets are a sometimes treat, not an every-time choice.";
+        else msg = "Too much screen time means less active play and can disturb sleep. Keep it short.";
+        break;
+      default:
+        title = "Placed.";
+        msg = "Activity added to " + hour + ".";
+    }
+    setFeedback(kind, title, msg);
+    announce(a.name + " placed at " + hour + ". " + msg);
+  }
+
+  function setFeedback(kind, title, body) {
+    feedback.className = "feedback" + (kind ? " " + kind : "");
+    feedback.innerHTML = '<span class="big">' + title + '</span>' + body;
+  }
+
+  function announce(text) { live.textContent = text; }
+
+  // ---- Meters + wheel-balance check ----
+  function counts() {
+    var c = { hygiene: 0, food: 0, active: 0, sleep: 0, rest: 0, junk: 0 };
+    slots.forEach(function (s) { if (s != null) { var a = byId(s); if (a) c[a.cat]++; } });
+    return c;
+  }
+
+  function updateMeters() {
+    var c = counts();
+    ["hygiene", "food", "active", "sleep"].forEach(function (cat) {
+      var el = document.getElementById("m-" + cat);
+      el.textContent = c[cat];
+      var meter = el.closest(".meter");
+      meter.classList.toggle("done", c[cat] >= TARGET[cat]);
+    });
+  }
+
+  function isBalanced() {
+    var c = counts();
+    return c.hygiene >= TARGET.hygiene && c.food >= TARGET.food &&
+           c.active >= TARGET.active && c.sleep >= TARGET.sleep;
+  }
+
+  function checkDay() {
+    var c = counts();
+    var missing = [];
+    if (c.hygiene < TARGET.hygiene) missing.push((TARGET.hygiene - c.hygiene) + " more clean & tidy");
+    if (c.food < TARGET.food) missing.push((TARGET.food - c.food) + " more healthy food");
+    if (c.active < TARGET.active) missing.push((TARGET.active - c.active) + " more active play");
+    if (c.sleep < TARGET.sleep) missing.push((TARGET.sleep - c.sleep) + " more good sleep");
+
+    if (isBalanced()) {
+      lightUpWheel();
+      var extra = c.junk > 0 ? " Tip: try swapping out the treat or screen card for an even healthier day." : "";
+      setFeedback("good", "Hooray, a balanced healthy day! \u{1F31F}",
+        "You have plenty of hygiene, healthy food, active play and good sleep. The wheel has turned green." + extra);
+      announce("Well done. The day is balanced and the wheel is green.");
+    } else {
+      setFeedback("tip", "Almost there!",
+        "Your day still needs: " + missing.join(", ") + ". Add those activities to turn the wheel green.");
+      announce("Not balanced yet. You still need " + missing.join(", ") + ".");
+    }
+  }
+
+  function lightUpWheel() {
+    var paths = slotsG.querySelectorAll("path.slot.filled");
+    Array.prototype.forEach.call(paths, function (p, idx) {
+      setTimeout(function () {
+        p.style.fill = "#bdeccd";
+        setTimeout(function () { p.style.fill = ""; }, 320);
+      }, idx * 70);
+    });
+  }
+
+  // ---- Pointer (touch + mouse) drag ----
+  function onChipPointerDown(e) {
+    var chip = e.currentTarget;
+    pointerDragId = chip.getAttribute("data-act");
+    chip.classList.add("dragging");
+    chip.setPointerCapture(e.pointerId);
+
+    createGhost(byId(pointerDragId).emoji, e.clientX, e.clientY);
+
+    function move(ev) {
+      moveGhost(ev.clientX, ev.clientY);
+      highlightSlotUnder(ev.clientX, ev.clientY);
+    }
+    function up(ev) {
+      chip.classList.remove("dragging");
+      removeGhost();
+      var slotIndex = slotIndexUnder(ev.clientX, ev.clientY);
+      clearDropHighlights();
+      if (slotIndex !== -1) { placeInSlot(slotIndex, pointerDragId); }
+      pointerDragId = null;
+      chip.removeEventListener("pointermove", move);
+      chip.removeEventListener("pointerup", up);
+      chip.removeEventListener("pointercancel", up);
+    }
+    chip.addEventListener("pointermove", move);
+    chip.addEventListener("pointerup", up);
+    chip.addEventListener("pointercancel", up);
+  }
+
+  function createGhost(emoji, x, y) {
+    removeGhost();
+    ghost = document.createElement("div");
+    ghost.className = "drag-ghost";
+    ghost.textContent = emoji;
+    document.body.appendChild(ghost);
+    moveGhost(x, y);
+  }
+  function moveGhost(x, y) { if (ghost) { ghost.style.left = x + "px"; ghost.style.top = y + "px"; } }
+  function removeGhost() { if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost); ghost = null; }
+
+  function slotIndexUnder(x, y) {
+    var el = document.elementFromPoint(x, y);
+    if (el && el.classList && el.classList.contains("slot")) {
+      return parseInt(el.getAttribute("data-slot"), 10);
+    }
+    return -1;
+  }
+  function highlightSlotUnder(x, y) {
+    clearDropHighlights();
+    var idx = slotIndexUnder(x, y);
+    if (idx !== -1) {
+      var p = slotsG.querySelector('path[data-slot="' + idx + '"]');
+      if (p) p.classList.add("droptarget");
+    }
+  }
+  function clearDropHighlights() {
+    Array.prototype.forEach.call(slotsG.querySelectorAll(".droptarget"), function (p) {
+      p.classList.remove("droptarget");
+    });
+  }
+
+  // ---- Slot keyboard / tap interactions ----
+  slotsG.addEventListener("click", function (e) {
+    var p = e.target.closest("path.slot");
+    if (!p) return;
+    var i = parseInt(p.getAttribute("data-slot"), 10);
+    if (selectedActivity) { placeInSlot(i, selectedActivity); clearSelection(); }
+    else if (slots[i] != null) { /* tap a filled slot does nothing destructive */ }
+    else { setFeedback("", "Pick a card first", "Tap an activity card on the right, then tap this time slot."); }
+  });
+
+  slotsG.addEventListener("keydown", function (e) {
+    var p = e.target.closest("path.slot");
+    if (!p) return;
+    var i = parseInt(p.getAttribute("data-slot"), 10);
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (selectedActivity) { placeInSlot(i, selectedActivity); clearSelection(); }
+      else setFeedback("", "Pick a card first", "Tab to an activity card, press Enter to pick it up, then come back here.");
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      clearSlot(i);
+    }
+  });
+
+  // ---- Controls ----
+  document.getElementById("checkBtn").addEventListener("click", checkDay);
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    slots = new Array(NUM_SLOTS).fill(null);
+    clearSelection();
+    for (var i = 0; i < NUM_SLOTS; i++) renderSlot(i);
+    updateMeters();
+    setFeedback("", "Fresh start!", "The wheel is empty. Plan a brand new healthy day.");
+    announce("The wheel has been cleared. Start again.");
+  });
+
+  // ---- Init ----
+  buildSlots();
+  buildTray();
+  for (var i = 0; i < NUM_SLOTS; i++) renderSlot(i);
+  updateMeters();
+})();
+</script>
+</body>
+</html>

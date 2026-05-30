@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orienteering Quest</title>
+<style>
+  :root {
+    --ink: #1f2a24;
+    --paper: #f4f1e6;
+    --forest: #2f6b46;
+    --forest-deep: #1d4a30;
+    --moss: #6aa37a;
+    --water: #8fc3d6;
+    --sand: #e6d9a8;
+    --track: #c98a3a;
+    --flag: #d64545;
+    --flag-soft: #f6c9c9;
+    --gold: #e0a92e;
+    --line: rgba(31,42,36,0.18);
+    --shadow: 0 8px 24px rgba(29,74,48,0.18);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(160deg, #eef3ec 0%, #e3ecdf 100%);
+    color: var(--ink);
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 18px 16px 56px;
+  }
+  header.app-head {
+    background: linear-gradient(135deg, var(--forest) 0%, var(--forest-deep) 100%);
+    color: #f4f1e6;
+    border-radius: 16px;
+    padding: 18px 22px;
+    box-shadow: var(--shadow);
+  }
+  .app-head h1 {
+    margin: 0 0 4px;
+    font-size: clamp(1.5rem, 4vw, 2.1rem);
+    letter-spacing: 0.5px;
+  }
+  .app-head .strand {
+    display: inline-block;
+    background: rgba(255,255,255,0.16);
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    margin-top: 6px;
+  }
+  .aim {
+    margin: 14px 0 0;
+    background: #fff;
+    border-left: 5px solid var(--gold);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.96rem;
+    box-shadow: var(--shadow);
+  }
+  .aim strong { color: var(--forest-deep); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+    margin-top: 18px;
+  }
+  @media (min-width: 900px) {
+    .layout { grid-template-columns: 1.55fr 1fr; align-items: start; }
+  }
+
+  .panel {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .panel h2 {
+    margin: 0 0 10px;
+    font-size: 1.05rem;
+    color: var(--forest-deep);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .map-frame {
+    position: relative;
+    border: 6px solid #fff;
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 2px var(--line);
+    overflow: hidden;
+    background: var(--paper);
+  }
+  svg.map { display: block; width: 100%; height: auto; touch-action: none; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    margin-top: 10px;
+    font-size: 0.8rem;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .swatch { width: 14px; height: 14px; border-radius: 4px; display: inline-block; border: 1px solid var(--line); }
+
+  .controls-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  button.btn {
+    font: inherit;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.15s ease, background 0.15s ease;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.12);
+  }
+  button.btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.12); }
+  button.btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+  .btn-primary { background: var(--forest); color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: var(--forest-deep); }
+  .btn-amber { background: var(--gold); color: #3a2d06; }
+  .btn-amber:hover:not(:disabled) { background: #cf9a1f; }
+  .btn-ghost { background: #eef0e9; color: var(--ink); box-shadow: 0 3px 0 rgba(0,0,0,0.08); }
+  .btn-ghost:hover:not(:disabled) { background: #e1e6da; }
+  .btn-flag { background: var(--flag); color: #fff; }
+  .btn-flag:hover:not(:disabled) { background: #b53636; }
+
+  .team-pick { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .team-chip {
+    font: inherit;
+    cursor: pointer;
+    border: 2px solid var(--line);
+    background: #fff;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .team-chip[aria-pressed="true"] {
+    border-color: var(--forest);
+    background: #e8f2ea;
+    color: var(--forest-deep);
+    box-shadow: 0 0 0 3px rgba(47,107,70,0.18);
+  }
+
+  .timer-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--forest-deep);
+    color: #f4f1e6;
+    border-radius: 12px;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+  }
+  .timer-bar .clock {
+    font-variant-numeric: tabular-nums;
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .timer-bar .label { font-size: 0.78rem; opacity: 0.85; text-transform: uppercase; letter-spacing: 1px; }
+
+  .route-list { list-style: none; margin: 0; padding: 0; min-height: 40px; }
+  .route-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f6f8f4;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .route-list .num {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--forest); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; flex: 0 0 auto;
+  }
+  .route-list .leg-dist { margin-left: auto; font-weight: 500; font-size: 0.85rem; color: #4a5a50; }
+  .route-empty { color: #6a7a70; font-style: italic; padding: 6px 2px; }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 10px 0;
+  }
+  .stat {
+    background: #f1f5ef;
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+  }
+  .stat .v { font-size: 1.3rem; font-weight: 700; color: var(--forest-deep); font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.5px; color: #6a7a70; }
+
+  .feedback {
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-top: 10px;
+    font-size: 0.95rem;
+    background: #f1f5ef;
+    border: 1px solid var(--line);
+  }
+  .feedback.good { background: #e7f4ea; border-color: var(--moss); }
+  .feedback.near { background: #fdf3df; border-color: var(--gold); }
+  .feedback.far { background: #fbe9e7; border-color: var(--flag); }
+  .feedback h3 { margin: 0 0 4px; font-size: 1rem; }
+  .feedback ul { margin: 6px 0 0; padding-left: 18px; }
+  .feedback li { margin-bottom: 3px; }
+
+  .hint {
+    font-size: 0.85rem;
+    color: #54635a;
+    margin-top: 8px;
+  }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .control-node { cursor: pointer; outline: none; }
+  .control-node:focus-visible .node-ring { stroke: #1d4a30; stroke-width: 4; }
+  .node-hit { fill: transparent; }
+  footer.foot {
+    margin-top: 22px;
+    font-size: 0.8rem;
+    color: #5a685e;
+    text-align: center;
+  }
+  .badge-best {
+    display: none;
+    margin-top: 10px;
+    background: linear-gradient(135deg, #f7e7b0, #e0a92e);
+    color: #3a2d06;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .badge-best.show { display: block; }
+  .scenario-note { font-size: 0.85rem; color: #54635a; margin: 0 0 8px; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <h1>&#x1F9ED; Orienteering Quest</h1>
+    <span class="strand">PE &middot; KS2 &middot; Outdoor and adventurous activity: problem solving</span>
+  </header>
+
+  <p class="aim">
+    <strong>Teacher aim:</strong> Pupils work as a team to plan the fastest route between control points on a projected map.
+    They visit every control, then race the clock to compare their plan against the shortest possible path.
+    Focus on problem solving, route choice and teamwork, not running speed.
+  </p>
+
+  <div class="layout">
+    <!-- MAP COLUMN -->
+    <section class="panel" aria-labelledby="map-h">
+      <h2 id="map-h">&#x1F5FA;&#xFE0F; Orienteering map</h2>
+      <p class="scenario-note" id="scenarioNote">Tap or click each control flag in the order your team chooses. Start at the orange triangle, visit all controls, then check your route.</p>
+      <div class="map-frame">
+        <svg class="map" id="map" viewBox="0 0 600 420" role="application"
+             aria-label="Orienteering map with a start point and control flags. Activate controls in your chosen order to plan a route.">
+          <!-- background terrain -->
+          <rect x="0" y="0" width="600" height="420" fill="#f4f1e6"></rect>
+          <!-- forest patches -->
+          <path d="M20,30 Q90,10 150,40 Q180,90 120,120 Q40,110 20,60 Z" fill="#cfe3d2" opacity="0.9"></path>
+          <path d="M430,250 Q520,230 580,280 Q560,360 470,360 Q420,310 430,250 Z" fill="#cfe3d2" opacity="0.9"></path>
+          <!-- water -->
+          <path d="M250,300 Q330,270 400,310 Q380,380 300,390 Q240,360 250,300 Z" fill="#bfe0ec"></path>
+          <text x="320" y="345" font-size="13" fill="#3a6a7a" opacity="0.7">Lake</text>
+          <!-- sandy clearing -->
+          <ellipse cx="470" cy="90" rx="80" ry="46" fill="#efe4bd" opacity="0.8"></ellipse>
+          <!-- path / track -->
+          <path d="M70,360 Q200,330 300,250 Q400,170 540,150" fill="none" stroke="#d8b06e" stroke-width="7" stroke-linecap="round" stroke-dasharray="2 10" opacity="0.7"></path>
+          <!-- grid lines -->
+          <g stroke="rgba(31,42,36,0.07)" stroke-width="1">
+            <line x1="120" y1="0" x2="120" y2="420"></line>
+            <line x1="240" y1="0" x2="240" y2="420"></line>
+            <line x1="360" y1="0" x2="360" y2="420"></line>
+            <line x1="480" y1="0" x2="480" y2="420"></line>
+            <line x1="0" y1="105" x2="600" y2="105"></line>
+            <line x1="0" y1="210" x2="600" y2="210"></line>
+            <line x1="0" y1="315" x2="600" y2="315"></line>
+          </g>
+          <!-- route polyline (drawn by JS) -->
+          <polyline id="routeLine" points="" fill="none" stroke="#2f6b46" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"></polyline>
+          <!-- optimal route (revealed) -->
+          <polyline id="optimalLine" points="" fill="none" stroke="#e0a92e" stroke-width="4" stroke-dasharray="9 7" stroke-linejoin="round" stroke-linecap="round" opacity="0"></polyline>
+          <!-- nodes drawn by JS -->
+          <g id="nodes"></g>
+        </svg>
+      </div>
+      <div class="legend" aria-hidden="true">
+        <span><span class="swatch" style="background:#c98a3a;border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></span> Start</span>
+        <span><span class="swatch" style="background:#d64545"></span> Control flag</span>
+        <span><span class="swatch" style="background:#2f6b46"></span> Your route</span>
+        <span><span class="swatch" style="background:#e0a92e"></span> Best route</span>
+        <span><span class="swatch" style="background:#bfe0ec"></span> Lake</span>
+        <span><span class="swatch" style="background:#cfe3d2"></span> Forest</span>
+      </div>
+
+      <div class="controls-row">
+        <button class="btn btn-ghost" id="undoBtn" type="button" disabled>&#x21A9;&#xFE0F; Undo last</button>
+        <button class="btn btn-ghost" id="clearBtn" type="button" disabled>&#x267B;&#xFE0F; Clear route</button>
+        <button class="btn btn-primary" id="checkBtn" type="button" disabled>&#x2705; Check our route</button>
+        <button class="btn btn-amber" id="newBtn" type="button">&#x1F3B2; New course</button>
+      </div>
+      <p class="hint">Keyboard: press <strong>Tab</strong> to move between flags, then <strong>Enter</strong> or <strong>Space</strong> to add a flag to your route.</p>
+    </section>
+
+    <!-- PLANNING COLUMN -->
+    <section class="panel" aria-labelledby="plan-h">
+      <h2 id="plan-h">&#x1F465; Team planning</h2>
+
+      <label class="sr-only" for="teamGroup">Choose your team</label>
+      <div class="team-pick" id="teamGroup" role="group" aria-label="Choose your team">
+        <button class="team-chip" type="button" data-team="Foxes" aria-pressed="true">&#x1F98A; Foxes</button>
+        <button class="team-chip" type="button" data-team="Owls" aria-pressed="false">&#x1F989; Owls</button>
+        <button class="team-chip" type="button" data-team="Otters" aria-pressed="false">&#x1F9A6; Otters</button>
+      </div>
+
+      <div class="timer-bar">
+        <div>
+          <div class="label">Planning timer</div>
+          <div class="clock" id="clock" aria-hidden="true">00:00</div>
+        </div>
+        <button class="btn btn-flag" id="timerBtn" type="button">&#x23F1;&#xFE0F; Start planning</button>
+      </div>
+
+      <h2 style="font-size:0.95rem;">Route plan for <span id="teamName">Foxes</span></h2>
+      <ol class="route-list" id="routeList" aria-live="polite">
+        <li class="route-empty" id="routeEmpty">No controls chosen yet. Pick the start, then the flags.</li>
+      </ol>
+
+      <div class="stat-grid">
+        <div class="stat"><div class="v" id="statVisited">0/0</div><div class="k">Controls visited</div></div>
+        <div class="stat"><div class="v" id="statDist">0 m</div><div class="k">Route length</div></div>
+      </div>
+
+      <div class="feedback" id="feedback" role="status" aria-live="polite">
+        <h3>Ready to plan</h3>
+        Choose your team, start the timer, then plan the order to visit every control. When all flags are collected, check your route to see how close you got to the best path.
+      </div>
+
+      <div class="badge-best" id="badgeBest">&#x1F3C5; Perfect route! You found the fastest path.</div>
+    </section>
+  </div>
+
+  <footer class="foot">
+    Orienteering Quest &middot; WeST teaching demo &middot; Distances are map units for learning route choice. Demonstration data only; all team names are fictional.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var svgNS = "http://www.w3.org/2000/svg";
+  var nodesG = document.getElementById("nodes");
+  var routeLine = document.getElementById("routeLine");
+  var optimalLine = document.getElementById("optimalLine");
+  var routeListEl = document.getElementById("routeList");
+  var routeEmptyEl = document.getElementById("routeEmpty");
+  var feedbackEl = document.getElementById("feedback");
+  var statVisited = document.getElementById("statVisited");
+  var statDist = document.getElementById("statDist");
+  var clockEl = document.getElementById("clock");
+  var timerBtn = document.getElementById("timerBtn");
+  var undoBtn = document.getElementById("undoBtn");
+  var clearBtn = document.getElementById("clearBtn");
+  var checkBtn = document.getElementById("checkBtn");
+  var newBtn = document.getElementById("newBtn");
+  var teamGroup = document.getElementById("teamGroup");
+  var teamNameEl = document.getElementById("teamName");
+  var badgeBest = document.getElementById("badgeBest");
+  var scenarioNote = document.getElementById("scenarioNote");
+
+  // State
+  var controls = [];      // {id, x, y, label, isStart}
+  var chosen = [];        // array of node ids in chosen order
+  var optimalOrder = [];  // ids
+  var optimalDist = 0;
+  var checked = false;
+  var team = "Foxes";
+
+  // Timer
+  var timerRunning = false;
+  var startedAt = 0;
+  var elapsedMs = 0;
+  var tickHandle = null;
+
+  // Fictional control labels (clearly not real pupils)
+  var labelPool = ["A", "B", "C", "D", "E", "F", "G"];
+
+  function dist(a, b) {
+    var dx = a.x - b.x, dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // Generate a fresh course: 1 start + N controls, spread out
+  function generateCourse() {
+    controls = [];
+    var n = 4 + Math.floor(Math.random() * 2); // 4 or 5 controls
+    var start = { id: 0, x: 70, y: 360, label: "S", isStart: true };
+    controls.push(start);
+
+    var placed = [start];
+    var attempts = 0;
+    var idx = 1;
+    while (placed.length < n + 1 && attempts < 400) {
+      attempts++;
+      var x = 80 + Math.random() * 460;
+      var y = 50 + Math.random() * 300;
+      var candidate = { x: x, y: y };
+      // keep flags spread apart and out of the lake centre
+      var inLake = (x > 250 && x < 400 && y > 290 && y < 392);
+      if (inLake) continue;
+      var ok = true;
+      for (var p = 0; p < placed.length; p++) {
+        if (dist(placed[p], candidate) < 110) { ok = false; break; }
+      }
+      if (!ok) continue;
+      var node = { id: idx, x: Math.round(x), y: Math.round(y), label: labelPool[idx - 1], isStart: false };
+      controls.push(node);
+      placed.push(node);
+      idx++;
+    }
+    computeOptimal();
+    chosen = [0]; // start automatically chosen
+    checked = false;
+    resetTimer();
+    drawNodes();
+    redrawRoute();
+    updatePanel();
+    optimalLine.setAttribute("points", "");
+    optimalLine.style.opacity = "0";
+    badgeBest.classList.remove("show");
+    setFeedback("default", "Course ready",
+      "Start the planning timer, then tap the flags in the order your team will run. You must visit every control. The start point is already added.");
+    scenarioNote.textContent = "This course has " + (controls.length - 1) + " controls. Plan the order that gives the shortest total route. Start at the orange triangle.";
+  }
+
+  // Brute-force shortest route starting at start (id 0), visiting all controls.
+  // Path, not loop (orienteering point-to-point: finish at last control).
+  function computeOptimal() {
+    var pts = controls.slice();
+    var startNode = pts[0];
+    var rest = pts.slice(1);
+    var best = { order: null, d: Infinity };
+
+    function permute(arr, current, accDist, lastNode) {
+      if (accDist >= best.d) return; // prune
+      if (arr.length === 0) {
+        if (accDist < best.d) {
+          best.d = accDist;
+          best.order = [0].concat(current.map(function (nd) { return nd.id; }));
+        }
+        return;
+      }
+      for (var i = 0; i < arr.length; i++) {
+        var next = arr[i];
+        var remaining = arr.slice(0, i).concat(arr.slice(i + 1));
+        permute(remaining, current.concat([next]), accDist + dist(lastNode, next), next);
+      }
+    }
+    permute(rest, [], 0, startNode);
+    optimalOrder = best.order || [0];
+    optimalDist = best.d === Infinity ? 0 : best.d;
+  }
+
+  function nodeById(id) {
+    for (var i = 0; i < controls.length; i++) {
+      if (controls[i].id === id) return controls[i];
+    }
+    return null;
+  }
+
+  function drawNodes() {
+    while (nodesG.firstChild) nodesG.removeChild(nodesG.firstChild);
+    controls.forEach(function (c) {
+      var g = document.createElementNS(svgNS, "g");
+      g.setAttribute("class", "control-node");
+      g.setAttribute("tabindex", "0");
+      g.setAttribute("role", "button");
+      g.setAttribute("data-id", String(c.id));
+      g.setAttribute("transform", "translate(" + c.x + "," + c.y + ")");
+
+      // big invisible hit area for touch
+      var hit = document.createElementNS(svgNS, "circle");
+      hit.setAttribute("class", "node-hit");
+      hit.setAttribute("r", "26");
+      g.appendChild(hit);
+
+      if (c.isStart) {
+        var tri = document.createElementNS(svgNS, "polygon");
+        tri.setAttribute("points", "0,-16 14,12 -14,12");
+        tri.setAttribute("fill", "#c98a3a");
+        tri.setAttribute("stroke", "#7c4f15");
+        tri.setAttribute("stroke-width", "2");
+        g.appendChild(tri);
+        var sLbl = document.createElementNS(svgNS, "text");
+        sLbl.setAttribute("y", "8");
+        sLbl.setAttribute("text-anchor", "middle");
+        sLbl.setAttribute("font-size", "11");
+        sLbl.setAttribute("font-weight", "700");
+        sLbl.setAttribute("fill", "#fff");
+        sLbl.textContent = "S";
+        g.appendChild(sLbl);
+      } else {
+        var ring = document.createElementNS(svgNS, "circle");
+        ring.setAttribute("class", "node-ring");
+        ring.setAttribute("r", "16");
+        ring.setAttribute("fill", "#fff");
+        ring.setAttribute("stroke", "#d64545");
+        ring.setAttribute("stroke-width", "3");
+        g.appendChild(ring);
+        var lbl = document.createElementNS(svgNS, "text");
+        lbl.setAttribute("text-anchor", "middle");
+        lbl.setAttribute("y", "5");
+        lbl.setAttribute("font-size", "14");
+        lbl.setAttribute("font-weight", "700");
+        lbl.setAttribute("fill", "#b53636");
+        lbl.textContent = c.label;
+        g.appendChild(lbl);
+      }
+
+      // order badge (shows visit order when chosen)
+      var badge = document.createElementNS(svgNS, "g");
+      badge.setAttribute("class", "order-badge");
+      badge.setAttribute("transform", "translate(15,-15)");
+      badge.style.display = "none";
+      var bc = document.createElementNS(svgNS, "circle");
+      bc.setAttribute("r", "10");
+      bc.setAttribute("fill", "#2f6b46");
+      bc.setAttribute("stroke", "#fff");
+      bc.setAttribute("stroke-width", "2");
+      var bt = document.createElementNS(svgNS, "text");
+      bt.setAttribute("text-anchor", "middle");
+      bt.setAttribute("y", "4");
+      bt.setAttribute("font-size", "11");
+      bt.setAttribute("font-weight", "700");
+      bt.setAttribute("fill", "#fff");
+      badge.appendChild(bc);
+      badge.appendChild(bt);
+      g.appendChild(badge);
+
+      g.setAttribute("aria-label", ariaForNode(c));
+
+      g.addEventListener("pointerdown", function (ev) {
+        ev.preventDefault();
+        try { g.setPointerCapture(ev.pointerId); } catch (e) {}
+        handleNodeActivate(c.id);
+      });
+      g.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter" || ev.key === " " || ev.key === "Spacebar") {
+          ev.preventDefault();
+          handleNodeActivate(c.id);
+        }
+      });
+
+      nodesG.appendChild(g);
+    });
+    refreshNodeBadges();
+  }
+
+  function ariaForNode(c) {
+    if (c.isStart) return "Start point. Already in your route as stop 1.";
+    var pos = chosen.indexOf(c.id);
+    if (pos === -1) return "Control flag " + c.label + ". Not yet chosen. Activate to add it to your route.";
+    return "Control flag " + c.label + ". Chosen as stop " + (pos + 1) + " in your route. Activate to remove it and any flags after it.";
+  }
+
+  function handleNodeActivate(id) {
+    var c = nodeById(id);
+    if (!c) return;
+    if (c.isStart) {
+      // start cannot be removed; it is always stop 1
+      announce("The start point is always stop 1. Choose a control flag next.");
+      return;
+    }
+    if (checked) {
+      // after checking, reset interaction state for a fresh plan
+      checked = false;
+      optimalLine.style.opacity = "0";
+      badgeBest.classList.remove("show");
+    }
+    var pos = chosen.indexOf(id);
+    if (pos === -1) {
+      chosen.push(id);
+      if (!timerRunning && elapsedMs === 0) {
+        // gently auto-start the timer on first real choice
+        startTimer();
+      }
+    } else {
+      // remove this and everything after it (undo back to here)
+      chosen = chosen.slice(0, pos);
+      if (chosen.length === 0) chosen = [0];
+    }
+    redrawRoute();
+    updatePanel();
+  }
+
+  function refreshNodeBadges() {
+    var groups = nodesG.querySelectorAll(".control-node");
+    groups.forEach(function (g) {
+      var id = parseInt(g.getAttribute("data-id"), 10);
+      var badge = g.querySelector(".order-badge");
+      var txt = badge.querySelector("text");
+      var ring = g.querySelector(".node-ring");
+      var pos = chosen.indexOf(id);
+      if (pos >= 0) {
+        badge.style.display = "";
+        txt.textContent = String(pos + 1);
+        if (ring) { ring.setAttribute("stroke", "#2f6b46"); ring.setAttribute("fill", "#e8f2ea"); }
+      } else {
+        badge.style.display = "none";
+        if (ring) { ring.setAttribute("stroke", "#d64545"); ring.setAttribute("fill", "#fff"); }
+      }
+      var c = nodeById(id);
+      if (c) g.setAttribute("aria-label", ariaForNode(c));
+    });
+  }
+
+  function routeDistance(orderIds) {
+    var d = 0;
+    for (var i = 1; i < orderIds.length; i++) {
+      d += dist(nodeById(orderIds[i - 1]), nodeById(orderIds[i]));
+    }
+    return d;
+  }
+
+  function redrawRoute() {
+    var pts = chosen.map(function (id) {
+      var c = nodeById(id);
+      return c.x + "," + c.y;
+    }).join(" ");
+    routeLine.setAttribute("points", pts);
+    refreshNodeBadges();
+  }
+
+  function updatePanel() {
+    teamNameEl.textContent = team;
+    var totalControls = controls.length - 1;
+    var visitedControls = chosen.filter(function (id) { return id !== 0; }).length;
+    statVisited.textContent = visitedControls + "/" + totalControls;
+    var d = routeDistance(chosen);
+    statDist.textContent = Math.round(d) + " m";
+
+    // route list
+    while (routeListEl.firstChild) routeListEl.removeChild(routeListEl.firstChild);
+    if (chosen.length <= 1) {
+      var li0 = document.createElement("li");
+      li0.className = "route-empty";
+      li0.textContent = "Just the start so far. Tap the control flags in your chosen order.";
+      routeListEl.appendChild(li0);
+    } else {
+      chosen.forEach(function (id, i) {
+        var c = nodeById(id);
+        var li = document.createElement("li");
+        var num = document.createElement("span");
+        num.className = "num";
+        num.textContent = String(i + 1);
+        li.appendChild(num);
+        var name = document.createElement("span");
+        name.textContent = c.isStart ? "Start" : ("Control " + c.label);
+        li.appendChild(name);
+        if (i > 0) {
+          var leg = document.createElement("span");
+          leg.className = "leg-dist";
+          leg.textContent = Math.round(dist(nodeById(chosen[i - 1]), c)) + " m";
+          li.appendChild(leg);
+        }
+        routeListEl.appendChild(li);
+      });
+    }
+
+    // button states
+    var allVisited = visitedControls === totalControls && totalControls > 0;
+    checkBtn.disabled = !allVisited;
+    undoBtn.disabled = chosen.length <= 1;
+    clearBtn.disabled = chosen.length <= 1;
+  }
+
+  function checkRoute() {
+    var totalControls = controls.length - 1;
+    var visitedControls = chosen.filter(function (id) { return id !== 0; }).length;
+    if (visitedControls !== totalControls) {
+      setFeedback("near", "Not all controls collected",
+        "You still need to visit " + (totalControls - visitedControls) + " more control(s) before you can check the route.");
+      return;
+    }
+    stopTimer();
+    checked = true;
+    var yourDist = routeDistance(chosen);
+    var extra = yourDist - optimalDist;
+    var pctOver = optimalDist > 0 ? (extra / optimalDist) * 100 : 0;
+
+    // reveal optimal route
+    var optPts = optimalOrder.map(function (id) {
+      var c = nodeById(id);
+      return c.x + "," + c.y;
+    }).join(" ");
+    optimalLine.setAttribute("points", optPts);
+    optimalLine.style.opacity = "0.95";
+
+    var planSec = Math.round(elapsedMs / 1000);
+    var tips = buildTips();
+
+    var bucket, title, lead;
+    if (extra < 0.5) {
+      bucket = "good";
+      title = "&#x1F3C5; Perfect route, " + team + "!";
+      lead = "Your team found the shortest possible path. That is exactly the route choice a good orienteer makes.";
+      badgeBest.classList.add("show");
+    } else if (pctOver <= 12) {
+      bucket = "good";
+      title = "&#x1F44F; Excellent route choice";
+      lead = "Your route was only " + Math.round(extra) + " m longer than the best path (" + pctOver.toFixed(0) + "% over). The gold dashed line shows the fastest order.";
+    } else if (pctOver <= 30) {
+      bucket = "near";
+      title = "&#x1F914; Good effort, you can sharpen it";
+      lead = "Your route was " + Math.round(extra) + " m longer than the best path (" + pctOver.toFixed(0) + "% over). Compare your green line with the gold best route.";
+    } else {
+      bucket = "far";
+      title = "&#x1F501; Big detour: rethink the order";
+      lead = "Your route was " + Math.round(extra) + " m longer than the best path (" + pctOver.toFixed(0) + "% over). Look at where the gold line and your green line differ.";
+    }
+
+    var html = "<h3>" + title + "</h3>" + lead +
+      "<ul>" +
+      "<li><strong>Your route:</strong> " + Math.round(yourDist) + " m</li>" +
+      "<li><strong>Best route:</strong> " + Math.round(optimalDist) + " m</li>" +
+      "<li><strong>Planning time:</strong> " + formatTime(planSec) + "</li>";
+    if (tips.length) {
+      html += "<li><strong>Coaching tip:</strong> " + tips[0] + "</li>";
+    }
+    html += "</ul>";
+    feedbackEl.className = "feedback " + bucket;
+    feedbackEl.innerHTML = html;
+    announce(team + ". " + stripTags(title) + " Your route " + Math.round(yourDist) + " metres. Best route " + Math.round(optimalDist) + " metres.");
+  }
+
+  // Find the single most useful, specific coaching tip by comparing
+  // the pupil order to the optimal order.
+  function buildTips() {
+    var tips = [];
+    // Detect a swapped pair: a place where reversing two adjacent stops would help.
+    for (var i = 1; i < chosen.length - 1; i++) {
+      var a = nodeById(chosen[i]);
+      var b = nodeById(chosen[i + 1]);
+      var prev = nodeById(chosen[i - 1]);
+      var nextAfter = (i + 2 < chosen.length) ? nodeById(chosen[i + 2]) : null;
+      var current = dist(prev, a) + dist(a, b) + (nextAfter ? dist(b, nextAfter) : 0);
+      var swapped = dist(prev, b) + dist(b, a) + (nextAfter ? dist(a, nextAfter) : 0);
+      if (swapped + 1 < current) {
+        tips.push("Try visiting Control " + b.label + " before Control " + a.label + ". Swapping those two stops shortens your route.");
+        break;
+      }
+    }
+    if (!tips.length) {
+      // suggest the nearest-first idea using the first divergence from optimal
+      for (var k = 1; k < optimalOrder.length; k++) {
+        if (chosen[k] !== optimalOrder[k]) {
+          var ideal = nodeById(optimalOrder[k]);
+          tips.push("From stop " + k + ", the best route heads to Control " + ideal.label + " next. Heading to the nearest unvisited flag usually saves distance.");
+          break;
+        }
+      }
+    }
+    if (!tips.length) {
+      tips.push("Strong planning. Keep choosing the nearest unvisited control and avoid crossing your own line.");
+    }
+    return tips;
+  }
+
+  function stripTags(s) { return s.replace(/<[^>]*>/g, "").replace(/&#x[0-9A-Fa-f]+;/g, "").trim(); }
+
+  function setFeedback(bucket, title, body) {
+    feedbackEl.className = "feedback" + (bucket && bucket !== "default" ? " " + bucket : "");
+    feedbackEl.innerHTML = "<h3>" + title + "</h3>" + body;
+  }
+
+  var liveRegion = document.createElement("div");
+  liveRegion.className = "sr-only";
+  liveRegion.setAttribute("aria-live", "assertive");
+  document.body.appendChild(liveRegion);
+  function announce(msg) { liveRegion.textContent = ""; setTimeout(function () { liveRegion.textContent = msg; }, 30); }
+
+  // ---- Timer ----
+  function formatTime(totalSec) {
+    var m = Math.floor(totalSec / 60);
+    var s = totalSec % 60;
+    return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+  }
+  function renderClock() {
+    var ms = elapsedMs + (timerRunning ? (Date.now() - startedAt) : 0);
+    clockEl.textContent = formatTime(Math.floor(ms / 1000));
+  }
+  function startTimer() {
+    if (timerRunning) return;
+    timerRunning = true;
+    startedAt = Date.now();
+    timerBtn.innerHTML = "&#x23F8;&#xFE0F; Pause";
+    timerBtn.classList.remove("btn-flag");
+    timerBtn.classList.add("btn-ghost");
+    tickHandle = setInterval(renderClock, 250);
+    renderClock();
+  }
+  function stopTimer() {
+    if (!timerRunning) return;
+    elapsedMs += Date.now() - startedAt;
+    timerRunning = false;
+    if (tickHandle) { clearInterval(tickHandle); tickHandle = null; }
+    timerBtn.innerHTML = "&#x25B6;&#xFE0F; Resume";
+    timerBtn.classList.add("btn-flag");
+    timerBtn.classList.remove("btn-ghost");
+    renderClock();
+  }
+  function resetTimer() {
+    if (tickHandle) { clearInterval(tickHandle); tickHandle = null; }
+    timerRunning = false;
+    elapsedMs = 0;
+    startedAt = 0;
+    timerBtn.innerHTML = "&#x23F1;&#xFE0F; Start planning";
+    timerBtn.classList.add("btn-flag");
+    timerBtn.classList.remove("btn-ghost");
+    renderClock();
+  }
+  timerBtn.addEventListener("click", function () {
+    if (timerRunning) { stopTimer(); }
+    else { startTimer(); }
+  });
+
+  // ---- Controls ----
+  undoBtn.addEventListener("click", function () {
+    if (chosen.length > 1) {
+      chosen.pop();
+      checked = false;
+      optimalLine.style.opacity = "0";
+      badgeBest.classList.remove("show");
+      redrawRoute();
+      updatePanel();
+      announce("Removed last control. " + (chosen.length - 1) + " controls now in your route.");
+    }
+  });
+  clearBtn.addEventListener("click", function () {
+    chosen = [0];
+    checked = false;
+    optimalLine.style.opacity = "0";
+    badgeBest.classList.remove("show");
+    redrawRoute();
+    updatePanel();
+    setFeedback("default", "Route cleared", "Plan a fresh order. Tap the control flags one by one.");
+    announce("Route cleared. Start again from the start point.");
+  });
+  checkBtn.addEventListener("click", checkRoute);
+  newBtn.addEventListener("click", function () {
+    generateCourse();
+    announce("New course generated for " + team + ". Plan your route.");
+  });
+
+  // Team picker
+  teamGroup.addEventListener("click", function (ev) {
+    var btn = ev.target.closest(".team-chip");
+    if (!btn) return;
+    var chips = teamGroup.querySelectorAll(".team-chip");
+    chips.forEach(function (c) { c.setAttribute("aria-pressed", c === btn ? "true" : "false"); });
+    team = btn.getAttribute("data-team");
+    teamNameEl.textContent = team;
+    announce(team + " selected.");
+  });
+
+  // Init
+  generateCourse();
+})();
+</script>
+</body>
+</html>

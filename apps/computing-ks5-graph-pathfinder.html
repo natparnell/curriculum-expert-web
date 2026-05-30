@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Graph Pathfinder &middot; KS5 Computing</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2230;
+    --panel-2: #222d3d;
+    --ink: #e8eef5;
+    --muted: #9fb0c3;
+    --line: #34435a;
+    --accent: #4ea8de;
+    --accent-2: #6ee7b7;
+    --start: #f4a261;
+    --goal: #e76f51;
+    --frontier: #b794f6;
+    --visited: #5b7d9e;
+    --current: #ffd166;
+    --path: #6ee7b7;
+    --warn: #ffb4a2;
+    --shadow: 0 8px 28px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: linear-gradient(160deg,#0f1419,#121b27 60%,#0f1419);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  header.app-head {
+    padding: 18px 20px 10px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(15,20,25,.7);
+  }
+  .app-head h1 {
+    margin: 0;
+    font-size: clamp(1.3rem, 2.6vw, 1.9rem);
+    letter-spacing: .3px;
+  }
+  .app-head h1 .badge {
+    font-size: .55em;
+    vertical-align: middle;
+    background: var(--accent);
+    color: #06202f;
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin-left: 8px;
+    font-weight: 700;
+  }
+  .aim {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: .95rem;
+    max-width: 70ch;
+  }
+  .wrap {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) 360px;
+    gap: 16px;
+    padding: 16px 20px 40px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  @media (max-width: 940px) {
+    .wrap { grid-template-columns: 1fr; }
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .card .card-head {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    font-weight: 700;
+    font-size: .95rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel-2);
+  }
+  .card .card-body { padding: 12px 14px; }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .seg button {
+    background: var(--panel-2);
+    color: var(--ink);
+    border: none;
+    padding: 8px 12px;
+    cursor: pointer;
+    font: inherit;
+    font-size: .85rem;
+    border-right: 1px solid var(--line);
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button[aria-pressed="true"] {
+    background: var(--accent);
+    color: #06202f;
+    font-weight: 700;
+  }
+  button.btn {
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font: inherit;
+    font-size: .85rem;
+    transition: background .15s, transform .05s;
+  }
+  button.btn:hover { background: #2c3a4f; }
+  button.btn:active { transform: translateY(1px); }
+  button.btn.primary {
+    background: var(--accent-2);
+    color: #053226;
+    border-color: var(--accent-2);
+    font-weight: 700;
+  }
+  button.btn.primary:hover { background: #57d6a0; }
+  button.btn:disabled { opacity: .45; cursor: not-allowed; }
+  button.btn.warn { border-color: var(--warn); color: var(--warn); }
+
+  .canvas-shell {
+    position: relative;
+    width: 100%;
+    background: radial-gradient(circle at 30% 20%, #16202e, #0e1620);
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    touch-action: none;
+  }
+  svg.graph {
+    display: block;
+    width: 100%;
+    height: auto;
+    touch-action: none;
+    user-select: none;
+  }
+  .edge-line { stroke: var(--line); stroke-width: 4; }
+  .edge-line.relaxed { stroke: var(--accent); stroke-width: 5; }
+  .edge-line.path { stroke: var(--path); stroke-width: 6; }
+  .edge-weight {
+    fill: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+    paint-order: stroke;
+    stroke: #0e1620;
+    stroke-width: 4px;
+  }
+  .node-grp { cursor: grab; }
+  .node-grp:active { cursor: grabbing; }
+  .node-circle {
+    fill: var(--panel-2);
+    stroke: var(--line);
+    stroke-width: 3;
+    transition: fill .2s, stroke .2s;
+  }
+  .node-grp.start .node-circle { fill: var(--start); stroke: #b96b2c; }
+  .node-grp.goal .node-circle { fill: var(--goal); stroke: #a23c28; }
+  .node-grp.visited .node-circle { fill: var(--visited); stroke: #3c5670; }
+  .node-grp.frontier .node-circle { fill: var(--frontier); stroke: #8a5fd1; }
+  .node-grp.current .node-circle { fill: var(--current); stroke: #c8a013; }
+  .node-grp.onpath .node-circle { stroke: var(--path); stroke-width: 5; }
+  .node-grp:focus { outline: none; }
+  .node-grp:focus .node-circle { stroke: #fff; stroke-width: 4; }
+  .node-label {
+    fill: var(--ink);
+    font-size: 16px;
+    font-weight: 800;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+  }
+  .node-dist {
+    fill: #08111c;
+    font-size: 11px;
+    font-weight: 800;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+  }
+  .node-grp:not(.visited):not(.frontier):not(.current):not(.start) .node-dist { fill: var(--muted); }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-top: 10px;
+    font-size: .8rem;
+    color: var(--muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 2px solid rgba(0,0,0,.3); }
+
+  .hint {
+    font-size: .82rem;
+    color: var(--muted);
+    margin: 8px 0 0;
+  }
+
+  /* Priority queue panel */
+  .pq-list { list-style: none; margin: 0; padding: 0; min-height: 40px; }
+  .pq-item {
+    display: grid;
+    grid-template-columns: 34px 1fr auto;
+    gap: 8px;
+    align-items: center;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 7px 10px;
+    margin-bottom: 6px;
+    font-size: .85rem;
+    animation: popin .18s ease;
+  }
+  @keyframes popin { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; } }
+  .pq-item.top {
+    border-color: var(--current);
+    box-shadow: 0 0 0 1px var(--current) inset;
+  }
+  .pq-node {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--frontier); color: #1a1330;
+    display: grid; place-items: center; font-weight: 800;
+  }
+  .pq-meta { color: var(--muted); font-size: .76rem; }
+  .pq-prio { font-weight: 800; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+  .pq-empty { color: var(--muted); font-style: italic; font-size: .85rem; padding: 6px 2px; }
+
+  .stepinfo {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: .88rem;
+    min-height: 64px;
+  }
+  .stepinfo strong { color: var(--accent-2); }
+  .stepinfo code {
+    background: #0e1620;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 1px 5px;
+    font-size: .82rem;
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .metric {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+  }
+  .metric .k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .metric .v { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+  .controls-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: 10px 0;
+  }
+  label.fld { font-size: .82rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+  select, input[type="range"] {
+    font: inherit;
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 5px 8px;
+  }
+  input[type="range"] { padding: 0; accent-color: var(--accent); }
+
+  details.explain {
+    margin-top: 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  details.explain > summary {
+    cursor: pointer;
+    padding: 12px 14px;
+    font-weight: 700;
+    list-style: none;
+  }
+  details.explain > summary::-webkit-details-marker { display: none; }
+  details.explain > summary::before { content: '\25B8'; margin-right: 8px; color: var(--accent); }
+  details.explain[open] > summary::before { content: '\25BE'; }
+  details.explain .inner { padding: 0 16px 16px; color: var(--muted); font-size: .9rem; }
+  details.explain .inner h3 { color: var(--ink); margin: 14px 0 4px; font-size: 1rem; }
+  details.explain code {
+    background: #0e1620; border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 5px; color: var(--accent-2);
+  }
+  table.bigo { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .85rem; }
+  table.bigo th, table.bigo td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+  table.bigo th { background: var(--panel-2); color: var(--ink); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  footer.foot {
+    text-align: center; color: var(--muted); font-size: .78rem;
+    padding: 0 20px 30px; max-width: 1400px; margin: 0 auto;
+  }
+  .pill {
+    display: inline-block; font-size: .72rem; padding: 2px 8px;
+    border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--muted); margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="app-head">
+  <h1>Graph Pathfinder <span class="badge">KS5 Computing</span></h1>
+  <p class="aim"><strong>Teacher aim:</strong> Build and edit a weighted graph, then watch Dijkstra and A* explore it node by node. The priority queue is shown live so pupils connect the abstract data type (a min-priority queue) to the shortest-path algorithm and its Big-O cost.</p>
+</header>
+
+<main class="wrap">
+  <!-- LEFT: graph builder + visualiser -->
+  <section class="card" aria-labelledby="graph-head">
+    <div class="card-head" id="graph-head">&#x1F578;&#xFE0F; Graph canvas</div>
+    <div class="card-body">
+      <div class="toolbar" role="toolbar" aria-label="Editing tools">
+        <div class="seg" role="group" aria-label="Tool mode">
+          <button id="tool-move" data-tool="move" aria-pressed="true">Move</button>
+          <button id="tool-node" data-tool="node" aria-pressed="false">Add node</button>
+          <button id="tool-edge" data-tool="edge" aria-pressed="false">Add edge</button>
+          <button id="tool-start" data-tool="start" aria-pressed="false">Set start</button>
+          <button id="tool-goal" data-tool="goal" aria-pressed="false">Set goal</button>
+          <button id="tool-delete" data-tool="delete" aria-pressed="false">Delete</button>
+        </div>
+        <button class="btn" id="btn-sample">Load sample</button>
+        <button class="btn warn" id="btn-clear">Clear</button>
+      </div>
+
+      <div class="canvas-shell">
+        <svg class="graph" id="svg" viewBox="0 0 800 520" role="application"
+             aria-label="Weighted graph editor and pathfinding visualiser. Use the tool buttons, then tab between nodes. Press Enter on a node to select it as the start, and the live region below announces algorithm steps.">
+          <g id="layer-edges"></g>
+          <g id="layer-nodes"></g>
+        </svg>
+      </div>
+
+      <div class="legend" aria-hidden="true">
+        <span><i class="dot" style="background:var(--start)"></i>Start</span>
+        <span><i class="dot" style="background:var(--goal)"></i>Goal</span>
+        <span><i class="dot" style="background:var(--frontier)"></i>In queue (frontier)</span>
+        <span><i class="dot" style="background:var(--current)"></i>Being explored</span>
+        <span><i class="dot" style="background:var(--visited)"></i>Visited (settled)</span>
+        <span><i class="dot" style="background:var(--path);border-color:var(--path)"></i>Shortest path</span>
+      </div>
+
+      <p class="hint" id="canvas-hint">Tip: choose a tool, then act on the canvas. In <strong>Add edge</strong> mode, tap one node then another to link them (you will be asked for a weight). Drag nodes in <strong>Move</strong> mode. On a keyboard, Tab to a node and press <kbd>S</kbd> for start or <kbd>G</kbd> for goal.</p>
+    </div>
+  </section>
+
+  <!-- RIGHT: algorithm + priority queue -->
+  <aside>
+    <section class="card" aria-labelledby="algo-head">
+      <div class="card-head" id="algo-head">&#x2699;&#xFE0F; Algorithm</div>
+      <div class="card-body">
+        <div class="seg" role="group" aria-label="Choose algorithm" style="width:100%">
+          <button id="algo-dijkstra" data-algo="dijkstra" aria-pressed="true" style="flex:1">Dijkstra</button>
+          <button id="algo-astar" data-algo="astar" aria-pressed="false" style="flex:1">A* (with heuristic)</button>
+        </div>
+
+        <div class="controls-row">
+          <button class="btn primary" id="btn-step">Step &#x25B6;</button>
+          <button class="btn" id="btn-auto">Auto-run</button>
+          <button class="btn" id="btn-reset">Reset run</button>
+        </div>
+        <div class="controls-row">
+          <label class="fld" for="speed">Speed
+            <input type="range" id="speed" min="120" max="1400" value="650" step="20" aria-label="Auto-run step delay in milliseconds">
+          </label>
+        </div>
+
+        <div class="stepinfo" id="stepinfo" role="status" aria-live="polite">
+          Set a start and a goal node, then press <strong>Step</strong> to begin. Each step pops the lowest-priority item from the queue.
+        </div>
+
+        <div class="metrics" aria-label="Run metrics">
+          <div class="metric"><div class="k">Nodes settled</div><div class="v" id="m-settled">0</div></div>
+          <div class="metric"><div class="k">Edges relaxed</div><div class="v" id="m-relaxed">0</div></div>
+          <div class="metric"><div class="k">Path cost</div><div class="v" id="m-cost">&ndash;</div></div>
+          <div class="metric"><div class="k">Queue size</div><div class="v" id="m-qsize">0</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="pq-head" style="margin-top:16px">
+      <div class="card-head" id="pq-head">&#x1F5C2;&#xFE0F; Priority queue <span class="pill" id="pq-mode">min-heap by distance</span></div>
+      <div class="card-body">
+        <ul class="pq-list" id="pq-list" aria-live="polite" aria-label="Priority queue contents, lowest priority first">
+          <li class="pq-empty">Queue is empty.</li>
+        </ul>
+        <p class="hint" id="pq-hint">The top item (highlighted) is the one the algorithm will pop next. For A*, priority is <code>g + h</code>: cost so far plus the straight-line estimate to the goal.</p>
+      </div>
+    </section>
+  </aside>
+</main>
+
+<div class="wrap" style="padding-top:0">
+  <details class="explain" style="grid-column:1 / -1">
+    <summary>Teacher and pupil notes: ADTs, Dijkstra vs A*, and Big-O</summary>
+    <div class="inner">
+      <p>Graph Pathfinder makes one abstract data type visible: the <strong>min-priority queue</strong>. Both algorithms keep a frontier of discovered-but-not-yet-settled nodes ordered by priority, and repeatedly pop the cheapest one. This is the engine of shortest-path search.</p>
+
+      <h3>Dijkstra's algorithm</h3>
+      <p>Priority is the distance from the start, written <code>g(n)</code>. Dijkstra has no idea where the goal is, so it expands outward like a wavefront. It is guaranteed to find the shortest path when all edge weights are non-negative.</p>
+
+      <h3>A* search</h3>
+      <p>Priority is <code>f(n) = g(n) + h(n)</code>, where <code>h(n)</code> is a heuristic estimate of the remaining distance to the goal (here, straight-line distance on the canvas). Because A* is pulled towards the goal, it usually settles fewer nodes than Dijkstra. With an <em>admissible</em> heuristic (one that never overestimates) A* still returns the true shortest path. Compare the <strong>Nodes settled</strong> metric for the same start and goal to see the saving.</p>
+
+      <h3>Why a heap, and the Big-O</h3>
+      <p>A binary heap (the usual priority-queue implementation) does insert and extract-min in <code>O(log n)</code>. With <code>V</code> vertices and <code>E</code> edges, Dijkstra with a binary heap runs in <code>O((V + E) log V)</code>. A linear-scan queue would be <code>O(V&sup2;)</code>, which is why the choice of ADT changes the complexity class.</p>
+
+      <table class="bigo">
+        <thead><tr><th>Operation / structure</th><th>Time complexity</th><th>Note</th></tr></thead>
+        <tbody>
+          <tr><td>Binary heap insert / extract-min</td><td><code>O(log n)</code></td><td>n items in the heap</td></tr>
+          <tr><td>Dijkstra (binary heap)</td><td><code>O((V + E) log V)</code></td><td>each edge can trigger a decrease-key</td></tr>
+          <tr><td>Dijkstra (unsorted array)</td><td><code>O(V&sup2;)</code></td><td>extract-min is a linear scan</td></tr>
+          <tr><td>Breadth-first / depth-first traversal</td><td><code>O(V + E)</code></td><td>queue (BFS) or stack (DFS)</td></tr>
+          <tr><td>Comparison sort lower bound</td><td><code>O(n log n)</code></td><td>e.g. merge sort, heapsort</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Stretch questions</h3>
+      <ul>
+        <li>Which structure does Dijkstra's frontier need: a stack, a queue, or a priority queue? Why?</li>
+        <li>Give an edge change that makes A* settle more nodes than usual. (Hint: make the heuristic less informative.)</li>
+        <li>If every edge weight were 1, what cheaper algorithm would give the same answer as Dijkstra?</li>
+      </ul>
+    </div>
+  </details>
+</div>
+
+<footer class="foot">
+  Graph Pathfinder &middot; WeST classroom demonstration tool. All graphs and labels are fictional and for teaching only.
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Model ----------
+  // Node: { id, label, x, y }
+  // Edge: { a, b, w }  (undirected)
+  var state = {
+    nodes: [],
+    edges: [],
+    startId: null,
+    goalId: null,
+    nextId: 0,
+    tool: "move",
+    algo: "dijkstra",
+    run: null,        // run-state object when an algorithm is in progress
+    auto: null        // interval id
+  };
+
+  var NS = "http://www.w3.org/2000/svg";
+  var svg = document.getElementById("svg");
+  var layerEdges = document.getElementById("layer-edges");
+  var layerNodes = document.getElementById("layer-nodes");
+  var stepinfo = document.getElementById("stepinfo");
+  var pqList = document.getElementById("pq-list");
+  var VIEW_W = 800, VIEW_H = 520, R = 24;
+
+  // Fictional, clearly-not-real labels
+  var SAMPLE_LABELS = ["Alder","Birch","Cedar","Dale","Elm","Fern","Glade","Holt"];
+
+  // ---------- Sample graph ----------
+  function loadSample() {
+    clearAll(true);
+    var pts = [
+      [110, 90],[330, 70],[560, 110],[700, 250],
+      [140, 270],[380, 300],[600, 380],[300, 470]
+    ];
+    pts.forEach(function (p, i) {
+      state.nodes.push({ id: state.nextId++, label: SAMPLE_LABELS[i], x: p[0], y: p[1] });
+    });
+    function E(a, b, w) { state.edges.push({ a: state.nodes[a].id, b: state.nodes[b].id, w: w }); }
+    E(0,1,4); E(0,4,3); E(1,2,5); E(1,5,6); E(2,3,2); E(2,5,4);
+    E(3,6,3); E(4,5,7); E(4,7,8); E(5,6,3); E(5,7,5); E(6,7,9);
+    state.startId = state.nodes[0].id;
+    state.goalId = state.nodes[3].id;
+    resetRun();
+    render();
+    announce("Sample graph loaded. Start is " + labelOf(state.startId) + ", goal is " + labelOf(state.goalId) + ".");
+  }
+
+  function clearAll(silent) {
+    stopAuto();
+    state.nodes = [];
+    state.edges = [];
+    state.startId = null;
+    state.goalId = null;
+    state.nextId = 0;
+    state.run = null;
+    if (!silent) { render(); renderPQ(); setStep("Canvas cleared. Add nodes and edges, or load the sample."); resetMetrics(); }
+  }
+
+  // ---------- Helpers ----------
+  function nodeById(id) { for (var i = 0; i < state.nodes.length; i++) if (state.nodes[i].id === id) return state.nodes[i]; return null; }
+  function labelOf(id) { var n = nodeById(id); return n ? n.label : "?"; }
+  function neighbours(id) {
+    var out = [];
+    state.edges.forEach(function (e) {
+      if (e.a === id) out.push({ to: e.b, w: e.w });
+      else if (e.b === id) out.push({ to: e.a, w: e.w });
+    });
+    return out;
+  }
+  function dist(n1, n2) { var dx = n1.x - n2.x, dy = n1.y - n2.y; return Math.sqrt(dx * dx + dy * dy); }
+  function heuristic(id) {
+    // Straight-line distance scaled so it is comparable to edge weights and never overestimates.
+    if (state.algo !== "astar" || state.goalId == null) return 0;
+    var n = nodeById(id), g = nodeById(state.goalId);
+    if (!n || !g) return 0;
+    return dist(n, g) * H_SCALE;
+  }
+  // Heuristic scale: keep h admissible. Sample edge weights ~2..9 over ~150..250px gaps,
+  // so px*0.02 stays well below true travel cost. Admissibility preserves optimality.
+  var H_SCALE = 0.02;
+
+  // ---------- Coordinate conversion (screen -> SVG view) ----------
+  function toView(evt) {
+    var rect = svg.getBoundingClientRect();
+    var x = (evt.clientX - rect.left) / rect.width * VIEW_W;
+    var y = (evt.clientY - rect.top) / rect.height * VIEW_H;
+    return { x: clamp(x, R, VIEW_W - R), y: clamp(y, R, VIEW_H - R) };
+  }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  // ---------- Rendering ----------
+  function render() {
+    // edges
+    layerEdges.textContent = "";
+    state.edges.forEach(function (e, idx) {
+      var a = nodeById(e.a), b = nodeById(e.b);
+      if (!a || !b) return;
+      var line = document.createElementNS(NS, "line");
+      line.setAttribute("x1", a.x); line.setAttribute("y1", a.y);
+      line.setAttribute("x2", b.x); line.setAttribute("y2", b.y);
+      line.setAttribute("class", "edge-line" + edgeClass(e));
+      line.setAttribute("data-edge", idx);
+      layerEdges.appendChild(line);
+
+      var t = document.createElementNS(NS, "text");
+      t.setAttribute("x", (a.x + b.x) / 2);
+      t.setAttribute("y", (a.y + b.y) / 2 - 4);
+      t.setAttribute("class", "edge-weight");
+      t.setAttribute("text-anchor", "middle");
+      t.textContent = e.w;
+      layerEdges.appendChild(t);
+    });
+
+    // nodes
+    layerNodes.textContent = "";
+    state.nodes.forEach(function (n) {
+      var g = document.createElementNS(NS, "g");
+      g.setAttribute("class", "node-grp" + nodeClass(n.id));
+      g.setAttribute("transform", "translate(" + n.x + "," + n.y + ")");
+      g.setAttribute("tabindex", "0");
+      g.setAttribute("role", "button");
+      g.setAttribute("data-node", n.id);
+      g.setAttribute("aria-label", ariaForNode(n));
+
+      var c = document.createElementNS(NS, "circle");
+      c.setAttribute("r", R);
+      c.setAttribute("class", "node-circle");
+      g.appendChild(c);
+
+      var lbl = document.createElementNS(NS, "text");
+      lbl.setAttribute("class", "node-label");
+      lbl.setAttribute("y", -3);
+      lbl.textContent = n.label;
+      g.appendChild(lbl);
+
+      // distance badge during a run
+      var d = document.createElementNS(NS, "text");
+      d.setAttribute("class", "node-dist");
+      d.setAttribute("y", 13);
+      d.textContent = distBadge(n.id);
+      g.appendChild(d);
+
+      layerNodes.appendChild(g);
+    });
+
+    document.getElementById("m-qsize").textContent =
+      state.run ? state.run.pq.length : 0;
+  }
+
+  function ariaForNode(n) {
+    var parts = [n.label];
+    if (n.id === state.startId) parts.push("start node");
+    if (n.id === state.goalId) parts.push("goal node");
+    if (state.run) {
+      var st = state.run.status[n.id];
+      if (st === "visited") parts.push("settled");
+      else if (st === "frontier") parts.push("in queue");
+      else if (st === "current") parts.push("being explored");
+      var dd = state.run.distFromStart[n.id];
+      if (dd != null && dd < Infinity) parts.push("distance " + round1(dd));
+    }
+    return parts.join(", ");
+  }
+
+  function distBadge(id) {
+    if (!state.run) return "";
+    var d = state.run.distFromStart[id];
+    if (d == null || d === Infinity) return "";
+    return round1(d);
+  }
+
+  function nodeClass(id) {
+    var cls = "";
+    if (id === state.startId) cls += " start";
+    if (id === state.goalId) cls += " goal";
+    if (state.run) {
+      var st = state.run.status[id];
+      if (st === "current") cls += " current";
+      else if (st === "visited") cls += " visited";
+      else if (st === "frontier") cls += " frontier";
+      if (state.run.pathSet && state.run.pathSet[id]) cls += " onpath";
+    }
+    return cls;
+  }
+
+  function edgeClass(e) {
+    if (!state.run) return "";
+    var key = edgeKey(e.a, e.b);
+    if (state.run.pathEdges && state.run.pathEdges[key]) return " path";
+    if (state.run.relaxedEdges && state.run.relaxedEdges[key]) return " relaxed";
+    return "";
+  }
+  function edgeKey(a, b) { return a < b ? a + "-" + b : b + "-" + a; }
+
+  function round1(v) { return Math.round(v * 10) / 10; }
+
+  // ---------- Priority queue rendering ----------
+  function renderPQ() {
+    pqList.textContent = "";
+    if (!state.run || state.run.pq.length === 0) {
+      var li = document.createElement("li");
+      li.className = "pq-empty";
+      li.textContent = state.run ? "Queue is empty. Search has stopped." : "Queue is empty.";
+      pqList.appendChild(li);
+      return;
+    }
+    // show sorted view (the heap conceptually pops the minimum)
+    var view = state.run.pq.slice().sort(function (x, y) { return x.prio - y.prio; });
+    view.forEach(function (item, i) {
+      var li = document.createElement("li");
+      li.className = "pq-item" + (i === 0 ? " top" : "");
+      var nd = document.createElement("div");
+      nd.className = "pq-node";
+      nd.style.background = "var(--frontier)";
+      nd.textContent = labelOf(item.id);
+      var meta = document.createElement("div");
+      if (state.algo === "astar") {
+        meta.innerHTML = "<div>f = g + h</div><div class='pq-meta'>g=" + round1(item.g) +
+          ", h=" + round1(item.h) + "</div>";
+      } else {
+        meta.innerHTML = "<div>distance from start</div><div class='pq-meta'>via " +
+          (item.viaLabel || "start") + "</div>";
+      }
+      var prio = document.createElement("div");
+      prio.className = "pq-prio";
+      prio.textContent = round1(item.prio);
+      li.appendChild(nd); li.appendChild(meta); li.appendChild(prio);
+      pqList.appendChild(li);
+    });
+  }
+
+  // ---------- Step messaging ----------
+  function setStep(html) { stepinfo.innerHTML = html; }
+  var live = document.createElement("div");
+  live.className = "sr-only";
+  live.setAttribute("aria-live", "assertive");
+  document.body.appendChild(live);
+  function announce(msg) { live.textContent = ""; setTimeout(function () { live.textContent = msg; }, 30); }
+
+  function resetMetrics() {
+    document.getElementById("m-settled").textContent = "0";
+    document.getElementById("m-relaxed").textContent = "0";
+    document.getElementById("m-cost").textContent = "–";
+    document.getElementById("m-qsize").textContent = state.run ? state.run.pq.length : 0;
+  }
+  function updateMetrics() {
+    if (!state.run) { resetMetrics(); return; }
+    document.getElementById("m-settled").textContent = state.run.settledCount;
+    document.getElementById("m-relaxed").textContent = state.run.relaxedCount;
+    document.getElementById("m-qsize").textContent = state.run.pq.length;
+    document.getElementById("m-cost").textContent =
+      (state.run.done && state.run.goalDist != null && state.run.goalDist < Infinity)
+        ? round1(state.run.goalDist) : "–";
+  }
+
+  // ---------- Algorithm engine ----------
+  function resetRun() {
+    stopAuto();
+    state.run = null;
+    document.getElementById("pq-mode").textContent =
+      state.algo === "astar" ? "min-heap by f = g + h" : "min-heap by distance";
+    render();
+    renderPQ();
+    resetMetrics();
+  }
+
+  function initRun() {
+    if (state.startId == null || state.goalId == null) {
+      setStep("<strong>Set a start and a goal first.</strong> Use the Set start and Set goal tools, or focus a node and press S or G.");
+      announce("Please set a start node and a goal node before running.");
+      return false;
+    }
+    var distFromStart = {}, status = {}, prev = {};
+    state.nodes.forEach(function (n) { distFromStart[n.id] = Infinity; status[n.id] = "unseen"; prev[n.id] = null; });
+    distFromStart[state.startId] = 0;
+    var g0 = 0, h0 = heuristic(state.startId);
+    var pq = [{ id: state.startId, g: g0, h: h0, prio: g0 + h0, viaLabel: "start" }];
+    status[state.startId] = "frontier";
+    state.run = {
+      distFromStart: distFromStart,
+      status: status,
+      prev: prev,
+      pq: pq,
+      settledCount: 0,
+      relaxedCount: 0,
+      relaxedEdges: {},
+      pathEdges: {},
+      pathSet: {},
+      done: false,
+      goalDist: null,
+      current: null
+    };
+    return true;
+  }
+
+  // perform one extract-min + relax step
+  function step() {
+    if (!state.run) { if (!initRun()) return; render(); renderPQ(); updateMetrics();
+      setStep("Run initialised. The start node <strong>" + labelOf(state.startId) +
+        "</strong> is in the queue with priority 0. Press Step to pop it.");
+      announce("Run initialised. Start node " + labelOf(state.startId) + " is in the queue.");
+      return;
+    }
+    if (state.run.done) {
+      announce("Search already complete.");
+      return;
+    }
+    // clear previous 'current'
+    if (state.run.current != null && state.run.status[state.run.current] === "current") {
+      state.run.status[state.run.current] = "visited";
+    }
+
+    if (state.run.pq.length === 0) {
+      finish(false);
+      return;
+    }
+
+    // extract-min
+    var bestIdx = 0;
+    for (var i = 1; i < state.run.pq.length; i++) {
+      if (state.run.pq[i].prio < state.run.pq[bestIdx].prio) bestIdx = i;
+    }
+    var node = state.run.pq.splice(bestIdx, 1)[0];
+
+    // skip stale entries (a better distance was found after this was queued)
+    if (node.g > state.run.distFromStart[node.id] + 1e-9) {
+      setStep("Popped a <strong>stale</strong> copy of <strong>" + labelOf(node.id) +
+        "</strong> (g=" + round1(node.g) + " but we already have " + round1(state.run.distFromStart[node.id]) +
+        "). Discarded; this is the lazy-deletion trick a binary heap uses instead of decrease-key.");
+      render(); renderPQ(); updateMetrics();
+      return;
+    }
+
+    state.run.current = node.id;
+    state.run.status[node.id] = "current";
+    state.run.settledCount++;
+
+    if (node.id === state.goalId) {
+      finish(true);
+      return;
+    }
+
+    // relax neighbours
+    var relaxedNow = [];
+    neighbours(node.id).forEach(function (nb) {
+      var nd = state.run.distFromStart[node.id] + nb.w;
+      if (nd < state.run.distFromStart[nb.to] - 1e-9) {
+        state.run.distFromStart[nb.to] = nd;
+        state.run.prev[nb.to] = node.id;
+        var h = heuristic(nb.to);
+        state.run.pq.push({ id: nb.to, g: nd, h: h, prio: nd + h, viaLabel: labelOf(node.id) });
+        if (state.run.status[nb.to] !== "visited") state.run.status[nb.to] = "frontier";
+        state.run.relaxedEdges[edgeKey(node.id, nb.to)] = true;
+        state.run.relaxedCount++;
+        relaxedNow.push(labelOf(nb.to) + " &rarr; " + round1(nd));
+      }
+    });
+
+    var msg = "Popped <strong>" + labelOf(node.id) + "</strong> (priority " + round1(node.prio) +
+      "), the cheapest in the queue, and settled it. ";
+    if (state.algo === "astar") {
+      msg += "<code>f = g(" + round1(node.g) + ") + h(" + round1(node.h) + ")</code>. ";
+    }
+    if (relaxedNow.length) {
+      msg += "Relaxed " + relaxedNow.length + " edge" + (relaxedNow.length > 1 ? "s" : "") +
+        ": updated " + relaxedNow.join(", ") + ".";
+    } else {
+      msg += "No neighbour improved, so nothing was added to the queue.";
+    }
+    setStep(msg);
+    announce("Settled " + labelOf(node.id) + ". " + (relaxedNow.length ?
+      "Updated " + relaxedNow.length + " neighbour distances." : "No improvements."));
+
+    render(); renderPQ(); updateMetrics();
+  }
+
+  function finish(reached) {
+    state.run.done = true;
+    state.run.current = null;
+    stopAuto();
+    if (reached) {
+      // reconstruct path
+      state.run.status[state.goalId] = "current";
+      state.run.goalDist = state.run.distFromStart[state.goalId];
+      var path = [], cur = state.goalId, guard = 0;
+      while (cur != null && guard++ < 9999) {
+        path.push(cur);
+        state.run.pathSet[cur] = true;
+        var p = state.run.prev[cur];
+        if (p != null) state.run.pathEdges[edgeKey(cur, p)] = true;
+        cur = p;
+      }
+      path.reverse();
+      var names = path.map(labelOf).join(" → ");
+      var saving = (state.nodes.length - state.run.settledCount);
+      setStep("<strong>Goal reached.</strong> Shortest path: <code>" + names +
+        "</code> with total cost <strong>" + round1(state.run.goalDist) + "</strong>. Nodes settled: " +
+        state.run.settledCount + " of " + state.nodes.length + ". " +
+        (state.algo === "astar"
+          ? "A* used its heuristic to steer towards the goal."
+          : "Dijkstra expanded outward from the start without any goal hint.") +
+        " Try the other algorithm on the same graph and compare nodes settled.");
+      announce("Goal reached. Shortest path cost " + round1(state.run.goalDist) +
+        " through " + path.map(labelOf).join(", ") + ".");
+    } else {
+      setStep("<strong>Queue emptied without reaching the goal.</strong> The goal is unreachable from the start in this graph (no connecting path). Add an edge to connect them.");
+      announce("Search finished. The goal is unreachable from the start.");
+    }
+    render(); renderPQ(); updateMetrics();
+  }
+
+  // ---------- Auto-run ----------
+  function startAuto() {
+    if (state.auto) return;
+    if (!state.run && !initRun()) return;
+    document.getElementById("btn-auto").textContent = "Pause";
+    var delay = +document.getElementById("speed").value;
+    state.auto = setInterval(function () {
+      if (!state.run || state.run.done) { stopAuto(); return; }
+      step();
+    }, delay);
+  }
+  function stopAuto() {
+    if (state.auto) { clearInterval(state.auto); state.auto = null; }
+    var b = document.getElementById("btn-auto");
+    if (b) b.textContent = "Auto-run";
+  }
+
+  // ---------- Tool selection ----------
+  function setTool(t) {
+    state.tool = t;
+    document.querySelectorAll(".seg [data-tool]").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-tool") === t ? "true" : "false");
+    });
+    pendingEdgeNode = null;
+    var hints = {
+      move: "Move mode: drag nodes to reposition them.",
+      node: "Add node mode: tap an empty area to drop a new node.",
+      edge: "Add edge mode: tap one node, then a second node, to link them.",
+      start: "Set start mode: tap a node to make it the start.",
+      goal: "Set goal mode: tap a node to make it the goal.",
+      delete: "Delete mode: tap a node to remove it and its edges."
+    };
+    document.getElementById("canvas-hint").textContent = hints[t] || "";
+  }
+
+  function setAlgo(a) {
+    state.algo = a;
+    document.querySelectorAll(".seg [data-algo]").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-algo") === a ? "true" : "false");
+    });
+    resetRun();
+    setStep(a === "astar"
+      ? "A* selected. Priority is <code>f = g + h</code>, where h is the straight-line estimate to the goal. Press Step to begin."
+      : "Dijkstra selected. Priority is the distance from the start. Press Step to begin.");
+  }
+
+  // ---------- Pointer interaction ----------
+  var pendingEdgeNode = null;
+  var dragInfo = null;
+
+  svg.addEventListener("pointerdown", function (evt) {
+    var nodeEl = evt.target.closest ? evt.target.closest(".node-grp") : null;
+    var nodeId = nodeEl ? +nodeEl.getAttribute("data-node") : null;
+
+    if (state.tool === "node" && nodeId == null) {
+      var p = toView(evt);
+      addNode(p.x, p.y);
+      return;
+    }
+    if (nodeId == null) return;
+
+    if (state.tool === "move") {
+      dragInfo = { id: nodeId, el: nodeEl };
+      nodeEl.setPointerCapture && nodeEl.setPointerCapture(evt.pointerId);
+      svg.setPointerCapture && svg.setPointerCapture(evt.pointerId);
+      evt.preventDefault();
+      return;
+    }
+    if (state.tool === "start") { setStart(nodeId); return; }
+    if (state.tool === "goal") { setGoal(nodeId); return; }
+    if (state.tool === "delete") { deleteNode(nodeId); return; }
+    if (state.tool === "edge") {
+      handleEdgeTap(nodeId, nodeEl);
+      return;
+    }
+  });
+
+  svg.addEventListener("pointermove", function (evt) {
+    if (!dragInfo) return;
+    var p = toView(evt);
+    var n = nodeById(dragInfo.id);
+    if (!n) { dragInfo = null; return; }
+    n.x = p.x; n.y = p.y;
+    render();
+    evt.preventDefault();
+  });
+
+  function endDrag(evt) {
+    if (dragInfo) { dragInfo = null; evt && evt.preventDefault(); }
+  }
+  svg.addEventListener("pointerup", endDrag);
+  svg.addEventListener("pointercancel", endDrag);
+
+  function handleEdgeTap(nodeId, nodeEl) {
+    if (pendingEdgeNode == null) {
+      pendingEdgeNode = nodeId;
+      nodeEl.classList.add("current");
+      setStep("Edge: first node <strong>" + labelOf(nodeId) + "</strong> selected. Now tap the second node.");
+      announce("First edge node " + labelOf(nodeId) + " selected.");
+      return;
+    }
+    if (pendingEdgeNode === nodeId) {
+      pendingEdgeNode = null;
+      render();
+      setStep("Cancelled: you tapped the same node twice.");
+      return;
+    }
+    var a = pendingEdgeNode, b = nodeId;
+    pendingEdgeNode = null;
+    addEdge(a, b);
+  }
+
+  function addEdge(a, b) {
+    // prevent duplicate
+    var exists = state.edges.some(function (e) {
+      return (e.a === a && e.b === b) || (e.a === b && e.b === a);
+    });
+    if (exists) {
+      render();
+      setStep("Those nodes are already connected. Edit the weight by deleting and re-adding, or delete the edge.");
+      announce("Those nodes are already connected.");
+      return;
+    }
+    var w = promptWeight();
+    if (w == null) { render(); return; }
+    state.edges.push({ a: a, b: b, w: w });
+    resetRun();
+    render();
+    setStep("Added edge <strong>" + labelOf(a) + " &harr; " + labelOf(b) + "</strong> with weight " + w + ".");
+    announce("Added edge between " + labelOf(a) + " and " + labelOf(b) + " weight " + w + ".");
+  }
+
+  function promptWeight() {
+    var raw = window.prompt("Edge weight (a positive number, e.g. 5):", "5");
+    if (raw == null) return null;
+    var w = parseFloat(raw);
+    if (!isFinite(w) || w <= 0) {
+      window.alert("Weight must be a positive number. Dijkstra requires non-negative edge weights.");
+      return null;
+    }
+    return Math.round(w * 10) / 10;
+  }
+
+  function addNode(x, y) {
+    var label = nextLabel();
+    state.nodes.push({ id: state.nextId++, label: label, x: x, y: y });
+    resetRun();
+    render();
+    setStep("Added node <strong>" + label + "</strong>. Switch to Add edge to connect it.");
+    announce("Added node " + label + ".");
+  }
+
+  function nextLabel() {
+    // A..Z then A1.. for overflow
+    var n = state.nodes.length;
+    if (n < 26) return String.fromCharCode(65 + n);
+    return "N" + n;
+  }
+
+  function setStart(id) {
+    state.startId = id;
+    if (state.goalId === id) state.goalId = null;
+    resetRun();
+    setStep("Start set to <strong>" + labelOf(id) + "</strong>.");
+    announce(labelOf(id) + " is now the start node.");
+  }
+  function setGoal(id) {
+    state.goalId = id;
+    if (state.startId === id) state.startId = null;
+    resetRun();
+    setStep("Goal set to <strong>" + labelOf(id) + "</strong>.");
+    announce(labelOf(id) + " is now the goal node.");
+  }
+  function deleteNode(id) {
+    state.nodes = state.nodes.filter(function (n) { return n.id !== id; });
+    state.edges = state.edges.filter(function (e) { return e.a !== id && e.b !== id; });
+    if (state.startId === id) state.startId = null;
+    if (state.goalId === id) state.goalId = null;
+    resetRun();
+    render();
+    setStep("Node deleted along with its edges.");
+    announce("Node deleted.");
+  }
+
+  // ---------- Keyboard on nodes ----------
+  svg.addEventListener("keydown", function (evt) {
+    var nodeEl = evt.target.closest ? evt.target.closest(".node-grp") : null;
+    if (!nodeEl) return;
+    var id = +nodeEl.getAttribute("data-node");
+    var n = nodeById(id);
+    if (!n) return;
+    var STEP = evt.shiftKey ? 24 : 8;
+    switch (evt.key) {
+      case "s": case "S": setStart(id); evt.preventDefault(); break;
+      case "g": case "G": setGoal(id); evt.preventDefault(); break;
+      case "Delete": case "Backspace": deleteNode(id); evt.preventDefault(); break;
+      case "Enter": case " ":
+        if (state.tool === "edge") { handleEdgeTap(id, nodeEl); evt.preventDefault(); }
+        else { setStart(id); evt.preventDefault(); }
+        break;
+      case "ArrowLeft": n.x = clamp(n.x - STEP, R, VIEW_W - R); render(); refocus(id); evt.preventDefault(); break;
+      case "ArrowRight": n.x = clamp(n.x + STEP, R, VIEW_W - R); render(); refocus(id); evt.preventDefault(); break;
+      case "ArrowUp": n.y = clamp(n.y - STEP, R, VIEW_H - R); render(); refocus(id); evt.preventDefault(); break;
+      case "ArrowDown": n.y = clamp(n.y + STEP, R, VIEW_H - R); render(); refocus(id); evt.preventDefault(); break;
+    }
+  });
+  function refocus(id) {
+    var el = layerNodes.querySelector('[data-node="' + id + '"]');
+    if (el) el.focus();
+  }
+
+  // ---------- Wire up controls ----------
+  document.querySelectorAll(".seg [data-tool]").forEach(function (b) {
+    b.addEventListener("click", function () { setTool(b.getAttribute("data-tool")); });
+  });
+  document.querySelectorAll(".seg [data-algo]").forEach(function (b) {
+    b.addEventListener("click", function () { setAlgo(b.getAttribute("data-algo")); });
+  });
+  document.getElementById("btn-sample").addEventListener("click", loadSample);
+  document.getElementById("btn-clear").addEventListener("click", function () { clearAll(false); });
+  document.getElementById("btn-step").addEventListener("click", function () { stopAuto(); step(); });
+  document.getElementById("btn-auto").addEventListener("click", function () {
+    if (state.auto) stopAuto(); else startAuto();
+  });
+  document.getElementById("btn-reset").addEventListener("click", function () {
+    resetRun();
+    setStep("Run reset. The graph is kept; press Step to start again.");
+    announce("Run reset.");
+  });
+  document.getElementById("speed").addEventListener("input", function () {
+    if (state.auto) { stopAuto(); startAuto(); }
+  });
+
+  // ---------- Boot ----------
+  loadSample();
+  setTool("move");
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Needs or Wants?</title>
+<style>
+  :root {
+    --ink: #1f2733;
+    --paper: #f5f7fb;
+    --card: #ffffff;
+    --need: #1d7a5f;
+    --need-soft: #d9f2e9;
+    --want: #b4622d;
+    --want-soft: #fbe7d6;
+    --accent: #2b50aa;
+    --accent-soft: #dde6fb;
+    --gold: #d4a017;
+    --line: #d6dceb;
+    --good: #1d7a5f;
+    --bad: #b22a2a;
+    --shadow: 0 6px 18px rgba(31,39,51,0.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Trebuchet MS", system-ui, -apple-system, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 18px 16px 60px; }
+
+  header.app-head {
+    background: linear-gradient(135deg, #2b50aa 0%, #1d7a5f 100%);
+    color: #fff;
+    border-radius: 18px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  header.app-head h1 { margin: 0 0 4px; font-size: clamp(1.5rem, 4vw, 2.1rem); }
+  header.app-head .sub { margin: 0; font-size: 1rem; opacity: 0.95; }
+  .aim {
+    margin: 14px 0 0;
+    background: rgba(255,255,255,0.16);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.92rem;
+  }
+  .aim strong { letter-spacing: 0.02em; }
+
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin: 18px 0 16px;
+    flex-wrap: wrap;
+  }
+  .tab {
+    flex: 1 1 200px;
+    border: 2px solid var(--line);
+    background: var(--card);
+    color: var(--ink);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.08s, border-color 0.15s, background 0.15s;
+  }
+  .tab .step { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; }
+  .tab[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .tab:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .panel { display: none; }
+  .panel.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: none;} }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  h2 { font-size: 1.25rem; margin: 0 0 6px; }
+  .lead { margin: 0 0 12px; color: #41506a; }
+
+  /* ---------- Sort game ---------- */
+  .scorebar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .pill {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-weight: 700;
+    font-size: 0.95rem;
+  }
+  .pill.score { background: var(--need-soft); color: var(--need); }
+  .pill.miss { background: var(--want-soft); color: var(--want); }
+
+  #stage {
+    position: relative;
+    height: 230px;
+    background:
+      radial-gradient(circle at 18% 30%, #eaf2ff 0 18px, transparent 19px),
+      radial-gradient(circle at 80% 70%, #eafaf2 0 22px, transparent 23px),
+      linear-gradient(#fbfdff, #eef3fb);
+    border: 2px dashed var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    touch-action: none;
+    margin-bottom: 14px;
+  }
+  .flyer {
+    position: absolute;
+    top: 80px; left: -120px;
+    min-width: 96px;
+    background: var(--card);
+    border: 2px solid var(--accent);
+    border-radius: 14px;
+    padding: 8px 12px 6px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    font-weight: 700;
+    z-index: 5;
+  }
+  .flyer:active { cursor: grabbing; }
+  .flyer .emo { font-size: 2rem; line-height: 1; display: block; }
+  .flyer .nm { font-size: 0.85rem; }
+  .flyer:focus-visible { outline: 4px solid var(--gold); outline-offset: 3px; }
+  .flyer.dragging { transition: none; box-shadow: 0 12px 26px rgba(0,0,0,0.22); z-index: 30; }
+
+  .bins { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .bin {
+    border-radius: 16px;
+    padding: 14px 12px;
+    min-height: 96px;
+    text-align: center;
+    border: 3px solid transparent;
+    transition: border-color 0.12s, transform 0.12s, background 0.12s;
+  }
+  .bin.need { background: var(--need-soft); color: var(--need); }
+  .bin.want { background: var(--want-soft); color: var(--want); }
+  .bin.hot { border-color: currentColor; transform: scale(1.02); }
+  .bin h3 { margin: 0 0 2px; font-size: 1.15rem; }
+  .bin .hint { font-size: 0.8rem; opacity: 0.85; font-weight: 600; }
+  .bin .count { font-size: 0.78rem; opacity: 0.85; margin-top: 6px; }
+
+  .kb-help {
+    font-size: 0.82rem;
+    color: #54627d;
+    margin: 12px 0 0;
+    background: #f0f3fa;
+    border-radius: 10px;
+    padding: 8px 12px;
+  }
+  .feedback {
+    margin-top: 12px;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-weight: 700;
+    min-height: 22px;
+    border: 2px solid var(--line);
+    background: #fff;
+  }
+  .feedback.good { background: var(--need-soft); border-color: var(--need); color: #145c47; }
+  .feedback.bad { background: var(--want-soft); border-color: var(--want); color: #8a4214; }
+
+  .btn {
+    border: none;
+    border-radius: 12px;
+    padding: 11px 18px;
+    font-size: 1rem;
+    font-weight: 800;
+    cursor: pointer;
+    background: var(--accent);
+    color: #fff;
+    box-shadow: var(--shadow);
+  }
+  .btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  .btn.ghost { background: #fff; color: var(--accent); border: 2px solid var(--accent); }
+  .btn.gold { background: var(--gold); color: #3a2a00; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+
+  /* ---------- Shop ---------- */
+  .purse {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--accent-soft);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+  }
+  .purse .big { font-size: 1.6rem; font-weight: 800; color: var(--accent); }
+  .coins { display: flex; gap: 6px; flex-wrap: wrap; }
+  .coin {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffe9a8, #d4a017 70%);
+    border: 2px solid #a87d0a;
+    color: #4a3700; font-weight: 800; font-size: 0.8rem;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: inset 0 0 0 3px rgba(255,255,255,0.35);
+  }
+  .coin.spent { background: #e3e7ee; border-color: #bcc4d2; color: #9aa3b3; box-shadow: none; }
+
+  .shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+  .product {
+    background: #fff;
+    border: 2px solid var(--line);
+    border-radius: 14px;
+    padding: 12px 10px;
+    text-align: center;
+  }
+  .product .emo { font-size: 2.2rem; display: block; }
+  .product .nm { font-weight: 700; margin: 4px 0 2px; }
+  .product .price { color: var(--accent); font-weight: 800; }
+  .product .tag {
+    display: inline-block; font-size: 0.7rem; font-weight: 800;
+    border-radius: 999px; padding: 1px 8px; margin-bottom: 6px;
+  }
+  .product .tag.need { background: var(--need-soft); color: var(--need); }
+  .product .tag.want { background: var(--want-soft); color: var(--want); }
+  .product button {
+    margin-top: 8px; width: 100%;
+    border: none; border-radius: 10px; padding: 8px;
+    font-weight: 800; cursor: pointer;
+    background: var(--need); color: #fff;
+  }
+  .product button:disabled { background: #cdd4e0; color: #7c8595; cursor: not-allowed; }
+  .product button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+  .basket {
+    background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px;
+    margin-top: 14px;
+  }
+  .basket ul { list-style: none; margin: 6px 0; padding: 0; }
+  .basket li { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  .basket li button {
+    border: none; background: var(--want-soft); color: var(--want);
+    border-radius: 8px; padding: 2px 10px; font-weight: 800; cursor: pointer;
+  }
+  .total-row { display: flex; justify-content: space-between; font-weight: 800; margin-top: 8px; font-size: 1.05rem; }
+
+  .shop-msg {
+    margin-top: 12px; border-radius: 12px; padding: 12px 14px; font-weight: 700;
+    border: 2px solid var(--line); background: #fff; min-height: 20px;
+  }
+  .shop-msg.good { background: var(--need-soft); border-color: var(--need); color: #145c47; }
+  .shop-msg.bad { background: var(--want-soft); border-color: var(--want); color: #8a4214; }
+
+  .visually-hidden {
+    position: absolute !important; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0;
+  }
+  footer.note { text-align: center; color: #7c8595; font-size: 0.82rem; margin-top: 18px; }
+
+  @media (max-width: 520px) {
+    .bins { grid-template-columns: 1fr; }
+    #stage { height: 200px; }
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <h1>Needs or Wants? &#x1F4B0;</h1>
+    <p class="sub">Citizenship &#xB7; Key Stage 1 &#xB7; Money and the choices we make</p>
+    <p class="aim"><strong>Teacher aim:</strong> Children learn that a need is something we must have to be safe and well, and a want is something nice to have. Then they spend a fixed pot of coins and see the change.</p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Activity steps">
+    <button class="tab" id="tab-sort" role="tab" aria-selected="true" aria-controls="panel-sort">
+      <span class="step">Step 1</span> Sort the things
+    </button>
+    <button class="tab" id="tab-shop" role="tab" aria-selected="false" aria-controls="panel-shop" tabindex="-1">
+      <span class="step">Step 2</span> Spend your coins
+    </button>
+  </div>
+
+  <!-- ============ SORT PANEL ============ -->
+  <section class="panel active" id="panel-sort" role="tabpanel" aria-labelledby="tab-sort">
+    <div class="card">
+      <h2>Catch it and sort it</h2>
+      <p class="lead">A thing floats across. Drag it into the right box, or click it and press the arrow keys. <strong>Need</strong> = we must have it. <strong>Want</strong> = nice to have.</p>
+
+      <div class="scorebar" aria-hidden="false">
+        <span class="pill">Item <span id="itemNo">1</span> of <span id="itemTot">8</span></span>
+        <span class="pill score">Sorted right: <span id="rightCount">0</span></span>
+        <span class="pill miss">Try again: <span id="wrongCount">0</span></span>
+      </div>
+
+      <div id="stage" aria-label="Sorting play area"></div>
+
+      <div class="bins">
+        <div class="bin need" id="binNeed" data-kind="need">
+          <h3>&#x2764;&#xFE0F; Need</h3>
+          <span class="hint">We must have it to be safe and well</span>
+          <div class="count" id="needCount">0 sorted here</div>
+        </div>
+        <div class="bin want" id="binWant" data-kind="want">
+          <h3>&#x2B50; Want</h3>
+          <span class="hint">Nice to have, but not needed</span>
+          <div class="count" id="wantCount">0 sorted here</div>
+        </div>
+      </div>
+
+      <div class="feedback" id="sortFeedback" role="status" aria-live="polite">Ready when you are. The first thing is floating in now.</div>
+
+      <p class="kb-help">
+        <strong>Keyboard:</strong> press <kbd>Tab</kbd> to reach the floating card, then press <kbd>&#x2190;</kbd> Left arrow for <strong>Need</strong> or <kbd>&#x2192;</kbd> Right arrow for <strong>Want</strong>.
+      </p>
+
+      <div class="btn-row">
+        <button class="btn ghost" id="replayBtn">Send it again</button>
+        <button class="btn" id="toShopBtn" disabled>Go shopping &#x1F449;</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SHOP PANEL ============ -->
+  <section class="panel" id="panel-shop" role="tabpanel" aria-labelledby="tab-shop">
+    <div class="card">
+      <h2>Maya's Little Shop</h2>
+      <p class="lead">You have <strong>20p</strong> to spend. Try to buy the things you <em>need</em> first. The till shows your change after every choice.</p>
+
+      <div class="purse" aria-label="Your money">
+        <span class="big">Left: <span id="moneyLeft">20p</span></span>
+        <div class="coins" id="coinTray" aria-hidden="true"></div>
+      </div>
+
+      <div class="shelf" id="shelf"></div>
+
+      <div class="basket" aria-label="Your basket">
+        <strong>Your basket</strong>
+        <ul id="basketList"><li class="empty" style="border:none;color:#7c8595;">Nothing yet.</li></ul>
+        <div class="total-row"><span>Spent so far:</span><span id="spentTotal">0p</span></div>
+      </div>
+
+      <div class="shop-msg" id="shopMsg" role="status" aria-live="polite">Tap a price to drop it in your basket.</div>
+
+      <div class="btn-row">
+        <button class="btn gold" id="checkoutBtn">Go to the till</button>
+        <button class="btn ghost" id="resetShopBtn">Empty basket and start again</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="note">Needs or Wants? &#xB7; A WeST classroom demo. All names and items are made up.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ============================================================
+     STEP 1: SORT THE THINGS (needs vs wants)
+     ============================================================ */
+
+  var ITEMS = [
+    { name: "Water",        emo: "\u{1F4A7}", kind: "need", why: "We need water every day to stay alive and healthy." },
+    { name: "Toy robot",    emo: "\u{1F916}", kind: "want", why: "A toy is fun, but we can be well without it. It is a want." },
+    { name: "Warm coat",    emo: "\u{1F9E5}", kind: "need", why: "We need warm clothes to keep safe and warm in the cold." },
+    { name: "Sweets",       emo: "\u{1F36C}", kind: "want", why: "Sweets are a treat. We do not need them to be healthy." },
+    { name: "Food",         emo: "\u{1F34E}", kind: "need", why: "We need food to grow strong and give us energy." },
+    { name: "Games console",emo: "\u{1F3AE}", kind: "want", why: "A games console is nice to have, but it is a want." },
+    { name: "A home",       emo: "\u{1F3E0}", kind: "need", why: "We need a safe, dry home to live in. That is a need." },
+    { name: "Balloon",      emo: "\u{1F388}", kind: "want", why: "A balloon is a fun extra. It is a want, not a need." }
+  ];
+
+  function shuffle(a) {
+    a = a.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  var order = shuffle(ITEMS);
+  var idx = 0;
+  var rightCount = 0, wrongCount = 0;
+  var needSorted = 0, wantSorted = 0;
+  var solvedThis = false;
+  var anim = null;
+
+  var stage = document.getElementById("stage");
+  var binNeed = document.getElementById("binNeed");
+  var binWant = document.getElementById("binWant");
+  var sortFeedback = document.getElementById("sortFeedback");
+  var itemNoEl = document.getElementById("itemNo");
+  var itemTotEl = document.getElementById("itemTot");
+  var rightEl = document.getElementById("rightCount");
+  var wrongEl = document.getElementById("wrongCount");
+  var needCountEl = document.getElementById("needCount");
+  var wantCountEl = document.getElementById("wantCount");
+  var toShopBtn = document.getElementById("toShopBtn");
+  var replayBtn = document.getElementById("replayBtn");
+
+  itemTotEl.textContent = ITEMS.length;
+
+  var flyer = null;
+  var pos = { x: 0, y: 0 };
+  var vx = 0;
+  var dragging = false;
+  var dragOffset = { x: 0, y: 0 };
+  var pointerId = null;
+
+  function makeFlyer(item) {
+    var el = document.createElement("div");
+    el.className = "flyer";
+    el.setAttribute("tabindex", "0");
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label",
+      item.name + ". Is it a need or a want? Press Left arrow for Need, Right arrow for Want, or drag it into a box.");
+    el.innerHTML = '<span class="emo" aria-hidden="true">' + item.emo + '</span><span class="nm">' + item.name + '</span>';
+    el.dataset.kind = item.kind;
+    el.dataset.name = item.name;
+    el.dataset.why = item.why;
+    return el;
+  }
+
+  function spawn() {
+    solvedThis = false;
+    if (anim) { cancelAnimationFrame(anim); anim = null; }
+    if (flyer && flyer.parentNode) flyer.parentNode.removeChild(flyer);
+
+    var item = order[idx];
+    flyer = makeFlyer(item);
+    stage.appendChild(flyer);
+
+    var stageW = stage.clientWidth;
+    var fw = 110;
+    pos.x = -fw;
+    pos.y = 40 + Math.random() * Math.max(20, stage.clientHeight - 140);
+    vx = 0.55 + Math.random() * 0.25;
+    placeFlyer();
+    drift();
+
+    itemNoEl.textContent = (idx + 1);
+    setFeedback("Here comes the " + item.name + ". Where does it go?", "");
+    flyer.focus({ preventScroll: true });
+
+    flyer.addEventListener("pointerdown", onDown);
+    flyer.addEventListener("keydown", onKey);
+  }
+
+  function placeFlyer() {
+    if (!flyer) return;
+    flyer.style.left = pos.x + "px";
+    flyer.style.top = pos.y + "px";
+  }
+
+  function drift() {
+    if (!flyer || dragging || solvedThis) return;
+    var stageW = stage.clientWidth;
+    var fw = flyer.offsetWidth || 110;
+    pos.x += vx;
+    if (pos.x > stageW + 10) { pos.x = -fw; } // wrap around, keep gently looping
+    placeFlyer();
+    anim = requestAnimationFrame(drift);
+  }
+
+  /* ---- Pointer drag ---- */
+  function onDown(e) {
+    if (solvedThis) return;
+    dragging = true;
+    pointerId = e.pointerId;
+    flyer.classList.add("dragging");
+    if (anim) { cancelAnimationFrame(anim); anim = null; }
+    try { flyer.setPointerCapture(pointerId); } catch (err) {}
+    var r = stage.getBoundingClientRect();
+    dragOffset.x = e.clientX - (r.left + pos.x);
+    dragOffset.y = e.clientY - (r.top + pos.y);
+    flyer.addEventListener("pointermove", onMove);
+    flyer.addEventListener("pointerup", onUp);
+    flyer.addEventListener("pointercancel", onUp);
+    e.preventDefault();
+  }
+
+  function onMove(e) {
+    if (!dragging) return;
+    var r = stage.getBoundingClientRect();
+    pos.x = e.clientX - r.left - dragOffset.x;
+    pos.y = e.clientY - r.top - dragOffset.y;
+    placeFlyer();
+    highlightBins(e.clientX, e.clientY);
+    e.preventDefault();
+  }
+
+  function onUp(e) {
+    if (!dragging) return;
+    dragging = false;
+    flyer.classList.remove("dragging");
+    try { flyer.releasePointerCapture(pointerId); } catch (err) {}
+    flyer.removeEventListener("pointermove", onMove);
+    flyer.removeEventListener("pointerup", onUp);
+    flyer.removeEventListener("pointercancel", onUp);
+
+    var bin = binAt(e.clientX, e.clientY);
+    clearBinHot();
+    if (bin) {
+      resolve(bin.dataset.kind);
+    } else {
+      // dropped in empty space: resume drifting
+      drift();
+    }
+  }
+
+  function binAt(x, y) {
+    var bins = [binNeed, binWant];
+    for (var i = 0; i < bins.length; i++) {
+      var r = bins[i].getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return bins[i];
+    }
+    return null;
+  }
+  function highlightBins(x, y) {
+    clearBinHot();
+    var b = binAt(x, y);
+    if (b) b.classList.add("hot");
+  }
+  function clearBinHot() {
+    binNeed.classList.remove("hot");
+    binWant.classList.remove("hot");
+  }
+
+  /* ---- Keyboard ---- */
+  function onKey(e) {
+    if (solvedThis) return;
+    if (e.key === "ArrowLeft") { e.preventDefault(); resolve("need"); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); resolve("want"); }
+  }
+
+  function resolve(chosenKind) {
+    if (solvedThis || !flyer) return;
+    var item = order[idx];
+    var correct = (chosenKind === item.kind);
+
+    if (correct) {
+      solvedThis = true;
+      rightCount++;
+      if (item.kind === "need") { needSorted++; needCountEl.textContent = needSorted + " sorted here"; }
+      else { wantSorted++; wantCountEl.textContent = wantSorted + " sorted here"; }
+      rightEl.textContent = rightCount;
+
+      // settle the card into the bin
+      var bin = (item.kind === "need") ? binNeed : binWant;
+      flashBin(bin, true);
+      setFeedback("Yes! " + item.name + " is a " + item.kind + ". " + item.why, "good");
+
+      if (flyer) { flyer.style.opacity = "0.35"; flyer.setAttribute("aria-disabled", "true"); }
+
+      idx++;
+      if (idx >= order.length) {
+        setTimeout(finishSort, 900);
+      } else {
+        setTimeout(spawn, 1000);
+      }
+    } else {
+      wrongCount++;
+      wrongEl.textContent = wrongCount;
+      var other = (item.kind === "need") ? "Need" : "Want";
+      var bin = (chosenKind === "need") ? binNeed : binWant;
+      flashBin(bin, false);
+      setFeedback("Not quite. " + item.name + " is a " + item.kind + ". Try the " + other + " box.", "bad");
+      // keep drifting so they can try again
+      if (!dragging && !anim) drift();
+    }
+  }
+
+  function flashBin(bin, ok) {
+    bin.style.transition = "transform 0.12s";
+    bin.style.transform = "scale(1.05)";
+    bin.style.boxShadow = ok ? "0 0 0 4px rgba(29,122,95,0.5)" : "0 0 0 4px rgba(178,42,42,0.5)";
+    setTimeout(function () {
+      bin.style.transform = "";
+      bin.style.boxShadow = "";
+    }, 320);
+  }
+
+  function setFeedback(msg, cls) {
+    sortFeedback.textContent = msg;
+    sortFeedback.className = "feedback" + (cls ? " " + cls : "");
+  }
+
+  function finishSort() {
+    if (flyer && flyer.parentNode) flyer.parentNode.removeChild(flyer);
+    flyer = null;
+    if (anim) { cancelAnimationFrame(anim); anim = null; }
+    setFeedback("Brilliant sorting! You got " + rightCount + " right. Now go and spend your coins in the shop.", "good");
+    toShopBtn.disabled = false;
+    toShopBtn.focus();
+  }
+
+  replayBtn.addEventListener("click", function () {
+    // restart the whole sort
+    order = shuffle(ITEMS);
+    idx = 0; rightCount = 0; wrongCount = 0; needSorted = 0; wantSorted = 0;
+    rightEl.textContent = "0"; wrongEl.textContent = "0";
+    needCountEl.textContent = "0 sorted here"; wantCountEl.textContent = "0 sorted here";
+    toShopBtn.disabled = true;
+    spawn();
+  });
+
+  toShopBtn.addEventListener("click", function () { switchTab("shop"); });
+
+  /* ============================================================
+     STEP 2: SPEND YOUR COINS
+     ============================================================ */
+
+  var PURSE = 20; // pence
+  var PRODUCTS = [
+    { name: "Bread",       emo: "\u{1F35E}", price: 6,  kind: "need" },
+    { name: "Apple",       emo: "\u{1F34E}", price: 4,  kind: "need" },
+    { name: "Milk",        emo: "\u{1F95B}", price: 5,  kind: "need" },
+    { name: "Toy car",     emo: "\u{1F697}", price: 9,  kind: "want" },
+    { name: "Lollipop",    emo: "\u{1F36D}", price: 3,  kind: "want" },
+    { name: "Sticker pack",emo: "\u{2B50}",  price: 7,  kind: "want" }
+  ];
+
+  var basket = [];
+  var shelfEl = document.getElementById("shelf");
+  var basketListEl = document.getElementById("basketList");
+  var moneyLeftEl = document.getElementById("moneyLeft");
+  var spentTotalEl = document.getElementById("spentTotal");
+  var shopMsg = document.getElementById("shopMsg");
+  var coinTray = document.getElementById("coinTray");
+  var checkoutBtn = document.getElementById("checkoutBtn");
+  var resetShopBtn = document.getElementById("resetShopBtn");
+
+  function spent() { return basket.reduce(function (s, p) { return s + p.price; }, 0); }
+  function left() { return PURSE - spent(); }
+
+  function buildShelf() {
+    shelfEl.innerHTML = "";
+    PRODUCTS.forEach(function (p, i) {
+      var card = document.createElement("div");
+      card.className = "product";
+      var tagClass = p.kind === "need" ? "need" : "want";
+      var tagText = p.kind === "need" ? "Need" : "Want";
+      card.innerHTML =
+        '<span class="emo" aria-hidden="true">' + p.emo + '</span>' +
+        '<span class="tag ' + tagClass + '">' + tagText + '</span>' +
+        '<div class="nm">' + p.name + '</div>' +
+        '<div class="price">' + p.price + 'p</div>';
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "Buy for " + p.price + "p";
+      btn.setAttribute("aria-label", "Buy " + p.name + " for " + p.price + " pence. It is a " + tagText + ".");
+      btn.addEventListener("click", function () { buy(p, btn); });
+      card.appendChild(btn);
+      shelfEl.appendChild(card);
+    });
+  }
+
+  function buy(p, btn) {
+    if (p.price > left()) {
+      var short = p.price - left();
+      setShopMsg("Oh no, you do not have enough for the " + p.name + ". It costs " + p.price +
+        "p and you only have " + left() + "p left. You need " + short + "p more.", "bad");
+      return;
+    }
+    basket.push(p);
+    renderBasket();
+    if (p.kind === "need") {
+      setShopMsg("Good choice. The " + p.name + " is a need. You paid " + p.price +
+        "p, so your change is " + left() + "p.", "good");
+    } else {
+      setShopMsg("You bought the " + p.name + ". That is a want, a nice treat. Your change is now " +
+        left() + "p.", "good");
+    }
+  }
+
+  function removeFromBasket(i) {
+    var p = basket[i];
+    basket.splice(i, 1);
+    renderBasket();
+    setShopMsg("You put the " + p.name + " back. You have " + left() + "p again.", "");
+  }
+
+  function renderBasket() {
+    moneyLeftEl.textContent = left() + "p";
+    spentTotalEl.textContent = spent() + "p";
+    drawCoins();
+
+    if (basket.length === 0) {
+      basketListEl.innerHTML = '<li class="empty" style="border:none;color:#7c8595;">Nothing yet.</li>';
+    } else {
+      basketListEl.innerHTML = "";
+      basket.forEach(function (p, i) {
+        var li = document.createElement("li");
+        var span = document.createElement("span");
+        span.textContent = p.emo + " " + p.name + " (" + p.price + "p)";
+        var rm = document.createElement("button");
+        rm.type = "button";
+        rm.textContent = "Put back";
+        rm.setAttribute("aria-label", "Put back the " + p.name);
+        rm.addEventListener("click", (function (k) { return function () { removeFromBasket(k); }; })(i));
+        li.appendChild(span);
+        li.appendChild(rm);
+        basketListEl.appendChild(li);
+      });
+    }
+    // disable unaffordable buy buttons
+    var btns = shelfEl.querySelectorAll("button");
+    btns.forEach(function (b, i) {
+      b.disabled = PRODUCTS[i].price > left();
+    });
+  }
+
+  function drawCoins() {
+    // show purse as 20 one-penny coins; grey out spent ones
+    coinTray.innerHTML = "";
+    var s = spent();
+    // group into a tidy row of 1p coins, but cap visual to 20
+    for (var i = 0; i < PURSE; i++) {
+      var c = document.createElement("span");
+      c.className = "coin" + (i < s ? " spent" : "");
+      c.textContent = "1p";
+      coinTray.appendChild(c);
+    }
+  }
+
+  function setShopMsg(msg, cls) {
+    shopMsg.textContent = msg;
+    shopMsg.className = "shop-msg" + (cls ? " " + cls : "");
+  }
+
+  checkoutBtn.addEventListener("click", function () {
+    var needs = basket.filter(function (p) { return p.kind === "need"; }).length;
+    var wants = basket.filter(function (p) { return p.kind === "want"; }).length;
+    if (basket.length === 0) {
+      setShopMsg("Your basket is empty. Pick at least one thing before you go to the till.", "bad");
+      return;
+    }
+    var change = left();
+    var msg = "At the till you spent " + spent() + "p, so your change is " + change + "p. ";
+    msg += "You bought " + needs + " need" + (needs === 1 ? "" : "s") +
+           " and " + wants + " want" + (wants === 1 ? "" : "s") + ". ";
+    if (needs >= 1 && change >= 0) {
+      msg += "Well done for buying things you need.";
+    } else if (needs === 0) {
+      msg += "Next time, try to buy a need first, like bread or milk.";
+    }
+    setShopMsg(msg, "good");
+  });
+
+  resetShopBtn.addEventListener("click", function () {
+    basket = [];
+    renderBasket();
+    setShopMsg("Basket emptied. You have all 20p again. Tap a price to start.", "");
+  });
+
+  /* ============================================================
+     TABS
+     ============================================================ */
+  var tabSort = document.getElementById("tab-sort");
+  var tabShop = document.getElementById("tab-shop");
+  var panelSort = document.getElementById("panel-sort");
+  var panelShop = document.getElementById("panel-shop");
+
+  function switchTab(which) {
+    var sortOn = which === "sort";
+    tabSort.setAttribute("aria-selected", sortOn ? "true" : "false");
+    tabShop.setAttribute("aria-selected", sortOn ? "false" : "true");
+    tabSort.tabIndex = sortOn ? 0 : -1;
+    tabShop.tabIndex = sortOn ? -1 : 0;
+    panelSort.classList.toggle("active", sortOn);
+    panelShop.classList.toggle("active", !sortOn);
+    if (sortOn) {
+      if (!flyer && idx < order.length) { /* paused mid-game, leave it */ }
+    } else {
+      buildShelf();
+      renderBasket();
+    }
+    (sortOn ? tabSort : tabShop).focus();
+  }
+
+  tabSort.addEventListener("click", function () { switchTab("sort"); });
+  tabShop.addEventListener("click", function () { switchTab("shop"); });
+
+  // arrow-key tab navigation
+  [tabSort, tabShop].forEach(function (t) {
+    t.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        switchTab(t === tabSort ? "shop" : "sort");
+      }
+    });
+  });
+
+  /* ============================================================
+     INIT
+     ============================================================ */
+  window.addEventListener("load", function () {
+    spawn();
+    buildShelf();
+    renderBasket();
+  });
+})();
+</script>
+</body>
+</html>

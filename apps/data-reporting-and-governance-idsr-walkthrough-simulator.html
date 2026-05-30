@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDSR Walkthrough Simulator</title>
+<style>
+  :root{
+    --ink:#1d2433;
+    --ink-soft:#48536b;
+    --paper:#f6f7fb;
+    --card:#ffffff;
+    --line:#dde2ec;
+    --brand:#1f4e8c;
+    --brand-soft:#e8eff7;
+    --focus:#0a6cff;
+    /* significance palette (IDSR style) */
+    --well-bg:#d7efd9;   --well-ink:#15522a;   --well-line:#7cc089;
+    --above-bg:#e6f6e6;  --above-ink:#1f6b34;
+    --avg-bg:#ffffff;    --avg-ink:#3a4763;
+    --below-bg:#fdeede;  --below-ink:#8a4b12;
+    --low-bg:#fbdada;    --low-ink:#8a1f24;   --low-line:#e08a8e;
+    --amber:#b06a00;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1140px;margin:0 auto;padding:18px 16px 64px}
+  header.app{
+    background:linear-gradient(135deg,#1f4e8c,#27689f);
+    color:#fff;border-radius:16px;padding:22px 22px 20px;margin-bottom:18px;
+    box-shadow:0 6px 18px rgba(31,78,140,.18);
+  }
+  header.app h1{margin:0 0 4px;font-size:1.55rem;letter-spacing:.2px}
+  header.app .aim{margin:6px 0 0;font-size:.98rem;color:#e7f0fb;max-width:78ch}
+  header.app .tag{display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);
+    padding:3px 10px;border-radius:999px;font-size:.78rem;margin-top:10px;margin-right:6px}
+  .grid{display:grid;grid-template-columns:1fr;gap:18px}
+  @media(min-width:920px){ .grid{grid-template-columns:1.55fr .95fr} }
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 16px 18px;
+    box-shadow:0 2px 6px rgba(20,30,60,.04)}
+  .panel h2{margin:0 0 4px;font-size:1.12rem;color:var(--brand)}
+  .panel .sub{margin:0 0 14px;color:var(--ink-soft);font-size:.9rem}
+
+  /* ===== IDSR replica ===== */
+  .idsr{border:1px solid #c9d2e0;border-radius:10px;overflow:hidden;background:#fff}
+  .idsr-band{background:#34557d;color:#fff;padding:8px 12px;font-weight:600;font-size:.82rem;letter-spacing:.3px;
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+  .idsr-band small{font-weight:400;color:#cfe0f3}
+  .idsr-section-title{background:#eef2f8;border-top:1px solid #d7deea;border-bottom:1px solid #d7deea;
+    padding:6px 12px;font-size:.8rem;font-weight:700;color:#33415c;text-transform:uppercase;letter-spacing:.4px}
+  table.measures{width:100%;border-collapse:collapse;font-size:.86rem}
+  table.measures th,table.measures td{padding:9px 10px;text-align:left;border-bottom:1px solid #eef1f6}
+  table.measures th{font-size:.74rem;text-transform:uppercase;letter-spacing:.4px;color:#5a667d;background:#fafbfd}
+  table.measures td.num{font-variant-numeric:tabular-nums;font-weight:600;text-align:center;width:90px}
+  /* significance cell as a button-like hotspot */
+  .sig{
+    display:inline-flex;align-items:center;justify-content:center;min-width:108px;
+    padding:6px 8px;border-radius:7px;border:1px solid transparent;font-weight:600;font-size:.8rem;
+    cursor:pointer;line-height:1.15;text-align:center;width:100%;
+    transition:transform .08s ease, box-shadow .12s ease;
+    touch-action:manipulation;
+  }
+  .sig:hover{transform:translateY(-1px)}
+  .sig:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  .sig.well{background:var(--well-bg);color:var(--well-ink);border-color:var(--well-line)}
+  .sig.above{background:var(--above-bg);color:var(--above-ink);border-color:#bfe3bf}
+  .sig.avg{background:var(--avg-bg);color:#3a4763;border-color:#d6dbe6}
+  .sig.below{background:var(--below-bg);color:var(--below-ink);border-color:#f3d3ab}
+  .sig.low{background:var(--low-bg);color:var(--low-ink);border-color:var(--low-line)}
+  .sig.active{box-shadow:0 0 0 3px rgba(10,108,255,.45)}
+  .qcol{text-align:center !important;width:148px}
+  .measure-name{font-weight:600;color:#283248}
+  .measure-name small{display:block;font-weight:400;color:#7a849a;font-size:.76rem}
+
+  /* headline gauges row */
+  .gauges{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
+  @media(min-width:560px){ .gauges{grid-template-columns:repeat(4,1fr)} }
+  .gauge{border:1px solid #e0e6f0;border-radius:10px;padding:10px;text-align:center;cursor:pointer;background:#fff;
+    transition:transform .08s ease, box-shadow .12s ease;touch-action:manipulation}
+  .gauge:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(20,30,60,.08)}
+  .gauge:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  .gauge.active{box-shadow:0 0 0 3px rgba(10,108,255,.4)}
+  .gauge .meter{position:relative;height:8px;border-radius:6px;background:linear-gradient(90deg,#f3b0b0,#ffe2a8,#bfe3bf,#7cc089);margin:8px 4px 6px}
+  .gauge .needle{position:absolute;top:-3px;width:3px;height:14px;background:#1d2433;border-radius:2px;transform:translateX(-50%)}
+  .gauge .label{font-size:.74rem;color:#5a667d;text-transform:uppercase;letter-spacing:.3px}
+  .gauge .val{font-size:1.18rem;font-weight:700;color:#283248;font-variant-numeric:tabular-nums}
+  .gauge .q{font-size:.72rem;color:#7a849a}
+
+  /* quintile strip */
+  .quintile{display:flex;border-radius:8px;overflow:hidden;border:1px solid #d6dde9;margin-top:4px;font-size:.7rem}
+  .quintile span{flex:1;text-align:center;padding:4px 2px;color:#33415c;font-weight:600}
+  .qn1{background:#7cc089;color:#0f3d1f}
+  .qn2{background:#bfe3bf}
+  .qn3{background:#f4f6fa}
+  .qn4{background:#ffe2a8}
+  .qn5{background:#f3b0b0}
+
+  /* feedback / reader */
+  .reader{min-height:120px}
+  .reader .empty{color:var(--ink-soft);font-style:italic}
+  .callout{border-left:5px solid var(--brand);background:var(--brand-soft);padding:12px 14px;border-radius:0 10px 10px 0;margin:0 0 12px}
+  .callout h3{margin:0 0 4px;font-size:1rem;color:var(--brand)}
+  .callout p{margin:4px 0 0;font-size:.92rem;color:#2c3650}
+  .pill{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:999px;margin-bottom:6px;letter-spacing:.3px}
+  .pill.well{background:var(--well-bg);color:var(--well-ink)}
+  .pill.above{background:var(--above-bg);color:var(--above-ink)}
+  .pill.avg{background:#eef1f6;color:#3a4763}
+  .pill.below{background:var(--below-bg);color:var(--below-ink)}
+  .pill.low{background:var(--low-bg);color:var(--low-ink)}
+
+  /* inspector first-read challenge */
+  .challenge{margin-top:14px}
+  .challenge h2{color:#8a4b12}
+  .order-list{list-style:none;margin:10px 0 0;padding:0}
+  .order-item{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #dfe5ef;border-radius:10px;
+    padding:10px 12px;margin-bottom:8px;touch-action:none;cursor:grab;user-select:none}
+  .order-item:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  .order-item.dragging{opacity:.55;cursor:grabbing}
+  .order-item .rank{width:26px;height:26px;flex:0 0 26px;border-radius:50%;background:#34557d;color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.86rem}
+  .order-item .txt{flex:1;font-size:.9rem}
+  .order-item .grip{color:#9aa4ba;font-size:1.1rem;line-height:1}
+  .order-item.correct{border-color:var(--well-line);background:var(--above-bg)}
+  .order-item.wrong{border-color:var(--low-line);background:var(--low-bg)}
+  .btn{appearance:none;border:1px solid var(--brand);background:var(--brand);color:#fff;font-weight:600;
+    padding:9px 16px;border-radius:9px;cursor:pointer;font-size:.9rem}
+  .btn:hover{background:#1a4377}
+  .btn.ghost{background:#fff;color:var(--brand)}
+  .btn:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+  .score{font-weight:700;color:#283248}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}
+  .legend .key{display:inline-flex;align-items:center;gap:5px;font-size:.76rem;color:#48536b;border:1px solid #e2e7f0;
+    border-radius:999px;padding:3px 9px;background:#fff}
+  .swatch{width:13px;height:13px;border-radius:3px;border:1px solid rgba(0,0,0,.12)}
+  .hint{font-size:.84rem;color:var(--ink-soft);margin:8px 0 0}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  footer.note{margin-top:22px;font-size:.8rem;color:#7a849a;text-align:center}
+  .liveregion{position:absolute;left:-9999px}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <h1>IDSR Walkthrough Simulator</h1>
+    <p class="aim"><strong>Teacher aim:</strong> orientate school and trust leaders to the layout of the Inspection Data Summary Report and Analyse School Performance. Learners explore quintiles, significance shading and the headline gauges, then practise what inspectors read first.</p>
+    <span class="tag">Data &amp; Analytics</span>
+    <span class="tag">Reporting and Governance</span>
+    <span class="tag">Demonstration data only</span>
+  </header>
+
+  <div class="grid">
+
+    <!-- LEFT: the interactive IDSR replica -->
+    <section class="panel" aria-labelledby="idsr-h">
+      <h2 id="idsr-h">Annotated IDSR replica</h2>
+      <p class="sub">Tap any coloured significance cell, headline gauge or quintile to decode it. Everything is keyboard reachable.</p>
+
+      <div class="idsr">
+        <div class="idsr-band">
+          <span>Inspection Data Summary Report &nbsp;&middot;&nbsp; Greenfield Park Academy</span>
+          <small>Fictional data &middot; 2024 to 2025</small>
+        </div>
+
+        <!-- headline gauges -->
+        <div class="idsr-section-title">Headline measures (school overview)</div>
+        <div class="gauges" id="gaugeRow" role="group" aria-label="Headline gauges, activate to decode">
+          <!-- gauges injected -->
+        </div>
+
+        <!-- key stage 2 progress table -->
+        <div class="idsr-section-title">Key stage 2 progress, all pupils</div>
+        <div style="overflow-x:auto">
+        <table class="measures" aria-label="Key stage 2 progress measures with significance shading">
+          <thead>
+            <tr><th scope="col">Measure</th><th scope="col" class="num">Score</th><th scope="col" class="qcol">Significance and quintile</th></tr>
+          </thead>
+          <tbody id="measureBody">
+            <!-- rows injected -->
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <div class="legend" aria-hidden="false" aria-label="Significance colour key">
+        <span class="key"><span class="swatch" style="background:var(--well-bg)"></span>Well above average</span>
+        <span class="key"><span class="swatch" style="background:var(--above-bg)"></span>Above average</span>
+        <span class="key"><span class="swatch" style="background:var(--avg-bg)"></span>Average / not significant</span>
+        <span class="key"><span class="swatch" style="background:var(--below-bg)"></span>Below average</span>
+        <span class="key"><span class="swatch" style="background:var(--low-bg)"></span>Well below average</span>
+      </div>
+
+      <p class="hint">Significance shading is statistical, not a grade. It compares this school with the national average and flags whether the difference is large enough to be unlikely to be down to chance. A small cohort can sit on the white "average" band even with an eye-catching score.</p>
+    </section>
+
+    <!-- RIGHT: the reader / decoder -->
+    <aside class="panel reader" aria-labelledby="reader-h">
+      <h2 id="reader-h">What this is telling you</h2>
+      <p class="sub" id="reader-sub">Select a cell on the left to read a plain-English decode.</p>
+      <div id="reader" aria-live="polite">
+        <p class="empty">Nothing selected yet. Tap a green, amber or red cell, or a headline gauge, to see what it means and how an inspector would read it.</p>
+      </div>
+    </aside>
+  </div>
+
+  <!-- inspector first-read challenge -->
+  <section class="panel challenge" aria-labelledby="ch-h">
+    <h2 id="ch-h">Challenge: what does an inspector read first?</h2>
+    <p class="sub">Reorder these so the item an inspector scans first sits at the top. Drag with a pointer, or focus an item and use the Up and Down arrow keys. Then check your order.</p>
+    <ul class="order-list" id="orderList" aria-label="Reorderable list of IDSR reading priorities">
+      <!-- items injected -->
+    </ul>
+    <div class="row">
+      <button class="btn" id="checkBtn" type="button">Check my order</button>
+      <button class="btn ghost" id="shuffleBtn" type="button">Shuffle again</button>
+      <span class="score" id="chScore" aria-hidden="true"></span>
+    </div>
+    <div id="chFeedback" aria-live="polite" style="margin-top:10px"></div>
+  </section>
+
+  <footer class="note">IDSR Walkthrough Simulator &middot; WeST demonstration tool &middot; All names, schools and figures are fictional. Not a substitute for the live DfE service.</footer>
+</div>
+
+<div class="liveregion" id="srStatus" role="status" aria-live="assertive"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- data: headline gauges ---------- */
+  var gauges = [
+    { id:"reading", label:"Reading progress", val:"+2.4", q:1, sig:"well",
+      pos:0.86,
+      read:"A strong positive progress score. Inspectors note this as a likely strength, but they will still ask whether it holds for disadvantaged pupils and across the curriculum, not just in the headline." },
+    { id:"writing", label:"Writing progress", val:"+0.3", q:3, sig:"avg",
+      pos:0.52,
+      read:"Close to the national average and not statistically significant. The white band means the gap with national is small enough that it could be down to normal variation. Inspectors treat this as 'broadly in line', not a concern in itself." },
+    { id:"maths", label:"Maths progress", val:"-1.8", q:5, sig:"low",
+      pos:0.16,
+      read:"A significant negative progress score sitting in the lowest quintile. This is the kind of red flag an inspector spots in seconds and will want explained: which groups, which years, and what the school is already doing about it." },
+    { id:"ks2rwm", label:"RWM expected+", val:"61%", q:4, sig:"below",
+      pos:0.34,
+      read:"The percentage reaching the expected standard in reading, writing and maths combined is below the national figure. Read alongside the progress scores: low attainment plus negative maths progress points an inspector straight at the maths offer." }
+  ];
+
+  /* ---------- data: KS2 progress measures ---------- */
+  var measures = [
+    { name:"Reading", sub:"vs national 0.0", score:"+2.4", q:1, sig:"well",
+      read:"Well above average. The dark green shading means the school's score is high enough above national that it is very unlikely to be chance. A genuine strength to evidence and explain." },
+    { name:"Writing", sub:"vs national 0.0", score:"+0.3", q:3, sig:"avg",
+      read:"Average. White shading is the most misread cell on the IDSR. It does not mean 'nothing happening'; it means the difference from national is not statistically significant, often because the cohort is small. Do not over-claim a strength here." },
+    { name:"Mathematics", sub:"vs national 0.0", score:"-1.8", q:5, sig:"low",
+      read:"Well below average and lowest quintile. Red shading is the strongest negative signal on the page. An inspector will triangulate this with work scrutiny, curriculum sequencing and disadvantaged-pupil outcomes before forming a view." },
+    { name:"Maths, disadvantaged", sub:"in-school gap", score:"-3.1", q:5, sig:"low",
+      read:"The disadvantaged subset is even further behind than the whole cohort. Inspectors deliberately look beneath the 'all pupils' line; a worse score for disadvantaged pupils raises questions about Pupil Premium impact and equity." }
+  ];
+
+  var sigMeta = {
+    well:  { label:"Well above average", quint:"Quintile 1 (top 20% nationally)" },
+    above: { label:"Above average",      quint:"Quintile 2" },
+    avg:   { label:"Average (not significant)", quint:"Quintile 3 (middle)" },
+    below: { label:"Below average",      quint:"Quintile 4" },
+    low:   { label:"Well below average", quint:"Quintile 5 (bottom 20% nationally)" }
+  };
+
+  function quintileStrip(active){
+    var cls=["qn1","qn2","qn3","qn4","qn5"], lab=["Q1","Q2","Q3","Q4","Q5"], h="";
+    for(var i=0;i<5;i++){
+      var on = (i+1)===active ? "style=\"box-shadow:inset 0 0 0 2px #1d2433\"" : "";
+      h += "<span class=\""+cls[i]+"\" "+on+">"+lab[i]+(i+1===active?" ◄":"")+"</span>";
+    }
+    return "<div class=\"quintile\" aria-hidden=\"true\">"+h+"</div>";
+  }
+
+  var srStatus = document.getElementById("srStatus");
+  function announce(t){ srStatus.textContent=""; srStatus.textContent=t; }
+
+  /* ---------- render gauges ---------- */
+  var gaugeRow = document.getElementById("gaugeRow");
+  gauges.forEach(function(g){
+    var b = document.createElement("button");
+    b.type="button";
+    b.className="gauge";
+    b.setAttribute("data-id",g.id);
+    b.setAttribute("aria-label", g.label+", "+g.val+", "+sigMeta[g.sig].label+", quintile "+g.q+". Activate to decode.");
+    b.innerHTML =
+      "<div class=\"label\">"+g.label+"</div>"+
+      "<div class=\"val\">"+g.val+"</div>"+
+      "<div class=\"meter\"><span class=\"needle\" style=\"left:"+(g.pos*100)+"%\"></span></div>"+
+      "<div class=\"q\">Quintile "+g.q+" of 5</div>";
+    b.addEventListener("click", function(){ selectGauge(g, b); });
+    gaugeRow.appendChild(b);
+  });
+
+  /* ---------- render measure rows ---------- */
+  var body = document.getElementById("measureBody");
+  measures.forEach(function(m,idx){
+    var tr=document.createElement("tr");
+    var sm=sigMeta[m.sig];
+    tr.innerHTML =
+      "<td class=\"measure-name\">"+m.name+"<small>"+m.sub+"</small></td>"+
+      "<td class=\"num\">"+m.score+"</td>"+
+      "<td class=\"qcol\"></td>";
+    var cell=tr.querySelector(".qcol");
+    var btn=document.createElement("button");
+    btn.type="button";
+    btn.className="sig "+m.sig;
+    btn.innerHTML = sm.label;
+    btn.setAttribute("aria-label", m.name+", score "+m.score+", "+sm.label+", "+sm.quint+". Activate to decode.");
+    btn.addEventListener("click", function(){ selectMeasure(m, btn); });
+    cell.appendChild(btn);
+    cell.insertAdjacentHTML("beforeend", quintileStrip(m.q));
+    body.appendChild(tr);
+  });
+
+  /* ---------- selection + reader panel ---------- */
+  var reader=document.getElementById("reader");
+  var readerSub=document.getElementById("reader-sub");
+  var lastActive=null;
+
+  function clearActive(){
+    if(lastActive){ lastActive.classList.remove("active"); }
+  }
+
+  function pillFor(sig,label){
+    return "<span class=\"pill "+sig+"\">"+label+"</span>";
+  }
+
+  function selectMeasure(m, el){
+    clearActive(); el.classList.add("active"); lastActive=el;
+    var sm=sigMeta[m.sig];
+    readerSub.textContent = "Significance cell selected.";
+    reader.innerHTML =
+      "<div class=\"callout\">"+
+        pillFor(m.sig, sm.label)+
+        "<h3>"+m.name+" &middot; "+m.score+"</h3>"+
+        "<p><strong>"+sm.quint+".</strong> "+m.read+"</p>"+
+      "</div>"+
+      "<p class=\"hint\">Reminder: the colour reflects a statistical comparison with national, not the inspection grade. Always pair it with the actual score and the cohort size.</p>";
+    announce(m.name+". "+sm.label+". "+m.read);
+  }
+
+  function selectGauge(g, el){
+    clearActive(); el.classList.add("active"); lastActive=el;
+    var sm=sigMeta[g.sig];
+    readerSub.textContent = "Headline gauge selected.";
+    reader.innerHTML =
+      "<div class=\"callout\">"+
+        pillFor(g.sig, sm.label)+
+        "<h3>"+g.label+" &middot; "+g.val+"</h3>"+
+        "<p><strong>"+sm.quint+".</strong> "+g.read+"</p>"+
+      "</div>"+
+      "<p class=\"hint\">Headline gauges are the at-a-glance summary at the top of the IDSR. They set the questions an inspector arrives with, but they never tell the whole story on their own.</p>";
+    announce(g.label+". "+sm.label+". "+g.read);
+  }
+
+  /* ---------- inspector first-read challenge ---------- */
+  var correctOrder = [
+    { id:"head", txt:"Headline progress and attainment gauges (the page-one overview)" },
+    { id:"sig",  txt:"Any well-below-average (red) significance cells" },
+    { id:"dis",  txt:"Outcomes for disadvantaged pupils versus the whole cohort" },
+    { id:"trend",txt:"Three-year trend: is the picture improving or declining?" },
+    { id:"groups",txt:"Smaller pupil groups and SEND, read with cohort-size caution" }
+  ];
+  var why = {
+    head:"Inspectors orient themselves with the headline gauges first to know where to dig.",
+    sig:"Red significance cells are the loudest signal and get checked early.",
+    dis:"Equity is a core focus; the disadvantaged line is read against 'all pupils' next.",
+    trend:"One year can mislead; the trend tells them if leaders have grip.",
+    groups:"Small groups come later because tiny cohorts make significance unreliable."
+  };
+
+  var orderList=document.getElementById("orderList");
+  var current=[];
+
+  function shuffle(arr){
+    var a=arr.slice();
+    for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t; }
+    // avoid accidental perfect start
+    if(a.map(function(x){return x.id}).join()===correctOrder.map(function(x){return x.id}).join()){ a.reverse(); }
+    return a;
+  }
+
+  function renderOrder(){
+    orderList.innerHTML="";
+    current.forEach(function(item,i){
+      var li=document.createElement("li");
+      li.className="order-item";
+      li.setAttribute("draggable","false");
+      li.setAttribute("tabindex","0");
+      li.setAttribute("data-id",item.id);
+      li.setAttribute("role","listitem");
+      li.setAttribute("aria-label",(i+1)+". "+item.txt+". Use arrow up or down to move.");
+      li.innerHTML="<span class=\"rank\">"+(i+1)+"</span><span class=\"txt\">"+item.txt+"</span><span class=\"grip\" aria-hidden=\"true\">☰</span>";
+      orderList.appendChild(li);
+    });
+    bindPointer();
+  }
+
+  function reindexAria(){
+    Array.prototype.forEach.call(orderList.children,function(li,i){
+      li.querySelector(".rank").textContent=(i+1);
+      var txt=li.querySelector(".txt").textContent;
+      li.setAttribute("aria-label",(i+1)+". "+txt+". Use arrow up or down to move.");
+      li.classList.remove("correct","wrong");
+    });
+    // sync current[] from DOM
+    current = Array.prototype.map.call(orderList.children,function(li){
+      var id=li.getAttribute("data-id");
+      return correctOrder.filter(function(c){return c.id===id})[0];
+    });
+  }
+
+  /* keyboard reordering */
+  orderList.addEventListener("keydown",function(e){
+    var li=e.target.closest(".order-item"); if(!li) return;
+    if(e.key==="ArrowUp" || e.key==="ArrowDown"){
+      e.preventDefault();
+      var sib = e.key==="ArrowUp" ? li.previousElementSibling : li.nextElementSibling;
+      if(!sib) return;
+      if(e.key==="ArrowUp"){ orderList.insertBefore(li,sib); }
+      else { orderList.insertBefore(sib,li); }
+      reindexAria(); li.focus();
+      announce("Moved "+e.key.replace("Arrow","").toLowerCase()+". Now position "+(Array.prototype.indexOf.call(orderList.children,li)+1)+".");
+    }
+  });
+
+  /* pointer drag */
+  var dragEl=null, dragId=null;
+  function bindPointer(){
+    Array.prototype.forEach.call(orderList.children,function(li){
+      li.addEventListener("pointerdown",function(e){
+        if(e.target.tagName==="BUTTON") return;
+        dragEl=li; dragId=li.getAttribute("data-id");
+        li.classList.add("dragging");
+        try{ li.setPointerCapture(e.pointerId); }catch(err){}
+      });
+      li.addEventListener("pointermove",function(e){
+        if(!dragEl) return;
+        e.preventDefault();
+        var after = getAfterEl(e.clientY);
+        if(after==null){ orderList.appendChild(dragEl); }
+        else { orderList.insertBefore(dragEl,after); }
+      });
+      li.addEventListener("pointerup",function(e){
+        if(!dragEl) return;
+        dragEl.classList.remove("dragging");
+        try{ li.releasePointerCapture(e.pointerId); }catch(err){}
+        reindexAria();
+        announce("Dropped at position "+(Array.prototype.indexOf.call(orderList.children,dragEl)+1)+".");
+        dragEl=null;dragId=null;
+      });
+      li.addEventListener("pointercancel",function(){
+        if(dragEl){ dragEl.classList.remove("dragging"); reindexAria(); dragEl=null; }
+      });
+    });
+  }
+  function getAfterEl(y){
+    var items=Array.prototype.slice.call(orderList.querySelectorAll(".order-item:not(.dragging)"));
+    var closest={offset:-Infinity,el:null};
+    items.forEach(function(child){
+      var box=child.getBoundingClientRect();
+      var off=y-box.top-box.height/2;
+      if(off<0 && off>closest.offset){ closest={offset:off,el:child}; }
+    });
+    return closest.el;
+  }
+
+  /* check */
+  document.getElementById("checkBtn").addEventListener("click",function(){
+    reindexAria();
+    var got=0, html="<ul style=\"list-style:none;margin:6px 0 0;padding:0\">";
+    Array.prototype.forEach.call(orderList.children,function(li,i){
+      var id=li.getAttribute("data-id");
+      var ok = correctOrder[i].id===id;
+      if(ok) got++;
+      li.classList.toggle("correct",ok);
+      li.classList.toggle("wrong",!ok);
+      html += "<li style=\"margin:4px 0;font-size:.86rem;color:"+(ok?"#15522a":"#8a1f24")+"\">"+
+        (ok?"✓ ":"✗ ")+(i+1)+". "+correctOrder[i].txt.split("(")[0].trim()+
+        " &mdash; "+why[correctOrder[i].id]+"</li>";
+    });
+    html+="</ul>";
+    var sc=document.getElementById("chScore");
+    sc.setAttribute("aria-hidden","false");
+    sc.textContent = got+" of "+correctOrder.length+" in place";
+    var fb=document.getElementById("chFeedback");
+    var head = got===correctOrder.length
+      ? "<strong style=\"color:#15522a\">Spot on. That is the order an inspector typically scans the IDSR.</strong>"
+      : got>=3
+        ? "<strong style=\"color:#b06a00\">Close. Headlines first, then the loudest red cells, then equity and trend.</strong>"
+        : "<strong style=\"color:#8a1f24\">Not yet. Start with the page-one headline gauges, then chase the red significance cells.</strong>";
+    fb.innerHTML = "<div class=\"callout\"><p>"+head+"</p>"+html+"</div>";
+    announce(got+" of "+correctOrder.length+" correct.");
+  });
+
+  document.getElementById("shuffleBtn").addEventListener("click",function(){
+    current=shuffle(correctOrder); renderOrder();
+    document.getElementById("chFeedback").innerHTML="";
+    var sc=document.getElementById("chScore"); sc.textContent=""; sc.setAttribute("aria-hidden","true");
+    announce("List shuffled. Reorder so the first item an inspector reads is at the top.");
+  });
+
+  /* init */
+  current=shuffle(correctOrder);
+  renderOrder();
+
+})();
+</script>
+</body>
+</html>

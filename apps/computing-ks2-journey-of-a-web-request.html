@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Journey of a Web Request</title>
+<style>
+  :root {
+    --bg: #0f1b2d;
+    --panel: #ffffff;
+    --ink: #16263b;
+    --muted: #5a6b80;
+    --accent: #1565c0;
+    --accent-dark: #0d47a1;
+    --good: #2e7d32;
+    --warn: #c62828;
+    --packet: #ffb300;
+    --line: #c8d4e2;
+    --hop-device: #6a1b9a;
+    --hop-router: #00695c;
+    --hop-isp: #ad1457;
+    --hop-server: #e65100;
+    --shadow: 0 6px 22px rgba(15,27,45,0.18);
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(160deg, #0f1b2d 0%, #1b3251 100%);
+    color: var(--ink);
+    line-height: 1.5;
+    padding: 16px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  header.app-head {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 18px 22px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .app-head h1 {
+    margin: 0 0 4px;
+    font-size: clamp(1.4rem, 3.4vw, 2.1rem);
+    color: var(--accent-dark);
+    letter-spacing: -0.5px;
+  }
+  .app-head .sub { margin: 0; color: var(--muted); font-size: 0.98rem; }
+  .aim {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    background: #eef4fb;
+    border-left: 4px solid var(--accent);
+    padding: 8px 12px;
+    border-radius: 6px;
+    color: var(--ink);
+  }
+  .aim strong { color: var(--accent-dark); }
+
+  .panel {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 18px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    margin: 0 0 12px;
+    font-size: 1.15rem;
+    color: var(--accent-dark);
+  }
+
+  /* Stage */
+  .stage-wrap { position: relative; }
+  .scene {
+    width: 100%;
+    height: auto;
+    display: block;
+    background: #f4f8fd;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    touch-action: none;
+  }
+  .hop-btn {
+    cursor: pointer;
+    outline: none;
+  }
+  .hop-btn:focus-visible .hop-card {
+    stroke: var(--accent);
+    stroke-width: 4;
+  }
+  .hop-card { transition: transform 0.12s ease, filter 0.12s ease; }
+  .hop-btn:hover .hop-card,
+  .hop-btn:focus-visible .hop-card {
+    filter: brightness(1.06) drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+  }
+  .hop-active .hop-card {
+    stroke: var(--packet);
+    stroke-width: 5;
+  }
+  .hop-label { font-size: 13px; font-weight: 700; fill: #fff; }
+  .hop-sub { font-size: 10px; fill: rgba(255,255,255,0.85); }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-top: 14px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    flex: 1 1 240px;
+  }
+  .field label { font-weight: 600; color: var(--ink); }
+  select, button {
+    font-family: inherit;
+    font-size: 1rem;
+    border-radius: 10px;
+    border: 2px solid var(--line);
+    padding: 10px 12px;
+    background: #fff;
+    color: var(--ink);
+  }
+  select:focus, button:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .btn {
+    cursor: pointer;
+    font-weight: 700;
+    border: none;
+    color: #fff;
+    background: var(--accent);
+    box-shadow: 0 3px 0 var(--accent-dark);
+    transition: transform 0.08s ease;
+  }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--accent-dark); }
+  .btn.secondary {
+    background: #fff;
+    color: var(--accent-dark);
+    border: 2px solid var(--accent);
+    box-shadow: none;
+  }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+  /* Info card */
+  .info {
+    margin-top: 14px;
+    border-radius: 12px;
+    border: 2px solid var(--line);
+    overflow: hidden;
+    min-height: 120px;
+  }
+  .info-head {
+    padding: 10px 14px;
+    color: #fff;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.05rem;
+  }
+  .info-body { padding: 12px 14px; }
+  .info-body p { margin: 0 0 8px; }
+  .info-body .role { font-weight: 600; color: var(--ink); }
+  .info-body .plain { color: var(--muted); font-size: 0.92rem; }
+
+  .status {
+    margin-top: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--accent-dark);
+    min-height: 1.4em;
+  }
+
+  /* Quiz */
+  .quiz-q { font-weight: 700; margin: 0 0 12px; font-size: 1.05rem; }
+  .quiz-opts { display: grid; gap: 10px; }
+  .opt {
+    text-align: left;
+    cursor: pointer;
+    background: #f4f8fd;
+    border: 2px solid var(--line);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .opt:hover { border-color: var(--accent); }
+  .opt.correct { background: #e6f4ea; border-color: var(--good); }
+  .opt.wrong { background: #fdecec; border-color: var(--warn); }
+  .quiz-fb {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-weight: 600;
+    display: none;
+  }
+  .quiz-fb.show { display: block; }
+  .quiz-fb.right { background: #e6f4ea; color: var(--good); }
+  .quiz-fb.nope { background: #fdecec; color: var(--warn); }
+  .score {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-top: 10px;
+    font-weight: 600;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 12px;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0,0,0,0); border: 0;
+  }
+  footer.note {
+    text-align: center;
+    color: rgba(255,255,255,0.65);
+    font-size: 0.8rem;
+    padding: 8px 0 18px;
+  }
+  @media (max-width: 540px) {
+    .controls { flex-direction: column; align-items: stretch; }
+    .field { flex: 1 1 auto; }
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app-head">
+    <h1>&#x1F4E6; Journey of a Web Request</h1>
+    <p class="sub">How a web page travels from a server, across the internet, to your screen.</p>
+    <p class="aim"><strong>Teacher aim:</strong> Pupils understand that the World Wide Web is delivered over computer networks, and can name the job of the device, router, ISP and web server in a request and response. (KS2 Computing: computer networks, the internet and the World Wide Web.)</p>
+  </header>
+
+  <section class="panel" aria-labelledby="stage-h">
+    <h2 id="stage-h">1. Send a request and watch the packet travel</h2>
+
+    <div class="controls">
+      <div class="field">
+        <label for="page-select">Choose a page to ask for:</label>
+        <select id="page-select" aria-describedby="page-help">
+          <option value="library">Class library page</option>
+          <option value="weather">Today's weather page</option>
+          <option value="space">Space facts page</option>
+        </select>
+        <span id="page-help" class="sr-only">Picking a page changes what the web server sends back.</span>
+      </div>
+      <button class="btn" id="send-btn" type="button">&#x25B6; Send request</button>
+      <button class="btn secondary" id="reset-btn" type="button">Reset</button>
+    </div>
+
+    <div class="status" id="status" role="status" aria-live="polite">Press "Send request" to start the journey.</div>
+
+    <div class="stage-wrap">
+      <svg class="scene" id="scene" viewBox="0 0 900 320" role="img"
+           aria-label="A network map showing four hops: a pupil device, a home router, an internet service provider, and a web server. A data packet travels between them.">
+
+        <!-- connecting line -->
+        <line x1="110" y1="160" x2="790" y2="160" stroke="var(--line)" stroke-width="6" stroke-linecap="round"/>
+        <line x1="110" y1="160" x2="790" y2="160" stroke="#a9c2dd" stroke-width="2" stroke-dasharray="10 10"/>
+
+        <!-- Hop: Device -->
+        <g class="hop-btn" id="hop-device" tabindex="0" role="button"
+           aria-label="Device. The pupil's computer or tablet. Select to learn its job.">
+          <rect class="hop-card" x="50" y="115" width="120" height="90" rx="14"
+                fill="var(--hop-device)" stroke="#fff" stroke-width="2"/>
+          <text class="hop-label" x="110" y="150" text-anchor="middle">Device</text>
+          <text class="hop-sub" x="110" y="170" text-anchor="middle">tablet / laptop</text>
+          <text x="110" y="195" text-anchor="middle" font-size="22">&#x1F4F1;</text>
+        </g>
+
+        <!-- Hop: Router -->
+        <g class="hop-btn" id="hop-router" tabindex="0" role="button"
+           aria-label="Home router. Sends data in and out of the home network. Select to learn its job.">
+          <rect class="hop-card" x="270" y="115" width="120" height="90" rx="14"
+                fill="var(--hop-router)" stroke="#fff" stroke-width="2"/>
+          <text class="hop-label" x="330" y="150" text-anchor="middle">Router</text>
+          <text class="hop-sub" x="330" y="170" text-anchor="middle">home network</text>
+          <text x="330" y="195" text-anchor="middle" font-size="22">&#x1F4E1;</text>
+        </g>
+
+        <!-- Hop: ISP -->
+        <g class="hop-btn" id="hop-isp" tabindex="0" role="button"
+           aria-label="Internet service provider. Connects your home to the wider internet. Select to learn its job.">
+          <rect class="hop-card" x="490" y="115" width="120" height="90" rx="14"
+                fill="var(--hop-isp)" stroke="#fff" stroke-width="2"/>
+          <text class="hop-label" x="550" y="150" text-anchor="middle">ISP</text>
+          <text class="hop-sub" x="550" y="170" text-anchor="middle">the internet</text>
+          <text x="550" y="195" text-anchor="middle" font-size="22">&#x1F310;</text>
+        </g>
+
+        <!-- Hop: Server -->
+        <g class="hop-btn" id="hop-server" tabindex="0" role="button"
+           aria-label="Web server. Stores the web page and sends it back. Select to learn its job.">
+          <rect class="hop-card" x="710" y="115" width="120" height="90" rx="14"
+                fill="var(--hop-server)" stroke="#fff" stroke-width="2"/>
+          <text class="hop-label" x="770" y="150" text-anchor="middle">Server</text>
+          <text class="hop-sub" x="770" y="170" text-anchor="middle">stores the page</text>
+          <text x="770" y="195" text-anchor="middle" font-size="22">&#x1F5C4;</text>
+        </g>
+
+        <!-- moving packet -->
+        <g id="packet" opacity="0">
+          <circle cx="0" cy="0" r="16" fill="var(--packet)" stroke="#7a5200" stroke-width="2"/>
+          <text id="packet-label" x="0" y="5" text-anchor="middle" font-size="13" font-weight="700" fill="#3b2a00">?</text>
+        </g>
+
+        <!-- direction hint -->
+        <text id="dir-hint" x="450" y="40" text-anchor="middle" font-size="15" font-weight="700" fill="var(--accent-dark)"></text>
+      </svg>
+    </div>
+
+    <div class="legend" aria-hidden="true">
+      <span><i class="dot" style="background:var(--hop-device)"></i>Device</span>
+      <span><i class="dot" style="background:var(--hop-router)"></i>Router</span>
+      <span><i class="dot" style="background:var(--hop-isp)"></i>ISP</span>
+      <span><i class="dot" style="background:var(--hop-server)"></i>Server</span>
+      <span><i class="dot" style="background:var(--packet)"></i>Packet of data</span>
+    </div>
+
+    <p class="sub" style="margin-top:14px;font-size:0.88rem;">Tap, click or use Tab and Enter on any blue, green, pink or orange box to learn its job.</p>
+
+    <div class="info" id="info">
+      <div class="info-head" id="info-head" style="background:var(--accent-dark)">
+        <span>&#x1F50D;</span><span id="info-title">Click a hop to learn about it</span>
+      </div>
+      <div class="info-body" id="info-body">
+        <p class="role">Each box is a "hop" on the journey of your web request.</p>
+        <p class="plain">A web request travels left to right (your question), then the page travels back right to left (the answer). Select any box above to find out what it does.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="quiz-h">
+    <h2 id="quiz-h">2. Check your understanding</h2>
+    <p class="quiz-q" id="quiz-q">Loading question...</p>
+    <div class="quiz-opts" id="quiz-opts"></div>
+    <div class="quiz-fb" id="quiz-fb" role="status" aria-live="polite"></div>
+    <div class="score" id="quiz-score">Score: 0 correct</div>
+    <div class="controls">
+      <button class="btn secondary" id="quiz-next" type="button" disabled>Next question &#x2192;</button>
+    </div>
+  </section>
+
+  <footer class="note">Demonstration activity for KS2 Computing. Fictional pages only.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Hop knowledge ---------- */
+  var HOPS = {
+    device: {
+      title: "\u{1F4F1} Your device",
+      colour: "#6a1b9a",
+      role: "The tablet, laptop or phone you are using.",
+      plain: "This is where the journey begins. You type a web address or tap a link. Your device sends out a request that says: “please send me this page”."
+    },
+    router: {
+      title: "\u{1F4E1} The home router",
+      colour: "#00695c",
+      role: "The box that joins all the devices in your home or school.",
+      plain: "The router sends your request out of the building and brings the answer back in. It works out which device the data belongs to, so your page does not land on someone else's screen."
+    },
+    isp: {
+      title: "\u{1F310} The ISP and the internet",
+      colour: "#ad1457",
+      role: "ISP stands for Internet Service Provider.",
+      plain: "The ISP connects your home or school to the rest of the internet. The internet is a giant network of cables and connections linking computers all over the world. Your request hops across it to find the right server."
+    },
+    server: {
+      title: "\u{1F5C4} The web server",
+      colour: "#e65100",
+      role: "A powerful computer that stores web pages.",
+      plain: "The server holds the actual page (the text, pictures and code). When your request arrives, the server finds the page you asked for and sends a copy back along the same route. That copy is the World Wide Web page you see."
+    }
+  };
+
+  var ORDER = ["device", "router", "isp", "server"];
+  var X_POS = { device: 110, router: 330, isp: 550, server: 770 };
+  var Y_POS = 160;
+
+  var PAGES = {
+    library: "the class library list",
+    weather: "today's weather page",
+    space: "a page of space facts"
+  };
+
+  /* ---------- Elements ---------- */
+  var scene = document.getElementById("scene");
+  var packet = document.getElementById("packet");
+  var packetLabel = document.getElementById("packet-label");
+  var dirHint = document.getElementById("dir-hint");
+  var statusEl = document.getElementById("status");
+  var sendBtn = document.getElementById("send-btn");
+  var resetBtn = document.getElementById("reset-btn");
+  var pageSelect = document.getElementById("page-select");
+
+  var infoHead = document.getElementById("info-head");
+  var infoTitle = document.getElementById("info-title");
+  var infoBody = document.getElementById("info-body");
+
+  var hopEls = {
+    device: document.getElementById("hop-device"),
+    router: document.getElementById("hop-router"),
+    isp: document.getElementById("hop-isp"),
+    server: document.getElementById("hop-server")
+  };
+
+  var animating = false;
+  var rafId = null;
+
+  /* ---------- Hop info panel ---------- */
+  function showHop(key) {
+    var h = HOPS[key];
+    if (!h) { return; }
+    infoHead.style.background = h.colour;
+    infoTitle.textContent = h.title;
+    infoBody.innerHTML =
+      '<p class="role"></p><p class="plain"></p>';
+    infoBody.querySelector(".role").textContent = h.role;
+    infoBody.querySelector(".plain").textContent = h.plain;
+
+    ORDER.forEach(function (k) {
+      hopEls[k].classList.toggle("hop-active", k === key);
+    });
+  }
+
+  ORDER.forEach(function (key) {
+    var el = hopEls[key];
+    el.addEventListener("click", function () { showHop(key); });
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        showHop(key);
+      }
+    });
+  });
+
+  /* ---------- Packet animation ---------- */
+  function setPacket(x, label) {
+    packet.setAttribute("transform", "translate(" + x + "," + Y_POS + ")");
+    if (label !== undefined) { packetLabel.textContent = label; }
+  }
+
+  function easeInOut(t) {
+    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+  }
+
+  // animate packet from one x to another over duration ms, then call done
+  function glide(fromX, toX, duration, done) {
+    var start = null;
+    function step(ts) {
+      if (start === null) { start = ts; }
+      var p = Math.min(1, (ts - start) / duration);
+      var e = easeInOut(p);
+      setPacket(fromX + (toX - fromX) * e);
+      if (p < 1) {
+        rafId = requestAnimationFrame(step);
+      } else {
+        done();
+      }
+    }
+    rafId = requestAnimationFrame(step);
+  }
+
+  // Build the sequence: device -> router -> isp -> server (request),
+  // then server -> isp -> router -> device (response).
+  function runJourney() {
+    if (animating) { return; }
+    animating = true;
+    sendBtn.disabled = true;
+    pageSelect.disabled = true;
+
+    var pageName = PAGES[pageSelect.value] || "a web page";
+
+    // request leg labels and stops
+    var requestStops = [
+      { x: X_POS.device, msg: "Your device sends a request: “Please send me " + pageName + ".”" },
+      { x: X_POS.router, msg: "The router pushes your request out of the building." },
+      { x: X_POS.isp,    msg: "The ISP carries your request across the internet." },
+      { x: X_POS.server, msg: "The request reaches the web server. It finds " + pageName + "." }
+    ];
+    var responseStops = [
+      { x: X_POS.isp,    msg: "The server sends a copy of the page back across the internet." },
+      { x: X_POS.router, msg: "The ISP and router bring the page back to your network." },
+      { x: X_POS.device, msg: "Your device shows " + pageName + " on screen. Journey complete." }
+    ];
+
+    packet.setAttribute("opacity", "1");
+    setPacket(X_POS.device, "?");
+    packetLabel.textContent = "?";
+    dirHint.textContent = "REQUEST → (your question travelling out)";
+    statusEl.textContent = requestStops[0].msg;
+    highlight("device");
+
+    var i = 0;
+    function nextRequest() {
+      if (i >= requestStops.length - 1) {
+        // arrived at server, pause then start response
+        packetLabel.textContent = "✓";
+        dirHint.textContent = "← RESPONSE (the page travelling back)";
+        setTimeout(startResponse, 700);
+        return;
+      }
+      var from = requestStops[i].x;
+      var to = requestStops[i + 1].x;
+      i++;
+      var stop = requestStops[i];
+      glide(from, to, 900, function () {
+        statusEl.textContent = stop.msg;
+        highlight(stopKeyByX(stop.x));
+        setTimeout(nextRequest, 450);
+      });
+    }
+
+    var j = -1;
+    function startResponse() {
+      j = -1;
+      stepResponse();
+    }
+    function stepResponse() {
+      j++;
+      if (j >= responseStops.length) {
+        finish();
+        return;
+      }
+      var from = (j === 0) ? X_POS.server : responseStops[j - 1].x;
+      var to = responseStops[j].x;
+      glide(from, to, 900, function () {
+        statusEl.textContent = responseStops[j].msg;
+        highlight(stopKeyByX(to));
+        setTimeout(stepResponse, 450);
+      });
+    }
+
+    function finish() {
+      animating = false;
+      sendBtn.disabled = false;
+      pageSelect.disabled = false;
+      dirHint.textContent = "";
+      packetLabel.textContent = "✓";
+    }
+
+    setTimeout(nextRequest, 650);
+  }
+
+  function stopKeyByX(x) {
+    var best = "device", bd = 9999;
+    ORDER.forEach(function (k) {
+      var d = Math.abs(X_POS[k] - x);
+      if (d < bd) { bd = d; best = k; }
+    });
+    return best;
+  }
+
+  function highlight(key) {
+    ORDER.forEach(function (k) {
+      hopEls[k].classList.toggle("hop-active", k === key);
+    });
+  }
+
+  function resetAll() {
+    if (rafId) { cancelAnimationFrame(rafId); }
+    animating = false;
+    sendBtn.disabled = false;
+    pageSelect.disabled = false;
+    packet.setAttribute("opacity", "0");
+    setPacket(X_POS.device, "?");
+    dirHint.textContent = "";
+    statusEl.textContent = "Press “Send request” to start the journey.";
+    ORDER.forEach(function (k) { hopEls[k].classList.remove("hop-active"); });
+  }
+
+  sendBtn.addEventListener("click", runJourney);
+  resetBtn.addEventListener("click", resetAll);
+
+  /* ---------- Quiz ---------- */
+  var QUIZ = [
+    {
+      q: "Maya types a web address on her tablet. Which part begins the journey by sending out the request?",
+      opts: ["The web server", "Maya's device", "The ISP"],
+      answer: 1,
+      why: "Right. The request always starts at your own device when you type an address or tap a link.",
+      whyWrong: "Not quite. The journey always begins at your own device, where you type the address."
+    },
+    {
+      q: "What is the main job of the web server at the far end of the journey?",
+      opts: ["To store the page and send a copy back", "To choose which device gets the data in your home", "To connect your home to the internet"],
+      answer: 0,
+      why: "Correct. The server stores the page and sends a copy back to you.",
+      whyWrong: "Have another think. Choosing the right device is the router's job, and connecting your home to the internet is the ISP's job. The server stores the page."
+    },
+    {
+      q: "What does ISP stand for?",
+      opts: ["Internet Safety Police", "Internet Service Provider", "Internal Server Page"],
+      answer: 1,
+      why: "Yes. ISP means Internet Service Provider: it connects your home or school to the wider internet.",
+      whyWrong: "Not this one. ISP stands for Internet Service Provider."
+    },
+    {
+      q: "The page travels back to you in small pieces. What do we call one of these pieces of data?",
+      opts: ["A pixel", "A packet", "A program"],
+      answer: 1,
+      why: "Spot on. Data travels across networks in small pieces called packets.",
+      whyWrong: "Close, but the small pieces of data sent across a network are called packets."
+    },
+    {
+      q: "Which statement best describes the difference between the internet and the World Wide Web?",
+      opts: [
+        "They are exactly the same thing",
+        "The internet is the network of connected computers; the Web is the pages we view over it",
+        "The Web is the cables and the internet is the pictures"
+      ],
+      answer: 1,
+      why: "Excellent. The internet is the network that joins computers together; the World Wide Web is the pages and sites we view using that network.",
+      whyWrong: "Think again. The internet is the network of connected computers; the World Wide Web is the collection of pages we view over that network."
+    }
+  ];
+
+  var qIndex = 0;
+  var score = 0;
+  var answered = false;
+
+  var quizQ = document.getElementById("quiz-q");
+  var quizOpts = document.getElementById("quiz-opts");
+  var quizFb = document.getElementById("quiz-fb");
+  var quizScore = document.getElementById("quiz-score");
+  var quizNext = document.getElementById("quiz-next");
+
+  function renderQuiz() {
+    answered = false;
+    var item = QUIZ[qIndex];
+    quizQ.textContent = (qIndex + 1) + ". " + item.q;
+    quizOpts.innerHTML = "";
+    quizFb.className = "quiz-fb";
+    quizFb.textContent = "";
+    quizNext.disabled = true;
+
+    item.opts.forEach(function (text, idx) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "opt btn";
+      b.style.background = "#f4f8fd";
+      b.style.color = "var(--ink)";
+      b.style.boxShadow = "none";
+      b.textContent = text;
+      b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", function () { pick(idx, b); });
+      quizOpts.appendChild(b);
+    });
+  }
+
+  function pick(idx, btn) {
+    if (answered) { return; }
+    answered = true;
+    var item = QUIZ[qIndex];
+    var buttons = quizOpts.querySelectorAll(".opt");
+    buttons.forEach(function (b) { b.disabled = true; });
+
+    if (idx === item.answer) {
+      score++;
+      btn.classList.add("correct");
+      quizFb.className = "quiz-fb show right";
+      quizFb.textContent = "✅ " + item.why;
+    } else {
+      btn.classList.add("wrong");
+      buttons[item.answer].classList.add("correct");
+      quizFb.className = "quiz-fb show nope";
+      quizFb.textContent = "❌ " + item.whyWrong;
+    }
+    quizScore.textContent = "Score: " + score + " correct out of " + QUIZ.length;
+    quizNext.disabled = false;
+    if (qIndex === QUIZ.length - 1) {
+      quizNext.textContent = "Start again ↺";
+    }
+  }
+
+  quizNext.addEventListener("click", function () {
+    if (qIndex === QUIZ.length - 1) {
+      qIndex = 0;
+      score = 0;
+      quizScore.textContent = "Score: 0 correct";
+      quizNext.textContent = "Next question →";
+    } else {
+      qIndex++;
+    }
+    renderQuiz();
+  });
+
+  renderQuiz();
+  resetAll();
+})();
+</script>
+</body>
+</html>

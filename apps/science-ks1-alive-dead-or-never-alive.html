@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alive, Dead or Never Alive?</title>
+<style>
+  :root {
+    --bg: #f4f7f6;
+    --ink: #1d2b2a;
+    --panel: #ffffff;
+    --line: #d7e2df;
+    --alive: #2e7d32;
+    --alive-soft: #e3f4e4;
+    --dead: #8d6e63;
+    --dead-soft: #f0e8e4;
+    --never: #1565c0;
+    --never-soft: #e2effb;
+    --accent: #b8860b;
+    --good: #2e7d32;
+    --bad: #c0392b;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app { margin-bottom: 14px; }
+  .kicker {
+    font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700;
+  }
+  h1 { font-size: 1.85rem; margin: 2px 0 6px; line-height: 1.1; }
+  .aim {
+    background: #fff8e6; border: 1px solid #f0deab; border-radius: 10px;
+    padding: 10px 14px; font-size: 0.95rem; color: #5a4a16;
+  }
+  .aim strong { color: #3f350f; }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin: 16px 0 8px;
+  }
+  .score-pill {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+    padding: 7px 14px; font-weight: 700; font-size: 0.95rem; box-shadow: var(--shadow);
+  }
+  .score-pill .num { color: var(--accent); }
+  button {
+    font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); padding: 9px 14px; font-weight: 600; color: var(--ink);
+    box-shadow: var(--shadow); transition: transform 0.08s ease, background 0.15s ease;
+  }
+  button:hover { background: #eef4f2; }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover { background: #a3760a; }
+  button:focus-visible { outline: 3px solid #2e6cf6; outline-offset: 2px; }
+
+  .mode-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+  .mode-toggle button { border: none; border-radius: 0; box-shadow: none; }
+  .mode-toggle button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+
+  /* MRS GREN helper */
+  .mrsgren {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; margin: 12px 0; box-shadow: var(--shadow);
+  }
+  .mrsgren h2 { margin: 0 0 8px; font-size: 1rem; }
+  .mrsgren .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .life-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--alive-soft); border: 1px solid #b9ddbb; border-radius: 999px;
+    padding: 5px 11px; font-size: 0.86rem; font-weight: 600; color: #1f5b23;
+  }
+  .life-chip .big { font-size: 1.1rem; }
+
+  /* Board */
+  .board { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 8px; }
+  @media (min-width: 760px) { .board { grid-template-columns: 1fr 1.1fr; } }
+
+  .tray {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px; box-shadow: var(--shadow); min-height: 120px;
+  }
+  .tray h2 { margin: 0 0 4px; font-size: 1.05rem; }
+  .tray p.hint { margin: 0 0 10px; font-size: 0.85rem; color: #5d6b69; }
+
+  .item-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 420px) { .item-grid { grid-template-columns: repeat(3, 1fr); } }
+
+  .bins { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 480px) { .bins { grid-template-columns: repeat(3, 1fr); } }
+
+  .bin {
+    border-radius: 14px; padding: 10px; border: 3px dashed transparent;
+    min-height: 150px; transition: border-color 0.12s ease, background 0.12s ease, transform 0.1s ease;
+  }
+  .bin h3 { margin: 0 0 2px; font-size: 1rem; display: flex; align-items: center; gap: 6px; }
+  .bin .sub { font-size: 0.76rem; color: #4a5a58; margin-bottom: 8px; }
+  .bin.alive { background: var(--alive-soft); border-color: #bcdcbd; }
+  .bin.dead { background: var(--dead-soft); border-color: #ddccc4; }
+  .bin.never { background: var(--never-soft); border-color: #bcd6ef; }
+  .bin.dragover { transform: scale(1.02); }
+  .bin.alive.dragover { border-color: var(--alive); }
+  .bin.dead.dragover { border-color: var(--dead); }
+  .bin.never.dragover { border-color: var(--never); }
+  .bin .drop-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 56px; align-content: flex-start; }
+
+  /* Item cards */
+  .item {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; background: #fff; border: 2px solid var(--line); border-radius: 12px;
+    padding: 8px 4px; cursor: grab; text-align: center; user-select: none;
+    touch-action: none; box-shadow: var(--shadow); position: relative;
+    transition: box-shadow 0.1s ease, border-color 0.1s ease;
+  }
+  .item:focus-visible { outline: 3px solid #2e6cf6; outline-offset: 2px; }
+  .item .face { font-size: 2rem; line-height: 1; }
+  .item .label { font-size: 0.82rem; font-weight: 600; }
+  .item.dragging { opacity: 0.45; }
+  .item.placed { cursor: default; }
+  .item.held { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(184,134,11,0.35); }
+  .item.correct { border-color: var(--good); }
+  .item.wrong { animation: shake 0.4s; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+  .item .tick { position: absolute; top: -8px; right: -8px; font-size: 1.1rem; display: none; }
+  .item.correct .tick { display: block; }
+
+  /* floating drag clone */
+  #drag-clone {
+    position: fixed; z-index: 999; pointer-events: none; opacity: 0.95;
+    transform: translate(-50%, -50%) scale(1.08); display: none;
+  }
+
+  /* Feedback bar */
+  .feedback {
+    margin-top: 16px; border-radius: 14px; padding: 14px 16px; min-height: 30px;
+    background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow);
+    font-size: 1rem; transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  .feedback.good { background: #eaf6ea; border-color: #b6dcb7; }
+  .feedback.bad { background: #fbeaea; border-color: #e7bcbc; }
+  .feedback strong { display: block; font-size: 1.05rem; margin-bottom: 2px; }
+
+  .progress-line { font-size: 0.85rem; color: #5d6b69; margin-top: 6px; }
+
+  /* Habitat round */
+  .habitat-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px; box-shadow: var(--shadow);
+  }
+  .habitats { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 560px) { .habitats { grid-template-columns: repeat(3, 1fr); } }
+  .habitat {
+    border-radius: 14px; padding: 12px; border: 3px dashed #c9d6d3; min-height: 130px;
+    background: #f7faf9; transition: border-color 0.12s, transform 0.1s;
+  }
+  .habitat.dragover { border-color: var(--accent); transform: scale(1.02); }
+  .habitat h3 { margin: 0 0 2px; font-size: 0.98rem; }
+  .habitat .scene { font-size: 1.8rem; }
+  .habitat .drop-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; min-height: 40px; }
+
+  .complete-banner {
+    margin-top: 16px; background: #fff8e6; border: 1px solid #f0deab; border-radius: 14px;
+    padding: 16px; text-align: center; display: none;
+  }
+  .complete-banner.show { display: block; }
+  .complete-banner h2 { margin: 0 0 6px; }
+
+  footer.note { margin-top: 26px; font-size: 0.8rem; color: #6b7775; text-align: center; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .speak-btn {
+    background: #eef4f2; border: 1px solid var(--line); border-radius: 8px;
+    padding: 4px 9px; font-size: 0.8rem; box-shadow: none;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <div class="kicker">Science &bull; KS1 &bull; Living things and their habitats</div>
+    <h1>Alive, Dead or Never Alive? &#x1F33F;</h1>
+    <div class="aim">
+      <strong>Teacher aim:</strong> Year 2 pupils sort things into <em>alive</em>, <em>dead</em>, or <em>never been alive</em>,
+      using the seven life processes (MRS GREN) as clues, then match small creatures to the right microhabitat.
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="mode-toggle" role="group" aria-label="Choose an activity">
+      <button id="mode-sort" aria-pressed="true">1. Sorting</button>
+      <button id="mode-habitat" aria-pressed="false">2. Match the Habitat</button>
+    </div>
+    <div class="score-pill" aria-live="off">Stars: <span class="num" id="score">0</span></div>
+    <button id="reset" type="button">Start again</button>
+    <button id="speak-toggle" class="speak-btn" type="button" aria-pressed="true">&#x1F50A; Sound on</button>
+  </div>
+
+  <!-- ============ SORTING ACTIVITY ============ -->
+  <section id="sort-activity" aria-label="Sorting activity">
+    <div class="mrsgren" aria-label="The seven life processes">
+      <h2>Living things do all seven of these. We call them MRS GREN.</h2>
+      <div class="row">
+        <span class="life-chip"><span class="big">&#x1F6B6;</span> Movement</span>
+        <span class="life-chip"><span class="big">&#x1F476;</span> Reproduction</span>
+        <span class="life-chip"><span class="big">&#x1F445;</span> Sensitivity</span>
+        <span class="life-chip"><span class="big">&#x1F331;</span> Growth</span>
+        <span class="life-chip"><span class="big">&#x1F4A8;</span> Respiration</span>
+        <span class="life-chip"><span class="big">&#x1F4A9;</span> Excretion</span>
+        <span class="life-chip"><span class="big">&#x1F374;</span> Nutrition</span>
+      </div>
+    </div>
+
+    <div class="board">
+      <div class="tray">
+        <h2>Things to sort</h2>
+        <p class="hint">Drag a card into a bin, or tap a card then tap a bin. Each card has its own MRS GREN clue.</p>
+        <div class="item-grid" id="source-grid" aria-label="Things waiting to be sorted"></div>
+      </div>
+
+      <div>
+        <div class="bins">
+          <div class="bin alive" data-bin="alive">
+            <h3><span aria-hidden="true">&#x1F49A;</span> Alive</h3>
+            <div class="sub">It does all of MRS GREN now.</div>
+            <div class="drop-list" id="bin-alive" role="list" aria-label="Alive bin"></div>
+          </div>
+          <div class="bin dead" data-bin="dead">
+            <h3><span aria-hidden="true">&#x1F342;</span> Dead</h3>
+            <div class="sub">It was alive, but is not any more.</div>
+            <div class="drop-list" id="bin-dead" role="list" aria-label="Dead bin"></div>
+          </div>
+          <div class="bin never" data-bin="never">
+            <h3><span aria-hidden="true">&#x1FAA8;</span> Never alive</h3>
+            <div class="sub">It has never, ever been alive.</div>
+            <div class="drop-list" id="bin-never" role="list" aria-label="Never alive bin"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HABITAT ACTIVITY ============ -->
+  <section id="habitat-activity" aria-label="Match the habitat activity" hidden>
+    <div class="habitat-card">
+      <h2 style="margin-top:0;">Give each minibeast the right home</h2>
+      <p class="hint" style="margin-top:0;">A microhabitat is a tiny home. Drag or tap each creature to the place it likes to live.</p>
+      <div class="tray" style="box-shadow:none;border:none;padding:0;">
+        <div class="item-grid" id="creature-grid" aria-label="Creatures waiting for a home"></div>
+      </div>
+      <div class="habitats" style="margin-top:14px;">
+        <div class="habitat" data-hab="log">
+          <h3><span class="scene" aria-hidden="true">&#x1FAB5;</span> Under a rotting log</h3>
+          <div class="sub" style="font-size:0.76rem;color:#4a5a58;">Dark and damp.</div>
+          <div class="drop-list" id="hab-log" role="list" aria-label="Under a log"></div>
+        </div>
+        <div class="habitat" data-hab="pond">
+          <h3><span class="scene" aria-hidden="true">&#x1F4A7;</span> In a pond</h3>
+          <div class="sub" style="font-size:0.76rem;color:#4a5a58;">Cool water.</div>
+          <div class="drop-list" id="hab-pond" role="list" aria-label="In a pond"></div>
+        </div>
+        <div class="habitat" data-hab="leaves">
+          <h3><span class="scene" aria-hidden="true">&#x1F33C;</span> On flowers and leaves</h3>
+          <div class="sub" style="font-size:0.76rem;color:#4a5a58;">Sunny and bright.</div>
+          <div class="drop-list" id="hab-leaves" role="list" aria-label="On flowers and leaves"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="feedback" id="feedback" role="status" aria-live="polite">
+    <strong id="fb-title">Welcome, scientists! &#x1F52C;</strong>
+    <span id="fb-body">Pick up a card and decide: is it alive, dead, or has it never been alive?</span>
+  </div>
+  <div class="progress-line" id="progress" aria-live="polite"></div>
+
+  <div class="complete-banner" id="complete">
+    <h2 id="complete-title">Well done! &#x2B50;</h2>
+    <p id="complete-body"></p>
+    <button class="primary" id="complete-next" type="button">Try the next activity</button>
+  </div>
+
+  <footer class="note">
+    Demonstration activity for WeST. All characters and creatures shown are make-believe and for teaching only.
+  </footer>
+</div>
+
+<!-- floating clone for drag -->
+<div id="drag-clone" aria-hidden="true"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- speech ---------- */
+  var soundOn = true;
+  function say(text, opts) {
+    if (!soundOn || !window.westTTS) return;
+    window.westTTS.speak(text, Object.assign({ lang: 'en-GB', rate: 0.85, pitch: 1.1 }, opts || {}));
+  }
+
+  /* ---------- data ---------- */
+  // category: alive | dead | never
+  var SORT_ITEMS = [
+    { id:'tree',   face:'\u{1F333}', label:'Tree',          cat:'alive', clue:'A tree grows tall and makes new baby trees from seeds. It does all of MRS GREN, so it is alive.' },
+    { id:'rock',   face:'\u{1FAA8}', label:'Rock',          cat:'never', clue:'A rock never grows, never eats and never has babies. It has never been alive.' },
+    { id:'leaf',   face:'\u{1F342}', label:'Fallen leaf',   cat:'dead',  clue:'This leaf grew on a tree, then fell off and went brown. It was alive, so now it is dead.' },
+    { id:'toy',    face:'\u{1F9F8}', label:'Toy bear',      cat:'never', clue:'A toy bear is made in a factory. It cannot move on its own or grow. It has never been alive.' },
+    { id:'ladybird',face:'\u{1F41E}',label:'Ladybird',      cat:'alive', clue:'A ladybird moves, eats greenfly and senses the world. It does all of MRS GREN, so it is alive.' },
+    { id:'log',    face:'\u{1FAB5}', label:'Old log',       cat:'dead',  clue:'A log was once a living tree. The tree was cut down, so the log is dead.' },
+    { id:'car',    face:'\u{1F697}', label:'Toy car',       cat:'never', clue:'A toy car needs a person to push it. It cannot breathe or grow. It has never been alive.' },
+    { id:'fern',   face:'\u{1F33F}', label:'Fern',          cat:'alive', clue:'A fern grows, drinks water and makes new ferns. It is a living plant, so it is alive.' },
+    { id:'shell',  face:'\u{1F41A}', label:'Empty shell',   cat:'dead',  clue:'A snail once lived inside this shell. The snail has gone, so the shell is from something that is now dead.' }
+  ];
+
+  // habitat round: hab = log | pond | leaves
+  var CREATURES = [
+    { id:'woodlouse', face:'\u{1FAB2}', label:'Woodlouse', hab:'log',    why:'A woodlouse loves the dark, damp space under a rotting log.' },
+    { id:'frog',      face:'\u{1F438}', label:'Frog',      hab:'pond',   why:'A frog lays its eggs in water, so a pond is the perfect home.' },
+    { id:'bee',       face:'\u{1F41D}', label:'Bee',       hab:'leaves', why:'A bee buzzes around flowers to drink sweet nectar.' },
+    { id:'worm',      face:'\u{1FAB1}', label:'Worm',      hab:'log',    why:'A worm likes the cool, damp soil and leaves under a log.' },
+    { id:'tadpole',   face:'\u{1F41F}', label:'Tadpole',   hab:'pond',   why:'A tadpole can only swim in water, so it lives in the pond.' },
+    { id:'butterfly', face:'\u{1F98B}', label:'Butterfly', hab:'leaves', why:'A butterfly rests on warm leaves and sips from flowers.' }
+  ];
+
+  var HAB_NAMES = { log:'under the log', pond:'in the pond', leaves:'on the flowers and leaves' };
+  var CAT_NAMES = { alive:'Alive', dead:'Dead', never:'Never alive' };
+
+  /* ---------- state ---------- */
+  var score = 0;
+  var mode = 'sort';
+  var sortPlaced = 0;
+  var habPlaced = 0;
+  var held = null; // currently selected card element (tap mode)
+
+  var elScore = document.getElementById('score');
+  var elFbTitle = document.getElementById('fb-title');
+  var elFbBody = document.getElementById('fb-body');
+  var elFeedback = document.getElementById('feedback');
+  var elProgress = document.getElementById('progress');
+  var elComplete = document.getElementById('complete');
+  var elCompleteTitle = document.getElementById('complete-title');
+  var elCompleteBody = document.getElementById('complete-body');
+  var elCompleteNext = document.getElementById('complete-next');
+
+  function shuffle(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function setFeedback(title, body, kind) {
+    elFbTitle.innerHTML = title;
+    elFbBody.textContent = body;
+    elFeedback.className = 'feedback' + (kind ? ' ' + kind : '');
+  }
+
+  function setScore(n) {
+    score = n;
+    elScore.textContent = String(score);
+  }
+
+  /* ---------- build a draggable item card ---------- */
+  function makeCard(data, kind) {
+    // kind: 'sort' | 'creature'
+    var card = document.createElement('div');
+    card.className = 'item';
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('role', 'button');
+    card.dataset.id = data.id;
+    card.dataset.kind = kind;
+    if (kind === 'sort') card.dataset.cat = data.cat;
+    else card.dataset.hab = data.hab;
+    card.dataset.face = data.face;
+    card.dataset.label = data.label;
+
+    var face = document.createElement('span');
+    face.className = 'face';
+    face.setAttribute('aria-hidden', 'true');
+    face.textContent = data.face;
+
+    var label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = data.label;
+
+    var tick = document.createElement('span');
+    tick.className = 'tick';
+    tick.setAttribute('aria-hidden', 'true');
+    tick.textContent = '✅';
+
+    card.appendChild(face);
+    card.appendChild(label);
+    card.appendChild(tick);
+
+    var aria = kind === 'sort'
+      ? data.label + '. Decide if it is alive, dead, or never alive. Press Enter to pick it up.'
+      : data.label + '. Choose its home. Press Enter to pick it up.';
+    card.setAttribute('aria-label', aria);
+
+    attachPointer(card);
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleHold(card);
+      }
+    });
+    return card;
+  }
+
+  /* ---------- tap-to-select (keyboard + tap fallback) ---------- */
+  function toggleHold(card) {
+    if (card.classList.contains('placed')) return;
+    if (held === card) {
+      held.classList.remove('held');
+      held = null;
+      setFeedback('Card put down.', 'Pick another card when you are ready.', '');
+      return;
+    }
+    if (held) held.classList.remove('held');
+    held = card;
+    card.classList.add('held');
+    var msg = card.dataset.kind === 'sort'
+      ? 'Now tap a bin: Alive, Dead, or Never alive.'
+      : 'Now tap a home for it.';
+    setFeedback('You picked up the ' + card.dataset.label.toLowerCase() + '.', msg, '');
+    say(card.dataset.label + ' chosen. ' + msg);
+  }
+
+  /* ---------- drag with Pointer Events ---------- */
+  var clone = document.getElementById('drag-clone');
+  var dragging = null;
+  var dragMoved = false;
+
+  function attachPointer(card) {
+    card.addEventListener('pointerdown', function (e) {
+      if (card.classList.contains('placed')) return;
+      if (e.button != null && e.button !== 0) return;
+      dragging = card;
+      dragMoved = false;
+      try { card.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    card.addEventListener('pointermove', function (e) {
+      if (dragging !== card) return;
+      if (!dragMoved) {
+        // start visual drag
+        dragMoved = true;
+        card.classList.add('dragging');
+        clone.innerHTML = '<div class="item" style="box-shadow:0 6px 16px rgba(0,0,0,0.25);border-color:#b8860b;">' +
+          '<span class="face">' + card.dataset.face + '</span>' +
+          '<span class="label">' + card.dataset.label + '</span></div>';
+        clone.style.display = 'block';
+      }
+      clone.style.left = e.clientX + 'px';
+      clone.style.top = e.clientY + 'px';
+      highlightZoneAt(e.clientX, e.clientY);
+    });
+
+    card.addEventListener('pointerup', function (e) {
+      if (dragging !== card) return;
+      try { card.releasePointerCapture(e.pointerId); } catch (err) {}
+      card.classList.remove('dragging');
+      clone.style.display = 'none';
+      clearZoneHighlight();
+      if (dragMoved) {
+        var zone = zoneAt(e.clientX, e.clientY);
+        if (zone) {
+          handleDrop(card, zone);
+        } else {
+          setFeedback('Try again.', 'Drop the card right inside a bin or home.', '');
+        }
+      } else {
+        // treat as tap
+        toggleHold(card);
+      }
+      dragging = null;
+      dragMoved = false;
+    });
+
+    card.addEventListener('pointercancel', function () {
+      card.classList.remove('dragging');
+      clone.style.display = 'none';
+      clearZoneHighlight();
+      dragging = null; dragMoved = false;
+    });
+  }
+
+  function currentZones() {
+    return mode === 'sort'
+      ? Array.prototype.slice.call(document.querySelectorAll('.bin'))
+      : Array.prototype.slice.call(document.querySelectorAll('.habitat'));
+  }
+
+  function zoneAt(x, y) {
+    var zones = currentZones();
+    for (var i = 0; i < zones.length; i++) {
+      var r = zones[i].getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return zones[i];
+    }
+    return null;
+  }
+
+  function highlightZoneAt(x, y) {
+    clearZoneHighlight();
+    var z = zoneAt(x, y);
+    if (z) z.classList.add('dragover');
+  }
+  function clearZoneHighlight() {
+    currentZones().forEach(function (z) { z.classList.remove('dragover'); });
+  }
+
+  /* zone click for tap mode */
+  function bindZoneClicks() {
+    currentZones().forEach(function (z) {
+      z.addEventListener('click', function () {
+        if (held) handleDrop(held, z);
+      });
+    });
+  }
+
+  /* ---------- drop logic ---------- */
+  function handleDrop(card, zone) {
+    if (card.classList.contains('placed')) return;
+    if (mode === 'sort') handleSortDrop(card, zone);
+    else handleHabDrop(card, zone);
+  }
+
+  function placeInto(card, listEl) {
+    card.classList.add('placed', 'correct');
+    card.classList.remove('held');
+    card.setAttribute('tabindex', '-1');
+    card.setAttribute('aria-disabled', 'true');
+    listEl.appendChild(card);
+    if (held === card) held = null;
+  }
+
+  function bounceWrong(card) {
+    card.classList.remove('wrong');
+    void card.offsetWidth; // reflow to restart animation
+    card.classList.add('wrong');
+  }
+
+  function handleSortDrop(card, zone) {
+    var target = zone.dataset.bin;
+    var correct = card.dataset.cat;
+    var item = SORT_ITEMS.filter(function (d) { return d.id === card.dataset.id; })[0];
+    if (target === correct) {
+      placeInto(card, document.getElementById('bin-' + correct));
+      setScore(score + 1);
+      sortPlaced++;
+      setFeedback('Yes! ' + card.dataset.label + ' is ' + CAT_NAMES[correct].toLowerCase() + '. &#x2B50;', item.clue, 'good');
+      say('Yes. ' + item.clue);
+      updateSortProgress();
+    } else {
+      bounceWrong(card);
+      var hint = wrongHint(correct, target, item);
+      setFeedback('Not quite. Have another think.', hint, 'bad');
+      say('Not quite. ' + hint);
+    }
+  }
+
+  function wrongHint(correct, chosen, item) {
+    if (correct === 'never') {
+      return 'A ' + item.label.toLowerCase() + ' has never moved, grown or eaten. Which bin is for things that have never been alive?';
+    }
+    if (correct === 'dead') {
+      return 'This was alive once but is not any more. It does not belong in ' + CAT_NAMES[chosen].toLowerCase() + '. Try the Dead bin.';
+    }
+    return 'This thing is doing all of MRS GREN right now. Try the Alive bin.';
+  }
+
+  function handleHabDrop(card, zone) {
+    var target = zone.dataset.hab;
+    var correct = card.dataset.hab;
+    var cr = CREATURES.filter(function (d) { return d.id === card.dataset.id; })[0];
+    var listId = 'hab-' + target;
+    if (target === correct) {
+      placeInto(card, document.getElementById(listId));
+      setScore(score + 1);
+      habPlaced++;
+      setFeedback('Lovely home! &#x2B50;', cr.why, 'good');
+      say('Lovely. ' + cr.why);
+      updateHabProgress();
+    } else {
+      bounceWrong(card);
+      var hint = 'A ' + cr.label.toLowerCase() + ' would not be happy ' + HAB_NAMES[target] + '. It really belongs ' + HAB_NAMES[correct] + '.';
+      setFeedback('That is not its home.', hint, 'bad');
+      say(hint);
+    }
+  }
+
+  /* ---------- progress + completion ---------- */
+  function updateSortProgress() {
+    var total = SORT_ITEMS.length;
+    elProgress.textContent = 'Sorted ' + sortPlaced + ' of ' + total + '.';
+    if (sortPlaced === total) {
+      elCompleteTitle.innerHTML = 'Brilliant sorting! &#x2B50;';
+      elCompleteBody.textContent = 'You sorted every card into alive, dead, or never alive. Now try matching minibeasts to their homes.';
+      elComplete.classList.add('show');
+      elCompleteNext.textContent = 'Go to Match the Habitat';
+      elCompleteNext.dataset.go = 'habitat';
+      say('Brilliant sorting. You sorted every card.');
+    }
+  }
+
+  function updateHabProgress() {
+    var total = CREATURES.length;
+    elProgress.textContent = 'Homes found for ' + habPlaced + ' of ' + total + '.';
+    if (habPlaced === total) {
+      elCompleteTitle.innerHTML = 'Every creature is home! &#x2B50;';
+      elCompleteBody.textContent = 'You matched every minibeast to the right microhabitat. You can start again to play once more.';
+      elComplete.classList.add('show');
+      elCompleteNext.textContent = 'Play again';
+      elCompleteNext.dataset.go = 'restart';
+      say('Wonderful. Every creature is home.');
+    }
+  }
+
+  /* ---------- render ---------- */
+  function renderSort() {
+    var grid = document.getElementById('source-grid');
+    grid.innerHTML = '';
+    document.getElementById('bin-alive').innerHTML = '';
+    document.getElementById('bin-dead').innerHTML = '';
+    document.getElementById('bin-never').innerHTML = '';
+    shuffle(SORT_ITEMS).forEach(function (d) { grid.appendChild(makeCard(d, 'sort')); });
+    sortPlaced = 0;
+  }
+
+  function renderHabitat() {
+    var grid = document.getElementById('creature-grid');
+    grid.innerHTML = '';
+    document.getElementById('hab-log').innerHTML = '';
+    document.getElementById('hab-pond').innerHTML = '';
+    document.getElementById('hab-leaves').innerHTML = '';
+    shuffle(CREATURES).forEach(function (d) { grid.appendChild(makeCard(d, 'creature')); });
+    habPlaced = 0;
+  }
+
+  /* ---------- mode switching ---------- */
+  var btnSort = document.getElementById('mode-sort');
+  var btnHab = document.getElementById('mode-habitat');
+  var secSort = document.getElementById('sort-activity');
+  var secHab = document.getElementById('habitat-activity');
+
+  function setMode(m) {
+    mode = m;
+    held = null;
+    elComplete.classList.remove('show');
+    var isSort = m === 'sort';
+    btnSort.setAttribute('aria-pressed', String(isSort));
+    btnHab.setAttribute('aria-pressed', String(!isSort));
+    secSort.hidden = !isSort;
+    secHab.hidden = isSort;
+    if (isSort) {
+      renderSort();
+      setFeedback('Sorting time! &#x1F50D;', 'Decide if each thing is alive, dead, or has never been alive.', '');
+      elProgress.textContent = 'Sorted 0 of ' + SORT_ITEMS.length + '.';
+    } else {
+      renderHabitat();
+      setFeedback('Find each home! &#x1F3E0;', 'Drag or tap each creature to the place it likes to live.', '');
+      elProgress.textContent = 'Homes found for 0 of ' + CREATURES.length + '.';
+    }
+  }
+
+  btnSort.addEventListener('click', function () { setMode('sort'); });
+  btnHab.addEventListener('click', function () { setMode('habitat'); });
+
+  document.getElementById('reset').addEventListener('click', function () {
+    setScore(0);
+    setMode(mode);
+    say('Starting again.');
+  });
+
+  elCompleteNext.addEventListener('click', function () {
+    var go = elCompleteNext.dataset.go;
+    if (go === 'habitat') setMode('habitat');
+    else if (go === 'restart') { setScore(0); setMode('habitat'); }
+  });
+
+  /* sound toggle */
+  var btnSound = document.getElementById('speak-toggle');
+  btnSound.addEventListener('click', function () {
+    soundOn = !soundOn;
+    btnSound.setAttribute('aria-pressed', String(soundOn));
+    btnSound.innerHTML = soundOn ? '\u{1F50A} Sound on' : '\u{1F507} Sound off';
+    if (!soundOn && window.westTTS) window.westTTS.cancel();
+  });
+
+  /* ---------- init ---------- */
+  bindZoneClicks();
+  setMode('sort');
+  setScore(0);
+})();
+</script>
+</body>
+</html>

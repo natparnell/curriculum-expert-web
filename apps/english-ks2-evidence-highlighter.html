@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evidence Highlighter</title>
+<style>
+  :root{
+    --ink:#1d2433;
+    --muted:#5a6577;
+    --paper:#fbfaf6;
+    --card:#ffffff;
+    --line:#e2e0d6;
+    --accent:#2f6f5b;
+    --accent-soft:#e4f0eb;
+    --warm:#c5611f;
+    --warm-soft:#fbeadd;
+    --gold:#f4c542;
+    --highlight:#fff2a8;
+    --highlight-edge:#e9c93a;
+    --good:#2f8a4f;
+    --good-soft:#e3f3e8;
+    --bad:#c0392b;
+    --bad-soft:#fbe6e3;
+    --shadow:0 6px 20px rgba(29,36,51,.08);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,Helvetica,Arial,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 16px 70px;}
+  header.app-head{
+    border-bottom:3px solid var(--ink);
+    padding-bottom:14px;margin-bottom:18px;
+  }
+  .eyebrow{
+    text-transform:uppercase;letter-spacing:.14em;font-size:.72rem;
+    font-weight:700;color:var(--accent);margin:0 0 4px;
+  }
+  h1{font-size:1.9rem;margin:0 0 6px;line-height:1.1;}
+  .aim{
+    font-size:.95rem;color:var(--muted);margin:0;max-width:64ch;
+  }
+  .aim strong{color:var(--ink);}
+
+  .toolbar{
+    display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+    margin:16px 0 6px;
+  }
+  .modepick{display:flex;gap:6px;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:4px;box-shadow:var(--shadow);}
+  .modepick button{
+    border:0;background:transparent;font:inherit;font-weight:600;
+    padding:8px 16px;border-radius:999px;cursor:pointer;color:var(--muted);
+  }
+  .modepick button[aria-pressed="true"]{background:var(--ink);color:#fff;}
+  .modepick button:focus-visible{outline:3px solid var(--gold);outline-offset:2px;}
+
+  .passage-pick{display:flex;align-items:center;gap:8px;font-size:.9rem;color:var(--muted);}
+  select.passage{
+    font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:10px;
+    background:#fff;color:var(--ink);
+  }
+  select.passage:focus-visible{outline:3px solid var(--gold);outline-offset:1px;}
+
+  .score-pill{
+    margin-left:auto;background:var(--accent-soft);color:var(--accent);
+    font-weight:700;padding:8px 14px;border-radius:999px;font-size:.9rem;
+    border:1px solid #cfe4dc;
+  }
+
+  .layout{display:grid;grid-template-columns:1fr;gap:18px;margin-top:14px;}
+  @media(min-width:860px){
+    .layout{grid-template-columns:1.45fr 1fr;}
+  }
+
+  .panel{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:18px;
+  }
+  .panel h2{
+    font-size:1.05rem;margin:0 0 4px;display:flex;align-items:center;gap:8px;
+  }
+  .panel .sub{font-size:.85rem;color:var(--muted);margin:0 0 14px;}
+
+  /* Passage */
+  .passage-text{
+    font-size:1.18rem;line-height:1.95;letter-spacing:.005em;
+    color:var(--ink);
+  }
+  @media(min-width:860px){.passage-text{font-size:1.22rem;}}
+  .ev{
+    cursor:pointer;border-radius:6px;padding:1px 2px;
+    transition:background .12s,box-shadow .12s;
+    border:0;font:inherit;color:inherit;background:transparent;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .ev:hover{background:#f0efe6;}
+  .ev:focus-visible{outline:3px solid var(--gold);outline-offset:1px;}
+  .ev.dropactive{background:var(--highlight);box-shadow:0 0 0 2px var(--highlight-edge) inset;}
+  .ev.locked-correct{background:var(--good-soft);box-shadow:0 0 0 2px var(--good) inset;cursor:default;}
+  .ev.flash-good{animation:flashGood .6s ease;}
+  .ev.flash-bad{animation:flashBad .6s ease;}
+  @keyframes flashGood{0%{background:var(--good-soft);}40%{background:#bfe6cb;}100%{background:var(--good-soft);}}
+  @keyframes flashBad{0%,100%{background:transparent;}20%,60%{background:var(--bad-soft);}40%,80%{background:#f6cfc9;}}
+
+  .tag-on-word{
+    display:inline-block;font-size:.62rem;font-weight:700;text-transform:uppercase;
+    letter-spacing:.04em;background:var(--good);color:#fff;border-radius:5px;
+    padding:1px 5px;margin-left:3px;vertical-align:middle;
+  }
+
+  /* Inference cards */
+  .cards{display:flex;flex-direction:column;gap:10px;}
+  .card-ev{
+    border:1px solid var(--line);border-radius:12px;background:#fff;
+    padding:12px 13px;display:flex;flex-direction:column;gap:8px;
+    touch-action:none;cursor:grab;box-shadow:0 2px 6px rgba(29,36,51,.05);
+    transition:transform .08s,box-shadow .12s,opacity .2s;
+  }
+  .card-ev:active{cursor:grabbing;}
+  .card-ev.dragging{box-shadow:0 12px 26px rgba(29,36,51,.22);transform:scale(1.02);z-index:50;}
+  .card-ev:focus-visible{outline:3px solid var(--gold);outline-offset:2px;}
+  .card-ev.selected{box-shadow:0 0 0 3px var(--accent) inset;}
+  .card-ev.solved{opacity:.62;background:var(--good-soft);border-color:#bfe0c9;cursor:default;}
+  .card-claim{font-weight:700;font-size:1rem;display:flex;gap:8px;align-items:flex-start;}
+  .card-claim .ico{font-size:1.1rem;line-height:1;}
+  .card-hint{font-size:.82rem;color:var(--muted);}
+  .card-ev.solved .card-claim::after{
+    content:'\2713 matched';font-size:.7rem;font-weight:700;color:var(--good);
+    margin-left:auto;text-transform:uppercase;letter-spacing:.03em;
+  }
+
+  /* strength rating */
+  .strength{display:none;gap:6px;margin-top:4px;flex-wrap:wrap;}
+  .card-ev.awaiting-strength .strength{display:flex;}
+  .strength .slabel{font-size:.78rem;font-weight:600;width:100%;color:var(--ink);}
+  .strength button{
+    font:inherit;font-size:.8rem;font-weight:600;border:1px solid var(--line);
+    background:#fff;border-radius:999px;padding:5px 11px;cursor:pointer;color:var(--ink);
+  }
+  .strength button:hover{background:#f5f4ec;}
+  .strength button:focus-visible{outline:3px solid var(--gold);outline-offset:1px;}
+
+  /* feedback area */
+  .feedback{
+    margin-top:14px;border-radius:12px;padding:12px 14px;font-size:.92rem;
+    min-height:20px;border:1px dashed var(--line);background:#fdfdf9;color:var(--muted);
+  }
+  .feedback.good{background:var(--good-soft);border:1px solid var(--good);color:#1f6336;}
+  .feedback.bad{background:var(--bad-soft);border:1px solid var(--bad);color:#8e2519;}
+  .feedback.tip{background:var(--accent-soft);border:1px solid #bcdccf;color:var(--accent);}
+  .feedback strong{display:block;margin-bottom:2px;}
+
+  /* Fact or Opinion mode */
+  .fo-bins{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+  .fo-bin{
+    border:2px dashed var(--line);border-radius:12px;min-height:96px;padding:10px;
+    display:flex;flex-direction:column;gap:6px;background:#fdfdf9;
+  }
+  .fo-bin h3{margin:0;font-size:.9rem;text-transform:uppercase;letter-spacing:.05em;}
+  .fo-bin.fact h3{color:var(--accent);}
+  .fo-bin.opinion h3{color:var(--warm);}
+  .fo-bin.dropactive{border-color:var(--gold);background:#fffaf0;}
+  .fo-bin .placed{font-size:.85rem;background:#fff;border:1px solid var(--line);
+    border-radius:8px;padding:6px 8px;}
+  .fo-bin .placed.ok{border-color:var(--good);background:var(--good-soft);}
+  .fo-statements{display:flex;flex-direction:column;gap:9px;}
+  .fo-card{
+    border:1px solid var(--line);border-radius:10px;background:#fff;padding:11px 12px;
+    font-size:.95rem;touch-action:none;cursor:grab;box-shadow:0 2px 6px rgba(29,36,51,.05);
+  }
+  .fo-card.dragging{box-shadow:0 12px 26px rgba(29,36,51,.22);transform:scale(1.02);z-index:50;}
+  .fo-card:focus-visible{outline:3px solid var(--gold);outline-offset:2px;}
+  .fo-card.selected{box-shadow:0 0 0 3px var(--warm) inset;}
+  .fo-card.placed-done{opacity:.6;cursor:default;}
+
+  .hidden{display:none !important;}
+
+  .floater{
+    position:fixed;pointer-events:none;z-index:9999;max-width:280px;
+    background:#fff;border:1px solid var(--accent);border-radius:12px;
+    padding:10px 12px;box-shadow:0 18px 40px rgba(29,36,51,.3);
+    font-size:.9rem;font-weight:600;
+  }
+
+  .kbd-help{font-size:.8rem;color:var(--muted);margin-top:12px;}
+  .kbd-help kbd{background:#fff;border:1px solid var(--line);border-bottom-width:2px;
+    border-radius:5px;padding:1px 6px;font-size:.78rem;font-family:inherit;}
+
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+  .btn{
+    font:inherit;font-weight:600;border:1px solid var(--line);background:#fff;
+    border-radius:10px;padding:9px 16px;cursor:pointer;color:var(--ink);
+  }
+  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .btn:hover{filter:brightness(.98);}
+  .btn:focus-visible{outline:3px solid var(--gold);outline-offset:2px;}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+
+  .progress{font-size:.85rem;color:var(--muted);margin-top:6px;}
+  .progress b{color:var(--ink);}
+
+  footer.foot{margin-top:30px;font-size:.8rem;color:var(--muted);text-align:center;}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <p class="eyebrow">English &middot; KS2 Reading Comprehension</p>
+    <h1>Evidence Highlighter</h1>
+    <p class="aim"><strong>Teacher aim:</strong> pupils prove an inference by dragging it onto the exact words that justify it, then judge how strong that evidence is. Folds in summarising, themes, author's language and a fact or opinion sorter.</p>
+  </header>
+
+  <div class="toolbar">
+    <div class="modepick" role="group" aria-label="Choose activity">
+      <button id="mode-evidence" aria-pressed="true">Evidence Highlighter</button>
+      <button id="mode-fact" aria-pressed="false">Fact or Opinion</button>
+    </div>
+    <div class="passage-pick">
+      <label for="passageSel">Passage:</label>
+      <select id="passageSel" class="passage" aria-label="Choose a passage"></select>
+    </div>
+    <div class="score-pill" id="scorePill" aria-live="polite">Score: 0</div>
+  </div>
+
+  <!-- ============ EVIDENCE MODE ============ -->
+  <div class="layout" id="evidenceMode">
+    <section class="panel" aria-labelledby="passHead">
+      <h2 id="passHead">&#x1F4D6; The passage</h2>
+      <p class="sub" id="passByline"></p>
+      <div class="passage-text" id="passageText" aria-describedby="passageHelp"></div>
+      <p id="passageHelp" class="sr-only">Select an inference card, then choose the words in this passage that prove it. You can use the cards on the right.</p>
+      <div class="feedback tip" id="themeBox" style="margin-top:18px;"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="cardsHead">
+      <h2 id="cardsHead">&#x1F50D; Inference cards</h2>
+      <p class="sub">Drag a card onto the words in the passage that prove it. On a tablet or board, tap a card then tap the words. Then rate how strong the clue is.</p>
+      <div class="cards" id="cardsBox"></div>
+
+      <div class="feedback" id="feedback" role="status" aria-live="polite">Pick a card to begin. Find the words the author chose that give away the answer.</div>
+
+      <div class="progress" id="progress"></div>
+
+      <div class="actions">
+        <button class="btn" id="hintBtn">Give me a hint</button>
+        <button class="btn primary" id="resetBtn">Start again</button>
+      </div>
+
+      <p class="kbd-help">Keyboard: <kbd>Tab</kbd> to a card, <kbd>Enter</kbd> to pick it up, then <kbd>Tab</kbd> to the words and press <kbd>Enter</kbd> to drop. <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> rate the strength.</p>
+    </section>
+  </div>
+
+  <!-- ============ FACT OR OPINION MODE ============ -->
+  <div class="layout hidden" id="factMode">
+    <section class="panel" aria-labelledby="foHead">
+      <h2 id="foHead">&#x2696;&#xFE0F; Fact or Opinion?</h2>
+      <p class="sub">A <strong>fact</strong> can be checked and proven. An <strong>opinion</strong> is what someone thinks or feels. Drag each sentence into the right box. On a board, tap a sentence then tap a box.</p>
+      <div class="fo-bins">
+        <div class="fo-bin fact" id="binFact" data-bin="fact" role="group" aria-label="Fact box, drop facts here">
+          <h3>&#x1F50E; Fact</h3>
+        </div>
+        <div class="fo-bin opinion" id="binOpinion" data-bin="opinion" role="group" aria-label="Opinion box, drop opinions here">
+          <h3>&#x1F4AD; Opinion</h3>
+        </div>
+      </div>
+      <div class="fo-statements" id="foStatements"></div>
+      <div class="feedback" id="foFeedback" role="status" aria-live="polite">Read each sentence. Could you check it in a book or by measuring it? Then it is a fact.</div>
+      <div class="actions">
+        <button class="btn primary" id="foResetBtn">Start again</button>
+      </div>
+      <p class="kbd-help">Keyboard: <kbd>Tab</kbd> to a sentence, <kbd>Enter</kbd> to pick it up, then <kbd>F</kbd> for Fact or <kbd>O</kbd> for Opinion.</p>
+    </section>
+  </div>
+
+  <footer class="foot">Evidence Highlighter &middot; WeST classroom demo &middot; Reading comprehension at KS2.</footer>
+</div>
+
+<div id="liveRegion" class="sr-only" aria-live="assertive"></div>
+
+<script>
+"use strict";
+
+/* ---------- DATA: passages, inference cards, fact/opinion ---------- */
+/* Words are tokenised; evidence cards point at token index ranges. */
+
+const PASSAGES = [
+  {
+    id: "storm",
+    title: "The First Night Alone",
+    byline: "An extract about a fictional girl named Priya.",
+    theme: "Theme to watch: courage growing out of fear. Notice how the author shows feelings without naming them.",
+    text: "Priya gripped the torch so tightly that her knuckles turned white. " +
+          "Every creak of the old house made her freeze and listen. " +
+          "She had told her parents she was fine to stay alone, but now she wished she had not. " +
+          "Outside, the wind clawed at the windows like something trying to get in. " +
+          "Slowly, she breathed out, lifted her chin, and walked towards the dark hallway anyway.",
+    cards: [
+      {
+        id: "nervous",
+        claim: "Priya is nervous and frightened.",
+        ico: "\u{1F628}",
+        hint: "Look for what her body does when she is scared. Hands and listening.",
+        spans: [
+          { match: "gripped the torch so tightly that her knuckles turned white",
+            why: "Brilliant. Squeezing until her knuckles turn white is the author showing fear through her body, not telling us." },
+          { match: "Every creak of the old house made her freeze and listen",
+            why: "Yes. Freezing at every creak tells us she is tense and afraid." }
+        ]
+      },
+      {
+        id: "regret",
+        claim: "Priya regrets her decision to stay alone.",
+        ico: "\u{1F614}",
+        hint: "Find the line where she changes her mind about staying.",
+        spans: [
+          { match: "now she wished she had not",
+            why: "Exactly. 'Wished she had not' shows she regrets saying she would be fine." }
+        ]
+      },
+      {
+        id: "menacing",
+        claim: "The author makes the weather feel threatening.",
+        ico: "\u{1F32C}\u{FE0F}",
+        hint: "Look at the verb the author gives the wind. It sounds like an animal.",
+        spans: [
+          { match: "the wind clawed at the windows like something trying to get in",
+            why: "Great spotting. 'Clawed' and 'like something trying to get in' make the wind sound like a creature. That is the author's language choice." }
+        ]
+      },
+      {
+        id: "brave",
+        claim: "Priya finds her courage in the end.",
+        ico: "\u{1F981}",
+        hint: "Read the last sentence. What does she do despite being scared?",
+        spans: [
+          { match: "lifted her chin, and walked towards the dark hallway anyway",
+            why: "Spot on. Lifting her chin and walking on 'anyway' shows courage, even though she is still afraid." }
+        ]
+      }
+    ]
+  },
+  {
+    id: "newboy",
+    title: "The New Boy",
+    byline: "An extract about a fictional boy named Marcus.",
+    theme: "Theme to watch: kindness and belonging. Watch how small actions reveal big feelings.",
+    text: "Marcus stood at the edge of the playground, holding his bag with both hands. " +
+          "He had read the same poster on the wall four times so he would not have to look at anyone. " +
+          "When the ball rolled towards him, he kicked it back, then stared at his shoes. " +
+          "A girl with bright red trainers jogged over and grinned. " +
+          "Want to play? she asked, and for the first time that day, Marcus smiled.",
+    cards: [
+      {
+        id: "shy",
+        claim: "Marcus feels shy and out of place.",
+        ico: "\u{1F61F}",
+        hint: "Find what he does so he does not have to look at the other children.",
+        spans: [
+          { match: "read the same poster on the wall four times so he would not have to look at anyone",
+            why: "Yes. Reading a poster four times to avoid eye contact shows he feels shy and awkward." },
+          { match: "stood at the edge of the playground, holding his bag with both hands",
+            why: "Good. Standing at the edge and clutching his bag shows he feels he does not belong yet." }
+        ]
+      },
+      {
+        id: "friendly",
+        claim: "The girl is friendly and welcoming.",
+        ico: "\u{1F60A}",
+        hint: "Look at how the girl moves and what her face does.",
+        spans: [
+          { match: "jogged over and grinned",
+            why: "Exactly. Jogging over and grinning shows she is warm and friendly before she even speaks." }
+        ]
+      },
+      {
+        id: "change",
+        claim: "Marcus feels happier by the end.",
+        ico: "\u{1F642}",
+        hint: "Read the very last word of the passage.",
+        spans: [
+          { match: "for the first time that day, Marcus smiled",
+            why: "Perfect. 'For the first time that day' tells us his mood has changed for the better." }
+        ]
+      }
+    ]
+  }
+];
+
+/* Fact or Opinion statements tie loosely to a reading-about-animals topic. */
+const FACT_OPINION = [
+  { id:"fo1", text:"A blue whale is the largest animal on Earth.", answer:"fact",
+    why:"This is a fact. Scientists have measured whales, so it can be checked." },
+  { id:"fo2", text:"Whales are the most amazing animals in the world.", answer:"opinion",
+    why:"This is an opinion. 'Most amazing' is what someone thinks, not something you can prove." },
+  { id:"fo3", text:"Spiders have eight legs.", answer:"fact",
+    why:"This is a fact. You can count a spider's legs to check it." },
+  { id:"fo4", text:"Spiders are creepy and horrible.", answer:"opinion",
+    why:"This is an opinion. 'Creepy' and 'horrible' are feelings, not facts." },
+  { id:"fo5", text:"Our school library is open every lunchtime.", answer:"fact",
+    why:"This is a fact. You could check the opening times to prove it." },
+  { id:"fo6", text:"Reading is the best hobby anyone could have.", answer:"opinion",
+    why:"This is an opinion. 'The best hobby' is a personal view." }
+];
+
+/* ---------- Tokeniser ---------- */
+/* Split passage into tokens (words + trailing space) keeping punctuation,
+   so we can address spans by joining substrings. */
+
+function buildTokens(text){
+  // tokens: array of {raw, index}. Split on spaces but keep them logical.
+  const parts = text.split(/(\s+)/); // keep whitespace chunks
+  const tokens = [];
+  parts.forEach(p=>{
+    if(p.length===0) return;
+    tokens.push(p);
+  });
+  return tokens;
+}
+
+/* Find the token index range whose joined text contains the match phrase.
+   We match on normalised word sequence to be punctuation tolerant. */
+function findSpanRange(tokens, phrase){
+  const norm = s => s.toLowerCase().replace(/[^a-z0-9 ]/g,"").replace(/\s+/g," ").trim();
+  const target = norm(phrase);
+  // Build cumulative normalised mapping
+  for(let i=0;i<tokens.length;i++){
+    let acc="";
+    for(let j=i;j<tokens.length;j++){
+      acc += tokens[j];
+      if(norm(acc)===target){
+        return {start:i,end:j};
+      }
+      if(norm(acc).length>target.length+4) break;
+    }
+  }
+  return null;
+}
+
+/* ---------- State ---------- */
+let currentPassageIndex = 0;
+let score = 0;
+let pickedCardId = null;     // card currently "held" (keyboard/tap)
+let cardSpanMap = {};        // cardId -> array of {start,end,why} resolved
+let solvedSpans = {};        // "start-end" -> cardId  (locked correct words)
+let cardSolvedCount = {};    // cardId -> number of spans found
+let awaitingStrengthCard = null;
+
+const el = id => document.getElementById(id);
+const live = msg => { el("liveRegion").textContent=""; setTimeout(()=>{el("liveRegion").textContent=msg;},30); };
+
+/* ---------- Passage select ---------- */
+function populatePassageSelect(){
+  const sel = el("passageSel");
+  sel.innerHTML="";
+  PASSAGES.forEach((p,i)=>{
+    const o=document.createElement("option");
+    o.value=i; o.textContent=p.title;
+    sel.appendChild(o);
+  });
+  sel.value = currentPassageIndex;
+}
+
+/* ---------- Render passage ---------- */
+function renderPassage(){
+  const p = PASSAGES[currentPassageIndex];
+  el("passByline").textContent = p.byline;
+  el("themeBox").innerHTML = "<strong>&#x1F9ED; "+escapeHtml(p.title)+"</strong>"+escapeHtml(p.theme);
+
+  const tokens = buildTokens(p.text);
+
+  // resolve card spans to token ranges
+  cardSpanMap = {};
+  cardSolvedCount = {};
+  solvedSpans = {};
+  p.cards.forEach(card=>{
+    cardSpanMap[card.id]=[];
+    cardSolvedCount[card.id]=0;
+    card.spans.forEach(sp=>{
+      const r = findSpanRange(tokens, sp.match);
+      if(r){ cardSpanMap[card.id].push({start:r.start,end:r.end,why:sp.why}); }
+    });
+  });
+
+  // Build clickable spans per token. Each token gets a button.
+  const container = el("passageText");
+  container.innerHTML="";
+  tokens.forEach((tok,i)=>{
+    if(/^\s+$/.test(tok)){
+      container.appendChild(document.createTextNode(tok));
+      return;
+    }
+    const b=document.createElement("button");
+    b.type="button";
+    b.className="ev";
+    b.dataset.index=i;
+    b.textContent=tok;
+    b.setAttribute("aria-label","word: "+tok);
+    container.appendChild(b);
+  });
+
+  // attach pointer/keyboard handlers via delegation
+  attachPassageHandlers();
+}
+
+function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+/* Highlight all tokens in a range as drop-target preview */
+function setRangePreview(range,on){
+  const btns = el("passageText").querySelectorAll(".ev");
+  btns.forEach(b=>{
+    const idx=parseInt(b.dataset.index,10);
+    if(idx>=range.start && idx<=range.end){
+      b.classList.toggle("dropactive",on);
+    }
+  });
+}
+
+/* Given a clicked token index, find which card span (if any) it belongs to for the picked card */
+function spanForToken(cardId, tokenIndex){
+  const spans = cardSpanMap[cardId]||[];
+  for(const s of spans){
+    if(tokenIndex>=s.start && tokenIndex<=s.end) return s;
+  }
+  return null;
+}
+
+/* Lock a correct span visually */
+function lockSpan(span){
+  const btns = el("passageText").querySelectorAll(".ev");
+  btns.forEach(b=>{
+    const idx=parseInt(b.dataset.index,10);
+    if(idx>=span.start && idx<=span.end){
+      b.classList.add("locked-correct");
+      b.classList.remove("flash-bad","flash-good","dropactive");
+      b.setAttribute("aria-label","proven words: "+b.textContent);
+    }
+  });
+}
+
+function flashTokens(tokenIndex, cls){
+  const btns = el("passageText").querySelectorAll(".ev");
+  btns.forEach(b=>{
+    if(parseInt(b.dataset.index,10)===tokenIndex){
+      b.classList.add(cls);
+      setTimeout(()=>b.classList.remove(cls),650);
+    }
+  });
+}
+
+/* ---------- Evidence: handle a drop / click of a card onto a token ---------- */
+function resolveDrop(cardId, tokenIndex){
+  if(!cardId){
+    showFeedback("Pick an inference card first, then choose the words that prove it.","tip");
+    return;
+  }
+  const card = currentCard(cardId);
+  // already fully solved?
+  if(cardSolvedCount[cardId] >= cardSpanMap[cardId].length && cardSpanMap[cardId].length>0){
+    showFeedback("You have already found the evidence for that card. Try another one.","tip");
+    return;
+  }
+  const span = spanForToken(cardId, tokenIndex);
+  if(span){
+    const key = span.start+"-"+span.end;
+    if(solvedSpans[key]){
+      showFeedback("You already found those words. Look for another clue, or move to a new card.","tip");
+      return;
+    }
+    solvedSpans[key]=cardId;
+    cardSolvedCount[cardId]++;
+    lockSpan(span);
+    score += 10;
+    updateScore();
+    showFeedback(span.why,"good");
+    live("Correct. "+span.why);
+    flashTokens(tokenIndex,"flash-good");
+
+    const total = cardSpanMap[cardId].length;
+    if(cardSolvedCount[cardId] >= total){
+      // card complete -> ask for strength rating
+      markCardAwaitingStrength(cardId);
+    } else {
+      showFeedback(span.why+" There is "+(total-cardSolvedCount[cardId])+" more clue for this card.","good");
+    }
+  } else {
+    score = Math.max(0, score-2);
+    updateScore();
+    flashTokens(tokenIndex,"flash-bad");
+    const tip = wrongDropTip(cardId);
+    showFeedback(tip,"bad");
+    live("Not quite. "+tip);
+  }
+}
+
+function wrongDropTip(cardId){
+  const card = currentCard(cardId);
+  return "Those words do not prove that yet. Hint: "+card.hint;
+}
+
+function currentCard(cardId){
+  return PASSAGES[currentPassageIndex].cards.find(c=>c.id===cardId);
+}
+
+/* ---------- Strength rating ---------- */
+function markCardAwaitingStrength(cardId){
+  const cardEl = document.querySelector('.card-ev[data-card="'+cardId+'"]');
+  if(!cardEl) return;
+  cardEl.classList.add("awaiting-strength");
+  awaitingStrengthCard = cardId;
+  // clear picked so they don't keep dropping
+  if(pickedCardId===cardId){ clearPicked(); }
+  showFeedback("Evidence found. Now decide: how strong is this clue? Use the buttons on the card.","tip");
+  live("Evidence found for "+currentCard(cardId).claim+". Now rate how strong the clue is.");
+  cardEl.querySelector(".strength button").focus();
+}
+
+function rateStrength(cardId, level){
+  const cardEl = document.querySelector('.card-ev[data-card="'+cardId+'"]');
+  if(!cardEl) return;
+  cardEl.classList.remove("awaiting-strength");
+  cardEl.classList.add("solved");
+  cardEl.setAttribute("aria-disabled","true");
+  awaitingStrengthCard=null;
+
+  // Reward reflection: any rating with a reason earns points; nudge thinking.
+  let msg;
+  if(level==="strong"){
+    score+=5; msg="Good judgement. The words name a clear, specific action, so this is strong evidence.";
+  } else if(level==="ok"){
+    score+=4; msg="Fair call. It is decent evidence. The best clues describe an exact action or word the author chose.";
+  } else {
+    score+=3; msg="That is fine to think. Remember: strong clues show, not tell. Re-read the words and see how much they reveal.";
+  }
+  updateScore();
+  showFeedback(msg,"good");
+  live(msg);
+  updateProgress();
+  checkAllSolved();
+}
+
+/* ---------- Cards render ---------- */
+function renderCards(){
+  const box = el("cardsBox");
+  box.innerHTML="";
+  const p = PASSAGES[currentPassageIndex];
+  p.cards.forEach(card=>{
+    const c=document.createElement("div");
+    c.className="card-ev";
+    c.dataset.card=card.id;
+    c.tabIndex=0;
+    c.setAttribute("role","button");
+    c.setAttribute("aria-label","Inference card: "+card.claim+". Press Enter to pick up, then choose the proving words.");
+    c.innerHTML =
+      '<div class="card-claim"><span class="ico" aria-hidden="true">'+card.ico+'</span><span>'+escapeHtml(card.claim)+'</span></div>'+
+      '<div class="card-hint">Drag onto the words that prove this.</div>'+
+      '<div class="strength" role="group" aria-label="Rate the strength of the evidence">'+
+        '<span class="slabel">How strong is this clue?</span>'+
+        '<button type="button" data-s="strong">Strong (1)</button>'+
+        '<button type="button" data-s="ok">Okay (2)</button>'+
+        '<button type="button" data-s="weak">Weak (3)</button>'+
+      '</div>';
+    box.appendChild(c);
+  });
+  attachCardHandlers();
+  updateProgress();
+}
+
+function updateProgress(){
+  const p = PASSAGES[currentPassageIndex];
+  const total = p.cards.length;
+  const done = p.cards.filter(c=>document.querySelector('.card-ev[data-card="'+c.id+'"]')?.classList.contains("solved")).length;
+  el("progress").innerHTML = "Cards completed: <b>"+done+" / "+total+"</b>";
+}
+
+function checkAllSolved(){
+  const p = PASSAGES[currentPassageIndex];
+  const all = p.cards.every(c=>document.querySelector('.card-ev[data-card="'+c.id+'"]')?.classList.contains("solved"));
+  if(all){
+    showFeedback("Superb. You proved every inference with evidence from the text and judged each clue. That is exactly what a strong reader does.","good");
+    live("Well done. You have completed all the inference cards for this passage.");
+  }
+}
+
+/* ---------- Feedback + score ---------- */
+function showFeedback(msg,type){
+  const f=el("feedback");
+  f.className="feedback "+(type||"");
+  f.innerHTML = msg;
+}
+function updateScore(){ el("scorePill").textContent="Score: "+score; }
+
+/* ---------- Picked card visual ---------- */
+function setPicked(cardId){
+  clearPicked();
+  pickedCardId=cardId;
+  const c=document.querySelector('.card-ev[data-card="'+cardId+'"]');
+  if(c) c.classList.add("selected");
+  const card=currentCard(cardId);
+  showFeedback("Card picked up: “"+escapeHtml(card.claim)+"”. Now choose the words in the passage that prove it.","tip");
+  live("Picked up "+card.claim+". Now choose the proving words.");
+}
+function clearPicked(){
+  document.querySelectorAll(".card-ev.selected").forEach(c=>c.classList.remove("selected"));
+  pickedCardId=null;
+}
+
+/* ---------- Pointer drag for evidence cards ---------- */
+let drag=null;
+function attachCardHandlers(){
+  document.querySelectorAll(".card-ev").forEach(card=>{
+    card.addEventListener("pointerdown",onCardPointerDown);
+    // keyboard
+    card.addEventListener("keydown",e=>{
+      if(card.classList.contains("solved")) return;
+      const cardId=card.dataset.card;
+      if(e.key==="Enter"||e.key===" "){
+        if(card.classList.contains("awaiting-strength")) return; // let strength buttons handle
+        e.preventDefault();
+        if(pickedCardId===cardId){ clearPicked(); showFeedback("Card put down. Pick a card to continue.","tip");}
+        else setPicked(cardId);
+      }
+      if(card.classList.contains("awaiting-strength")){
+        if(e.key==="1"){e.preventDefault();rateStrength(cardId,"strong");}
+        if(e.key==="2"){e.preventDefault();rateStrength(cardId,"ok");}
+        if(e.key==="3"){e.preventDefault();rateStrength(cardId,"weak");}
+      }
+    });
+    // strength buttons
+    card.querySelectorAll(".strength button").forEach(btn=>{
+      btn.addEventListener("click",e=>{
+        e.stopPropagation();
+        const level=btn.dataset.s;
+        const map={strong:"strong",ok:"ok",weak:"weak"};
+        rateStrength(card.dataset.card, map[level]);
+      });
+    });
+  });
+}
+
+function onCardPointerDown(e){
+  const card=e.currentTarget;
+  if(card.classList.contains("solved")||card.classList.contains("awaiting-strength")) return;
+  // tap-to-pick toggle is handled on pointerup if no real drag occurred
+  const cardId=card.dataset.card;
+  card.setPointerCapture(e.pointerId);
+  const startX=e.clientX, startY=e.clientY;
+  let moved=false, floater=null;
+
+  function move(ev){
+    const dx=ev.clientX-startX, dy=ev.clientY-startY;
+    if(!moved && Math.hypot(dx,dy)>6){
+      moved=true;
+      card.classList.add("dragging");
+      setPicked(cardId);
+      floater=document.createElement("div");
+      floater.className="floater";
+      floater.textContent=currentCard(cardId).claim;
+      document.body.appendChild(floater);
+    }
+    if(moved){
+      floater.style.left=(ev.clientX+12)+"px";
+      floater.style.top=(ev.clientY+12)+"px";
+      // preview target token under pointer
+      previewUnderPointer(ev.clientX,ev.clientY,cardId);
+    }
+  }
+  function up(ev){
+    card.releasePointerCapture(e.pointerId);
+    card.removeEventListener("pointermove",move);
+    card.removeEventListener("pointerup",up);
+    card.removeEventListener("pointercancel",up);
+    card.classList.remove("dragging");
+    if(floater){ floater.remove(); }
+    clearAllPreview();
+    if(moved){
+      const targ=tokenUnderPoint(ev.clientX,ev.clientY);
+      if(targ!==null){
+        resolveDrop(cardId, targ);
+      } else {
+        showFeedback("Drop the card onto words inside the passage.","tip");
+      }
+    } else {
+      // treat as tap: toggle pick
+      if(pickedCardId===cardId){ clearPicked(); showFeedback("Card put down. Tap a card to continue.","tip"); }
+      else setPicked(cardId);
+    }
+  }
+  card.addEventListener("pointermove",move);
+  card.addEventListener("pointerup",up);
+  card.addEventListener("pointercancel",up);
+}
+
+let lastPreviewSpan=null;
+function previewUnderPointer(x,y,cardId){
+  const idx=tokenUnderPoint(x,y);
+  clearAllPreview();
+  if(idx===null) return;
+  const span=spanForToken(cardId,idx);
+  if(span){ setRangePreview(span,true); lastPreviewSpan=span; }
+  else {
+    // single-token soft preview
+    const btn=tokenButton(idx);
+    if(btn && !btn.classList.contains("locked-correct")) btn.classList.add("dropactive");
+  }
+}
+function clearAllPreview(){
+  el("passageText").querySelectorAll(".ev.dropactive").forEach(b=>b.classList.remove("dropactive"));
+  lastPreviewSpan=null;
+}
+function tokenButton(idx){
+  return el("passageText").querySelector('.ev[data-index="'+idx+'"]');
+}
+function tokenUnderPoint(x,y){
+  const elem=document.elementFromPoint(x,y);
+  if(elem && elem.classList && elem.classList.contains("ev")){
+    return parseInt(elem.dataset.index,10);
+  }
+  return null;
+}
+
+/* ---------- Passage token handlers (click + keyboard) ---------- */
+function attachPassageHandlers(){
+  const container=el("passageText");
+  container.addEventListener("click",e=>{
+    const b=e.target.closest(".ev");
+    if(!b) return;
+    if(b.classList.contains("locked-correct")) return;
+    const idx=parseInt(b.dataset.index,10);
+    resolveDrop(pickedCardId, idx);
+  });
+  container.querySelectorAll(".ev").forEach(b=>{
+    b.addEventListener("keydown",e=>{
+      if(e.key==="Enter"||e.key===" "){
+        e.preventDefault();
+        if(b.classList.contains("locked-correct")) return;
+        resolveDrop(pickedCardId, parseInt(b.dataset.index,10));
+      }
+    });
+  });
+}
+
+/* ---------- Hint ---------- */
+function giveHint(){
+  const p=PASSAGES[currentPassageIndex];
+  let card = pickedCardId ? currentCard(pickedCardId) : null;
+  if(!card){
+    // first unsolved card
+    card = p.cards.find(c=>!document.querySelector('.card-ev[data-card="'+c.id+'"]')?.classList.contains("solved"));
+  }
+  if(!card){ showFeedback("Every card is done. Try the other passage or switch to Fact or Opinion.","tip"); return; }
+  showFeedback("<strong>Hint for: "+escapeHtml(card.claim)+"</strong>"+escapeHtml(card.hint),"tip");
+  live("Hint: "+card.hint);
+}
+
+/* ---------- Reset evidence ---------- */
+function resetEvidence(){
+  pickedCardId=null; awaitingStrengthCard=null;
+  renderPassage();
+  renderCards();
+  showFeedback("Fresh start. Pick a card, then find the words that prove it.","tip");
+}
+
+/* ================= FACT OR OPINION ================= */
+let foPickedId=null;
+let foPlaced={}; // id -> bin
+function renderFactOpinion(){
+  foPlaced={};
+  foPickedId=null;
+  // clear bins
+  ["binFact","binOpinion"].forEach(id=>{
+    const bin=el(id);
+    bin.querySelectorAll(".placed").forEach(p=>p.remove());
+  });
+  const box=el("foStatements");
+  box.innerHTML="";
+  // shuffle copy
+  const items=[...FACT_OPINION].sort(()=>Math.random()-0.5);
+  items.forEach(it=>{
+    const c=document.createElement("div");
+    c.className="fo-card";
+    c.dataset.id=it.id;
+    c.tabIndex=0;
+    c.setAttribute("role","button");
+    c.setAttribute("aria-label","Statement: "+it.text+". Press Enter to pick up, then press F for Fact or O for Opinion.");
+    c.textContent=it.text;
+    box.appendChild(c);
+  });
+  el("foFeedback").className="feedback";
+  el("foFeedback").textContent="Read each sentence. Could you check it in a book or by measuring it? Then it is a fact.";
+  attachFoHandlers();
+}
+
+function foItem(id){ return FACT_OPINION.find(f=>f.id===id); }
+
+function placeFo(id, bin){
+  if(foPlaced[id]) return;
+  const it=foItem(id);
+  const correct = it.answer===bin;
+  if(correct){
+    score+=8; foPlaced[id]=bin;
+    const cardEl=document.querySelector('.fo-card[data-id="'+id+'"]');
+    if(cardEl){ cardEl.classList.add("placed-done"); cardEl.setAttribute("aria-disabled","true"); cardEl.tabIndex=-1; }
+    const tag=document.createElement("div");
+    tag.className="placed ok";
+    tag.textContent=it.text;
+    el(bin==="fact"?"binFact":"binOpinion").appendChild(tag);
+    showFo(it.why,"good");
+    live("Correct. "+it.why);
+    updateScore();
+    if(Object.keys(foPlaced).length===FACT_OPINION.length){
+      showFo("Excellent. You sorted every sentence. Facts can be proven; opinions are what people think or feel.","good");
+      live("All sentences sorted correctly.");
+    }
+  } else {
+    score=Math.max(0,score-3); updateScore();
+    showFo("Not quite. Ask yourself: can this be checked and proven, or is it what someone thinks? Try the other box.","bad");
+    live("Not quite. Try the other box.");
+    const cardEl=document.querySelector('.fo-card[data-id="'+id+'"]');
+    if(cardEl){ cardEl.animate([{transform:"translateX(-6px)"},{transform:"translateX(6px)"},{transform:"translateX(0)"}],{duration:240}); }
+  }
+  foPickedId=null;
+  document.querySelectorAll(".fo-card.selected").forEach(c=>c.classList.remove("selected"));
+}
+
+function showFo(msg,type){ const f=el("foFeedback"); f.className="feedback "+(type||""); f.textContent=msg; }
+
+function attachFoHandlers(){
+  document.querySelectorAll(".fo-card").forEach(card=>{
+    card.addEventListener("pointerdown",onFoPointerDown);
+    card.addEventListener("keydown",e=>{
+      if(card.classList.contains("placed-done")) return;
+      const id=card.dataset.id;
+      if(e.key==="Enter"||e.key===" "){
+        e.preventDefault();
+        if(foPickedId===id){ foPickedId=null; card.classList.remove("selected"); showFo("Sentence put down.","");}
+        else{ foPickedId=id; document.querySelectorAll(".fo-card.selected").forEach(c=>c.classList.remove("selected")); card.classList.add("selected"); showFo("Picked up. Press F for Fact or O for Opinion.","tip"); }
+      }
+      if(foPickedId===id){
+        if(e.key.toLowerCase()==="f"){ e.preventDefault(); placeFo(id,"fact"); }
+        if(e.key.toLowerCase()==="o"){ e.preventDefault(); placeFo(id,"opinion"); }
+      }
+    });
+  });
+  // bin keyboard fallback handled by card keys; pointer drop below
+}
+
+function onFoPointerDown(e){
+  const card=e.currentTarget;
+  if(card.classList.contains("placed-done")) return;
+  const id=card.dataset.id;
+  card.setPointerCapture(e.pointerId);
+  const sx=e.clientX, sy=e.clientY;
+  let moved=false, floater=null;
+  function move(ev){
+    const dx=ev.clientX-sx, dy=ev.clientY-sy;
+    if(!moved && Math.hypot(dx,dy)>6){
+      moved=true; card.classList.add("dragging");
+      floater=document.createElement("div"); floater.className="floater";
+      floater.textContent=foItem(id).text; document.body.appendChild(floater);
+    }
+    if(moved){
+      floater.style.left=(ev.clientX+12)+"px"; floater.style.top=(ev.clientY+12)+"px";
+      highlightBinUnder(ev.clientX,ev.clientY);
+    }
+  }
+  function up(ev){
+    card.releasePointerCapture(e.pointerId);
+    card.removeEventListener("pointermove",move);
+    card.removeEventListener("pointerup",up);
+    card.removeEventListener("pointercancel",up);
+    card.classList.remove("dragging");
+    if(floater) floater.remove();
+    clearBinHighlight();
+    if(moved){
+      const bin=binUnder(ev.clientX,ev.clientY);
+      if(bin) placeFo(id,bin);
+      else showFo("Drop the sentence into the Fact box or the Opinion box.","tip");
+    } else {
+      // tap toggle pick
+      if(foPickedId===id){ foPickedId=null; card.classList.remove("selected"); }
+      else{ foPickedId=id; document.querySelectorAll(".fo-card.selected").forEach(c=>c.classList.remove("selected")); card.classList.add("selected"); showFo("Picked up. Now tap the Fact or Opinion box.","tip"); }
+    }
+  }
+  card.addEventListener("pointermove",move);
+  card.addEventListener("pointerup",up);
+  card.addEventListener("pointercancel",up);
+}
+function binUnder(x,y){
+  const elem=document.elementFromPoint(x,y);
+  const bin=elem && elem.closest ? elem.closest(".fo-bin") : null;
+  return bin ? bin.dataset.bin : null;
+}
+function highlightBinUnder(x,y){
+  clearBinHighlight();
+  const elem=document.elementFromPoint(x,y);
+  const bin=elem && elem.closest ? elem.closest(".fo-bin") : null;
+  if(bin) bin.classList.add("dropactive");
+}
+function clearBinHighlight(){ document.querySelectorAll(".fo-bin.dropactive").forEach(b=>b.classList.remove("dropactive")); }
+
+/* Allow tapping a bin when a card is picked (board friendly) */
+["binFact","binOpinion"].forEach(id=>{
+  // attached after DOM ready below
+});
+
+/* ---------- Mode switching ---------- */
+function setMode(mode){
+  const ev = mode==="evidence";
+  el("evidenceMode").classList.toggle("hidden",!ev);
+  el("factMode").classList.toggle("hidden",ev);
+  el("mode-evidence").setAttribute("aria-pressed",ev?"true":"false");
+  el("mode-fact").setAttribute("aria-pressed",ev?"false":"true");
+  el("passageSel").parentElement.style.visibility = ev ? "visible" : "hidden";
+  live(ev?"Evidence Highlighter activity.":"Fact or Opinion activity.");
+}
+
+/* ---------- Init ---------- */
+function init(){
+  populatePassageSelect();
+  renderPassage();
+  renderCards();
+  renderFactOpinion();
+  updateScore();
+
+  el("passageSel").addEventListener("change",e=>{
+    currentPassageIndex=parseInt(e.target.value,10);
+    resetEvidence();
+  });
+  el("hintBtn").addEventListener("click",giveHint);
+  el("resetBtn").addEventListener("click",resetEvidence);
+  el("foResetBtn").addEventListener("click",renderFactOpinion);
+  el("mode-evidence").addEventListener("click",()=>setMode("evidence"));
+  el("mode-fact").addEventListener("click",()=>setMode("fact"));
+
+  ["binFact","binOpinion"].forEach(id=>{
+    const bin=el(id);
+    bin.addEventListener("click",()=>{
+      if(foPickedId){ placeFo(foPickedId, bin.dataset.bin); }
+    });
+  });
+}
+document.addEventListener("DOMContentLoaded",init);
+</script>
+</body>
+</html>

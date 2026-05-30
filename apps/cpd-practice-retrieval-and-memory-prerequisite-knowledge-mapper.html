@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prerequisite Knowledge Mapper</title>
+<style>
+  :root{
+    --ink:#1c2530; --muted:#5a6675; --line:#dce3ec; --bg:#f4f6f9;
+    --card:#ffffff; --brand:#1f5fa6; --brand-d:#163f6e; --brand-l:#e7f0fb;
+    --good:#1d7a4d; --good-l:#e3f5ec; --warn:#9a6a00; --warn-l:#fbf2dd;
+    --bad:#b23a3a; --bad-l:#fbe6e6; --accent:#6b3fa0; --accent-l:#efe7f8;
+    --shadow:0 1px 2px rgba(20,40,70,.06),0 6px 20px rgba(20,40,70,.07);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:var(--bg); line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 16px 64px}
+  header.app{margin-bottom:18px}
+  .kicker{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);font-weight:700}
+  h1{font-size:1.6rem;margin:.15em 0 .25em;line-height:1.15}
+  .aim{
+    background:var(--brand-l);border:1px solid #cfe0f4;border-left:4px solid var(--brand);
+    border-radius:10px;padding:10px 14px;color:var(--brand-d);font-size:.95rem;
+  }
+  .aim b{color:var(--brand-d)}
+  .steps{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 6px;padding:0;list-style:none;counter-reset:s}
+  .steps li{
+    flex:1 1 150px;background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:8px 10px 8px 38px;position:relative;font-size:.82rem;color:var(--muted);font-weight:600;
+    box-shadow:var(--shadow);
+  }
+  .steps li::before{
+    counter-increment:s;content:counter(s);position:absolute;left:8px;top:50%;transform:translateY(-50%);
+    width:22px;height:22px;border-radius:50%;background:var(--line);color:var(--ink);
+    display:grid;place-items:center;font-size:.78rem;font-weight:800;
+  }
+  .steps li.on{border-color:var(--brand);color:var(--brand-d)}
+  .steps li.on::before{background:var(--brand);color:#fff}
+  .steps li.done::before{background:var(--good);color:#fff;content:'\2713'}
+
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:16px 16px 18px;box-shadow:var(--shadow);margin-top:18px;
+  }
+  .card h2{font-size:1.08rem;margin:0 0 4px}
+  .card .hint{color:var(--muted);font-size:.86rem;margin:0 0 12px}
+
+  label{font-weight:700;font-size:.86rem;display:block;margin-bottom:5px}
+  select,input[type=text]{
+    font:inherit;width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:9px;
+    background:#fff;color:var(--ink);
+  }
+  select:focus,input:focus,button:focus-visible{outline:3px solid #9cc2ee;outline-offset:1px}
+
+  .topicbar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+  .topicbar .grow{flex:1 1 260px}
+  .pill-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .pill{
+    border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;
+    font-size:.82rem;font-weight:600;cursor:pointer;color:var(--ink);
+  }
+  .pill[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:#fff}
+
+  .btn{
+    font:inherit;font-weight:700;border:none;border-radius:9px;padding:10px 16px;cursor:pointer;
+    background:var(--brand);color:#fff;
+  }
+  .btn:hover{background:var(--brand-d)}
+  .btn.ghost{background:#fff;color:var(--brand);border:1.5px solid var(--brand)}
+  .btn.ghost:hover{background:var(--brand-l)}
+  .btn.sm{padding:7px 12px;font-size:.84rem}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  /* Mapping board */
+  .board{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:720px){.board{grid-template-columns:1fr}}
+  .col{
+    border:1.5px solid var(--line);border-radius:12px;background:#fbfcfe;padding:10px;min-height:120px;
+  }
+  .col h3{margin:2px 4px 8px;font-size:.82rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .col.drop{transition:background .12s,border-color .12s}
+  .col.over{background:var(--brand-l);border-color:var(--brand);border-style:dashed}
+
+  .chip{
+    display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--line);
+    border-radius:10px;padding:9px 10px;margin:6px 0;font-size:.9rem;cursor:grab;
+    touch-action:none;user-select:none;box-shadow:var(--shadow);
+  }
+  .chip:active{cursor:grabbing}
+  .chip.dragging{opacity:.35}
+  .chip .tag{font-size:.7rem;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+  .chip .grab{color:var(--muted);font-weight:800;letter-spacing:-1px}
+  .chip.float{position:fixed;z-index:60;pointer-events:none;box-shadow:0 12px 30px rgba(20,40,70,.25);margin:0;width:auto}
+  .chip.req{border-left:4px solid var(--brand)}
+  .chip.notreq{border-left:4px solid var(--muted)}
+  .chip[aria-grabbed=true]{outline:3px solid #9cc2ee}
+  .chip.correct-flash{border-color:var(--good);background:var(--good-l)}
+  .chip.wrong-flash{border-color:var(--bad);background:var(--bad-l)}
+
+  .col-tools{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px}
+  .count{font-size:.78rem;color:var(--muted);font-weight:700;padding:0 4px}
+
+  .feedback{
+    border-radius:10px;padding:10px 12px;margin-top:12px;font-size:.9rem;display:none;
+  }
+  .feedback.show{display:block}
+  .feedback.good{background:var(--good-l);border:1px solid #bfe6cf;color:var(--good)}
+  .feedback.warn{background:var(--warn-l);border:1px solid #ecd9a0;color:var(--warn)}
+  .feedback.bad{background:var(--bad-l);border:1px solid #f0c2c2;color:var(--bad)}
+  .feedback ul{margin:6px 0 0;padding-left:18px}
+  .feedback li{margin:3px 0}
+
+  /* Diagnostic */
+  .q{border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;margin:12px 0;background:#fff}
+  .q .qhead{display:flex;gap:8px;align-items:baseline;margin-bottom:8px}
+  .q .qnum{font-weight:800;color:var(--brand);font-size:.86rem;flex:0 0 auto}
+  .q .qtext{font-weight:600}
+  .q .links{font-size:.74rem;color:var(--muted);margin-top:2px}
+  .opts{display:grid;gap:7px;margin-top:6px}
+  .opt{
+    display:flex;gap:9px;align-items:flex-start;border:1.5px solid var(--line);border-radius:9px;
+    padding:9px 11px;cursor:pointer;font-size:.9rem;background:#fff;
+  }
+  .opt input{margin-top:2px}
+  .opt.right{border-color:var(--good);background:var(--good-l)}
+  .opt.wrong{border-color:var(--bad);background:var(--bad-l)}
+  .opt .why{display:block;font-size:.8rem;color:var(--muted);margin-top:3px}
+  .opt.right .why,.opt.wrong .why{color:inherit}
+
+  .summary{display:none;margin-top:14px;border-radius:12px;padding:14px 16px;background:var(--accent-l);border:1px solid #ddccf0}
+  .summary.show{display:block}
+  .summary h3{margin:0 0 6px;color:var(--accent)}
+  .score{font-size:2rem;font-weight:800;color:var(--accent);line-height:1}
+  .gaps{margin:10px 0 0;padding-left:18px}
+  .gaps li{margin:4px 0}
+  .gaps .secure{color:var(--good);font-weight:600}
+  .gaps .gap{color:var(--bad);font-weight:600}
+
+  .row-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  footer{margin-top:26px;color:var(--muted);font-size:.78rem;text-align:center}
+  .kbdnote{font-size:.78rem;color:var(--muted);margin-top:8px}
+  .kbdnote kbd{background:#eef2f7;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font-size:.78rem}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <div class="kicker">CPD &amp; Staff Tools &middot; Practice, Retrieval and Memory</div>
+    <h1>Prerequisite Knowledge Mapper</h1>
+    <p class="aim"><b>Teacher aim:</b> before teaching a new topic, identify the prior knowledge it quietly assumes, then run a 60-second diagnostic so you teach into a secure foundation rather than over a gap.</p>
+    <ol class="steps" id="steps">
+      <li class="on" id="step1">Choose the new topic</li>
+      <li id="step2">Sort what it depends on</li>
+      <li id="step3">Check the build is sound</li>
+      <li id="step4">Run the diagnostic</li>
+    </ol>
+  </header>
+
+  <!-- STEP 1: choose topic -->
+  <section class="card" id="card-topic" aria-labelledby="t1">
+    <h2 id="t1">1. Which new topic are you about to teach?</h2>
+    <p class="hint">Pick a topic. The mapper shows you ten candidate facts and skills. Only some are genuine <em>prerequisites</em> the lesson assumes pupils already hold.</p>
+    <div class="topicbar">
+      <div class="grow">
+        <label for="topic">New topic</label>
+        <select id="topic">
+          <option value="" selected disabled>Choose a topic...</option>
+        </select>
+      </div>
+      <div>
+        <button class="btn" id="loadBtn" disabled>Map prerequisites &rarr;</button>
+      </div>
+    </div>
+    <p class="hint" id="topicBlurb" style="margin-top:12px"></p>
+  </section>
+
+  <!-- STEP 2: sort prerequisites -->
+  <section class="card" id="card-sort" aria-labelledby="t2" hidden>
+    <h2 id="t2">2. Sort the candidates: is it a prerequisite or not?</h2>
+    <p class="hint">Drag each card into a column, or use the keyboard (see note below). A genuine prerequisite is knowledge the new topic <em>directly builds on</em>; pupils must already hold it for the new learning to land. The "not required" pile is for related-but-not-needed knowledge that often sneaks into planning.</p>
+
+    <div class="board">
+      <div class="col drop" data-zone="pool" aria-label="Unsorted candidates">
+        <h3>Candidates</h3>
+        <div class="zone" id="zone-pool" role="list"></div>
+      </div>
+      <div style="display:grid;gap:14px">
+        <div class="col drop req" data-zone="req" aria-label="Prerequisite, must be secure first">
+          <h3 style="color:var(--brand)">Prerequisite (must be secure first)</h3>
+          <div class="zone" id="zone-req" role="list"></div>
+        </div>
+        <div class="col drop notreq" data-zone="notreq" aria-label="Not a prerequisite for this topic">
+          <h3>Not required for this topic</h3>
+          <div class="zone" id="zone-notreq" role="list"></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="kbdnote">Keyboard: <kbd>Tab</kbd> to a card, then press <kbd>P</kbd> for Prerequisite, <kbd>N</kbd> for Not required, or <kbd>U</kbd> to return it to Candidates.</p>
+
+    <div class="col-tools">
+      <span class="count" id="sortCount" aria-live="polite"></span>
+      <div>
+        <button class="btn ghost sm" id="resetSort" type="button">Reset</button>
+        <button class="btn sm" id="checkSort" type="button" disabled>Check my sorting</button>
+      </div>
+    </div>
+    <div class="feedback" id="sortFb" role="status" aria-live="polite"></div>
+  </section>
+
+  <!-- STEP 3/4: diagnostic -->
+  <section class="card" id="card-diag" aria-labelledby="t3" hidden>
+    <h2 id="t3">3. Diagnostic: is each prerequisite actually secure?</h2>
+    <p class="hint">The mapper has written one quick check per confirmed prerequisite. Answer as a pupil would (try it cold), or use this with a class as a hinge-question starter. Each item names the prerequisite it probes so a wrong answer tells you exactly what to reteach.</p>
+    <div id="quiz"></div>
+    <div class="row-actions">
+      <button class="btn" id="markBtn" type="button">Mark diagnostic</button>
+      <button class="btn ghost" id="restartBtn" type="button">Start a new topic</button>
+    </div>
+    <div class="summary" id="diagSummary" role="status" aria-live="polite">
+      <h3>Diagnostic result</h3>
+      <div><span class="score" id="scoreVal">0/0</span> prerequisites confirmed secure</div>
+      <p style="margin:8px 0 2px;font-weight:600" id="reteach"></p>
+      <ul class="gaps" id="gapList"></ul>
+    </div>
+  </section>
+
+  <footer>
+    Prerequisite Knowledge Mapper &middot; WeST CPD &amp; Staff Tools. Demonstration content for teacher planning. All examples are illustrative.
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- Topic bank: each has prerequisites (required) + distractors (related but not needed) ---------- */
+const TOPICS = {
+  fractions_add: {
+    name: "Adding fractions with different denominators (Maths, Y5/6)",
+    blurb: "To add unlike fractions, pupils must already convert to a common denominator and add numerators. Knowing decimals or angles is unrelated to this step.",
+    items: [
+      {t:"Find a common multiple of two numbers", req:true,  why:"Needed to make a shared denominator before adding."},
+      {t:"Make equivalent fractions by multiplying top and bottom", req:true, why:"Each fraction is rescaled to the common denominator using this."},
+      {t:"Add and subtract whole numbers fluently", req:true, why:"Once denominators match, numerators are added as whole numbers."},
+      {t:"Recognise that the denominator names the size of each part", req:true, why:"Pupils must know why denominators must match before adding."},
+      {t:"Convert a fraction to a decimal", req:false, why:"Useful generally, but not used when adding via common denominators."},
+      {t:"Measure angles with a protractor", req:false, why:"Unrelated geometry skill."},
+      {t:"Calculate the mean of a data set", req:false, why:"A statistics skill, not a prerequisite here."},
+      {t:"Name 3D shapes by faces and edges", req:false, why:"Geometry vocabulary, unrelated to fraction addition."},
+      {t:"Read a bus timetable", req:false, why:"A real-life skill but not assumed by this topic."},
+      {t:"Order fractions on a number line", req:true, why:"Underpins recognising relative size and checking the answer is reasonable."}
+    ]
+  },
+  photosynthesis: {
+    name: "Photosynthesis (Science, KS3)",
+    blurb: "Pupils meet photosynthesis assuming they already know cell structure, the role of leaves, and the idea of a chemical reaction with reactants and products.",
+    items: [
+      {t:"Know that plant cells contain chloroplasts", req:true, why:"Photosynthesis happens in chloroplasts; without this the location makes no sense."},
+      {t:"Understand a reaction has reactants and products", req:true, why:"Photosynthesis is taught as a word equation; this framing is assumed."},
+      {t:"Recall that leaves are the main site of food-making", req:true, why:"Pupils must connect structure to function from the start."},
+      {t:"Know carbon dioxide and water are substances/molecules", req:true, why:"They are the named reactants of the process."},
+      {t:"Read the periodic table to find atomic number", req:false, why:"Not needed for the word-equation level of this topic."},
+      {t:"Balance a symbol equation", req:false, why:"Comes later; the KS3 introduction uses words, not balanced symbols."},
+      {t:"Describe the rock cycle", req:false, why:"Earth science, unrelated to plant biology."},
+      {t:"Use Newton's first law", req:false, why:"A physics idea, not assumed here."},
+      {t:"Know that energy can be transferred", req:true, why:"Light energy being captured and stored is central to the explanation."},
+      {t:"Classify animals as vertebrate or invertebrate", req:false, why:"Biology, but unconnected to how plants make food."}
+    ]
+  },
+  persuasive: {
+    name: "Writing a persuasive paragraph (English, Y4/5)",
+    blurb: "A persuasive paragraph assumes pupils can already build a sentence, hold a viewpoint, and use connectives. Knowing poetic devices or grammar terminology is not strictly required.",
+    items: [
+      {t:"Write a complete sentence with capital letter and full stop", req:true, why:"The paragraph is built from controlled sentences."},
+      {t:"State an opinion or point of view clearly", req:true, why:"Persuasion needs a position to argue for."},
+      {t:"Use connectives such as because, therefore, however", req:true, why:"These link reasons to the viewpoint and build the argument."},
+      {t:"Give a reason that supports a claim", req:true, why:"Persuasion is claim plus reason; pupils must already do this orally."},
+      {t:"Identify the rhyme scheme of a poem", req:false, why:"A poetry skill, not needed to persuade in prose."},
+      {t:"Label a subordinate clause grammatically", req:false, why:"Helpful metalanguage but not required to write persuasively."},
+      {t:"Spell every word correctly first time", req:false, why:"Desirable, but the topic does not depend on perfect spelling to begin."},
+      {t:"Order events in a narrative", req:false, why:"A recount/story skill, not the structure of an argument."},
+      {t:"Choose ambitious vocabulary for effect", req:true, why:"Word choice is a core lever of persuasion that pupils draw on."},
+      {t:"Draw a story map", req:false, why:"A planning tool for narrative, unrelated to a persuasive paragraph."}
+    ]
+  }
+};
+
+/* ---------- State ---------- */
+let current = null;        // topic key
+let cards = [];            // {id, t, req, why, zone}
+const $ = s => document.querySelector(s);
+const live = (el,msg)=>{ el.textContent=msg; };
+
+/* ---------- Step 1 ---------- */
+const topicSel = $("#topic");
+Object.keys(TOPICS).forEach(k=>{
+  const o=document.createElement("option");
+  o.value=k; o.textContent=TOPICS[k].name; topicSel.appendChild(o);
+});
+topicSel.addEventListener("change",()=>{
+  $("#loadBtn").disabled = !topicSel.value;
+  $("#topicBlurb").textContent = topicSel.value ? TOPICS[topicSel.value].blurb : "";
+});
+$("#loadBtn").addEventListener("click", loadTopic);
+
+function setStep(n){
+  for(let i=1;i<=4;i++){
+    const li=document.getElementById("step"+i);
+    li.classList.toggle("on", i===n);
+    li.classList.toggle("done", i<n);
+  }
+}
+
+function loadTopic(){
+  current = topicSel.value;
+  const data = TOPICS[current];
+  cards = data.items.map((it,i)=>({id:"c"+i, t:it.t, req:it.req, why:it.why, zone:"pool"}));
+  shuffle(cards);
+  $("#card-sort").hidden=false;
+  $("#card-diag").hidden=true;
+  $("#diagSummary").classList.remove("show");
+  $("#sortFb").className="feedback";
+  renderZones();
+  setStep(2);
+  $("#card-sort").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
+
+/* ---------- Step 2: render + drag ---------- */
+function renderZones(){
+  ["pool","req","notreq"].forEach(z=>$("#zone-"+z).innerHTML="");
+  cards.forEach(c=>{
+    const el=document.createElement("div");
+    el.className="chip"; el.id=c.id; el.setAttribute("role","listitem");
+    el.tabIndex=0; el.setAttribute("aria-grabbed","false");
+    const zoneName = c.zone==="req"?"Prerequisite":c.zone==="notreq"?"Not required":"Candidates";
+    el.setAttribute("aria-label", c.t+". Currently in "+zoneName+". Press P for prerequisite, N for not required, U for candidates.");
+    el.innerHTML='<span class="grab" aria-hidden="true">&#x2630;</span><span class="txt">'+escapeHtml(c.t)+'</span>';
+    $("#zone-"+c.zone).appendChild(el);
+    attachPointer(el,c);
+    el.addEventListener("keydown",e=>{
+      const k=e.key.toLowerCase();
+      if(k==="p"||k==="n"||k==="u"){
+        e.preventDefault();
+        moveCard(c, k==="p"?"req":k==="n"?"notreq":"pool");
+      }
+    });
+  });
+  updateCount();
+}
+
+function moveCard(c,zone){
+  c.zone=zone;
+  renderZones();
+  const el=document.getElementById(c.id);
+  if(el){el.focus();}
+}
+
+function updateCount(){
+  const sorted = cards.filter(c=>c.zone!=="pool").length;
+  $("#sortCount").textContent = sorted+" of "+cards.length+" sorted";
+  $("#checkSort").disabled = sorted < cards.length;
+}
+
+/* Pointer-based drag (touch + mouse + pen) */
+let drag=null;
+function attachPointer(el,c){
+  el.addEventListener("pointerdown",e=>{
+    if(e.button && e.button!==0) return;
+    const r=el.getBoundingClientRect();
+    drag={c, el, ox:e.clientX-r.left, oy:e.clientY-r.top, w:r.width, started:false, ghost:null, sx:e.clientX, sy:e.clientY};
+    el.setPointerCapture(e.pointerId);
+    el.addEventListener("pointermove",onMove);
+    el.addEventListener("pointerup",onUp);
+    el.addEventListener("pointercancel",onUp);
+  });
+}
+function onMove(e){
+  if(!drag) return;
+  const dist=Math.hypot(e.clientX-drag.sx, e.clientY-drag.sy);
+  if(!drag.started && dist<6) return;
+  if(!drag.started){
+    drag.started=true;
+    drag.el.classList.add("dragging");
+    const g=drag.el.cloneNode(true);
+    g.classList.add("float"); g.id=""; g.style.width=drag.w+"px";
+    document.body.appendChild(g); drag.ghost=g;
+  }
+  drag.ghost.style.left=(e.clientX-drag.ox)+"px";
+  drag.ghost.style.top=(e.clientY-drag.oy)+"px";
+  highlightZoneAt(e.clientX,e.clientY);
+}
+function onUp(e){
+  if(!drag) return;
+  const el=drag.el, c=drag.c;
+  el.removeEventListener("pointermove",onMove);
+  el.removeEventListener("pointerup",onUp);
+  el.removeEventListener("pointercancel",onUp);
+  if(drag.started){
+    const zone=zoneAt(e.clientX,e.clientY);
+    if(zone) c.zone=zone;
+    if(drag.ghost) drag.ghost.remove();
+    el.classList.remove("dragging");
+    clearOver();
+    renderZones();
+  }
+  drag=null;
+}
+function zoneAt(x,y){
+  const cols=document.querySelectorAll(".col.drop");
+  for(const col of cols){
+    const r=col.getBoundingClientRect();
+    if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom) return col.dataset.zone;
+  }
+  return null;
+}
+function highlightZoneAt(x,y){
+  clearOver();
+  const z=zoneAt(x,y);
+  if(z){const col=document.querySelector('.col.drop[data-zone="'+z+'"]'); col&&col.classList.add("over");}
+}
+function clearOver(){document.querySelectorAll(".col.drop.over").forEach(c=>c.classList.remove("over"));}
+
+$("#resetSort").addEventListener("click",()=>{
+  cards.forEach(c=>c.zone="pool"); renderZones();
+  $("#sortFb").className="feedback";
+});
+
+/* ---------- Step 2: check sorting with targeted feedback ---------- */
+$("#checkSort").addEventListener("click",()=>{
+  let correct=0; const wrongReq=[], wrongNot=[];
+  cards.forEach(c=>{
+    const chosen = c.zone==="req";
+    const el=document.getElementById(c.id);
+    if(el){el.classList.remove("correct-flash","wrong-flash");}
+    if(chosen===c.req){correct++; if(el)el.classList.add("correct-flash");}
+    else{
+      if(el)el.classList.add("wrong-flash");
+      if(c.req) wrongReq.push(c);   // should have been prerequisite, wasn't
+      else wrongNot.push(c);        // marked prerequisite but isn't
+    }
+  });
+  const fb=$("#sortFb");
+  const total=cards.length;
+  if(correct===total){
+    fb.className="feedback good show";
+    fb.innerHTML="<strong>All "+total+" sorted correctly.</strong> You have isolated exactly the prior knowledge this topic assumes. The diagnostic below now checks only those genuine prerequisites.";
+    buildDiagnostic();
+    setStep(3);
+  } else {
+    fb.className="feedback warn show";
+    let html="<strong>"+correct+" of "+total+" placed correctly.</strong> Cards flashing red are misplaced. Targeted notes:<ul>";
+    wrongReq.forEach(c=> html+="<li><b>&ldquo;"+escapeHtml(c.t)+"&rdquo;</b> is a <em>prerequisite</em> you missed. "+escapeHtml(c.why)+"</li>");
+    wrongNot.forEach(c=> html+="<li><b>&ldquo;"+escapeHtml(c.t)+"&rdquo;</b> is <em>not required</em> here. "+escapeHtml(c.why)+"</li>");
+    html+="</ul>Adjust the red cards and check again. (A common planning trap is to over-list related knowledge that the new learning does not actually lean on.)";
+    fb.innerHTML=html;
+  }
+});
+
+/* ---------- Step 3/4: build + mark diagnostic ---------- */
+const DIAG = {
+  /* keyed by item text -> a quick check question */
+  "Find a common multiple of two numbers":{q:"What is the lowest common multiple of 4 and 6?",opts:[["12",true,"4, 8, 12 and 6, 12: the first shared value is 12."],["24",false,"24 is a common multiple but not the lowest."],["10",false,"10 is a multiple of neither."],["2",false,"2 is a common factor, not a multiple."]]},
+  "Make equivalent fractions by multiplying top and bottom":{q:"Which fraction is equivalent to one third?",opts:[["2/6",true,"Multiply top and bottom by 2."],["3/1",false,"That inverts the fraction."],["1/6",false,"Only the denominator was doubled."],["2/3",false,"That is two thirds."]]},
+  "Add and subtract whole numbers fluently":{q:"Once denominators match, 3/8 + 4/8 has which numerator step?",opts:[["3 + 4 = 7",true,"Add the numerators, keep the denominator."],["3 + 4 = 7, then add the 8s",false,"Denominators are not added."],["3 x 4",false,"We add, not multiply, numerators."],["8 - 3 - 4",false,"That is unrelated to addition here."]]},
+  "Recognise that the denominator names the size of each part":{q:"Why must denominators be the same before you add fractions?",opts:[["So the parts are the same size to combine",true,"You can only add like-sized parts."],["So the answer is smaller",false,"That is not why."],["Because numerators must be even",false,"No such rule."],["To make the numbers bigger",false,"Not the reason."]]},
+  "Order fractions on a number line":{q:"Which is larger, 3/5 or 2/5?",opts:[["3/5",true,"Same denominator, larger numerator is larger."],["2/5",false,"Fewer fifths is smaller."],["They are equal",false,"Different numerators."],["Cannot tell",false,"Same denominator makes it clear."]]},
+
+  "Know that plant cells contain chloroplasts":{q:"Which structure carries out photosynthesis?",opts:[["Chloroplast",true,"It holds chlorophyll that captures light."],["Nucleus",false,"That controls the cell, not food-making."],["Cell membrane",false,"It controls what enters and leaves."],["Mitochondrion",false,"That releases energy by respiration."]]},
+  "Understand a reaction has reactants and products":{q:"In a reaction, the starting substances are called the...",opts:[["Reactants",true,"They react to form products."],["Products",false,"Those are what is made."],["Catalysts",false,"They speed reactions but are not used up."],["Solvents",false,"A solvent dissolves things."]]},
+  "Recall that leaves are the main site of food-making":{q:"Which part of the plant is the main site of photosynthesis?",opts:[["Leaf",true,"Its broad surface captures light."],["Root",false,"Roots absorb water and minerals."],["Flower",false,"Flowers are for reproduction."],["Stem",false,"The stem mainly transports and supports."]]},
+  "Know carbon dioxide and water are substances/molecules":{q:"Which pair are the reactants of photosynthesis?",opts:[["Carbon dioxide and water",true,"Light energy converts them to glucose and oxygen."],["Oxygen and glucose",false,"Those are the products."],["Nitrogen and salt",false,"Not involved."],["Water and oxygen",false,"Oxygen is a product, not a reactant."]]},
+  "Know that energy can be transferred":{q:"In photosynthesis, energy is transferred from...",opts:[["Light to stored chemical energy in glucose",true,"Light energy is captured and stored."],["Heat to sound",false,"Not relevant here."],["Glucose to light",false,"The direction is reversed."],["Movement to electricity",false,"Unrelated transfer."]]},
+
+  "Write a complete sentence with capital letter and full stop":{q:"Which is a complete, correctly punctuated sentence?",opts:[["We should recycle more.",true,"Capital letter, verb, full stop."],["because it helps",false,"A fragment with no capital or main clause."],["recycling more plastic",false,"No verb forming a full sentence, no punctuation."],["More! plastic",false,"Not a sentence."]]},
+  "State an opinion or point of view clearly":{q:"Which sentence states a clear viewpoint?",opts:[["School should start later in the morning.",true,"A clear, arguable position."],["The school is a building.",false,"A fact, not an opinion."],["Some people go to school.",false,"A neutral statement."],["What time is school?",false,"A question, not a viewpoint."]]},
+  "Use connectives such as because, therefore, however":{q:"Choose the best connective: 'We should plant trees ___ they clean the air.'",opts:[["because",true,"It links the claim to its reason."],["however",false,"That signals contrast, not a reason."],["meanwhile",false,"That signals time, not cause."],["firstly",false,"That orders points, it does not give a reason."]]},
+  "Give a reason that supports a claim":{q:"Which sentence gives a reason for the claim 'Reading is valuable'?",opts:[["It builds vocabulary and empathy.",true,"A supporting reason."],["I have a book.",false,"Not a reason for the claim."],["Reading is a word.",false,"A definition, not support."],["Books are heavy.",false,"Irrelevant to the claim."]]},
+  "Choose ambitious vocabulary for effect":{q:"Which word is most persuasive in 'We must act ___'?",opts:[["urgently",true,"It heightens the call to act."],["maybe",false,"It weakens the persuasion."],["slowly",false,"It undercuts urgency."],["normally",false,"Neutral, not persuasive."]]}
+};
+
+function buildDiagnostic(){
+  const reqs = cards.filter(c=>c.req); // genuine prerequisites
+  const quiz=$("#quiz"); quiz.innerHTML="";
+  $("#diagSummary").classList.remove("show");
+  reqs.forEach((c,i)=>{
+    const d=DIAG[c.t];
+    const wrap=document.createElement("fieldset");
+    wrap.className="q"; wrap.dataset.idx=i; wrap.dataset.prereq=c.t;
+    wrap.style.border="1.5px solid var(--line)";
+    let html='<legend class="sr-only">Question '+(i+1)+'</legend>';
+    html+='<div class="qhead"><span class="qnum">Q'+(i+1)+'</span><span class="qtext">'+escapeHtml(d.q)+'</span></div>';
+    html+='<div class="links">Probes prerequisite: '+escapeHtml(c.t)+'</div>';
+    html+='<div class="opts" role="radiogroup" aria-label="'+escapeHtml(d.q)+'">';
+    const order=d.opts.map((o,j)=>j); shuffle(order);
+    order.forEach(j=>{
+      const o=d.opts[j];
+      html+='<label class="opt"><input type="radio" name="q'+i+'" value="'+j+'" data-correct="'+o[1]+'"><span><span class="lbl">'+escapeHtml(o[0])+'</span><span class="why" hidden>'+escapeHtml(o[2])+'</span></span></label>';
+    });
+    html+='</div>';
+    wrap.innerHTML=html; quiz.appendChild(wrap);
+  });
+  $("#card-diag").hidden=false;
+  $("#card-diag").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+$("#markBtn").addEventListener("click",()=>{
+  const qs=document.querySelectorAll("#quiz .q");
+  let correct=0; const gaps=[];
+  qs.forEach(q=>{
+    const sel=q.querySelector('input:checked');
+    const opts=q.querySelectorAll(".opt");
+    opts.forEach(o=>{o.classList.remove("right","wrong"); o.querySelector(".why").hidden=true;});
+    const prereq=q.dataset.prereq;
+    let ok=false;
+    opts.forEach(o=>{
+      const inp=o.querySelector("input");
+      const isCorrect=inp.dataset.correct==="true";
+      if(isCorrect){o.classList.add("right"); o.querySelector(".why").hidden=false;}
+      if(sel && inp===sel && !isCorrect){o.classList.add("wrong"); o.querySelector(".why").hidden=false;}
+    });
+    if(sel && sel.dataset.correct==="true"){ok=true;}
+    if(ok){correct++;} else {gaps.push(prereq);}
+  });
+  const total=qs.length;
+  setStep(4);
+  const sum=$("#diagSummary"); sum.classList.add("show");
+  $("#scoreVal").textContent=correct+"/"+total;
+  const gl=$("#gapList"); gl.innerHTML="";
+  cards.filter(c=>c.req).forEach(c=>{
+    const li=document.createElement("li");
+    const isGap=gaps.includes(c.t);
+    li.innerHTML='<span class="'+(isGap?"gap":"secure")+'">'+(isGap?"&#x26A0; Reteach: ":"&#x2713; Secure: ")+'</span>'+escapeHtml(c.t);
+    gl.appendChild(li);
+  });
+  const rt=$("#reteach");
+  if(gaps.length===0){
+    rt.textContent="Every prerequisite is secure. You can teach the new topic straight away, building directly on this foundation.";
+  } else if(gaps.length===total){
+    rt.textContent="No prerequisite was secure. Hold the new topic; reteach the foundations below first, then re-run this check.";
+  } else {
+    rt.textContent="Teach a short retrieval starter on the flagged items below before introducing the new topic; the secure items can be assumed.";
+  }
+  sum.scrollIntoView({behavior:"smooth",block:"nearest"});
+});
+
+$("#restartBtn").addEventListener("click",()=>{
+  $("#card-sort").hidden=true; $("#card-diag").hidden=true;
+  topicSel.value=""; $("#loadBtn").disabled=true; $("#topicBlurb").textContent="";
+  setStep(1);
+  $("#card-topic").scrollIntoView({behavior:"smooth",block:"start"});
+});
+
+/* ---------- utils ---------- */
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));}
+</script>
+</body>
+</html>

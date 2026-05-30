@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build a Classification Key</title>
+<style>
+  :root{
+    --ink:#1c2530; --muted:#5a6b7b; --paper:#f4f7fa; --card:#ffffff;
+    --line:#d8e1ea; --brand:#0f6e6e; --brand-dark:#0a5252; --brand-soft:#e2f1f1;
+    --yes:#1f8a4c; --yes-soft:#e3f4ea; --no:#b54a3a; --no-soft:#fbe8e4;
+    --gold:#caa23a; --gold-soft:#fbf3da; --shadow:0 2px 8px rgba(20,40,60,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:'Segoe UI',system-ui,-apple-system,Helvetica,Arial,sans-serif;
+    background:var(--paper); color:var(--ink); line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 16px 60px}
+  header.app{margin-bottom:14px}
+  h1{font-size:1.7rem;margin:0 0 4px;letter-spacing:.2px}
+  .aim{
+    background:var(--brand-soft); border-left:5px solid var(--brand);
+    padding:9px 14px; border-radius:8px; font-size:.96rem; color:var(--brand-dark);
+  }
+  .aim strong{color:var(--brand-dark)}
+  .layout{display:grid; grid-template-columns:1fr; gap:16px}
+  @media(min-width:860px){ .layout{grid-template-columns:300px 1fr} }
+  .panel{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:14px; box-shadow:var(--shadow);
+  }
+  .panel h2{font-size:1.05rem; margin:0 0 8px; display:flex; align-items:center; gap:8px}
+  .hint{font-size:.84rem; color:var(--muted); margin:0 0 10px}
+
+  /* Question bank */
+  .qbank{display:flex; flex-direction:column; gap:9px}
+  .qchip{
+    background:#fff; border:2px dashed var(--brand); color:var(--brand-dark);
+    border-radius:10px; padding:10px 12px; font-size:.92rem; font-weight:600;
+    cursor:grab; touch-action:none; user-select:none; position:relative;
+    display:flex; align-items:center; gap:8px;
+  }
+  .qchip:focus-visible{outline:3px solid var(--gold); outline-offset:2px}
+  .qchip .grip{font-size:1.05rem; opacity:.7}
+  .qchip.used{opacity:.4; border-style:solid; cursor:default}
+  .qchip.dragging{opacity:.5}
+
+  /* Organisms strip */
+  .orgstrip{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px}
+  .org{
+    background:var(--brand-soft); border:1px solid var(--line); border-radius:20px;
+    padding:4px 10px; font-size:.84rem; display:inline-flex; align-items:center; gap:5px;
+  }
+  .org .face{font-size:1rem}
+
+  /* Tree */
+  .treearea{min-height:300px}
+  .node{
+    border:2px solid var(--line); border-radius:12px; background:#fff;
+    padding:10px; margin:0 auto;
+  }
+  .dropzone{
+    border:2px dashed var(--brand); border-radius:12px; background:var(--brand-soft);
+    padding:14px; text-align:center; color:var(--brand-dark); font-weight:600;
+    font-size:.92rem; transition:background .12s, border-color .12s; cursor:pointer;
+  }
+  .dropzone.over{background:#cdeaea; border-color:var(--brand-dark)}
+  .dropzone .members{font-weight:400; font-size:.8rem; color:var(--muted); margin-top:6px}
+  .dropzone.solo{ /* single organism = leaf already, no question needed */
+    border-style:solid; background:var(--gold-soft); border-color:var(--gold); color:#7a611c;
+  }
+  .qhead{
+    background:var(--brand); color:#fff; border-radius:9px; padding:9px 12px;
+    font-weight:600; font-size:.94rem; display:flex; align-items:center; gap:8px;
+    justify-content:space-between;
+  }
+  .qhead .qtext{display:flex; align-items:center; gap:8px}
+  .removebtn{
+    background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.4); color:#fff;
+    border-radius:7px; font-size:.78rem; padding:3px 8px; cursor:pointer; font-weight:600;
+  }
+  .removebtn:hover{background:rgba(255,255,255,.32)}
+  .branches{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px}
+  @media(max-width:520px){ .branches{grid-template-columns:1fr} }
+  .branch{border-radius:10px; padding:8px}
+  .branch.yes{background:var(--yes-soft); border:1px solid #bfe3cd}
+  .branch.no{background:var(--no-soft); border:1px solid #efc7bf}
+  .branchlabel{font-size:.78rem; font-weight:700; letter-spacing:.4px; text-transform:uppercase; margin-bottom:6px}
+  .branch.yes .branchlabel{color:var(--yes)}
+  .branch.no .branchlabel{color:var(--no)}
+  .leaf{
+    background:#fff; border:1px solid var(--line); border-radius:9px; padding:8px;
+    text-align:center; font-size:.88rem; font-weight:600;
+  }
+  .leaf .big{font-size:1.3rem; display:block}
+
+  .controls{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
+  button.act{
+    border:none; border-radius:9px; padding:10px 16px; font-size:.92rem; font-weight:700;
+    cursor:pointer; font-family:inherit;
+  }
+  .primary{background:var(--brand); color:#fff}
+  .primary:hover{background:var(--brand-dark)}
+  .ghost{background:#fff; color:var(--brand-dark); border:2px solid var(--brand)}
+  .ghost:hover{background:var(--brand-soft)}
+  .gold{background:var(--gold); color:#3d2f08}
+  .gold:hover{background:#b8912f}
+
+  /* Feedback live region */
+  .feedback{
+    margin-top:12px; border-radius:10px; padding:11px 14px; font-size:.94rem;
+    border:1px solid var(--line); background:#fff; min-height:20px;
+  }
+  .feedback.good{background:var(--yes-soft); border-color:#bfe3cd; color:#155c34}
+  .feedback.bad{background:var(--no-soft); border-color:#efc7bf; color:#8a3527}
+  .feedback.info{background:var(--gold-soft); border-color:#ecd9a3; color:#6f5816}
+  .feedback strong{display:block; margin-bottom:2px}
+
+  /* Test panel */
+  .testcard{
+    margin-top:12px; border:1px solid var(--line); border-radius:12px; padding:12px;
+    background:linear-gradient(180deg,#fff, #f8fbfb);
+  }
+  .testcard h3{margin:0 0 6px; font-size:1rem}
+  .mystery{
+    font-size:1.05rem; font-weight:700; text-align:center; padding:10px;
+    background:var(--brand-soft); border-radius:10px; margin-bottom:10px;
+  }
+  .mystery .big{font-size:2.1rem; display:block; line-height:1.1}
+  .qprompt{font-size:1rem; font-weight:600; text-align:center; margin:6px 0 10px}
+  .ynrow{display:flex; gap:10px; justify-content:center}
+  .ynrow button{flex:1; max-width:160px}
+  .ybtn{background:var(--yes); color:#fff}
+  .nbtn{background:var(--no); color:#fff}
+  .ybtn:hover{background:#176e3c}
+  .nbtn:hover{background:#993b2d}
+
+  .legend{font-size:.8rem; color:var(--muted); margin-top:10px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  details.help{margin-top:14px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:6px 12px}
+  details.help summary{cursor:pointer; font-weight:600; color:var(--brand-dark)}
+  details.help ul{margin:8px 0; padding-left:20px; font-size:.9rem}
+  .lifecycle{display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:center; margin-top:8px; font-size:.86rem}
+  .lcstage{background:#fff; border:1px solid var(--line); border-radius:18px; padding:4px 11px; display:inline-flex; gap:5px; align-items:center}
+  .lcstage .big{font-size:1.05rem}
+  .arrow{color:var(--brand); font-weight:700}
+  .badge{display:inline-block; background:var(--gold-soft); color:#6f5816; border-radius:20px; padding:2px 10px; font-size:.78rem; font-weight:700; margin-left:6px}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <h1>&#x1F50D; Build a Classification Key</h1>
+    <div class="aim"><strong>Teaching aim:</strong> Pupils sort living things into groups by dragging yes or no questions to build a working dichotomous key, then test it live on a mystery animal. Covers classification, grouping by observable features, and animal life cycles (KS2 Living things and their habitats).</div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: bank -->
+    <aside class="panel" aria-label="Question bank and organisms">
+      <h2>&#x1F4E6; Question cards</h2>
+      <p class="hint">Drag a question onto a green drop zone, or select a card and press Enter, then choose a zone. Each yes or no question splits a group in two.</p>
+      <div class="qbank" id="qbank" role="list"></div>
+
+      <h2 style="margin-top:16px">&#x1F43E; Organisms to sort</h2>
+      <p class="hint">These eight animals all start together. A good key separates them one at a time.</p>
+      <div class="orgstrip" id="orgstrip" aria-label="The organisms being classified"></div>
+    </aside>
+
+    <!-- RIGHT: tree + test -->
+    <section class="panel" aria-label="Your classification key">
+      <h2>&#x1F333; Your key</h2>
+      <p class="hint">Build downwards. A zone holding one animal is finished (gold). Keep adding questions until every animal has its own ending.</p>
+      <div class="treearea" id="treearea"></div>
+
+      <div class="controls">
+        <button class="act primary" id="checkBtn">&#x2705; Check my key</button>
+        <button class="act gold" id="testBtn">&#x1F9EA; Test on a mystery animal</button>
+        <button class="act ghost" id="resetBtn">&#x21BA; Start again</button>
+      </div>
+
+      <div class="feedback info" id="feedback" role="status" aria-live="polite">
+        Drag your first question to the top zone to begin. Tip: think about what splits the most animals at once.
+      </div>
+
+      <div class="testcard" id="testcard" style="display:none" aria-live="polite"></div>
+
+      <details class="help">
+        <summary>How a dichotomous key works (teacher note)</summary>
+        <ul>
+          <li>A <strong>dichotomous</strong> key splits a group with questions that have exactly two answers: yes or no.</li>
+          <li>Each split should sort by an <strong>observable feature</strong> (legs, wings, scales, where it lives).</li>
+          <li>The key is finished when every organism is alone at the end of a branch.</li>
+          <li>The "Life cycle" badge shows the matching life-cycle pattern (mammal, bird, insect, amphibian) for the named animal.</li>
+        </ul>
+      </details>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---- Demonstration data only. All animals are real species; no pupils referenced. ----
+  var ORGANISMS = [
+    { id:'frog',     name:'Frog',        face:'\u{1F438}', wings:false, legs6:false, scales:false, water:true,  warm:false, lifecycle:'amphibian' },
+    { id:'newt',     name:'Newt',        face:'\u{1F98E}', wings:false, legs6:false, scales:false, water:true,  warm:false, lifecycle:'amphibian' },
+    { id:'snake',    name:'Grass snake', face:'\u{1F40D}', wings:false, legs6:false, scales:true,  water:false, warm:false, lifecycle:'reptile' },
+    { id:'lizard',   name:'Lizard',      face:'\u{1F98E}', wings:false, legs6:false, scales:true,  water:false, warm:false, lifecycle:'reptile' },
+    { id:'robin',    name:'Robin',       face:'\u{1F426}', wings:true,  legs6:false, scales:false, water:false, warm:true,  lifecycle:'bird' },
+    { id:'owl',      name:'Owl',         face:'\u{1F989}', wings:true,  legs6:false, scales:false, water:false, warm:true,  lifecycle:'bird' },
+    { id:'bee',      name:'Bee',         face:'\u{1F41D}', wings:true,  legs6:true,  scales:false, water:false, warm:false, lifecycle:'insect' },
+    { id:'beetle',   name:'Beetle',      face:'\u{1FAB2}', wings:false, legs6:true,  scales:false, water:false, warm:false, lifecycle:'insect' }
+  ];
+
+  // Available yes/no questions. predicate returns true => YES branch.
+  var QUESTIONS = [
+    { id:'wings',  text:'Does it have wings?',                 fn:function(o){return o.wings;} },
+    { id:'legs6',  text:'Does it have six legs?',              fn:function(o){return o.legs6;} },
+    { id:'scales', text:'Is its body covered in scales?',      fn:function(o){return o.scales;} },
+    { id:'water',  text:'Does it live in or near water?',      fn:function(o){return o.water;} },
+    { id:'warm',   text:'Is it warm-blooded?',                 fn:function(o){return o.warm;} }
+  ];
+
+  var LIFECYCLES = {
+    amphibian:{ label:'Amphibian', stages:['\u{1F95A} Egg (spawn)','\u{1F41B} Larva (tadpole)','\u{1F438} Adult'] },
+    bird:{      label:'Bird',      stages:['\u{1F95A} Egg','\u{1F423} Chick','\u{1F426} Adult'] },
+    insect:{    label:'Insect',   stages:['\u{1F95A} Egg','\u{1F41B} Larva','\u{1F31F} Pupa','\u{1F41D} Adult'] },
+    reptile:{   label:'Reptile',  stages:['\u{1F95A} Egg','\u{1F98E} Young','\u{1F40D} Adult'] }
+  };
+
+  // ---- Tree model. Each node: {members:[ids], question:qid|null, yes:node, no:node} ----
+  var root = null;
+  var usedQuestions = {}; // qid -> true
+
+  function makeNode(memberIds){ return { members:memberIds.slice(), question:null, yes:null, no:null }; }
+
+  function reset(){
+    root = makeNode(ORGANISMS.map(function(o){return o.id;}));
+    usedQuestions = {};
+    document.getElementById('testcard').style.display='none';
+    selectedQ = null;
+    renderAll();
+    setFeedback('info','Fresh start.','Drag your first question to the top zone. Which feature splits the eight animals most evenly?');
+  }
+
+  function orgById(id){ for(var i=0;i<ORGANISMS.length;i++){ if(ORGANISMS[i].id===id) return ORGANISMS[i]; } return null; }
+  function qById(id){ for(var i=0;i<QUESTIONS.length;i++){ if(QUESTIONS[i].id===id) return QUESTIONS[i]; } return null; }
+
+  // Apply a question to a node: split members, attach children
+  function applyQuestion(node, qid){
+    var q = qById(qid);
+    var yes=[], no=[];
+    node.members.forEach(function(id){
+      if(q.fn(orgById(id))) yes.push(id); else no.push(id);
+    });
+    node.question = qid;
+    node.yes = makeNode(yes);
+    node.no = makeNode(no);
+    usedQuestions[qid]=true;
+  }
+
+  // Remove a question from a node (collapse children back). Frees the question if not used elsewhere.
+  function removeQuestion(node){
+    if(!node.question) return;
+    // collect questions still used in subtree before removing
+    node.question=null; node.yes=null; node.no=null;
+    recomputeUsed();
+  }
+
+  function recomputeUsed(){
+    usedQuestions={};
+    (function walk(n){ if(!n) return; if(n.question){ usedQuestions[n.question]=true; walk(n.yes); walk(n.no);} })(root);
+  }
+
+  // ---- Rendering ----
+  var selectedQ = null; // qid chosen via keyboard
+
+  function renderAll(){ renderBank(); renderOrgs(); renderTree(); }
+
+  function renderBank(){
+    var bank=document.getElementById('qbank');
+    bank.innerHTML='';
+    QUESTIONS.forEach(function(q){
+      var used = !!usedQuestions[q.id];
+      var chip=document.createElement('div');
+      chip.className='qchip'+(used?' used':'')+(selectedQ===q.id?' dragging':'');
+      chip.setAttribute('role','listitem');
+      chip.setAttribute('tabindex', used?'-1':'0');
+      chip.setAttribute('data-q', q.id);
+      chip.setAttribute('aria-label', q.text + (used?' (already used in the key)':' (draggable question card)'));
+      chip.innerHTML = '<span class="grip" aria-hidden="true">&#x2807;</span><span>'+q.text+'</span>'+(used?' <span aria-hidden="true">&#x2714;&#xFE0F;</span>':'');
+      if(!used){
+        chip.addEventListener('pointerdown', onChipPointerDown);
+        chip.addEventListener('keydown', function(e){
+          if(e.key==='Enter'||e.key===' '){
+            e.preventDefault();
+            selectedQ = (selectedQ===q.id)?null:q.id;
+            renderAll();
+            if(selectedQ){ setFeedback('info','Card selected.','Now press Enter on a green drop zone to place "'+q.text+'".'); }
+          }
+        });
+      }
+      bank.appendChild(chip);
+    });
+  }
+
+  function renderOrgs(){
+    var strip=document.getElementById('orgstrip');
+    strip.innerHTML='';
+    ORGANISMS.forEach(function(o){
+      var el=document.createElement('span');
+      el.className='org';
+      el.innerHTML='<span class="face" aria-hidden="true">'+o.face+'</span>'+o.name;
+      strip.appendChild(el);
+    });
+  }
+
+  function renderTree(){
+    var area=document.getElementById('treearea');
+    area.innerHTML='';
+    area.appendChild(renderNode(root, 'root'));
+  }
+
+  function memberFaces(ids){
+    return ids.map(function(id){ var o=orgById(id); return o.face; }).join(' ');
+  }
+  function memberNames(ids){
+    return ids.map(function(id){ return orgById(id).name; }).join(', ');
+  }
+
+  function renderNode(node, path){
+    // Leaf with exactly one organism = finished ending
+    if(node.members.length===1 && !node.question){
+      var o=orgById(node.members[0]);
+      var lc=LIFECYCLES[o.lifecycle];
+      var leaf=document.createElement('div');
+      leaf.className='leaf';
+      leaf.innerHTML='<span class="big" aria-hidden="true">'+o.face+'</span>'+o.name+
+        ' <span class="badge" title="Life cycle type">'+lc.label+' life cycle</span>'+
+        '<div class="lifecycle" aria-label="Life cycle of the '+o.name+': '+lc.stages.join(' then ').replace(/[^a-zA-Z ,]/g,'')+'">'+
+          lc.stages.map(function(s,i){ return (i?'<span class="arrow" aria-hidden="true">&#x2192;</span>':'')+'<span class="lcstage">'+s+'</span>'; }).join('')+
+        '</div>';
+      return leaf;
+    }
+
+    // Node without a question yet => drop zone (or solo leaf above handles 1)
+    if(!node.question){
+      var dz=document.createElement('div');
+      var solo = node.members.length===0;
+      dz.className='dropzone'+(node.members.length===0?' solo':'');
+      dz.setAttribute('tabindex','0');
+      dz.setAttribute('role','button');
+      dz.setAttribute('data-path',path);
+      if(node.members.length===0){
+        dz.innerHTML='(empty branch) <div class="members">No animals reach here. That is fine.</div>';
+        dz.setAttribute('aria-label','Empty branch, no animals. No question needed.');
+      } else {
+        dz.innerHTML='&#x2795; Drop a question here'+
+          '<div class="members" aria-hidden="true">'+memberFaces(node.members)+' &nbsp; ('+node.members.length+' animals: '+memberNames(node.members)+')</div>';
+        dz.setAttribute('aria-label','Drop zone holding '+node.members.length+' animals: '+memberNames(node.members)+'. Drop or place a question to split them.');
+        dz.addEventListener('click', function(){ tryPlaceSelected(node); });
+        dz.addEventListener('keydown', function(e){
+          if(e.key==='Enter'||e.key===' '){ e.preventDefault(); tryPlaceSelected(node); }
+        });
+        dz._node = node;
+        registerDropTarget(dz, node);
+      }
+      return dz;
+    }
+
+    // Node with a question => header + two branches
+    var wrap=document.createElement('div');
+    wrap.className='node';
+    var q=qById(node.question);
+    var head=document.createElement('div');
+    head.className='qhead';
+    head.innerHTML='<span class="qtext"><span aria-hidden="true">&#x2754;</span>'+q.text+'</span>';
+    var rm=document.createElement('button');
+    rm.className='removebtn'; rm.type='button'; rm.textContent='Remove';
+    rm.setAttribute('aria-label','Remove the question "'+q.text+'" and join its branches back together');
+    rm.addEventListener('click', function(){ removeQuestion(node); renderAll(); setFeedback('info','Question removed.','Branches joined back. Try a different split.'); });
+    head.appendChild(rm);
+    wrap.appendChild(head);
+
+    var branches=document.createElement('div');
+    branches.className='branches';
+
+    var yesB=document.createElement('div'); yesB.className='branch yes';
+    yesB.innerHTML='<div class="branchlabel">Yes &#x2714;</div>';
+    yesB.appendChild(renderNode(node.yes, path+'-Y'));
+
+    var noB=document.createElement('div'); noB.className='branch no';
+    noB.innerHTML='<div class="branchlabel">No &#x2716;</div>';
+    noB.appendChild(renderNode(node.no, path+'-N'));
+
+    branches.appendChild(yesB);
+    branches.appendChild(noB);
+    wrap.appendChild(branches);
+    return wrap;
+  }
+
+  // ---- Placement logic with specific feedback ----
+  function tryPlaceSelected(node){
+    if(!selectedQ){
+      setFeedback('info','No card selected.','First select a question card on the left (press Enter on it), then choose this zone.');
+      return;
+    }
+    placeQuestion(node, selectedQ);
+    selectedQ=null;
+  }
+
+  function placeQuestion(node, qid){
+    var q=qById(qid);
+    // simulate split for feedback
+    var yes=0,no=0;
+    node.members.forEach(function(id){ if(q.fn(orgById(id))) yes++; else no++; });
+
+    if(yes===0 || no===0){
+      // useless split: everything goes one way
+      var dir = yes===0 ? 'no' : 'yes';
+      setFeedback('bad','That question does not split this group.',
+        'All '+node.members.length+' of these animals answer "'+dir+'" to "'+q.text+'". A useful question sends some animals each way. Try a different feature.');
+      renderAll();
+      return;
+    }
+    applyQuestion(node, qid);
+    renderAll();
+    setFeedback('good','Good split!',
+      '"'+q.text+'" sent '+yes+' animal'+(yes===1?'':'s')+' to Yes and '+no+' to No. '+nextStepHint());
+  }
+
+  function nextStepHint(){
+    var open = countOpenGroups(root);
+    if(open===0) return 'Every animal now has its own ending. Press Check my key.';
+    return open+' group'+(open===1?'':'s still contain')+(open===1?' contains':'')+' more than one animal. Keep splitting.';
+  }
+
+  function countOpenGroups(node){
+    if(!node) return 0;
+    if(!node.question){ return node.members.length>1 ? 1 : 0; }
+    return countOpenGroups(node.yes)+countOpenGroups(node.no);
+  }
+
+  // ---- Drag and drop via Pointer Events ----
+  var dragGhost=null, dragQid=null, dropTargets=[];
+
+  function registerDropTarget(el, node){ dropTargets.push({el:el, node:node}); }
+
+  function onChipPointerDown(e){
+    if(e.button!==undefined && e.button!==0 && e.pointerType==='mouse') return;
+    var chip=e.currentTarget;
+    if(chip.classList.contains('used')) return;
+    dragQid = chip.getAttribute('data-q');
+    chip.setPointerCapture(e.pointerId);
+    chip.classList.add('dragging');
+
+    dragGhost=document.createElement('div');
+    dragGhost.className='qchip';
+    dragGhost.style.position='fixed';
+    dragGhost.style.zIndex='9999';
+    dragGhost.style.pointerEvents='none';
+    dragGhost.style.opacity='.92';
+    dragGhost.style.boxShadow='0 6px 18px rgba(0,0,0,.25)';
+    dragGhost.style.maxWidth='240px';
+    dragGhost.textContent = qById(dragQid).text;
+    document.body.appendChild(dragGhost);
+    moveGhost(e.clientX, e.clientY);
+
+    function move(ev){
+      moveGhost(ev.clientX, ev.clientY);
+      highlightUnder(ev.clientX, ev.clientY);
+    }
+    function up(ev){
+      chip.releasePointerCapture(e.pointerId);
+      chip.removeEventListener('pointermove', move);
+      chip.removeEventListener('pointerup', up);
+      chip.removeEventListener('pointercancel', up);
+      chip.classList.remove('dragging');
+      var target = targetUnder(ev.clientX, ev.clientY);
+      cleanupDrag();
+      if(target){ placeQuestion(target.node, dragQid); }
+      dragQid=null;
+    }
+    chip.addEventListener('pointermove', move);
+    chip.addEventListener('pointerup', up);
+    chip.addEventListener('pointercancel', up);
+  }
+
+  function moveGhost(x,y){ if(dragGhost){ dragGhost.style.left=(x+12)+'px'; dragGhost.style.top=(y+12)+'px'; } }
+
+  function targetUnder(x,y){
+    for(var i=0;i<dropTargets.length;i++){
+      var r=dropTargets[i].el.getBoundingClientRect();
+      if(x>=r.left && x<=r.right && y>=r.top && y<=r.bottom) return dropTargets[i];
+    }
+    return null;
+  }
+  function highlightUnder(x,y){
+    var t=targetUnder(x,y);
+    dropTargets.forEach(function(d){ d.el.classList.toggle('over', d===t); });
+  }
+  function cleanupDrag(){
+    if(dragGhost && dragGhost.parentNode){ dragGhost.parentNode.removeChild(dragGhost); }
+    dragGhost=null;
+    dropTargets.forEach(function(d){ d.el.classList.remove('over'); });
+  }
+
+  // dropTargets are rebuilt each render; clear before render
+  var _origRenderTree = renderTree;
+  renderTree = function(){ dropTargets=[]; _origRenderTree(); };
+
+  // ---- Feedback helper ----
+  function setFeedback(kind, head, body){
+    var f=document.getElementById('feedback');
+    f.className='feedback '+kind;
+    f.innerHTML='<strong>'+head+'</strong>'+body;
+  }
+
+  // ---- Check the key ----
+  function checkKey(){
+    var open = countOpenGroups(root);
+    var depthCount = countQuestions(root);
+    if(!root.question){
+      setFeedback('info','Your key is empty.','Drag a question to the top zone to make the first split.');
+      return;
+    }
+    if(open>0){
+      var leftover = listOpenGroups(root);
+      setFeedback('bad','Not finished yet.',
+        'These groups still hold more than one animal: '+leftover+'. Add a question to each to separate them.');
+      return;
+    }
+    // perfect key: count splits used
+    setFeedback('good','Your key works! &#x1F389;',
+      'Every animal can be reached by a unique path of yes and no answers. You used '+depthCount+' question'+(depthCount===1?'':'s')+'. '+
+      'Now press Test on a mystery animal to try your key live with the class.');
+  }
+
+  function countQuestions(node){ if(!node) return 0; return (node.question?1:0)+countQuestions(node.yes)+countQuestions(node.no); }
+  function listOpenGroups(node){
+    var groups=[];
+    (function walk(n){ if(!n) return; if(!n.question){ if(n.members.length>1) groups.push(memberNames(n.members)); } else { walk(n.yes); walk(n.no);} })(node);
+    return groups.map(function(g){ return '('+g+')'; }).join('; ');
+  }
+
+  // ---- Live test: walk a mystery animal down the key ----
+  var testState=null;
+  function startTest(){
+    if(!root.question){ setFeedback('info','Build a key first.','You need at least one question before you can test the key.'); return; }
+    // pick a random animal as the mystery (hidden identity, shown as "?")
+    var pick = ORGANISMS[Math.floor(Math.random()*ORGANISMS.length)];
+    testState = { animal:pick, node:root, asked:[] };
+    renderTest();
+    setFeedback('info','Mystery animal loaded.','Answer each question honestly about the hidden animal. Your key should land on exactly the right name.');
+  }
+
+  function renderTest(){
+    var card=document.getElementById('testcard');
+    card.style.display='block';
+    var node=testState.node;
+    var a=testState.animal;
+    if(!node.question){
+      // reached a leaf
+      var landed = node.members.length===1 ? orgById(node.members[0]) : null;
+      var correct = landed && landed.id===a.id;
+      var html='<h3>&#x1F9EA; Live test result</h3>';
+      html+='<div class="mystery"><span class="big" aria-hidden="true">'+a.face+'</span>The mystery animal was a <strong>'+a.name+'</strong>.</div>';
+      if(node.members.length===1){
+        if(correct){
+          html+='<div class="qprompt" style="color:#155c34">&#x2705; Your key landed on '+landed.name+'. Correct! The key identified it perfectly.</div>';
+          card.innerHTML=html;
+          setFeedback('good','Key passed the test!','It correctly identified the '+a.name+' from yes and no answers alone. Test another animal or refine your key.');
+        } else {
+          html+='<div class="qprompt" style="color:#8a3527">&#x274C; Your key landed on '+landed.name+', but the animal was a '+a.name+'. A question is splitting them the wrong way. Check the path.</div>';
+          card.innerHTML=html;
+          setFeedback('bad','Key gave the wrong name.','Follow the answers the '+a.name+' would give and see where it ends up. You may need a different question on that branch.');
+        }
+      } else if(node.members.length===0){
+        html+='<div class="qprompt" style="color:#8a3527">&#x26A0;&#xFE0F; The animal reached an empty branch. Your key has a path no animal should take here.</div>';
+        card.innerHTML=html;
+        setFeedback('bad','Dead-end branch.','The '+a.name+'’s answers led to an empty ending. Re-check the splits above.');
+      } else {
+        html+='<div class="qprompt" style="color:#6f5816">&#x26A0;&#xFE0F; The key stopped at a group of '+node.members.length+' ('+memberNames(node.members)+'). It is not finished.</div>';
+        card.innerHTML=html;
+        setFeedback('info','Key not finished.','This branch still holds several animals. Add a question to separate them, then test again.');
+      }
+      html+='<div class="ynrow" style="margin-top:10px"><button class="act gold" id="retest">&#x1F501; Test another animal</button></div>';
+      card.innerHTML=html;
+      document.getElementById('retest').addEventListener('click', startTest);
+      return;
+    }
+    // ask the current question
+    var q=qById(node.question);
+    var html2='<h3>&#x1F9EA; Test the key live</h3>';
+    html2+='<div class="mystery"><span class="big" aria-hidden="true">&#x2753;</span>Mystery animal (identity hidden)</div>';
+    html2+='<div class="qprompt">'+q.text+'</div>';
+    html2+='<div class="ynrow"><button class="act ybtn" id="ansYes">Yes</button><button class="act nbtn" id="ansNo">No</button></div>';
+    html2+='<p class="legend" style="text-align:center">Answer as the hidden animal would. The key decides where to go next.</p>';
+    card.innerHTML=html2;
+
+    function answer(saidYes){
+      var truth=q.fn(a);
+      testState.node = saidYes ? node.yes : node.no;
+      // we let the pupil answer; but the demo auto-evaluates against truth so the test is honest
+      // (the spoken/clicked answer is the pupil's; correctness checked at the leaf)
+      renderTest();
+      var match = (saidYes===truth);
+      if(!match){
+        setFeedback('info','Hmm, check that answer.','For "'+q.text+'", a '+a.name+' would actually answer "'+(truth?'yes':'no')+'". Following the true answers is what tests the key.');
+      }
+    }
+    document.getElementById('ansYes').addEventListener('click', function(){ answer(true); });
+    document.getElementById('ansNo').addEventListener('click', function(){ answer(false); });
+  }
+
+  // ---- Wire up buttons ----
+  document.getElementById('checkBtn').addEventListener('click', checkKey);
+  document.getElementById('testBtn').addEventListener('click', startTest);
+  document.getElementById('resetBtn').addEventListener('click', reset);
+
+  // Init
+  reset();
+})();
+</script>
+</body>
+</html>

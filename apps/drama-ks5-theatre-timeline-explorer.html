@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Theatre Timeline Explorer</title>
+<style>
+  :root{
+    --ink:#1d1a2e;
+    --paper:#f7f4ee;
+    --panel:#ffffff;
+    --line:#d9d2c4;
+    --muted:#6a6378;
+    --accent:#7b3f6e;
+    --accent-soft:#f0e3ec;
+    --gold:#b8863b;
+    --ok:#2f7d52;
+    --okbg:#e4f2e9;
+    --warn:#b3471f;
+    --warnbg:#fbe8e0;
+    --shadow:0 6px 22px rgba(35,25,55,.10);
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:"Segoe UI",Roboto,Helvetica,Arial,system-ui,sans-serif;
+    background:
+      radial-gradient(900px 420px at 12% -8%, #efe6f0 0%, transparent 60%),
+      var(--paper);
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:20px 16px 64px}
+  header.app{margin-bottom:14px}
+  .kicker{
+    display:inline-block;font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;background:var(--accent-soft);
+    padding:5px 11px;border-radius:999px;
+  }
+  h1{font-size:clamp(1.6rem,4.4vw,2.4rem);margin:.4rem 0 .15rem;letter-spacing:-.01em}
+  .aim{
+    font-size:.95rem;color:var(--muted);max-width:64ch;margin:0;
+  }
+  .aim strong{color:var(--ink)}
+  .panel{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--shadow);padding:16px;margin-top:18px;
+  }
+  .panel h2{font-size:1.05rem;margin:0 0 4px}
+  .panel .sub{font-size:.85rem;color:var(--muted);margin:0 0 12px}
+
+  /* Timeline */
+  .timeline-scroll{overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+  .timeline{
+    position:relative;display:flex;gap:0;min-width:760px;padding:34px 6px 10px;
+  }
+  .timeline::before{
+    content:"";position:absolute;left:0;right:0;top:46px;height:4px;
+    background:linear-gradient(90deg,var(--gold),var(--accent));border-radius:4px;opacity:.55;
+  }
+  .era{flex:1 1 0;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 6px;position:relative}
+  .era .yr{font-size:.72rem;color:var(--muted);font-weight:700;margin-bottom:8px;letter-spacing:.03em}
+  .dot{
+    width:18px;height:18px;border-radius:50%;background:#fff;border:4px solid var(--accent);
+    margin-bottom:10px;position:relative;z-index:2;transition:transform .15s ease;
+  }
+  .era-btn{
+    border:1px solid var(--line);background:#fff;border-radius:12px;padding:9px 8px;
+    cursor:pointer;font:inherit;font-weight:600;font-size:.82rem;color:var(--ink);
+    width:100%;transition:all .15s ease;line-height:1.25;
+  }
+  .era-btn .lbl-sub{display:block;font-weight:500;font-size:.7rem;color:var(--muted);margin-top:2px}
+  .era-btn:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .era-btn:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+  .era.active .dot{transform:scale(1.25);background:var(--accent)}
+  .era.active .era-btn{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .era.active .era-btn .lbl-sub{color:#f0dcec}
+
+  /* Detail card */
+  .detail{margin-top:8px}
+  .detail-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;border-bottom:2px solid var(--accent-soft);padding-bottom:10px;margin-bottom:14px}
+  .detail-head h3{margin:0;font-size:1.4rem;color:var(--accent)}
+  .detail-head .era-tag{font-size:.78rem;color:var(--muted);font-weight:700;background:var(--accent-soft);padding:3px 9px;border-radius:999px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:680px){.grid2{grid-template-columns:1fr}}
+  .block h4{margin:0 0 6px;font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
+  .block ul{margin:0;padding-left:18px}
+  .block li{margin-bottom:5px;font-size:.92rem}
+  .plays .play{display:block;font-size:.92rem;margin-bottom:6px}
+  .plays .play b{color:var(--ink)}
+  .plays .play span{color:var(--muted)}
+  .context{background:#faf7f1;border-left:3px solid var(--gold);padding:10px 12px;border-radius:0 8px 8px 0;font-size:.9rem;margin-top:4px}
+
+  /* Staging example */
+  .staging{margin-top:16px;background:var(--accent-soft);border-radius:10px;padding:12px 14px}
+  .staging h4{margin:0 0 6px;color:var(--accent);font-size:.82rem;letter-spacing:.08em;text-transform:uppercase}
+  .staging .scene{font-weight:700;margin-bottom:4px}
+  .staging p{margin:0;font-size:.92rem}
+
+  .hint{color:var(--muted);font-size:.9rem;text-align:center;padding:24px}
+
+  /* Compare / interaction */
+  .compare-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  .pill{
+    border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;cursor:pointer;
+    font:inherit;font-size:.82rem;font-weight:600;color:var(--ink);transition:all .12s ease;
+  }
+  .pill:hover{border-color:var(--accent)}
+  .pill[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .pill:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+  /* Quiz / match challenge */
+  .challenge{margin-top:6px}
+  .conv-card{
+    border:1px solid var(--line);background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:12px;
+  }
+  .conv-text{font-size:1rem;margin:0 0 10px;font-weight:600}
+  .conv-text .qn{color:var(--accent)}
+  .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+  .opt{
+    border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:9px 10px;cursor:pointer;
+    font:inherit;font-size:.86rem;font-weight:600;text-align:left;transition:all .12s ease;
+  }
+  .opt:hover:not(:disabled){border-color:var(--accent);background:var(--accent-soft)}
+  .opt:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+  .opt.correct{background:var(--okbg);border-color:var(--ok);color:#1c5236}
+  .opt.wrong{background:var(--warnbg);border-color:var(--warn);color:#7c2c12}
+  .opt:disabled{cursor:default}
+  .feedback{margin-top:10px;font-size:.9rem;padding:10px 12px;border-radius:8px;display:none}
+  .feedback.show{display:block}
+  .feedback.good{background:var(--okbg);color:#1c5236;border:1px solid #bfe0cc}
+  .feedback.bad{background:var(--warnbg);color:#7c2c12;border:1px solid #f0c7b6}
+  .feedback b{display:block;margin-bottom:2px}
+  .scorebar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
+  .score{font-weight:700;color:var(--accent)}
+  .btn{
+    border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:10px;
+    padding:9px 16px;cursor:pointer;font:inherit;font-weight:700;font-size:.88rem;
+  }
+  .btn.ghost{background:#fff;color:var(--accent)}
+  .btn:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+  .btn:disabled{opacity:.5;cursor:default}
+
+  .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  footer.note{margin-top:26px;font-size:.78rem;color:var(--muted);text-align:center}
+  .progress{font-size:.78rem;color:var(--muted);margin-top:4px}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <span class="kicker">Drama &middot; KS5</span>
+    <h1>Theatre Timeline Explorer</h1>
+    <p class="aim"><strong>Teacher aim:</strong> students place five major theatrical movements in context, then compare their conventions, key plays and staging choices to build evaluative vocabulary for written analysis.</p>
+  </header>
+
+  <!-- TIMELINE -->
+  <section class="panel" aria-labelledby="tl-title">
+    <h2 id="tl-title">1. The timeline</h2>
+    <p class="sub">Select a movement to reveal its conventions, key practitioners and plays, the cultural context, and a worked staging example.</p>
+    <div class="timeline-scroll">
+      <div class="timeline" id="timeline" role="tablist" aria-label="Theatrical movements timeline"></div>
+    </div>
+  </section>
+
+  <!-- DETAIL -->
+  <section class="panel detail" aria-labelledby="dt-title">
+    <h2 id="dt-title" class="visually-hidden">Movement detail</h2>
+    <div id="detail" role="tabpanel" aria-live="polite" tabindex="0">
+      <p class="hint">Choose a movement on the timeline above to begin.</p>
+    </div>
+  </section>
+
+  <!-- COMPARE: same scene, different style -->
+  <section class="panel" aria-labelledby="cmp-title">
+    <h2 id="cmp-title">2. One moment, five styles</h2>
+    <p class="sub">A king learns of betrayal. See how each movement would stage that single dramatic beat. Toggle a style to compare its staging logic.</p>
+    <div class="compare-toolbar" id="compareToolbar" role="group" aria-label="Choose a style to view its staging of the betrayal scene"></div>
+    <div id="compareOut" aria-live="polite"></div>
+  </section>
+
+  <!-- CHALLENGE -->
+  <section class="panel" aria-labelledby="ch-title">
+    <h2 id="ch-title">3. Spot the convention</h2>
+    <p class="sub">A convention or staging choice is described. Identify which movement it belongs to. You get specific feedback on every answer.</p>
+    <div class="challenge" id="challenge">
+      <div class="conv-card">
+        <p class="conv-text" id="qText"><span class="qn">Press Start</span> to begin the challenge.</p>
+        <div class="opts" id="qOpts"></div>
+        <div class="feedback" id="qFeedback" role="status" aria-live="polite"></div>
+      </div>
+      <div class="scorebar">
+        <button class="btn" id="startBtn">Start challenge</button>
+        <button class="btn ghost" id="nextBtn" disabled>Next question</button>
+        <span class="score" id="score" aria-live="polite"></span>
+        <span class="progress" id="qProgress"></span>
+      </div>
+    </div>
+  </section>
+
+  <footer class="note">Theatre Timeline Explorer. Demonstration resource for KS5 Drama and Theatre. All staging examples are illustrative teaching models.</footer>
+</div>
+
+<script>
+"use strict";
+
+/* ----------------------------------------------------------
+   DATA: five movements on the strand
+   "Theatre history, genres and styles in context"
+---------------------------------------------------------- */
+const MOVEMENTS = [
+  {
+    id:"greek",
+    name:"Greek Tragedy",
+    era:"c. 525 to 388 BCE",
+    short:"Athens, Classical",
+    conventions:[
+      "Chorus comments on the action and voices the community",
+      "Masks and cothurnus boots, played by few male actors",
+      "Unity of time, place and action; violence kept offstage",
+      "Episodes alternate with choral odes (stasimon)"
+    ],
+    practitioners:"Sophocles, Euripides, Aeschylus; theory by Aristotle (Poetics).",
+    plays:[
+      {t:"Oedipus Rex", a:"Sophocles, c. 429 BCE"},
+      {t:"Medea", a:"Euripides, 431 BCE"},
+      {t:"The Oresteia", a:"Aeschylus, 458 BCE"}
+    ],
+    context:"Performed at the City Dionysia, a civic and religious festival. Theatre was a public ritual that examined fate, the gods and the duties of the citizen.",
+    staging:{
+      scene:"Worked example: the messenger speech",
+      text:"Jocasta's death happens offstage. A masked messenger enters the orchestra and narrates it to the audience while the chorus reacts in unison. The horror is reported, not shown, focusing the audience on consequence and catharsis rather than spectacle."
+    }
+  },
+  {
+    id:"naturalism",
+    name:"Naturalism",
+    era:"c. 1880 to 1910",
+    short:"Europe, Industrial age",
+    conventions:[
+      "The fourth wall: actors ignore the audience",
+      "Detailed, lifelike box sets and properties",
+      "Psychologically motivated, ordinary characters",
+      "Cause and effect: environment and heredity shape behaviour"
+    ],
+    practitioners:"Konstantin Stanislavski (system), Henrik Ibsen, Anton Chekhov, Emile Zola.",
+    plays:[
+      {t:"A Doll's House", a:"Ibsen, 1879"},
+      {t:"The Seagull", a:"Chekhov, 1896"},
+      {t:"Miss Julie", a:"Strindberg, 1888"}
+    ],
+    context:"A response to science, Darwin and industrial society. Theatre claimed to show life objectively, exposing social problems such as the position of women and class.",
+    staging:{
+      scene:"Worked example: the quiet revelation",
+      text:"The betrayal is delivered in a furnished sitting room. The actor playing the king stays inside the fourth wall, using subtext and a small physical action (setting down a teacup) so the audience reads truth in restraint, not declamation."
+    }
+  },
+  {
+    id:"epic",
+    name:"Epic Theatre",
+    era:"c. 1920 to 1956",
+    short:"Weimar Germany, post-war",
+    conventions:[
+      "Verfremdungseffekt: deliberately breaking illusion",
+      "Direct address, placards, songs interrupting the action",
+      "Visible technical apparatus; episodic, non-linear plot",
+      "Gestus: a gesture that reveals a social relationship"
+    ],
+    practitioners:"Bertolt Brecht, Erwin Piscator; later Joan Littlewood.",
+    plays:[
+      {t:"Mother Courage and Her Children", a:"Brecht, 1939"},
+      {t:"The Caucasian Chalk Circle", a:"Brecht, 1944"},
+      {t:"Life of Galileo", a:"Brecht, 1938"}
+    ],
+    context:"Written against the rise of fascism and capitalism. Brecht wanted a thinking, critical spectator, not an emotionally swept-up one: theatre as a tool for social change.",
+    staging:{
+      scene:"Worked example: the interrupting song",
+      text:"As the king hears of betrayal, the lights snap to full, an actor steps forward holding a placard reading 'How the powerful protect themselves' and sings a number to the audience. Emotion is interrupted so the audience judges the politics of power rather than weeps for the king."
+    }
+  },
+  {
+    id:"absurd",
+    name:"Theatre of the Absurd",
+    era:"c. 1950 to 1965",
+    short:"Post-war Europe",
+    conventions:[
+      "Circular or static plots; little resolution",
+      "Language breaks down; dialogue is repetitive or illogical",
+      "Existential themes: meaninglessness, waiting, isolation",
+      "Tragicomic tone; clowning beside despair"
+    ],
+    practitioners:"Samuel Beckett, Eugene Ionesco, Harold Pinter (early).",
+    plays:[
+      {t:"Waiting for Godot", a:"Beckett, 1953"},
+      {t:"The Bald Soprano", a:"Ionesco, 1950"},
+      {t:"Endgame", a:"Beckett, 1957"}
+    ],
+    context:"A reaction to the trauma of two world wars and a loss of faith in reason and religion. If existence has no fixed meaning, conventional plot and logic can no longer hold.",
+    staging:{
+      scene:"Worked example: the news that goes nowhere",
+      text:"A bare stage, one withered tree. The king is told of betrayal, pauses, says 'Ah', and the line is repeated by the other actor. Nothing changes; they sit. The lack of reaction and the empty space stage the futility itself."
+    }
+  },
+  {
+    id:"physical",
+    name:"Physical Theatre",
+    era:"c. 1960 to present",
+    short:"Contemporary, international",
+    conventions:[
+      "The body is the primary storytelling tool",
+      "Ensemble work: actors build set and image with their bodies",
+      "Devised from movement, not always from a script",
+      "Multi-rolling, transformation, choral physicality"
+    ],
+    practitioners:"Jacques Lecoq (training), Steven Berkoff, DV8, Frantic Assembly, Complicite.",
+    plays:[
+      {t:"The Curious Incident (stage)", a:"Frantic Assembly / NT, 2012"},
+      {t:"A Mouthful of Birds", a:"Caryl Churchill & David Lan, 1986"},
+      {t:"Metamorphosis (Berkoff)", a:"Berkoff, 1969"}
+    ],
+    context:"Grew from movement training and a rejection of text-bound theatre. Companies devise collaboratively, drawing on dance, mime and ensemble to tell stories the body can show.",
+    staging:{
+      scene:"Worked example: the body as betrayal",
+      text:"No furniture. The ensemble lifts the king above their heads, then drops the support so he falls through the group as the news lands. The betrayal is shown as a physical collapse of trust, a single image the audience feels in the body."
+    }
+  }
+];
+
+/* ---------------- TIMELINE BUILD ---------------- */
+const timelineEl = document.getElementById("timeline");
+const detailEl = document.getElementById("detail");
+let activeId = null;
+
+MOVEMENTS.forEach((m, i) => {
+  const era = document.createElement("div");
+  era.className = "era";
+  era.dataset.id = m.id;
+
+  const yr = document.createElement("div");
+  yr.className = "yr";
+  yr.textContent = m.era.replace("c. ","");
+
+  const dot = document.createElement("div");
+  dot.className = "dot";
+  dot.setAttribute("aria-hidden","true");
+
+  const btn = document.createElement("button");
+  btn.className = "era-btn";
+  btn.type = "button";
+  btn.setAttribute("role","tab");
+  btn.id = "tab-" + m.id;
+  btn.setAttribute("aria-selected","false");
+  btn.setAttribute("aria-controls","detail");
+  btn.innerHTML = m.name + '<span class="lbl-sub">' + m.short + '</span>';
+  btn.addEventListener("click", () => selectMovement(m.id));
+  btn.addEventListener("keydown", (e) => handleTabKeys(e, i));
+
+  era.appendChild(yr);
+  era.appendChild(dot);
+  era.appendChild(btn);
+  timelineEl.appendChild(era);
+});
+
+function handleTabKeys(e, i){
+  let next = null;
+  if(e.key === "ArrowRight" || e.key === "ArrowDown") next = (i+1) % MOVEMENTS.length;
+  else if(e.key === "ArrowLeft" || e.key === "ArrowUp") next = (i-1+MOVEMENTS.length) % MOVEMENTS.length;
+  else if(e.key === "Home") next = 0;
+  else if(e.key === "End") next = MOVEMENTS.length-1;
+  if(next !== null){
+    e.preventDefault();
+    const t = document.getElementById("tab-" + MOVEMENTS[next].id);
+    t.focus();
+    selectMovement(MOVEMENTS[next].id);
+  }
+}
+
+function selectMovement(id){
+  activeId = id;
+  const m = MOVEMENTS.find(x => x.id === id);
+  document.querySelectorAll(".era").forEach(e => {
+    const on = e.dataset.id === id;
+    e.classList.toggle("active", on);
+    const tab = e.querySelector(".era-btn");
+    tab.setAttribute("aria-selected", on ? "true" : "false");
+    tab.tabIndex = on ? 0 : -1;
+  });
+
+  const playsHtml = m.plays.map(p =>
+    '<span class="play"><b>' + p.t + '</b> <span>(' + p.a + ')</span></span>'
+  ).join("");
+  const convHtml = m.conventions.map(c => '<li>' + c + '</li>').join("");
+
+  detailEl.innerHTML =
+    '<div class="detail-head">' +
+      '<h3>' + m.name + '</h3>' +
+      '<span class="era-tag">' + m.era + ' &middot; ' + m.short + '</span>' +
+    '</div>' +
+    '<div class="grid2">' +
+      '<div class="block"><h4>Key conventions</h4><ul>' + convHtml + '</ul></div>' +
+      '<div class="block plays"><h4>Key plays &amp; practitioners</h4>' + playsHtml +
+        '<p class="context"><b>Context.</b> ' + m.context + '</p>' +
+      '</div>' +
+    '</div>' +
+    '<div class="staging"><h4>Staging example</h4>' +
+      '<div class="scene">' + m.staging.scene + '</div>' +
+      '<p>' + m.staging.text + '</p>' +
+    '</div>';
+}
+
+/* ---------------- COMPARE TOOLBAR ---------------- */
+const compareToolbar = document.getElementById("compareToolbar");
+const compareOut = document.getElementById("compareOut");
+let compareActive = null;
+
+MOVEMENTS.forEach(m => {
+  const p = document.createElement("button");
+  p.className = "pill";
+  p.type = "button";
+  p.textContent = m.name;
+  p.setAttribute("aria-pressed","false");
+  p.addEventListener("click", () => {
+    if(compareActive === m.id){ compareActive = null; }
+    else { compareActive = m.id; }
+    renderCompare();
+  });
+  p.dataset.id = m.id;
+  compareToolbar.appendChild(p);
+});
+
+function renderCompare(){
+  compareToolbar.querySelectorAll(".pill").forEach(p =>
+    p.setAttribute("aria-pressed", p.dataset.id === compareActive ? "true" : "false")
+  );
+  if(!compareActive){
+    compareOut.innerHTML = '<p class="hint">Pick a style above to see how it would stage the same betrayal beat.</p>';
+    return;
+  }
+  const m = MOVEMENTS.find(x => x.id === compareActive);
+  compareOut.innerHTML =
+    '<div class="staging"><h4>' + m.name + ' &middot; the betrayal beat</h4>' +
+    '<div class="scene">' + m.staging.scene + '</div>' +
+    '<p>' + m.staging.text + '</p></div>';
+}
+renderCompare();
+
+/* ---------------- CHALLENGE ---------------- */
+/* Each question: a description; correct movement id; tailored explanations. */
+const QUESTIONS = [
+  {
+    q:"The actor turns to the audience holding a placard and a song interrupts the scene so we judge the politics instead of feeling swept along.",
+    answer:"epic",
+    why:{
+      epic:"Correct. Direct address, placards and interrupting songs are core Verfremdungseffekt devices used by Brecht to keep the spectator critical.",
+      _:"Look again: breaking the illusion deliberately with placards and songs to make the audience think is the signature of Epic Theatre (Brecht)."
+    }
+  },
+  {
+    q:"Two figures wait by a single withered tree. The dialogue repeats, nothing is resolved, and the emptiness becomes the point.",
+    answer:"absurd",
+    why:{
+      absurd:"Correct. Circular plots, breaking-down language and an existential sense of futility define the Theatre of the Absurd (Beckett).",
+      _:"This is Theatre of the Absurd: static plot, repetitive language and meaninglessness, as in Waiting for Godot."
+    }
+  },
+  {
+    q:"A masked performer narrates a death that happened offstage while a chorus reacts in unison at a civic festival.",
+    answer:"greek",
+    why:{
+      greek:"Correct. Masks, a commenting chorus and keeping violence offstage (reported by a messenger) are hallmarks of Greek Tragedy.",
+      _:"These are Greek Tragedy conventions: masks, the chorus, the messenger speech and offstage violence."
+    }
+  },
+  {
+    q:"In a fully furnished sitting room the actor stays behind the fourth wall, using subtext and a tiny gesture to reveal psychological truth.",
+    answer:"naturalism",
+    why:{
+      naturalism:"Correct. The fourth wall, lifelike box set and psychologically motivated, restrained acting are Naturalism (Stanislavski, Ibsen, Chekhov).",
+      _:"This is Naturalism: the fourth wall, a realistic box set and subtext-driven, motivated performance."
+    }
+  },
+  {
+    q:"With no set at all, the ensemble lifts a performer overhead then drops the support so the body itself shows a collapse of trust.",
+    answer:"physical",
+    why:{
+      physical:"Correct. The body as the main storytelling tool and ensemble image-making are central to Physical Theatre (Frantic Assembly, Lecoq).",
+      _:"This is Physical Theatre: the ensemble builds meaning through the body and shared movement rather than set or text."
+    }
+  },
+  {
+    q:"The plot obeys unity of time and place, the gods and fate are examined, and the work is performed as part of a religious festival.",
+    answer:"greek",
+    why:{
+      greek:"Correct. The classical unities, themes of fate and the festival context (City Dionysia) place this firmly in Greek Tragedy.",
+      _:"The unities, fate and the religious festival setting point to Greek Tragedy."
+    }
+  },
+  {
+    q:"Gestus is used: a single carefully chosen gesture exposes the social relationship and economic power between two characters.",
+    answer:"epic",
+    why:{
+      epic:"Correct. Gestus is Brecht's term for a gesture that reveals a social or economic relationship, a key Epic Theatre device.",
+      _:"Gestus, a gesture revealing a social relationship, is a defining Epic Theatre (Brecht) technique."
+    }
+  },
+  {
+    q:"The play claims to show life objectively, exposing a social problem such as a woman's position, shaped by environment and heredity.",
+    answer:"naturalism",
+    why:{
+      naturalism:"Correct. The objective, scientific view of life and social problems shaped by environment and heredity is Naturalism (Ibsen, Zola).",
+      _:"An objective, science-influenced exposure of social problems is the project of Naturalism."
+    }
+  }
+];
+
+const qText = document.getElementById("qText");
+const qOpts = document.getElementById("qOpts");
+const qFeedback = document.getElementById("qFeedback");
+const startBtn = document.getElementById("startBtn");
+const nextBtn = document.getElementById("nextBtn");
+const scoreEl = document.getElementById("score");
+const qProgress = document.getElementById("qProgress");
+
+let order = [];
+let qIndex = -1;
+let score = 0;
+let answered = false;
+
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+function startChallenge(){
+  order = shuffle(QUESTIONS.map((_,i)=>i));
+  qIndex = -1;
+  score = 0;
+  scoreEl.textContent = "";
+  startBtn.disabled = true;
+  startBtn.textContent = "Restart";
+  startBtn.disabled = false;
+  nextQuestion();
+}
+
+function nextQuestion(){
+  answered = false;
+  qIndex++;
+  if(qIndex >= order.length){
+    finishChallenge();
+    return;
+  }
+  const q = QUESTIONS[order[qIndex]];
+  qText.innerHTML = '<span class="qn">Q' + (qIndex+1) + '.</span> Which movement is this? <br>' + q.q;
+  qProgress.textContent = "Question " + (qIndex+1) + " of " + order.length;
+  qFeedback.className = "feedback";
+  qFeedback.innerHTML = "";
+  nextBtn.disabled = true;
+
+  // build shuffled options (all five movements)
+  qOpts.innerHTML = "";
+  shuffle(MOVEMENTS).forEach(m => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.type = "button";
+    b.textContent = m.name;
+    b.dataset.id = m.id;
+    b.addEventListener("click", () => answer(m.id, q, b));
+    qOpts.appendChild(b);
+  });
+}
+
+function answer(chosenId, q, btnEl){
+  if(answered) return;
+  answered = true;
+  const correct = q.answer;
+  const buttons = qOpts.querySelectorAll(".opt");
+  buttons.forEach(b => {
+    b.disabled = true;
+    if(b.dataset.id === correct) b.classList.add("correct");
+    if(b.dataset.id === chosenId && chosenId !== correct) b.classList.add("wrong");
+  });
+
+  const isRight = chosenId === correct;
+  if(isRight) score++;
+  scoreEl.textContent = "Score: " + score + " / " + (qIndex+1);
+
+  const expl = isRight ? q.why[correct] : q.why._;
+  const chosenName = MOVEMENTS.find(x=>x.id===chosenId).name;
+  qFeedback.className = "feedback show " + (isRight ? "good" : "bad");
+  qFeedback.innerHTML = '<b>' + (isRight ? "Correct." : ("Not quite. You chose " + chosenName + ".")) + '</b>' + expl;
+
+  nextBtn.disabled = false;
+  nextBtn.focus();
+}
+
+function finishChallenge(){
+  const pct = Math.round((score/order.length)*100);
+  let verdict;
+  if(pct === 100) verdict = "Outstanding: you can identify every movement by its conventions.";
+  else if(pct >= 75) verdict = "Strong: secure on most movements. Revisit any you confused above.";
+  else if(pct >= 50) verdict = "Developing: review the timeline cards, especially conventions, then retry.";
+  else verdict = "Keep going: explore each movement on the timeline, then run the challenge again.";
+
+  qText.innerHTML = '<span class="qn">Finished.</span> You scored ' + score + ' out of ' + order.length + ' (' + pct + '%).';
+  qProgress.textContent = "";
+  qOpts.innerHTML = "";
+  qFeedback.className = "feedback show " + (pct>=75 ? "good" : "bad");
+  qFeedback.innerHTML = '<b>' + pct + '%</b>' + verdict;
+  nextBtn.disabled = true;
+  scoreEl.textContent = "Final score: " + score + " / " + order.length;
+}
+
+startBtn.addEventListener("click", startChallenge);
+nextBtn.addEventListener("click", nextQuestion);
+
+/* Default: open the first movement so the projector is never blank */
+selectMovement("greek");
+</script>
+</body>
+</html>

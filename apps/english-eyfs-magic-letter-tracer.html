@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magic Letter Tracer</title>
+<style>
+:root {
+    --bg: #eef3ff;
+    --card-bg: #ffffff;
+    --text: #1e2a4a;
+    --text-light: #6b7ba0;
+    --accent: #5b6cf0;
+    --accent-light: #eef1ff;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --warn: #ea580c;
+    --warn-light: #fff1e6;
+    --pink: #ec4899;
+    --teal: #0d9488;
+    --yellow: #eab308;
+    --border: #dfe6ff;
+    --shadow: 0 4px 16px rgba(40,40,120,0.10);
+    --shadow-lg: 0 8px 30px rgba(40,40,120,0.18);
+    --radius: 20px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+    -webkit-text-size-adjust: 100%;
+}
+
+.header {
+    background: linear-gradient(135deg, #5b6cf0, #a78bfa, #ec4899);
+    color: white;
+    padding: 16px 20px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    position: relative;
+    z-index: 5;
+}
+.header h1 { font-size: 1.7rem; font-weight: 900; letter-spacing: -0.5px; text-shadow: 2px 2px 0 rgba(0,0,0,0.10); }
+.header .aim { font-size: 0.85rem; opacity: 0.95; font-weight: 600; margin-top: 4px; max-width: 640px; margin-left: auto; margin-right: auto; }
+
+.main { max-width: 720px; margin: 0 auto; padding: 16px; }
+
+/* Mode tabs */
+.tabs {
+    display: flex;
+    gap: 8px;
+    background: var(--card-bg);
+    padding: 6px;
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+}
+.tab {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 12px 8px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-light);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, color 0.15s;
+}
+.tab[aria-selected="true"] { background: var(--accent); color: #fff; box-shadow: var(--shadow); }
+.tab:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* Family chips */
+.section-label {
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-light);
+    margin: 4px 2px 10px;
+}
+.family-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.family-chip {
+    border: 2px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.family-chip .dot { width: 12px; height: 12px; border-radius: 50%; }
+.family-chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-light); box-shadow: var(--shadow); }
+.family-chip:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+
+/* Letter picker */
+.letter-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.letter-btn {
+    width: 42px; height: 46px;
+    border: 2px solid var(--border);
+    background: var(--card-bg);
+    border-radius: 12px;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'Comic Sans MS', 'Comic Sans', 'Chalkboard SE', cursive, sans-serif;
+}
+.letter-btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: #fff; box-shadow: var(--shadow); }
+.letter-btn:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+
+/* Board */
+.board-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 14px;
+    margin-bottom: 14px;
+}
+.board-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.board-title { font-weight: 800; font-size: 1rem; }
+.family-tag {
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: #fff;
+}
+
+.canvas-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-width: 460px;
+    margin: 0 auto;
+    background: #fcfdff;
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    touch-action: none;
+}
+.canvas-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+/* Guide letter */
+.guide-letter { fill: none; stroke: #d7def7; stroke-width: 14; stroke-linecap: round; stroke-linejoin: round; }
+.replay-path { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+.user-path { fill: none; stroke: var(--pink); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; opacity: 0.9; }
+.start-dot { fill: var(--success); stroke: #fff; stroke-width: 3; }
+.start-ring { fill: none; stroke: var(--success); stroke-width: 3; }
+.arrow-head { fill: var(--warn); }
+
+.feedback {
+    text-align: center;
+    font-weight: 800;
+    font-size: 1.02rem;
+    padding: 12px;
+    border-radius: 14px;
+    margin: 12px auto 0;
+    max-width: 460px;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--border);
+    background: var(--accent-light);
+    color: var(--text);
+}
+.feedback.good { background: var(--success-light); border-color: var(--success); color: #14532d; }
+.feedback.try { background: var(--warn-light); border-color: var(--warn); color: #7c2d12; }
+
+.controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
+.btn {
+    border: none;
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 0.92rem;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.btn-primary { background: var(--accent); color: #fff; box-shadow: var(--shadow); }
+.btn-soft { background: var(--accent-light); color: var(--accent); border: 2px solid var(--border); }
+.btn-success { background: var(--success); color: #fff; box-shadow: var(--shadow); }
+.btn:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+.btn:active { transform: translateY(1px); }
+
+.tip {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    text-align: center;
+    margin-top: 10px;
+    font-weight: 600;
+}
+
+/* Spell mode */
+.spell-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 18px 16px;
+    text-align: center;
+}
+.spell-prompt { font-size: 1.05rem; font-weight: 700; color: var(--text-light); }
+.spell-word-emoji { font-size: 3.6rem; line-height: 1.2; margin: 6px 0; }
+.spell-sounds { font-size: 0.95rem; color: var(--text-light); font-weight: 700; margin-bottom: 14px; }
+.spell-slots { display: flex; gap: 8px; justify-content: center; margin: 14px 0; flex-wrap: wrap; min-height: 64px; }
+.slot {
+    width: 54px; height: 60px;
+    border: 3px dashed var(--border);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.8rem; font-weight: 800;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif;
+    color: var(--accent);
+    background: var(--accent-light);
+}
+.slot.filled { border-style: solid; background: #fff; }
+.tile-tray { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 14px 0; }
+.tile {
+    width: 50px; height: 56px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(160deg, #ffd166, #f4a300);
+    color: #5b3a00;
+    font-size: 1.6rem; font-weight: 800;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+}
+.tile:disabled { opacity: 0.35; cursor: default; }
+.tile:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.spell-feedback {
+    font-weight: 800; font-size: 1.05rem; min-height: 30px; margin: 8px 0;
+}
+.spell-feedback.good { color: var(--success); }
+.spell-feedback.try { color: var(--warn); }
+
+.sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+.footer-note { text-align: center; font-size: 0.78rem; color: var(--text-light); padding: 16px; font-weight: 600; }
+
+@media (max-width: 480px) {
+    .header h1 { font-size: 1.4rem; }
+    .letter-btn { width: 38px; height: 42px; font-size: 1.25rem; }
+    .tab { font-size: 0.85rem; }
+}
+</style>
+</head>
+<body>
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="header">
+    <h1>&#x270D;&#xFE0F; Magic Letter Tracer</h1>
+    <p class="aim">Teacher aim: show correct lower-case letter formation by family, then segment sounds to spell simple words. EYFS early writing.</p>
+</header>
+
+<main class="main">
+    <div class="tabs" role="tablist" aria-label="Choose an activity">
+        <button class="tab" id="tab-trace" role="tab" aria-selected="true" aria-controls="panel-trace">&#x270F;&#xFE0F; Trace a letter</button>
+        <button class="tab" id="tab-spell" role="tab" aria-selected="false" aria-controls="panel-spell">&#x1F50A; Hear it, spell it</button>
+    </div>
+
+    <!-- TRACE PANEL -->
+    <section class="panel active" id="panel-trace" role="tabpanel" aria-labelledby="tab-trace">
+        <p class="section-label">1. Pick a letter family</p>
+        <div class="family-row" id="familyRow" role="group" aria-label="Letter families"></div>
+
+        <p class="section-label">2. Pick a letter</p>
+        <div class="letter-row" id="letterRow" role="group" aria-label="Letters in this family"></div>
+
+        <div class="board-card">
+            <div class="board-head">
+                <span class="board-title">3. Trace from the green dot, following the arrows</span>
+                <span class="family-tag" id="familyTag">Family</span>
+            </div>
+            <div class="canvas-wrap" id="canvasWrap">
+                <svg id="svg" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet"
+                     role="application" aria-label="Letter tracing board. Use the Show me button to watch the stroke, then trace over it.">
+                    <defs>
+                        <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M0,0 L10,5 L0,10 z" class="arrow-head"></path>
+                        </marker>
+                    </defs>
+                    <path id="guidePath" class="guide-letter"></path>
+                    <g id="arrowGroup"></g>
+                    <path id="replayPath" class="replay-path"></path>
+                    <path id="userPath" class="user-path"></path>
+                    <circle id="startRing" class="start-ring" r="18"></circle>
+                    <circle id="startDot" class="start-dot" r="9"></circle>
+                </svg>
+            </div>
+            <div class="feedback" id="traceFeedback" role="status" aria-live="polite">Pick a letter, press "Show me", then trace it.</div>
+            <div class="controls">
+                <button class="btn btn-primary" id="showMeBtn">&#x25B6;&#xFE0F; Show me</button>
+                <button class="btn btn-soft" id="clearBtn">&#x1F9FD; Clear my tracing</button>
+            </div>
+            <p class="tip">Tip for the board: the dot shows where to start; orange arrows show which way to go.</p>
+        </div>
+    </section>
+
+    <!-- SPELL PANEL -->
+    <section class="panel" id="panel-spell" role="tabpanel" aria-labelledby="tab-spell" hidden>
+        <div class="spell-card">
+            <p class="spell-prompt">Sound out the word, then build it with the letter tiles.</p>
+            <div class="spell-word-emoji" id="wordEmoji" aria-hidden="true">&#x1F431;</div>
+            <p class="spell-sounds" id="wordSounds">Listen to the sounds</p>
+            <div class="controls" style="margin-top:0;margin-bottom:6px;">
+                <button class="btn btn-soft" id="hearWordBtn">&#x1F50A; Say the sounds</button>
+            </div>
+            <div class="spell-slots" id="spellSlots" aria-label="Your word so far"></div>
+            <div class="spell-feedback" id="spellFeedback" role="status" aria-live="polite">&nbsp;</div>
+            <p class="section-label" style="text-align:center;">Letter tiles</p>
+            <div class="tile-tray" id="tileTray" role="group" aria-label="Letter tiles to choose from"></div>
+            <div class="controls">
+                <button class="btn btn-soft" id="undoTileBtn">&#x21A9;&#xFE0F; Undo</button>
+                <button class="btn btn-success" id="nextWordBtn">&#x1F195; New word</button>
+            </div>
+        </div>
+    </section>
+</main>
+
+<p class="footer-note">WeST classroom demo. Fictional examples only. Works offline.</p>
+
+<div class="sr-only" id="srLive" aria-live="assertive"></div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   LETTER FORMATION DATA
+   Each letter is defined as one or more stroke segments in a
+   400x400 viewBox. Points trace the correct EYFS formation.
+   Letters are grouped into the standard formation families used
+   in EYFS handwriting teaching.
+   ============================================================ */
+
+// Helper builders for common shapes (kept readable, not pixel-perfect type).
+function strokePath(points){
+    return points.map(function(p,i){ return (i===0?"M":"L")+p[0]+" "+p[1]; }).join(" ");
+}
+
+// A "letter" = { strokes: [ [ [x,y],... ], ... ], start:[x,y], arrows:[ {x,y,angle} ] }
+// angle is degrees, 0 = pointing right.
+var LETTERS = {
+    // --- Curly caterpillar (anti-clockwise round letters) ---
+    c: {
+        family: "curly",
+        strokes: [ [[270,150],[230,120],[180,120],[140,150],[120,200],[140,250],[180,280],[230,280],[270,250]] ],
+        start: [270,150],
+        arrows: [ {x:170,y:118,angle:180}, {x:122,y:200,angle:90}, {x:240,y:281,angle:0} ]
+    },
+    a: {
+        family: "curly",
+        strokes: [
+            [[250,150],[210,120],[170,125],[140,160],[135,210],[160,255],[210,265],[250,235]],
+            [[250,120],[250,270]]
+        ],
+        start: [250,150],
+        arrows: [ {x:160,y:122,angle:185}, {x:130,y:200,angle:95}, {x:250,y:200,angle:90} ]
+    },
+    o: {
+        family: "curly",
+        strokes: [ [[250,150],[210,120],[170,120],[140,155],[130,205],[150,255],[195,278],[245,260],[262,210],[250,150]] ],
+        start: [250,150],
+        arrows: [ {x:165,y:121,angle:185}, {x:127,y:205,angle:95}, {x:255,y:200,angle:280} ]
+    },
+    d: {
+        family: "curly",
+        strokes: [
+            [[250,150],[210,120],[170,125],[140,160],[135,210],[160,255],[210,265],[250,235]],
+            [[250,80],[250,270]]
+        ],
+        start: [250,150],
+        arrows: [ {x:160,y:122,angle:185}, {x:130,y:200,angle:95}, {x:250,y:175,angle:90} ]
+    },
+    g: {
+        family: "curly",
+        strokes: [
+            [[250,150],[210,120],[170,125],[140,160],[135,210],[160,255],[210,265],[250,235]],
+            [[250,120],[250,300],[225,330],[180,335],[145,315]]
+        ],
+        start: [250,150],
+        arrows: [ {x:160,y:122,angle:185}, {x:250,y:230,angle:90}, {x:165,y:333,angle:185} ]
+    },
+    q: {
+        family: "curly",
+        strokes: [
+            [[250,150],[210,120],[170,125],[140,160],[135,210],[160,255],[210,265],[250,235]],
+            [[250,120],[250,320],[280,335]]
+        ],
+        start: [250,150],
+        arrows: [ {x:160,y:122,angle:185}, {x:250,y:240,angle:90}, {x:268,y:330,angle:20} ]
+    },
+    e: {
+        family: "curly",
+        strokes: [ [[135,205],[265,205],[260,160],[220,128],[175,128],[140,160],[128,210],[145,255],[195,278],[250,262]] ],
+        start: [135,205],
+        arrows: [ {x:200,y:203,angle:0}, {x:175,y:126,angle:185}, {x:127,y:215,angle:100}, {x:230,y:272,angle:340} ]
+    },
+    s: {
+        family: "curly",
+        strokes: [ [[255,150],[215,120],[170,125],[145,155],[160,190],[210,205],[250,225],[255,265],[225,290],[175,292],[140,265]] ],
+        start: [255,150],
+        arrows: [ {x:180,y:121,angle:185}, {x:240,y:220,angle:80}, {x:175,y:292,angle:185} ]
+    },
+    f: {
+        family: "curly",
+        strokes: [
+            [[255,120],[215,95],[180,105],[170,150],[170,300],[150,330]],
+            [[120,180],[235,180]]
+        ],
+        start: [255,120],
+        arrows: [ {x:190,y:100,angle:200}, {x:170,y:250,angle:90}, {x:180,y:178,angle:0} ]
+    },
+    // --- Long ladder (down then back up/over) ---
+    l: {
+        family: "ladder",
+        strokes: [ [[200,90],[200,300]] ],
+        start: [200,90],
+        arrows: [ {x:200,y:200,angle:90} ]
+    },
+    i: {
+        family: "ladder",
+        strokes: [ [[200,150],[200,300]] ],
+        start: [200,150],
+        arrows: [ {x:200,y:230,angle:90} ],
+        extras: [ {type:"dot", x:200, y:105, r:11} ]
+    },
+    t: {
+        family: "ladder",
+        strokes: [
+            [[200,100],[200,280],[235,300]],
+            [[150,160],[255,160]]
+        ],
+        start: [200,100],
+        arrows: [ {x:200,y:220,angle:90}, {x:200,y:158,angle:0} ]
+    },
+    u: {
+        family: "ladder",
+        strokes: [ [[150,150],[150,250],[175,280],[215,280],[245,250],[245,150],[245,300]] ],
+        start: [150,150],
+        arrows: [ {x:150,y:215,angle:90}, {x:200,y:281,angle:0}, {x:245,y:230,angle:90} ]
+    },
+    j: {
+        family: "ladder",
+        strokes: [ [[225,150],[225,310],[200,335],[160,335],[135,310]] ],
+        start: [225,150],
+        arrows: [ {x:225,y:240,angle:90}, {x:175,y:335,angle:185} ],
+        extras: [ {type:"dot", x:225, y:105, r:11} ]
+    },
+    y: {
+        family: "ladder",
+        strokes: [
+            [[150,150],[150,250],[175,280],[215,280],[245,250],[245,150]],
+            [[245,150],[245,310],[215,335],[175,330]]
+        ],
+        start: [150,150],
+        arrows: [ {x:150,y:215,angle:90}, {x:245,y:240,angle:90}, {x:185,y:333,angle:185} ]
+    },
+    // --- One-armed robot (down, up, over and round) ---
+    r: {
+        family: "robot",
+        strokes: [ [[150,150],[150,300]], [[150,180],[170,150],[210,135],[250,150]] ],
+        start: [150,150],
+        arrows: [ {x:150,y:230,angle:90}, {x:200,y:138,angle:340} ]
+    },
+    n: {
+        family: "robot",
+        strokes: [ [[150,150],[150,300]], [[150,190],[175,155],[215,150],[245,180],[245,300]] ],
+        start: [150,150],
+        arrows: [ {x:150,y:230,angle:90}, {x:200,y:152,angle:0}, {x:245,y:240,angle:90} ]
+    },
+    m: {
+        family: "robot",
+        strokes: [ [[130,150],[130,300]], [[130,190],[150,158],[185,153],[205,180],[205,300]], [[205,190],[225,158],[260,153],[280,180],[280,300]] ],
+        start: [130,150],
+        arrows: [ {x:130,y:230,angle:90}, {x:205,y:240,angle:90}, {x:280,y:240,angle:90} ]
+    },
+    h: {
+        family: "robot",
+        strokes: [ [[150,90],[150,300]], [[150,190],[175,155],[215,150],[245,180],[245,300]] ],
+        start: [150,90],
+        arrows: [ {x:150,y:200,angle:90}, {x:200,y:152,angle:0}, {x:245,y:240,angle:90} ]
+    },
+    b: {
+        family: "robot",
+        strokes: [ [[150,90],[150,300]], [[150,210],[180,175],[225,180],[255,215],[250,265],[210,295],[170,290],[150,260]] ],
+        start: [150,90],
+        arrows: [ {x:150,y:200,angle:90}, {x:200,y:178,angle:0}, {x:255,y:240,angle:95} ]
+    },
+    p: {
+        family: "robot",
+        strokes: [ [[150,150],[150,340]], [[150,210],[180,175],[225,180],[255,215],[250,265],[210,295],[170,290],[150,260]] ],
+        start: [150,150],
+        arrows: [ {x:150,y:260,angle:90}, {x:200,y:178,angle:0}, {x:255,y:240,angle:95} ]
+    },
+    k: {
+        family: "robot",
+        strokes: [ [[150,90],[150,300]], [[250,155],[155,225]], [[180,210],[255,300]] ],
+        start: [150,90],
+        arrows: [ {x:150,y:200,angle:90}, {x:200,y:190,angle:215}, {x:220,y:255,angle:45} ]
+    },
+    // --- Zig-zag monster (diagonal letters) ---
+    v: {
+        family: "zigzag",
+        strokes: [ [[145,150],[200,295],[255,150]] ],
+        start: [145,150],
+        arrows: [ {x:170,y:220,angle:70}, {x:230,y:220,angle:290} ]
+    },
+    w: {
+        family: "zigzag",
+        strokes: [ [[120,150],[160,295],[200,180],[240,295],[280,150]] ],
+        start: [120,150],
+        arrows: [ {x:140,y:225,angle:75}, {x:220,y:225,angle:75} ]
+    },
+    x: {
+        family: "zigzag",
+        strokes: [ [[150,150],[250,295]], [[250,150],[150,295]] ],
+        start: [150,150],
+        arrows: [ {x:200,y:222,angle:55}, {x:200,y:222,angle:125} ]
+    },
+    z: {
+        family: "zigzag",
+        strokes: [ [[145,150],[255,150],[145,295],[255,295]] ],
+        start: [145,150],
+        arrows: [ {x:200,y:148,angle:0}, {x:200,y:222,angle:235}, {x:200,y:296,angle:0} ]
+    }
+};
+
+var FAMILIES = [
+    { key:"curly",  name:"Curly caterpillar", colour:"#0d9488", letters:["c","a","o","d","g","q","e","s","f"] },
+    { key:"ladder", name:"Long ladder",       colour:"#5b6cf0", letters:["l","i","t","u","j","y"] },
+    { key:"robot",  name:"One-armed robot",   colour:"#ea580c", letters:["r","n","m","h","b","p","k"] },
+    { key:"zigzag", name:"Zig-zag monster",   colour:"#ec4899", letters:["v","w","x","z"] }
+];
+
+function familyByKey(k){ for(var i=0;i<FAMILIES.length;i++){ if(FAMILIES[i].key===k) return FAMILIES[i]; } return FAMILIES[0]; }
+
+/* ---------- SVG references ---------- */
+var svg = document.getElementById("svg");
+var guidePath = document.getElementById("guidePath");
+var replayPath = document.getElementById("replayPath");
+var userPath = document.getElementById("userPath");
+var startDot = document.getElementById("startDot");
+var startRing = document.getElementById("startRing");
+var arrowGroup = document.getElementById("arrowGroup");
+var canvasWrap = document.getElementById("canvasWrap");
+
+var familyRow = document.getElementById("familyRow");
+var letterRow = document.getElementById("letterRow");
+var familyTag = document.getElementById("familyTag");
+var traceFeedback = document.getElementById("traceFeedback");
+var srLive = document.getElementById("srLive");
+
+var state = {
+    family: "curly",
+    letter: "c",
+    userPoints: [],
+    drawing: false,
+    replayTimer: null
+};
+
+/* ---------- Build family chips ---------- */
+FAMILIES.forEach(function(fam){
+    var b = document.createElement("button");
+    b.className = "family-chip";
+    b.setAttribute("aria-pressed", fam.key===state.family ? "true":"false");
+    b.dataset.key = fam.key;
+    b.innerHTML = '<span class="dot" style="background:'+fam.colour+'"></span>'+fam.name;
+    b.addEventListener("click", function(){ selectFamily(fam.key); });
+    familyRow.appendChild(b);
+});
+
+function selectFamily(key){
+    state.family = key;
+    Array.prototype.forEach.call(familyRow.children, function(c){
+        c.setAttribute("aria-pressed", c.dataset.key===key ? "true":"false");
+    });
+    var fam = familyByKey(key);
+    state.letter = fam.letters[0];
+    buildLetterRow();
+    loadLetter(state.letter);
+}
+
+function buildLetterRow(){
+    letterRow.innerHTML = "";
+    var fam = familyByKey(state.family);
+    fam.letters.forEach(function(ch){
+        var b = document.createElement("button");
+        b.className = "letter-btn";
+        b.textContent = ch;
+        b.dataset.ch = ch;
+        b.setAttribute("aria-pressed", ch===state.letter ? "true":"false");
+        b.setAttribute("aria-label", "Letter "+ch);
+        b.addEventListener("click", function(){ loadLetter(ch); });
+        letterRow.appendChild(b);
+    });
+}
+
+/* ---------- Geometry helpers ---------- */
+function letterAllPoints(L){
+    var pts = [];
+    L.strokes.forEach(function(s){ s.forEach(function(p){ pts.push(p); }); });
+    return pts;
+}
+
+function dist(a,b){ var dx=a[0]-b[0], dy=a[1]-b[1]; return Math.sqrt(dx*dx+dy*dy); }
+
+// Nearest distance from a point to the polyline made of all strokes.
+function nearestDistToLetter(pt, L){
+    var min = Infinity;
+    L.strokes.forEach(function(s){
+        for(var i=0;i<s.length-1;i++){
+            min = Math.min(min, distPointToSeg(pt, s[i], s[i+1]));
+        }
+        if(s.length===1) min = Math.min(min, dist(pt, s[0]));
+    });
+    return min;
+}
+function distPointToSeg(p, a, b){
+    var vx=b[0]-a[0], vy=b[1]-a[1];
+    var wx=p[0]-a[0], wy=p[1]-a[1];
+    var len2 = vx*vx+vy*vy;
+    var t = len2===0 ? 0 : (wx*vx+wy*vy)/len2;
+    t = Math.max(0, Math.min(1, t));
+    var cx=a[0]+t*vx, cy=a[1]+t*vy;
+    var dx=p[0]-cx, dy=p[1]-cy;
+    return Math.sqrt(dx*dx+dy*dy);
+}
+
+/* ---------- Load and render a letter ---------- */
+function loadLetter(ch){
+    stopReplay();
+    state.letter = ch;
+    var L = LETTERS[ch];
+    var fam = familyByKey(L.family);
+    state.family = L.family;
+
+    // sync family chips
+    Array.prototype.forEach.call(familyRow.children, function(c){
+        c.setAttribute("aria-pressed", c.dataset.key===L.family ? "true":"false");
+    });
+    if(letterRow.children.length===0 || letterRow.firstChild.dataset.ch===undefined){ buildLetterRow(); }
+    Array.prototype.forEach.call(letterRow.children, function(c){
+        c.setAttribute("aria-pressed", c.dataset.ch===ch ? "true":"false");
+    });
+
+    familyTag.textContent = fam.name;
+    familyTag.style.background = fam.colour;
+
+    // guide outline: all strokes drawn faintly
+    var d = L.strokes.map(strokePath).join(" ");
+    guidePath.setAttribute("d", d);
+
+    // extras (dots on i, j)
+    renderExtras(L);
+
+    // start dot
+    startDot.setAttribute("cx", L.start[0]);
+    startDot.setAttribute("cy", L.start[1]);
+    startRing.setAttribute("cx", L.start[0]);
+    startRing.setAttribute("cy", L.start[1]);
+
+    // arrows
+    renderArrows(L);
+
+    // reset traces
+    replayPath.setAttribute("d","");
+    clearUser();
+
+    setFeedback("Letter "+ch+". Press “Show me” to watch, then trace from the green dot.", "");
+    announce("Loaded letter "+ch+", "+fam.name+" family.");
+}
+
+var extrasGroupId = "extrasGroup";
+function renderExtras(L){
+    var old = document.getElementById(extrasGroupId);
+    if(old) old.parentNode.removeChild(old);
+    if(!L.extras) return;
+    var g = document.createElementNS("http://www.w3.org/2000/svg","g");
+    g.setAttribute("id", extrasGroupId);
+    L.extras.forEach(function(e){
+        if(e.type==="dot"){
+            var c = document.createElementNS("http://www.w3.org/2000/svg","circle");
+            c.setAttribute("cx", e.x); c.setAttribute("cy", e.y); c.setAttribute("r", e.r);
+            c.setAttribute("class","guide-letter");
+            c.setAttribute("fill","#d7def7"); c.setAttribute("stroke","none");
+            g.appendChild(c);
+        }
+    });
+    // insert after guidePath
+    guidePath.parentNode.insertBefore(g, guidePath.nextSibling);
+}
+
+function renderArrows(L){
+    arrowGroup.innerHTML = "";
+    L.arrows.forEach(function(a){
+        var len = 22;
+        var rad = a.angle * Math.PI/180;
+        var x1 = a.x - Math.cos(rad)*len/2;
+        var y1 = a.y - Math.sin(rad)*len/2;
+        var x2 = a.x + Math.cos(rad)*len/2;
+        var y2 = a.y + Math.sin(rad)*len/2;
+        var line = document.createElementNS("http://www.w3.org/2000/svg","line");
+        line.setAttribute("x1",x1); line.setAttribute("y1",y1);
+        line.setAttribute("x2",x2); line.setAttribute("y2",y2);
+        line.setAttribute("stroke","#ea580c");
+        line.setAttribute("stroke-width","6");
+        line.setAttribute("stroke-linecap","round");
+        line.setAttribute("marker-end","url(#arrow)");
+        arrowGroup.appendChild(line);
+    });
+}
+
+/* ---------- Replay ("Show me") ---------- */
+function stopReplay(){
+    if(state.replayTimer){ clearInterval(state.replayTimer); state.replayTimer=null; }
+}
+function showMe(){
+    stopReplay();
+    var L = LETTERS[state.letter];
+    // Build a dense list of points along the strokes, in order, with stroke breaks.
+    var seq = [];
+    L.strokes.forEach(function(s, si){
+        if(si>0) seq.push(null); // pen up between strokes
+        for(var i=0;i<s.length-1;i++){
+            var steps = Math.max(2, Math.round(dist(s[i],s[i+1])/8));
+            for(var t=0;t<steps;t++){
+                var f=t/steps;
+                seq.push([ s[i][0]+(s[i+1][0]-s[i][0])*f, s[i][1]+(s[i+1][1]-s[i][1])*f ]);
+            }
+        }
+        seq.push(s[s.length-1]);
+    });
+    var idx=0;
+    var built=[]; // array of subpaths (each is array of points)
+    var current=[];
+    setFeedback("Watch the line draw the letter, then have a go.", "");
+    state.replayTimer = setInterval(function(){
+        if(idx>=seq.length){ stopReplay(); setFeedback("Now you try. Trace from the green dot.", ""); return; }
+        var p = seq[idx++];
+        if(p===null){ if(current.length){ built.push(current); current=[]; } }
+        else { current.push(p); }
+        var draw = built.concat(current.length?[current]:[]);
+        replayPath.setAttribute("d", draw.map(strokePath).join(" "));
+    }, 22);
+}
+
+/* ---------- User tracing (Pointer Events) ---------- */
+function svgPoint(evt){
+    var rect = svg.getBoundingClientRect();
+    var x = (evt.clientX - rect.left) / rect.width * 400;
+    var y = (evt.clientY - rect.top) / rect.height * 400;
+    return [x,y];
+}
+function clearUser(){
+    state.userPoints = [];
+    userPath.setAttribute("d","");
+}
+function renderUser(){
+    userPath.setAttribute("d", strokePath(state.userPoints));
+}
+
+canvasWrap.addEventListener("pointerdown", function(e){
+    e.preventDefault();
+    state.drawing = true;
+    if(state.userPoints.length===0){ /* fresh */ }
+    try { canvasWrap.setPointerCapture(e.pointerId); } catch(err){}
+    state.userPoints.push(svgPoint(e));
+    renderUser();
+});
+canvasWrap.addEventListener("pointermove", function(e){
+    if(!state.drawing) return;
+    e.preventDefault();
+    state.userPoints.push(svgPoint(e));
+    renderUser();
+});
+function endStroke(e){
+    if(!state.drawing) return;
+    state.drawing = false;
+    try { canvasWrap.releasePointerCapture(e.pointerId); } catch(err){}
+    scoreTrace();
+}
+canvasWrap.addEventListener("pointerup", endStroke);
+canvasWrap.addEventListener("pointercancel", endStroke);
+canvasWrap.addEventListener("pointerleave", function(e){ if(state.drawing) endStroke(e); });
+
+/* ---------- Scoring: specific, kind feedback ---------- */
+function scoreTrace(){
+    var pts = state.userPoints;
+    if(pts.length < 6){
+        setFeedback("That was a very short line. Try tracing the whole letter from the green dot.", "try");
+        return;
+    }
+    var L = LETTERS[state.letter];
+
+    // 1. Did they start near the green dot?
+    var startGap = dist(pts[0], L.start);
+    var startedRight = startGap < 70;
+
+    // 2. How much of the line stayed on the letter?
+    var on=0;
+    pts.forEach(function(p){ if(nearestDistToLetter(p, L) < 36) on++; });
+    var onRatio = on/pts.length;
+
+    // 3. Did they cover enough of the letter (length)? compare bounding spread.
+    var coveredLen = pathLength(pts);
+    var letterLen = 0;
+    L.strokes.forEach(function(s){ for(var i=0;i<s.length-1;i++) letterLen+=dist(s[i],s[i+1]); });
+    var lengthRatio = coveredLen / Math.max(1, letterLen);
+
+    // Decide feedback, most useful message first.
+    if(!startedRight){
+        setFeedback("Good effort! Remember to begin on the green dot. Press “Show me” and watch where it starts.", "try");
+        announce("Start nearer the green dot.");
+        return;
+    }
+    if(onRatio < 0.55){
+        setFeedback("You started in the right place. Now try to keep your line on the grey letter. Follow the orange arrows.", "try");
+        announce("Keep your line on the grey letter.");
+        return;
+    }
+    if(lengthRatio < 0.45){
+        setFeedback("Lovely start, and on the line. Keep going right to the end of the letter next time.", "try");
+        announce("Trace all the way to the end.");
+        return;
+    }
+    if(onRatio >= 0.8 && lengthRatio >= 0.7){
+        setFeedback("⭐ Brilliant! Started on the dot, stayed on the line, and finished the whole letter “"+state.letter+"”.", "good");
+        announce("Brilliant tracing of letter "+state.letter+".");
+    } else {
+        setFeedback("✅ Well done! That is a recognisable “"+state.letter+"”. Try once more for an even smoother line.", "good");
+        announce("Well done, recognisable letter "+state.letter+".");
+    }
+}
+function pathLength(pts){
+    var L=0; for(var i=0;i<pts.length-1;i++) L+=dist(pts[i],pts[i+1]); return L;
+}
+
+function setFeedback(msg, type){
+    traceFeedback.textContent = msg;
+    traceFeedback.className = "feedback" + (type? " "+type : "");
+}
+function announce(msg){ srLive.textContent = ""; setTimeout(function(){ srLive.textContent = msg; }, 30); }
+
+document.getElementById("showMeBtn").addEventListener("click", showMe);
+document.getElementById("clearBtn").addEventListener("click", function(){
+    clearUser();
+    setFeedback("Cleared. Trace again from the green dot.", "");
+    announce("Tracing cleared.");
+});
+
+/* ============================================================
+   SPELL MODE: Hear it, spell it
+   Web Speech API where available; always shows phoneme prompt.
+   ============================================================ */
+var WORDS = [
+    { word:"cat", emoji:"\u{1F431}", sounds:["c","a","t"] },
+    { word:"dog", emoji:"\u{1F436}", sounds:["d","o","g"] },
+    { word:"pig", emoji:"\u{1F437}", sounds:["p","i","g"] },
+    { word:"sun", emoji:"\u{2600}\u{FE0F}", sounds:["s","u","n"] },
+    { word:"hat", emoji:"\u{1F3A9}", sounds:["h","a","t"] },
+    { word:"bus", emoji:"\u{1F68C}", sounds:["b","u","s"] },
+    { word:"net", emoji:"\u{1F3D0}", sounds:["n","e","t"] },
+    { word:"top", emoji:"\u{1F4A0}", sounds:["t","o","p"] },
+    { word:"fox", emoji:"\u{1F98A}", sounds:["f","o","x"] },
+    { word:"map", emoji:"\u{1F5FA}\u{FE0F}", sounds:["m","a","p"] }
+];
+
+var spellState = { idx:0, word:null, placed:[] };
+
+var wordEmoji = document.getElementById("wordEmoji");
+var wordSounds = document.getElementById("wordSounds");
+var spellSlots = document.getElementById("spellSlots");
+var tileTray = document.getElementById("tileTray");
+var spellFeedback = document.getElementById("spellFeedback");
+
+function shuffle(arr){
+    var a = arr.slice();
+    for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; }
+    return a;
+}
+
+function loadWord(i){
+    spellState.idx = i % WORDS.length;
+    spellState.word = WORDS[spellState.idx];
+    spellState.placed = [];
+    var w = spellState.word;
+    wordEmoji.textContent = w.emoji;
+    wordSounds.textContent = "Sounds: " + w.sounds.join(" - ");
+    renderSlots();
+    renderTiles();
+    spellFeedback.textContent = " ";
+    spellFeedback.className = "spell-feedback";
+}
+
+function renderSlots(){
+    spellSlots.innerHTML = "";
+    var w = spellState.word;
+    for(var i=0;i<w.word.length;i++){
+        var s = document.createElement("div");
+        s.className = "slot" + (spellState.placed[i] ? " filled":"");
+        s.textContent = spellState.placed[i] || "";
+        s.setAttribute("aria-label", spellState.placed[i] ? ("Sound "+(i+1)+" is "+spellState.placed[i]) : ("Empty sound box "+(i+1)));
+        spellSlots.appendChild(s);
+    }
+}
+
+function renderTiles(){
+    tileTray.innerHTML = "";
+    var w = spellState.word;
+    // tiles = the correct letters plus two distractors, shuffled
+    var pool = w.word.split("");
+    var distractors = "abcdefghijklmnopqrstuvwxyz".split("").filter(function(c){ return pool.indexOf(c)<0; });
+    pool.push(distractors[Math.floor(Math.random()*distractors.length)]);
+    pool.push(distractors[Math.floor(Math.random()*distractors.length)]);
+    var tiles = shuffle(pool);
+    tiles.forEach(function(ch){
+        var b = document.createElement("button");
+        b.className = "tile";
+        b.textContent = ch;
+        b.setAttribute("aria-label", "Letter tile "+ch);
+        b.addEventListener("click", function(){ placeLetter(ch); });
+        tileTray.appendChild(b);
+    });
+}
+
+function placeLetter(ch){
+    var w = spellState.word;
+    if(spellState.placed.length >= w.word.length) return;
+    var nextIdx = spellState.placed.length;
+    var expected = w.word[nextIdx];
+    if(ch === expected){
+        spellState.placed.push(ch);
+        renderSlots();
+        if(spellState.placed.length === w.word.length){
+            spellFeedback.textContent = "⭐ Yes! You spelled “"+w.word+"”. "+w.sounds.join(" - ")+" makes "+w.word+".";
+            spellFeedback.className = "spell-feedback good";
+            announceSpell("Correct! You spelled "+w.word+".");
+        } else {
+            var heard = w.sounds[nextIdx];
+            spellFeedback.textContent = "✅ Good, “"+heard+"” is right. Listen for the next sound.";
+            spellFeedback.className = "spell-feedback good";
+            announceSpell("Correct sound "+ch+".");
+        }
+    } else {
+        var want = w.sounds[nextIdx];
+        spellFeedback.textContent = "Not quite. The next sound is “"+want+"”. Say the word slowly: "+w.sounds.join(" - ")+".";
+        spellFeedback.className = "spell-feedback try";
+        announceSpell("Try again. The next sound is "+want+".");
+    }
+}
+
+function undoLetter(){
+    if(spellState.placed.length>0){
+        spellState.placed.pop();
+        renderSlots();
+        spellFeedback.textContent = "Removed the last letter. Try again.";
+        spellFeedback.className = "spell-feedback";
+    }
+}
+
+function announceSpell(msg){ srLive.textContent=""; setTimeout(function(){ srLive.textContent=msg; }, 30); }
+
+/* Speech: read the sounds aloud if supported, with phoneme stretch. */
+function sayWord(){
+    var w = spellState.word;
+    if(!("speechSynthesis" in window)){
+        spellFeedback.textContent = "Read the sounds: " + w.sounds.join(" - ") + ".";
+        spellFeedback.className = "spell-feedback";
+        return;
+    }
+    window.speechSynthesis.cancel();
+    // say each sound, then the blended word
+    w.sounds.forEach(function(s){
+        var u = new SpeechSynthesisUtterance(s);
+        u.rate = 0.7; u.pitch = 1.1; u.lang = "en-GB";
+        if(window.westTTS){ var uv = window.westTTS.pick(u.lang || "en-GB"); if(uv) u.voice = uv; }
+        window.speechSynthesis.speak(u);
+    });
+    var blend = new SpeechSynthesisUtterance(w.word);
+    blend.rate = 0.85; blend.pitch = 1.0; blend.lang = "en-GB";
+    if(window.westTTS){ var bv = window.westTTS.pick(blend.lang || "en-GB"); if(bv) blend.voice = bv; }
+    window.speechSynthesis.speak(blend);
+}
+
+document.getElementById("hearWordBtn").addEventListener("click", sayWord);
+document.getElementById("undoTileBtn").addEventListener("click", undoLetter);
+document.getElementById("nextWordBtn").addEventListener("click", function(){
+    loadWord((spellState.idx+1) % WORDS.length);
+    announceSpell("New word ready.");
+});
+
+/* ============================================================
+   TAB SWITCHING
+   ============================================================ */
+var tabTrace = document.getElementById("tab-trace");
+var tabSpell = document.getElementById("tab-spell");
+var panelTrace = document.getElementById("panel-trace");
+var panelSpell = document.getElementById("panel-spell");
+
+function selectTab(which){
+    var traceOn = which==="trace";
+    tabTrace.setAttribute("aria-selected", traceOn?"true":"false");
+    tabSpell.setAttribute("aria-selected", traceOn?"false":"true");
+    panelTrace.classList.toggle("active", traceOn);
+    panelSpell.classList.toggle("active", !traceOn);
+    panelTrace.hidden = !traceOn;
+    panelSpell.hidden = traceOn;
+    if(!traceOn && window.speechSynthesis){ /* allow speech on user gesture later */ }
+}
+tabTrace.addEventListener("click", function(){ selectTab("trace"); });
+tabSpell.addEventListener("click", function(){ selectTab("spell"); });
+// keyboard arrow nav between tabs
+[tabTrace, tabSpell].forEach(function(t){
+    t.addEventListener("keydown", function(e){
+        if(e.key==="ArrowRight" || e.key==="ArrowLeft"){
+            e.preventDefault();
+            selectTab(t===tabTrace ? "spell":"trace");
+            (t===tabTrace?tabSpell:tabTrace).focus();
+        }
+    });
+});
+
+/* ---------- Init ---------- */
+buildLetterRow();
+loadLetter("c");
+loadWord(0);
+panelSpell.hidden = true;
+</script>
+</body>
+</html>

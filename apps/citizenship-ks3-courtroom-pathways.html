@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Courtroom Pathways</title>
+<style>
+  :root{
+    --ink:#1b1f2a;
+    --muted:#586079;
+    --paper:#f4f6fb;
+    --card:#ffffff;
+    --crim:#9a3412;        /* criminal */
+    --crim-bg:#fdeee4;
+    --crim-line:#e8b89c;
+    --civ:#1d4ed8;         /* civil */
+    --civ-bg:#e8eefc;
+    --civ-line:#a9c0f4;
+    --good:#15803d;
+    --good-bg:#e7f6ec;
+    --bad:#b3261e;
+    --bad-bg:#fdeaea;
+    --warn:#9a6700;
+    --warn-bg:#fdf3da;
+    --line:#dde2ee;
+    --accent:#3b3f8f;
+    --shadow:0 6px 20px rgba(27,31,42,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 16px 72px}
+  header.app{
+    background:linear-gradient(135deg,#2b2f6e,#1d4ed8);
+    color:#fff;border-radius:18px;padding:22px 22px 18px;box-shadow:var(--shadow);
+  }
+  header.app h1{margin:0 0 4px;font-size:1.75rem;letter-spacing:.2px}
+  header.app .sub{margin:0;font-size:1rem;opacity:.95}
+  .aim{
+    margin-top:14px;background:rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.35);border-radius:12px;
+    padding:10px 14px;font-size:.95rem;
+  }
+  .aim strong{font-weight:700}
+  .scoreline{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+  .pill{
+    background:#fff;color:var(--ink);border-radius:999px;
+    padding:6px 14px;font-weight:600;font-size:.9rem;box-shadow:var(--shadow);
+  }
+  .pill .n{color:var(--accent)}
+
+  h2.section{font-size:1.15rem;margin:26px 4px 8px;color:var(--accent)}
+  p.lead{margin:4px 4px 14px;color:var(--muted);font-size:.96rem}
+
+  .panel{
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:18px;box-shadow:var(--shadow);margin-bottom:18px;
+  }
+
+  /* Case picker */
+  .cases{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+  .case-btn{
+    text-align:left;background:#fff;border:2px solid var(--line);border-radius:14px;
+    padding:14px;cursor:pointer;font:inherit;color:inherit;transition:.15s;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .case-btn:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .case-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .case-btn[aria-pressed="true"]{border-color:var(--accent);background:#eef0fb;box-shadow:inset 0 0 0 1px var(--accent)}
+  .case-btn .who{font-weight:700;font-size:1.02rem}
+  .case-btn .what{font-size:.92rem;color:var(--muted)}
+  .case-btn .tag{align-self:flex-start;font-size:.74rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    background:#eef0f4;color:var(--muted);padding:2px 8px;border-radius:999px}
+
+  /* Scenario card */
+  .scenario{display:none}
+  .scenario.active{display:block}
+  .scenario .case-summary{
+    background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px;
+  }
+  .scenario .case-summary h3{margin:0 0 6px;font-size:1.1rem}
+  .scenario .case-summary p{margin:0;color:var(--muted);font-size:.95rem}
+
+  .step-label{font-size:.8rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);margin:0 0 4px}
+  .question{font-size:1.12rem;font-weight:700;margin:0 0 14px}
+
+  .choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+  .choice{
+    background:#fff;border:2px solid var(--line);border-radius:12px;padding:14px;
+    cursor:pointer;font:inherit;color:inherit;text-align:left;transition:.15s;
+  }
+  .choice:hover:not(:disabled){border-color:var(--accent);transform:translateY(-2px)}
+  .choice:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .choice:disabled{cursor:default;opacity:.96}
+  .choice .ttl{font-weight:700;display:block;margin-bottom:2px}
+  .choice .desc{font-size:.88rem;color:var(--muted)}
+  .choice.correct{border-color:var(--good);background:var(--good-bg)}
+  .choice.wrong{border-color:var(--bad);background:var(--bad-bg)}
+
+  .feedback{
+    margin-top:14px;border-radius:12px;padding:12px 14px;font-size:.95rem;
+    border:1px solid var(--line);display:none;
+  }
+  .feedback.show{display:block}
+  .feedback.ok{background:var(--good-bg);border-color:#bfe3c9}
+  .feedback.no{background:var(--bad-bg);border-color:#f1c4c0}
+  .feedback.info{background:var(--warn-bg);border-color:#ecd9a3}
+  .feedback strong{display:block;margin-bottom:3px}
+
+  /* Pathway map */
+  .pathway{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+  .node{
+    display:flex;align-items:flex-start;gap:12px;border:1px solid var(--line);
+    border-radius:12px;padding:11px 13px;background:#fff;opacity:.45;transition:.25s;
+  }
+  .node.lit{opacity:1}
+  .node.crim.lit{border-color:var(--crim-line);background:var(--crim-bg)}
+  .node.civ.lit{border-color:var(--civ-line);background:var(--civ-bg)}
+  .node .dot{
+    flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:#e7eaf3;color:var(--muted);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.95rem;
+  }
+  .node.crim.lit .dot{background:var(--crim);color:#fff}
+  .node.civ.lit .dot{background:var(--civ);color:#fff}
+  .node .body h4{margin:0 0 2px;font-size:1rem}
+  .node .body p{margin:0;font-size:.86rem;color:var(--muted)}
+  .arrow{align-self:center;color:#c2c8d8;font-weight:800;margin-left:13px;font-size:1.1rem;line-height:.6}
+
+  .btnrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+  .btn{
+    background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px 18px;
+    font:inherit;font-weight:700;cursor:pointer;transition:.15s;
+  }
+  .btn:hover{filter:brightness(1.07)}
+  .btn:focus-visible{outline:3px solid #1b1f2a;outline-offset:2px}
+  .btn.ghost{background:#fff;color:var(--accent);border:2px solid var(--accent)}
+  .btn:disabled{opacity:.4;cursor:default}
+
+  .outcome{
+    margin-top:16px;border-radius:14px;padding:16px;border:1px solid var(--line);background:var(--paper);display:none;
+  }
+  .outcome.show{display:block}
+  .outcome h3{margin:0 0 6px;font-size:1.15rem}
+  .outcome .badge{display:inline-block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+    padding:3px 10px;border-radius:999px;margin-bottom:8px}
+  .badge.crim{background:var(--crim-bg);color:var(--crim)}
+  .badge.civ{background:var(--civ-bg);color:var(--civ)}
+
+  .key-terms{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .key-terms .kt{background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:.84rem}
+  .key-terms .kt b{color:var(--accent)}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  footer.note{margin-top:8px;color:var(--muted);font-size:.84rem;text-align:center}
+  @media (max-width:560px){
+    header.app h1{font-size:1.45rem}
+    .choices{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <h1>Courtroom Pathways &#x2696;&#xFE0F;</h1>
+    <p class="sub">Civil or criminal? Follow a case from start to finish and decide which route it should take.</p>
+    <div class="aim">
+      <strong>Teaching aim:</strong> Pupils sort cases into civil and criminal law, then build the correct justice pathway from arrest or claim through to court and outcome, learning who is involved and what each step does.
+    </div>
+    <div class="scoreline" aria-live="polite">
+      <span class="pill">Cases solved: <span class="n" id="solvedCount">0</span> / <span id="totalCount">5</span></span>
+      <span class="pill">Decisions right first time: <span class="n" id="streak">0</span></span>
+    </div>
+  </header>
+
+  <h2 class="section">1. Choose a case to investigate</h2>
+  <p class="lead">Each case is a fictional dispute or incident. Pick one, then work out whether it belongs in the criminal courts or the civil courts.</p>
+
+  <div class="panel">
+    <div class="cases" id="caseList" role="list"></div>
+  </div>
+
+  <div id="scenarios" aria-live="polite"></div>
+
+  <footer class="note">Courtroom Pathways: a Citizenship KS3 demonstration. All cases and names are fictional.</footer>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- Case data ----------
+   Each case is a guided pathway. The pupil makes decisions at each step.
+   The first decision is always civil vs criminal: this is the core concept.
+*/
+const CASES = [
+  {
+    id:"graffiti",
+    who:"R v Dembele",
+    tagline:"Spray paint on the library wall",
+    type:"criminal",
+    summary:"Marcus Dembele, 15, is caught on CCTV spraying paint across the front of the town library. The council reports it to the police. Damage to public property is an offence against society, so the state prosecutes.",
+    steps:[
+      {
+        kind:"type",
+        label:"Decision 1 of 4",
+        question:"Is this a criminal case or a civil case?",
+        choices:[
+          {ttl:"Criminal", desc:"An act against the rules of society, prosecuted by the state.", correct:true,
+            fb:"Correct. Criminal damage is an offence against society, not just one person, so the Crown Prosecution Service brings the case. That is why it is written R v Dembele (Regina, the Crown, versus the defendant)."},
+          {ttl:"Civil", desc:"A dispute between two private parties about rights or money.", correct:false,
+            fb:"Not quite. The library could sue for repair costs, but criminal damage is mainly an offence against society. The police and the Crown Prosecution Service deal with it as a crime, not a private dispute."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 2 of 4",
+        question:"The police have arrested Marcus. What is the next stage in the criminal justice process?",
+        choices:[
+          {ttl:"Charge", desc:"The CPS decides there is enough evidence and formally accuses him.", correct:true,
+            fb:"Yes. After arrest and questioning, the Crown Prosecution Service reviews the evidence and decides whether to charge. A charge is a formal accusation that the case can go to court."},
+          {ttl:"Sentence", desc:"Decide the punishment straight away.", correct:false,
+            fb:"Too soon. Nobody is sentenced before guilt is decided. Sentencing only happens after a finding or admission of guilt in court."},
+          {ttl:"Sue for compensation", desc:"Start a money claim against him.", correct:false,
+            fb:"That belongs to civil law. In a criminal case the next step after arrest is a charging decision by the CPS."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 3 of 4",
+        question:"Marcus is 15. Which court will hear his case?",
+        choices:[
+          {ttl:"Youth Court", desc:"Hears most cases involving 10 to 17 year olds.", correct:true,
+            fb:"Correct. Defendants aged 10 to 17 are normally dealt with in the Youth Court, a less formal version of the magistrates' court, with magistrates or a district judge and no jury."},
+          {ttl:"Crown Court with a jury", desc:"Serious cases tried before a jury of twelve.", correct:false,
+            fb:"Usually not for a 15 year old. The Crown Court and its jury handle serious adult cases. Only very serious youth cases are sent there. Minor criminal damage stays in the Youth Court."},
+          {ttl:"County Court", desc:"Handles civil money claims.", correct:false,
+            fb:"That is a civil court. Criminal cases are not heard there. A youth criminal case goes to the Youth Court."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 4 of 4",
+        question:"Marcus admits it and is found guilty. What is a suitable outcome here?",
+        choices:[
+          {ttl:"Youth Rehabilitation Order with reparation", desc:"Supervision plus cleaning off graffiti and making amends.", correct:true,
+            fb:"A strong choice. Sentencing aims to punish, deter and rehabilitate. A community based order with reparation makes him put right the harm, which fits a first offence by a young person."},
+          {ttl:"Ten years in prison", desc:"A long custodial sentence.", correct:false,
+            fb:"Far too harsh. Sentences must be proportionate to the crime. Custody is a last resort for young people, used for serious or repeat offending, not first-time graffiti."},
+          {ttl:"No outcome, he is too young", desc:"Take no action at all.", correct:false,
+            fb:"Not so. The age of criminal responsibility in England is 10, so a 15 year old can be sentenced. The court chooses a proportionate youth outcome."}
+        ]
+      }
+    ],
+    outcomeBadge:"Criminal case", outcomeBadgeClass:"crim",
+    outcome:"Outcome: Marcus is given a Youth Rehabilitation Order and helps to repair the wall. The Crown prosecuted because criminal damage is an offence against society. Notice the route: report, arrest, charge by the CPS, Youth Court, then a proportionate sentence.",
+    terms:[["Defendant","the person accused"],["CPS","Crown Prosecution Service, prosecutes for the state"],["Beyond reasonable doubt","the criminal standard of proof"]]
+  },
+
+  {
+    id:"deposit",
+    who:"Okafor v Hartley Lettings",
+    tagline:"A landlord keeps the deposit",
+    type:"civil",
+    summary:"Aisha Okafor moves out of her flat. The landlord, Hartley Lettings, refuses to return her 600 pound deposit, claiming for damage she says she did not cause. No crime has happened. This is a private money dispute.",
+    steps:[
+      {
+        kind:"type",
+        label:"Decision 1 of 4",
+        question:"Is this a criminal case or a civil case?",
+        choices:[
+          {ttl:"Civil", desc:"A private dispute between two parties about rights or money.", correct:true,
+            fb:"Correct. No crime has been committed. One party believes another has broken an agreement, so the wronged person (the claimant) takes the case to a civil court. It is written Okafor v Hartley, the two private parties."},
+          {ttl:"Criminal", desc:"An act against society, prosecuted by the state.", correct:false,
+            fb:"Not this time. A disagreement over a deposit is a private money dispute, not an offence against society. The police and the CPS do not get involved. Aisha resolves it through the civil courts."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 2 of 4",
+        question:"In a civil case, what is the right first move before going to court?",
+        choices:[
+          {ttl:"Try to settle the dispute", desc:"Negotiate or use mediation to agree without a hearing.", correct:true,
+            fb:"Yes. Courts expect parties to try to settle first, often through mediation, where a neutral person helps them agree. Many civil disputes end here without a judge."},
+          {ttl:"Arrest the landlord", desc:"Call the police to detain them.", correct:false,
+            fb:"That is criminal law. Nobody is arrested in a civil dispute. The first step is to try to resolve it directly or through mediation."},
+          {ttl:"Charge the landlord", desc:"Ask the CPS to prosecute.", correct:false,
+            fb:"Charging belongs to criminal cases. A civil claimant does not charge anyone. They try to settle, then bring a claim if needed."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 3 of 4",
+        question:"They cannot agree. Aisha brings a small claim. Which court hears it?",
+        choices:[
+          {ttl:"County Court (small claims)", desc:"Handles lower value civil money claims.", correct:true,
+            fb:"Correct. Money claims of this size are heard in the County Court, often through the small claims process, which is designed to be simple and low cost."},
+          {ttl:"Magistrates' Court", desc:"Hears most criminal cases first.", correct:false,
+            fb:"That is mainly a criminal court. Civil money claims like a deposit dispute go to the County Court instead."},
+          {ttl:"Supreme Court", desc:"The highest court of appeal in the UK.", correct:false,
+            fb:"Far too high. The Supreme Court hears major appeals on points of law, not everyday deposit disputes. This starts in the County Court."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 4 of 4",
+        question:"The judge agrees with Aisha. What outcome fits a civil case?",
+        choices:[
+          {ttl:"Order the landlord to repay the deposit", desc:"The losing party must put things right, usually with money.", correct:true,
+            fb:"Right. Civil courts award remedies, not punishments. The usual remedy is damages: the landlord is ordered to repay the 600 pounds, perhaps with costs."},
+          {ttl:"Send the landlord to prison", desc:"A custodial criminal sentence.", correct:false,
+            fb:"No. Prison is a criminal punishment. Civil courts decide who is liable and order a remedy such as repaying money, not a prison sentence."},
+          {ttl:"Give the landlord a criminal record", desc:"Record a conviction against them.", correct:false,
+            fb:"Not in a civil case. Losing a civil claim is not a conviction and gives no criminal record. The remedy is to repay what is owed."}
+        ]
+      }
+    ],
+    outcomeBadge:"Civil case", outcomeBadgeClass:"civ",
+    outcome:"Outcome: the County Court orders Hartley Lettings to repay the deposit. The state was not involved because no crime occurred. The route was: try to settle, make a claim, County Court hearing, then a remedy decided on the balance of probabilities.",
+    terms:[["Claimant","the person who brings the claim"],["Damages","money awarded to put things right"],["Balance of probabilities","the civil standard of proof"]]
+  },
+
+  {
+    id:"assault",
+    who:"R v Pryce",
+    tagline:"A fight outside the chip shop",
+    type:"criminal",
+    summary:"Daniel Pryce, 19, punches another customer during an argument outside a takeaway, causing a broken nose. Witnesses call 999. Assault causing injury is a crime, so the state will prosecute.",
+    steps:[
+      {
+        kind:"type",
+        label:"Decision 1 of 4",
+        question:"Is this a criminal case or a civil case?",
+        choices:[
+          {ttl:"Criminal", desc:"An act against society, prosecuted by the state.", correct:true,
+            fb:"Correct. Assault causing injury is a crime. Society has decided that violence is an offence against everyone, so the police investigate and the CPS prosecutes, as R v Pryce."},
+          {ttl:"Civil", desc:"A private dispute about rights or money.", correct:false,
+            fb:"Not the main route. The victim could later sue for compensation, but violence causing injury is first and foremost a crime handled by the police and the courts."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 2 of 4",
+        question:"Who decides whether there is enough evidence to take Daniel to court?",
+        choices:[
+          {ttl:"The Crown Prosecution Service", desc:"Independent lawyers who review police evidence.", correct:true,
+            fb:"Correct. The police investigate and gather evidence, but the CPS decides whether to charge. They apply two tests: is there enough evidence, and is a prosecution in the public interest?"},
+          {ttl:"The victim", desc:"The injured person chooses whether to prosecute.", correct:false,
+            fb:"Not in our system. The victim's account matters as evidence, but the decision to prosecute a crime is made by the CPS on behalf of the public, not by the victim."},
+          {ttl:"The jury", desc:"Twelve members of the public.", correct:false,
+            fb:"Too early. A jury only appears at a Crown Court trial to decide guilt. The decision to charge comes first, and that is made by the CPS."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 3 of 4",
+        question:"Daniel pleads not guilty to a serious assault. Where will his trial be held?",
+        choices:[
+          {ttl:"Crown Court before a jury", desc:"A judge oversees the law, a jury decides the facts.", correct:true,
+            fb:"Correct. Serious offences (indictable offences) are tried in the Crown Court. A jury of twelve decides guilt on the facts, and the judge rules on the law and passes any sentence."},
+          {ttl:"County Court", desc:"Hears civil money claims.", correct:false,
+            fb:"That is a civil court and never tries crimes. A serious criminal trial goes to the Crown Court with a jury."},
+          {ttl:"Youth Court", desc:"For defendants aged 10 to 17.", correct:false,
+            fb:"Daniel is 19, an adult. The Youth Court is only for 10 to 17 year olds. A serious adult assault is tried in the Crown Court."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 4 of 4",
+        question:"The jury must be sure of guilt. What standard of proof applies?",
+        choices:[
+          {ttl:"Beyond reasonable doubt", desc:"The jury must be sure before convicting.", correct:true,
+            fb:"Correct. Because a conviction can take away someone's liberty, criminal cases need the high standard: the jury must be sure, beyond reasonable doubt. If they are not sure, they must acquit."},
+          {ttl:"Balance of probabilities", desc:"More likely than not.", correct:false,
+            fb:"That is the civil standard, used when money or rights are at stake. Criminal cases need the higher standard, beyond reasonable doubt, because the consequences are so serious."},
+          {ttl:"The judge's personal opinion", desc:"Whatever the judge feels.", correct:false,
+            fb:"No. Guilt is not decided by opinion. In the Crown Court the jury decides the facts, and they must be sure beyond reasonable doubt."}
+        ]
+      }
+    ],
+    outcomeBadge:"Criminal case", outcomeBadgeClass:"crim",
+    outcome:"Outcome: the jury is sure beyond reasonable doubt and convicts. The judge passes a proportionate sentence. The route was: 999 call, arrest, charge by the CPS, Crown Court jury trial, then sentencing by the judge.",
+    terms:[["Indictable offence","a serious crime tried in the Crown Court"],["Jury","twelve citizens who decide the facts"],["Acquit","to find not guilty"]]
+  },
+
+  {
+    id:"faulty",
+    who:"Mensah v Brightline Phones",
+    tagline:"A new phone that never worked",
+    type:"civil",
+    summary:"Leila Mensah buys a 400 pound phone that stops working after two days. The shop, Brightline Phones, refuses a refund. No crime has happened. Leila has consumer rights, so this is a private dispute over a contract.",
+    steps:[
+      {
+        kind:"type",
+        label:"Decision 1 of 4",
+        question:"Is this a criminal case or a civil case?",
+        choices:[
+          {ttl:"Civil", desc:"A private dispute about a contract or money.", correct:true,
+            fb:"Correct. The shop has not committed a crime, but it may have broken its contract and Leila's consumer rights. She seeks a remedy through the civil courts, as Mensah v Brightline."},
+          {ttl:"Criminal", desc:"An act against society, prosecuted by the state.", correct:false,
+            fb:"Not here. Selling a faulty phone and refusing a refund is a breach of contract and consumer law, a civil matter, unless there is deliberate fraud. The police do not prosecute a refund dispute."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 2 of 4",
+        question:"What gives Leila the right to a refund or repair?",
+        choices:[
+          {ttl:"Consumer protection law", desc:"Goods must be of satisfactory quality and as described.", correct:true,
+            fb:"Correct. Laws such as the Consumer Rights Act say goods must be of satisfactory quality, fit for purpose and as described. A phone that fails in two days is not. These rights are enforced through the civil courts."},
+          {ttl:"The Highway Code", desc:"Rules for using the roads.", correct:false,
+            fb:"That is about road use, not shopping. Leila's right to a working phone comes from consumer protection law."},
+          {ttl:"Nothing, all sales are final", desc:"Once bought, you cannot complain.", correct:false,
+            fb:"Not true. Consumer law gives buyers real rights. A shop cannot simply refuse when goods are faulty. That is why she can take a civil claim."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 3 of 4",
+        question:"The shop still refuses. What is a sensible next step before court?",
+        choices:[
+          {ttl:"Complain in writing, then consider mediation", desc:"Put the claim clearly and try to resolve it.", correct:true,
+            fb:"Yes. Civil disputes should be resolved without court where possible. A clear written complaint, then mediation or an ombudsman, often settles it. Court is the last resort."},
+          {ttl:"Report the shop to the CPS", desc:"Ask state prosecutors to act.", correct:false,
+            fb:"The CPS prosecutes crimes, not refund disputes. Leila should pursue this as a civil claim, starting with a written complaint."},
+          {ttl:"Smash the phone in the shop", desc:"Take matters into her own hands.", correct:false,
+            fb:"That would be criminal damage, turning her into the wrongdoer. The law expects disputes to be settled peacefully, through complaint, mediation, then the County Court if needed."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 4 of 4",
+        question:"It reaches the County Court and Leila wins. What is the likely remedy?",
+        choices:[
+          {ttl:"A refund or replacement, plus costs", desc:"The court orders the shop to put things right.", correct:true,
+            fb:"Correct. The civil remedy is to put the wronged party back in the position they should be in: a refund or replacement, and possibly costs. No punishment, just a fair outcome."},
+          {ttl:"A prison sentence for the manager", desc:"Lock up the shop manager.", correct:false,
+            fb:"No. There is no crime, so no prison. Civil courts order remedies such as a refund, not criminal punishments."},
+          {ttl:"A criminal record for the shop", desc:"Mark a conviction against the business.", correct:false,
+            fb:"Not in a civil case. Losing a contract claim is not a conviction. The shop is simply ordered to refund or replace the phone."}
+        ]
+      }
+    ],
+    outcomeBadge:"Civil case", outcomeBadgeClass:"civ",
+    outcome:"Outcome: the County Court orders a refund and costs. Leila used her consumer rights, not the police. The route was: complaint, attempt to settle, County Court claim, then a remedy on the balance of probabilities.",
+    terms:[["Consumer Rights Act","law protecting buyers of goods"],["Remedy","what the court orders to put things right"],["Ombudsman","an independent dispute resolver"]]
+  },
+
+  {
+    id:"makelaw",
+    who:"Make a Law: a new safety rule",
+    tagline:"How does an idea become law?",
+    type:"lawmaking",
+    summary:"Pupils at a fictional school want a new law: every e-scooter rider must wear a helmet. Good ideas do not become law on their own. In England, laws are made by Parliament. Put the law-making journey in order.",
+    steps:[
+      {
+        kind:"step",
+        label:"Decision 1 of 4",
+        question:"An idea for a new law is written down. What is this proposed law called?",
+        choices:[
+          {ttl:"A Bill", desc:"A draft law put before Parliament.", correct:true,
+            fb:"Correct. A proposed law begins as a Bill. It must pass through both Houses of Parliament before it can become law."},
+          {ttl:"An Act", desc:"A law that has already been passed.", correct:false,
+            fb:"Not yet. It only becomes an Act once it has passed all the stages and received Royal Assent. While it is still a proposal, it is called a Bill."},
+          {ttl:"A verdict", desc:"A jury's decision in a trial.", correct:false,
+            fb:"That belongs to a courtroom, not Parliament. A proposed law is called a Bill."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 2 of 4",
+        question:"Where is the Bill debated, amended and voted on?",
+        choices:[
+          {ttl:"The House of Commons and the House of Lords", desc:"The two Houses of Parliament.", correct:true,
+            fb:"Correct. A Bill is debated, can be amended and is voted on in both the House of Commons and the House of Lords. MPs and peers scrutinise it at each stage."},
+          {ttl:"The Crown Court", desc:"Where serious crimes are tried.", correct:false,
+            fb:"No. Courts apply laws, they do not make them. Bills are debated and voted on in Parliament, in the Commons and the Lords."},
+          {ttl:"The local council", desc:"Local government for an area.", correct:false,
+            fb:"Councils make local decisions and by-laws, but national laws are made by Parliament: the Commons and the Lords."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 3 of 4",
+        question:"Both Houses agree the Bill. What final step turns it into law?",
+        choices:[
+          {ttl:"Royal Assent", desc:"The monarch formally approves the Bill.", correct:true,
+            fb:"Correct. Once both Houses agree, the Bill goes to the monarch for Royal Assent. With that approval it becomes an Act of Parliament, part of the law of the land."},
+          {ttl:"A public vote in a general election", desc:"The whole country votes on it.", correct:false,
+            fb:"Not how everyday laws are made. We elect MPs to vote on Bills for us. The final step is Royal Assent by the monarch, not a national referendum."},
+          {ttl:"A decision by the Supreme Court", desc:"Senior judges approve it.", correct:false,
+            fb:"No. Judges interpret and apply the law, they do not pass Bills. The final step is Royal Assent."}
+        ]
+      },
+      {
+        kind:"step",
+        label:"Decision 4 of 4",
+        question:"The helmet law is now an Act. Who makes sure people follow it?",
+        choices:[
+          {ttl:"The police and the courts", desc:"Police enforce the law; courts deal with breaches.", correct:true,
+            fb:"Correct. Making a law is only half the story. The police enforce it day to day, and if someone breaks it the courts decide what happens. Laws need enforcement to mean anything."},
+          {ttl:"Nobody, the law works by itself", desc:"Once passed, no action is needed.", correct:false,
+            fb:"Not so. A law with no enforcement is ignored. The police enforce laws and the courts handle those who break them."},
+          {ttl:"The school council", desc:"Pupils enforce the new rule.", correct:false,
+            fb:"A school council can suggest ideas, but it cannot enforce national law. That is the job of the police and the courts."}
+        ]
+      }
+    ],
+    outcomeBadge:"Making a law", outcomeBadgeClass:"civ",
+    outcome:"Outcome: the helmet idea travels from a Bill, through debate and votes in the Commons and the Lords, to Royal Assent, becoming an Act. The police and the courts then enforce it. That is how an idea becomes an enforceable law in England.",
+    terms:[["Bill","a proposed law"],["Act of Parliament","a law that has passed"],["Royal Assent","the monarch's approval"],["Parliament","Commons plus Lords"]]
+  }
+];
+
+/* ---------- Build the pathway map shown alongside each scenario ---------- */
+const CRIM_PATH = [
+  {t:"Offence reported",d:"A crime against society is reported to the police."},
+  {t:"Arrest and questioning",d:"Police detain and interview the suspect."},
+  {t:"Charge by the CPS",d:"Prosecutors decide there is enough evidence to accuse."},
+  {t:"Court hearing",d:"Youth Court, Magistrates' or Crown Court decides guilt."},
+  {t:"Sentence",d:"If guilty, the court imposes a proportionate punishment."}
+];
+const CIV_PATH = [
+  {t:"A dispute arises",d:"One party believes another has broken their rights."},
+  {t:"Try to settle",d:"Negotiation or mediation, before any court."},
+  {t:"A claim is made",d:"The claimant brings the case to a civil court."},
+  {t:"Court hearing",d:"Usually the County Court decides who is liable."},
+  {t:"Remedy",d:"The court orders damages or another fair outcome."}
+];
+const LAW_PATH = [
+  {t:"A Bill is drafted",d:"An idea for a new law is written down."},
+  {t:"Debated in Parliament",d:"The Commons and the Lords scrutinise and vote."},
+  {t:"Royal Assent",d:"The monarch approves it and it becomes an Act."},
+  {t:"Enforced",d:"Police and courts make sure the law is followed."}
+];
+
+/* ---------- State ---------- */
+const solved = new Set();
+let streak = 0;
+const caseListEl = document.getElementById("caseList");
+const scenariosEl = document.getElementById("scenarios");
+document.getElementById("totalCount").textContent = CASES.length;
+
+/* ---------- Render case picker ---------- */
+CASES.forEach((c, idx) => {
+  const b = document.createElement("button");
+  b.className = "case-btn";
+  b.type = "button";
+  b.setAttribute("role","listitem");
+  b.setAttribute("aria-pressed","false");
+  b.setAttribute("aria-label", "Case: " + c.who + ". " + c.tagline + ". Open this case.");
+  const tagText = c.type === "lawmaking" ? "Make a Law" : "Case " + (idx+1);
+  b.innerHTML = '<span class="tag">' + tagText + '</span>' +
+                '<span class="who"></span><span class="what"></span>';
+  b.querySelector(".who").textContent = c.who;
+  b.querySelector(".what").textContent = c.tagline;
+  b.addEventListener("click", () => openCase(c.id));
+  caseListEl.appendChild(b);
+});
+
+/* ---------- Build a scenario panel for each case (hidden until opened) ---------- */
+CASES.forEach((c) => {
+  const sc = document.createElement("div");
+  sc.className = "scenario panel";
+  sc.id = "sc-" + c.id;
+
+  const path = c.type === "criminal" ? CRIM_PATH : (c.type === "civil" ? CIV_PATH : LAW_PATH);
+  const pathClass = c.type === "criminal" ? "crim" : "civ";
+
+  let nodesHtml = '<div class="pathway" aria-label="Justice pathway map" role="img">';
+  path.forEach((n,i) => {
+    nodesHtml += '<div class="node ' + pathClass + '" data-node="' + i + '">' +
+      '<div class="dot">' + (i+1) + '</div>' +
+      '<div class="body"><h4></h4><p></p></div></div>';
+  });
+  nodesHtml += '</div>';
+
+  sc.innerHTML =
+    '<div class="case-summary"><h3></h3><p></p></div>' +
+    '<div class="qzone"></div>' +
+    '<div class="feedback" role="status" aria-live="assertive"></div>' +
+    '<div class="btnrow">' +
+      '<button class="btn next" type="button" disabled>Next step</button>' +
+      '<button class="btn ghost back" type="button">Pick another case</button>' +
+    '</div>' +
+    nodesHtml +
+    '<div class="outcome" role="status"><span class="badge"></span><h3>Case complete</h3><p class="otext"></p>' +
+      '<div class="key-terms"></div></div>';
+
+  sc.querySelector(".case-summary h3").textContent = c.who;
+  sc.querySelector(".case-summary p").textContent = c.summary;
+
+  // fill pathway text
+  const nodeEls = sc.querySelectorAll(".node");
+  path.forEach((n,i) => {
+    nodeEls[i].querySelector("h4").textContent = n.t;
+    nodeEls[i].querySelector("p").textContent = n.d;
+  });
+
+  scenariosEl.appendChild(sc);
+  wireScenario(c, sc);
+});
+
+/* ---------- Per-scenario logic ---------- */
+function wireScenario(c, sc){
+  const qzone = sc.querySelector(".qzone");
+  const fb = sc.querySelector(".feedback");
+  const nextBtn = sc.querySelector(".next");
+  const backBtn = sc.querySelector(".back");
+  const outcome = sc.querySelector(".outcome");
+  const nodeEls = sc.querySelectorAll(".node");
+
+  let stepIndex = 0;
+  let firstTryClean = true; // tracks whether the case was solved with no wrong clicks
+
+  function litNodesForStep(i){
+    // Light pathway nodes progressively. Map decision steps to map nodes.
+    // For 4 decision steps and 4-5 node maps, light up to step index +1 each correct answer.
+    const max = Math.min(i + 1, nodeEls.length);
+    nodeEls.forEach((el,j) => el.classList.toggle("lit", j < max));
+  }
+
+  function renderStep(){
+    const step = c.steps[stepIndex];
+    fb.className = "feedback";
+    fb.innerHTML = "";
+    nextBtn.disabled = true;
+    qzone.innerHTML =
+      '<p class="step-label"></p><p class="question"></p><div class="choices"></div>';
+    qzone.querySelector(".step-label").textContent = step.label;
+    qzone.querySelector(".question").textContent = step.question;
+    const cw = qzone.querySelector(".choices");
+
+    step.choices.forEach((ch, ci) => {
+      const btn = document.createElement("button");
+      btn.className = "choice";
+      btn.type = "button";
+      btn.innerHTML = '<span class="ttl"></span><span class="desc"></span>';
+      btn.querySelector(".ttl").textContent = ch.ttl;
+      btn.querySelector(".desc").textContent = ch.desc;
+      btn.setAttribute("aria-label", ch.ttl + ". " + ch.desc);
+      btn.addEventListener("click", () => choose(btn, ch, cw));
+      cw.appendChild(btn);
+    });
+  }
+
+  function choose(btn, ch, cw){
+    if (ch.correct){
+      btn.classList.add("correct");
+      // disable all
+      cw.querySelectorAll(".choice").forEach(b => { b.disabled = true; });
+      fb.className = "feedback show ok";
+      fb.innerHTML = "<strong>Correct.</strong>" + escapeHtml(ch.fb);
+      litNodesForStep(stepIndex);
+      nextBtn.disabled = false;
+      nextBtn.focus();
+    } else {
+      btn.classList.add("wrong");
+      btn.disabled = true;
+      firstTryClean = false;
+      fb.className = "feedback show no";
+      fb.innerHTML = "<strong>Try again.</strong>" + escapeHtml(ch.fb);
+    }
+  }
+
+  nextBtn.addEventListener("click", () => {
+    stepIndex++;
+    if (stepIndex < c.steps.length){
+      renderStep();
+      qzone.querySelector(".question").scrollIntoView({behavior:"smooth", block:"center"});
+    } else {
+      finishCase();
+    }
+  });
+
+  backBtn.addEventListener("click", () => {
+    closeAllScenarios();
+    caseListEl.scrollIntoView({behavior:"smooth", block:"start"});
+    const firstCase = caseListEl.querySelector(".case-btn");
+    if (firstCase) firstCase.focus();
+  });
+
+  function finishCase(){
+    qzone.innerHTML = "";
+    fb.className = "feedback";
+    fb.innerHTML = "";
+    nextBtn.style.display = "none";
+    nodeEls.forEach(el => el.classList.add("lit"));
+    outcome.querySelector(".badge").textContent = c.outcomeBadge;
+    outcome.querySelector(".badge").className = "badge " + c.outcomeBadgeClass;
+    outcome.querySelector(".otext").textContent = c.outcome;
+    const kt = outcome.querySelector(".key-terms");
+    kt.innerHTML = "";
+    c.terms.forEach(([term, def]) => {
+      const el = document.createElement("span");
+      el.className = "kt";
+      el.innerHTML = "<b></b>: ";
+      el.querySelector("b").textContent = term;
+      el.appendChild(document.createTextNode(def));
+      kt.appendChild(el);
+    });
+    outcome.classList.add("show");
+    outcome.scrollIntoView({behavior:"smooth", block:"center"});
+
+    if (!solved.has(c.id)){
+      solved.add(c.id);
+      if (firstTryClean) { streak++; }
+      updateScore();
+    }
+  }
+
+  // expose a reset for re-opening
+  sc._reset = function(){
+    stepIndex = 0;
+    firstTryClean = true;
+    nextBtn.style.display = "";
+    outcome.classList.remove("show");
+    nodeEls.forEach(el => el.classList.remove("lit"));
+    renderStep();
+  };
+}
+
+/* ---------- Open / close ---------- */
+function openCase(id){
+  closeAllScenarios();
+  const sc = document.getElementById("sc-" + id);
+  // mark pressed state
+  caseListEl.querySelectorAll(".case-btn").forEach((b,i) => {
+    b.setAttribute("aria-pressed", CASES[i].id === id ? "true" : "false");
+  });
+  if (!solved.has(id)) {
+    sc._reset();
+  } else {
+    // already solved: still allow replay fresh
+    sc._reset();
+  }
+  sc.classList.add("active");
+  sc.scrollIntoView({behavior:"smooth", block:"start"});
+  const q = sc.querySelector(".question");
+  if (q) q.setAttribute("tabindex","-1");
+}
+
+function closeAllScenarios(){
+  document.querySelectorAll(".scenario").forEach(s => s.classList.remove("active"));
+  caseListEl.querySelectorAll(".case-btn").forEach(b => b.setAttribute("aria-pressed","false"));
+}
+
+function updateScore(){
+  document.getElementById("solvedCount").textContent = solved.size;
+  document.getElementById("streak").textContent = streak;
+}
+
+/* ---------- Util ---------- */
+function escapeHtml(s){
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;");
+}
+</script>
+</body>
+</html>

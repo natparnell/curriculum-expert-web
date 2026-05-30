@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tactics Board Live</title>
+<style>
+  :root {
+    --ink: #1c2733;
+    --muted: #5b6b7b;
+    --line: #d8e0e8;
+    --paper: #f4f7fa;
+    --card: #ffffff;
+    --accent: #156b3a;
+    --accent-soft: #e3f1e8;
+    --attack: #1565c0;
+    --defend: #c62828;
+    --ball: #f9a825;
+    --good: #1b7a3e;
+    --warn: #b8860b;
+    --bad: #b3261e;
+    --shadow: 0 2px 10px rgba(20,40,60,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app-head {
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 12px;
+    margin-bottom: 18px;
+  }
+  .kicker {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  h1 {
+    font-size: clamp(1.5rem, 4vw, 2.2rem);
+    margin: 4px 0 6px;
+    line-height: 1.1;
+  }
+  .aim {
+    background: var(--accent-soft);
+    border-left: 4px solid var(--accent);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    color: #1c3a26;
+    max-width: 760px;
+  }
+  .aim strong { color: var(--accent); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  @media (min-width: 860px) {
+    .layout { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); align-items: start; }
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 14px;
+  }
+  .panel h2 {
+    font-size: 1.05rem;
+    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel h2 .num {
+    background: var(--accent);
+    color: #fff;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    font-size: 0.85rem;
+    flex: none;
+  }
+
+  /* Scenario selector */
+  .scenarios { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .scenario-btn {
+    border: 1.5px solid var(--line);
+    background: #fff;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .scenario-btn[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .scenario-desc {
+    font-size: 0.88rem;
+    color: var(--muted);
+    margin: 0 0 8px;
+    min-height: 1.2em;
+  }
+
+  /* Pitch */
+  .pitch-shell { position: relative; }
+  svg.pitch {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 8px;
+    touch-action: none;
+    background: #2e8b57;
+    border: 2px solid #246b43;
+    cursor: default;
+  }
+  .token {
+    cursor: grab;
+    touch-action: none;
+  }
+  .token:active { cursor: grabbing; }
+  .token:focus { outline: none; }
+  .token.kf circle.body { stroke: #ffffff; stroke-width: 4; }
+  .token-label {
+    font-size: 13px;
+    font-weight: 700;
+    fill: #fff;
+    pointer-events: none;
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  button.act {
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+    color: #fff;
+  }
+  button.act:focus-visible { outline: 3px solid #0b3d91; outline-offset: 2px; }
+  button.run { background: var(--accent); }
+  button.run:hover { background: #0f5a2f; }
+  button.reset { background: #607080; }
+  button.reset:hover { background: #4d5c6a; }
+  button.act:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 0.82rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,0.2); }
+  .dot.atk { background: var(--attack); }
+  .dot.def { background: var(--defend); }
+  .dot.bl { background: var(--ball); }
+
+  /* Feedback */
+  .feedback {
+    border-radius: 10px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    background: #fbfdff;
+    min-height: 80px;
+  }
+  .feedback .verdict {
+    font-weight: 800;
+    font-size: 1.05rem;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .verdict.good { color: var(--good); }
+  .verdict.warn { color: var(--warn); }
+  .verdict.bad { color: var(--bad); }
+  .feedback ul { margin: 6px 0 0; padding-left: 20px; }
+  .feedback li { margin-bottom: 5px; font-size: 0.9rem; }
+  .feedback .hint { font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
+
+  .space-meter {
+    margin-top: 10px;
+    font-size: 0.85rem;
+  }
+  .bar-track {
+    height: 12px;
+    background: #e6ecf2;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width 0.4s ease, background 0.4s ease;
+  }
+
+  .coach-list { margin: 8px 0 0; padding-left: 18px; font-size: 0.88rem; color: var(--muted); }
+  .coach-list li { margin-bottom: 6px; }
+
+  .toolbar-note {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .selected-name { font-weight: 700; color: var(--accent); }
+  footer.app-foot {
+    margin-top: 24px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <div class="kicker">Physical Education &middot; Key Stage 2 &middot; Invasion Games</div>
+    <h1>Tactics Board Live &#x26BD;</h1>
+    <p class="aim"><strong>Teaching aim:</strong> Pupils plan an attack on a netball or football pitch by dragging players into space, then press <em>Run the play</em> to animate it and find out whether the attack works. Learning focus: attacking, defending, and finding the space.</p>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: pitch -->
+    <section class="panel">
+      <h2><span class="num">1</span> Plan your attack</h2>
+      <div class="scenarios" role="group" aria-label="Choose a sport and scenario">
+        <button class="scenario-btn" data-scn="football" aria-pressed="true">&#x26BD; Football</button>
+        <button class="scenario-btn" data-scn="netball" aria-pressed="false">&#x1F3D0; Netball</button>
+      </div>
+      <p class="scenario-desc" id="scenarioDesc"></p>
+
+      <div class="pitch-shell">
+        <svg class="pitch" id="pitch" viewBox="0 0 600 400"
+             role="application"
+             aria-label="Tactics pitch. Use Tab to select a player, then arrow keys to move them into space.">
+          <!-- markings drawn by script -->
+          <g id="markings" aria-hidden="true"></g>
+          <g id="paths" aria-hidden="true"></g>
+          <g id="tokens"></g>
+        </svg>
+      </div>
+
+      <div class="controls">
+        <button class="act run" id="runBtn" type="button">&#x25B6; Run the play</button>
+        <button class="act reset" id="resetBtn" type="button">&#x21BB; Reset positions</button>
+      </div>
+
+      <div class="legend" aria-hidden="true">
+        <span><i class="dot atk"></i> Your team (attack)</span>
+        <span><i class="dot def"></i> Other team (defence)</span>
+        <span><i class="dot bl"></i> Ball</span>
+        <span>&#x2B50; = ball carrier</span>
+      </div>
+      <p class="toolbar-note">Tip: drag a player with your finger or mouse. On a keyboard, press <kbd>Tab</kbd> to a player, then use the arrow keys to nudge them. The starred player has the ball.</p>
+    </section>
+
+    <!-- RIGHT: feedback -->
+    <section class="panel" aria-labelledby="resultHead">
+      <h2 id="resultHead"><span class="num">2</span> What happened?</h2>
+
+      <div class="feedback" id="feedback" aria-live="polite">
+        <div class="verdict" id="verdict">Plan your move, then run the play.</div>
+        <div id="reasonBlock"></div>
+        <p class="hint" id="hint">Move at least one attacker into an open space away from the red defenders, then press <strong>Run the play</strong>.</p>
+      </div>
+
+      <div class="space-meter">
+        <label id="spaceLabel" for="spaceBar">Space found for the pass receiver</label>
+        <div class="bar-track" role="img" aria-labelledby="spaceLabel" aria-describedby="spaceVal">
+          <div class="bar-fill" id="spaceBar"></div>
+        </div>
+        <span id="spaceVal" class="sr-only">No play run yet.</span>
+      </div>
+
+      <h2 style="margin-top:16px;"><span class="num">3</span> Coaching points</h2>
+      <ul class="coach-list">
+        <li><strong>Find the space:</strong> move into a gap where no defender can reach you in time.</li>
+        <li><strong>Pass forward:</strong> aim to move the ball towards the goal or shooting circle.</li>
+        <li><strong>Support the ball:</strong> stay close enough to receive, but not crowded together.</li>
+        <li><strong>Avoid the defender:</strong> a pass that goes near a red player can be intercepted.</li>
+      </ul>
+      <p class="toolbar-note" id="liveScore" aria-live="polite"></p>
+    </section>
+  </div>
+
+  <footer class="app-foot">
+    Tactics Board Live &middot; WeST classroom demo &middot; All players shown are fictional. Demonstration data only.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  var W = 600, H = 400;
+  var R = 16; // token radius
+
+  var pitch = document.getElementById("pitch");
+  var gMark = document.getElementById("markings");
+  var gPaths = document.getElementById("paths");
+  var gTokens = document.getElementById("tokens");
+  var verdictEl = document.getElementById("verdict");
+  var reasonBlock = document.getElementById("reasonBlock");
+  var hintEl = document.getElementById("hint");
+  var spaceBar = document.getElementById("spaceBar");
+  var spaceVal = document.getElementById("spaceVal");
+  var scenarioDesc = document.getElementById("scenarioDesc");
+  var runBtn = document.getElementById("runBtn");
+  var resetBtn = document.getElementById("resetBtn");
+  var liveScore = document.getElementById("liveScore");
+
+  // Fictional names only.
+  var SCENARIOS = {
+    football: {
+      desc: "Football: attack towards the right-hand goal. Pass the ball forward into space to set up a shot.",
+      goal: { x: 580, y: 200, r: 70 }, // target zone near right goal
+      goalLabel: "goal",
+      players: [
+        { id: "p1", team: "atk", name: "Mia", x: 120, y: 200, ball: true },
+        { id: "p2", team: "atk", name: "Tom", x: 250, y: 120 },
+        { id: "p3", team: "atk", name: "Ada", x: 250, y: 290 },
+        { id: "d1", team: "def", name: "1", x: 360, y: 200 },
+        { id: "d2", team: "def", name: "2", x: 300, y: 320 },
+        { id: "d3", team: "def", name: "3", x: 430, y: 150 }
+      ]
+    },
+    netball: {
+      desc: "Netball: work the ball into the shooting circle on the right. You cannot run with the ball, so pass into space.",
+      goal: { x: 560, y: 200, r: 95 }, // shooting circle
+      goalLabel: "shooting circle",
+      players: [
+        { id: "p1", team: "atk", name: "Ife", x: 110, y: 200, ball: true },
+        { id: "p2", team: "atk", name: "Eve", x: 240, y: 110 },
+        { id: "p3", team: "atk", name: "Ben", x: 280, y: 300 },
+        { id: "d1", team: "def", name: "GD", x: 370, y: 190 },
+        { id: "d2", team: "def", name: "WD", x: 310, y: 300 },
+        { id: "d3", team: "def", name: "GK", x: 470, y: 210 }
+      ]
+    }
+  };
+
+  var current = "football";
+  var players = [];      // working copy
+  var startPositions = {};
+  var selectedId = null;
+  var animating = false;
+
+  // ---------- helpers ----------
+  function el(name, attrs) {
+    var n = document.createElementNS(SVG_NS, name);
+    if (attrs) for (var k in attrs) { if (attrs.hasOwnProperty(k)) n.setAttribute(k, attrs[k]); }
+    return n;
+  }
+  function dist(ax, ay, bx, by) {
+    var dx = ax - bx, dy = ay - by;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  function byId(id) {
+    for (var i = 0; i < players.length; i++) if (players[i].id === id) return players[i];
+    return null;
+  }
+  function getBallCarrier() {
+    for (var i = 0; i < players.length; i++) if (players[i].team === "atk" && players[i].ball) return players[i];
+    return null;
+  }
+
+  // distance from point P to segment AB
+  function pointToSegment(px, py, ax, ay, bx, by) {
+    var dx = bx - ax, dy = by - ay;
+    var len2 = dx * dx + dy * dy;
+    if (len2 === 0) return dist(px, py, ax, ay);
+    var t = ((px - ax) * dx + (py - ay) * dy) / len2;
+    t = clamp(t, 0, 1);
+    var cx = ax + t * dx, cy = ay + t * dy;
+    return dist(px, py, cx, cy);
+  }
+
+  // ---------- drawing ----------
+  function drawMarkings() {
+    gMark.innerHTML = "";
+    var scn = SCENARIOS[current];
+    // outline
+    gMark.appendChild(el("rect", { x: 6, y: 6, width: W - 12, height: H - 12, fill: "none", stroke: "#ffffff", "stroke-width": 3, rx: 6, opacity: 0.85 }));
+    // halfway line
+    gMark.appendChild(el("line", { x1: W / 2, y1: 6, x2: W / 2, y2: H - 6, stroke: "#ffffff", "stroke-width": 2, opacity: 0.6 }));
+
+    if (current === "football") {
+      // centre circle
+      gMark.appendChild(el("circle", { cx: W / 2, cy: H / 2, r: 48, fill: "none", stroke: "#ffffff", "stroke-width": 2, opacity: 0.6 }));
+      // right penalty box
+      gMark.appendChild(el("rect", { x: W - 96, y: 110, width: 90, height: 180, fill: "none", stroke: "#ffffff", "stroke-width": 2, opacity: 0.7 }));
+      // goal
+      gMark.appendChild(el("rect", { x: W - 12, y: 165, width: 12, height: 70, fill: "#ffffff", opacity: 0.85 }));
+    } else {
+      // netball thirds
+      gMark.appendChild(el("line", { x1: W / 3, y1: 6, x2: W / 3, y2: H - 6, stroke: "#ffffff", "stroke-width": 2, opacity: 0.45 }));
+      gMark.appendChild(el("line", { x1: (2 * W) / 3, y1: 6, x2: (2 * W) / 3, y2: H - 6, stroke: "#ffffff", "stroke-width": 2, opacity: 0.45 }));
+      // shooting circle (semi)
+      var p = el("path", {
+        d: "M " + (W - 6) + " " + (H / 2 - 95) + " A 95 95 0 0 0 " + (W - 6) + " " + (H / 2 + 95),
+        fill: "none", stroke: "#ffffff", "stroke-width": 2, opacity: 0.7
+      });
+      gMark.appendChild(p);
+      gMark.appendChild(el("circle", { cx: W - 6, cy: H / 2, r: 4, fill: "#ffffff", opacity: 0.8 }));
+    }
+
+    // target zone shading
+    gMark.appendChild(el("circle", { cx: scn.goal.x, cy: scn.goal.y, r: scn.goal.r, fill: "#ffffff", opacity: 0.08 }));
+  }
+
+  function drawTokens() {
+    gTokens.innerHTML = "";
+    for (var i = 0; i < players.length; i++) {
+      var pl = players[i];
+      var g = el("g", {
+        "class": "token" + (pl.ball ? " kf" : ""),
+        "data-id": pl.id,
+        tabindex: "0",
+        role: "button"
+      });
+      g.setAttribute("aria-label", tokenAria(pl));
+      var fill = pl.team === "atk" ? "#1565c0" : "#c62828";
+      g.appendChild(el("circle", { "class": "body", cx: pl.x, cy: pl.y, r: R, fill: fill, stroke: "#0d3a6b", "stroke-width": 1.5 }));
+      var label = el("text", { "class": "token-label", x: pl.x, y: pl.y });
+      label.textContent = pl.name;
+      g.appendChild(label);
+      if (pl.ball) {
+        // ball marker as small star-ish dot above
+        g.appendChild(el("circle", { cx: pl.x + R - 2, cy: pl.y - R + 2, r: 6, fill: "#f9a825", stroke: "#7a5400", "stroke-width": 1 }));
+      }
+      gTokens.appendChild(g);
+      attachDrag(g, pl);
+      attachKeys(g, pl);
+      g.addEventListener("focus", function () {
+        var id = this.getAttribute("data-id");
+        selectedId = id;
+      });
+    }
+  }
+
+  function tokenAria(pl) {
+    var team = pl.team === "atk" ? "Your team" : "Defender";
+    var ball = pl.ball ? ", has the ball" : "";
+    var who = pl.team === "atk" ? pl.name : ("number " + pl.name);
+    return team + " " + who + ball + ". Drag to move, or use arrow keys when focused.";
+  }
+
+  function updateToken(pl) {
+    var g = gTokens.querySelector('[data-id="' + pl.id + '"]');
+    if (!g) return;
+    var body = g.querySelector("circle.body");
+    var text = g.querySelector("text");
+    body.setAttribute("cx", pl.x);
+    body.setAttribute("cy", pl.y);
+    text.setAttribute("x", pl.x);
+    text.setAttribute("y", pl.y);
+    if (pl.ball) {
+      var b = g.querySelectorAll("circle")[1];
+      if (b) { b.setAttribute("cx", pl.x + R - 2); b.setAttribute("cy", pl.y - R + 2); }
+    }
+    g.setAttribute("aria-label", tokenAria(pl));
+  }
+
+  // ---------- coordinate mapping ----------
+  function clientToSvg(clientX, clientY) {
+    var rect = pitch.getBoundingClientRect();
+    var x = (clientX - rect.left) / rect.width * W;
+    var y = (clientY - rect.top) / rect.height * H;
+    return { x: x, y: y };
+  }
+
+  // ---------- drag (Pointer Events) ----------
+  function attachDrag(g, pl) {
+    g.addEventListener("pointerdown", function (e) {
+      if (animating) return;
+      e.preventDefault();
+      g.focus();
+      selectedId = pl.id;
+      try { g.setPointerCapture(e.pointerId); } catch (err) {}
+      var moved = false;
+      function onMove(ev) {
+        moved = true;
+        var p = clientToSvg(ev.clientX, ev.clientY);
+        pl.x = clamp(p.x, R + 4, W - R - 4);
+        pl.y = clamp(p.y, R + 4, H - R - 4);
+        updateToken(pl);
+      }
+      function onUp(ev) {
+        g.removeEventListener("pointermove", onMove);
+        g.removeEventListener("pointerup", onUp);
+        g.removeEventListener("pointercancel", onUp);
+        try { g.releasePointerCapture(ev.pointerId); } catch (err) {}
+        if (moved) announceMove(pl);
+      }
+      g.addEventListener("pointermove", onMove);
+      g.addEventListener("pointerup", onUp);
+      g.addEventListener("pointercancel", onUp);
+    });
+  }
+
+  // ---------- keyboard ----------
+  function attachKeys(g, pl) {
+    g.addEventListener("keydown", function (e) {
+      if (animating) return;
+      var step = e.shiftKey ? 30 : 12;
+      var handled = true;
+      switch (e.key) {
+        case "ArrowLeft": pl.x = clamp(pl.x - step, R + 4, W - R - 4); break;
+        case "ArrowRight": pl.x = clamp(pl.x + step, R + 4, W - R - 4); break;
+        case "ArrowUp": pl.y = clamp(pl.y - step, R + 4, H - R - 4); break;
+        case "ArrowDown": pl.y = clamp(pl.y + step, R + 4, H - R - 4); break;
+        case "Enter":
+        case " ":
+          runPlay(); handled = true; break;
+        default: handled = false;
+      }
+      if (handled) {
+        e.preventDefault();
+        if (e.key.indexOf("Arrow") === 0) { updateToken(pl); announceMove(pl); }
+      }
+    });
+  }
+
+  function announceMove(pl) {
+    if (pl.team !== "atk") {
+      liveScore.textContent = "You moved a defender. Run the play to see what changes.";
+      return;
+    }
+    var sp = nearestDefenderDistance(pl.x, pl.y);
+    var label = sp > 90 ? "in lots of space" : (sp > 50 ? "in a bit of space" : "marked closely");
+    liveScore.textContent = pl.name + " is now " + label + " (nearest defender " + Math.round(sp) + " units away).";
+  }
+
+  function nearestDefenderDistance(x, y) {
+    var best = Infinity;
+    for (var i = 0; i < players.length; i++) {
+      if (players[i].team === "def") {
+        var d = dist(x, y, players[i].x, players[i].y);
+        if (d < best) best = d;
+      }
+    }
+    return best === Infinity ? 0 : best;
+  }
+
+  // ---------- scoring / decision ----------
+  // Choose the attacker (not carrier) who is the best forward receiver in space.
+  function evaluatePlan() {
+    var carrier = getBallCarrier();
+    var scn = SCENARIOS[current];
+    var receivers = players.filter(function (p) { return p.team === "atk" && !p.ball; });
+    var best = null;
+    for (var i = 0; i < receivers.length; i++) {
+      var r = receivers[i];
+      var forwardGain = r.x - carrier.x;                 // positive = towards goal (right)
+      var space = nearestDefenderDistance(r.x, r.y);      // bigger = more open
+      var goalDist = dist(r.x, r.y, scn.goal.x, scn.goal.y);
+      // interception risk along the pass line
+      var minLane = Infinity;
+      for (var j = 0; j < players.length; j++) {
+        if (players[j].team === "def") {
+          var lane = pointToSegment(players[j].x, players[j].y, carrier.x, carrier.y, r.x, r.y);
+          if (lane < minLane) minLane = lane;
+        }
+      }
+      // weighted score
+      var score = forwardGain * 0.8 + space * 1.4 + (260 - goalDist) * 0.6 + minLane * 0.9;
+      var cand = { r: r, forwardGain: forwardGain, space: space, goalDist: goalDist, lane: minLane, score: score };
+      if (!best || cand.score > best.score) best = cand;
+    }
+    return { carrier: carrier, best: best, goal: scn.goal };
+  }
+
+  // ---------- animation ----------
+  function animatePass(carrier, receiver, onDone) {
+    animating = true;
+    runBtn.disabled = true; resetBtn.disabled = true;
+    gPaths.innerHTML = "";
+
+    var ball = el("circle", { cx: carrier.x + R - 2, cy: carrier.y - R + 2, r: 7, fill: "#f9a825", stroke: "#7a5400", "stroke-width": 1.5 });
+    gPaths.appendChild(ball);
+    // dashed planned line
+    var line = el("line", { x1: carrier.x, y1: carrier.y, x2: receiver.x, y2: receiver.y, stroke: "#fff8e1", "stroke-width": 2, "stroke-dasharray": "6 6", opacity: 0.8 });
+    gPaths.insertBefore(line, ball);
+
+    var sx = carrier.x, sy = carrier.y;
+    var ex = receiver.x, ey = receiver.y;
+    var start = null;
+    var duration = 850;
+
+    function frame(ts) {
+      if (start === null) start = ts;
+      var t = clamp((ts - start) / duration, 0, 1);
+      var ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      var bx = sx + (ex - sx) * ease;
+      var by = sy + (ey - sy) * ease;
+      ball.setAttribute("cx", bx);
+      ball.setAttribute("cy", by);
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        ball.setAttribute("cx", ex);
+        ball.setAttribute("cy", ey);
+        setTimeout(function () {
+          animating = false;
+          runBtn.disabled = false; resetBtn.disabled = false;
+          onDone();
+        }, 220);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function showInterception(carrier, receiver, defender, ratio, onDone) {
+    animating = true;
+    runBtn.disabled = true; resetBtn.disabled = true;
+    gPaths.innerHTML = "";
+    var line = el("line", { x1: carrier.x, y1: carrier.y, x2: receiver.x, y2: receiver.y, stroke: "#fff8e1", "stroke-width": 2, "stroke-dasharray": "6 6", opacity: 0.7 });
+    gPaths.appendChild(line);
+    var ball = el("circle", { cx: carrier.x, cy: carrier.y, r: 7, fill: "#f9a825", stroke: "#7a5400", "stroke-width": 1.5 });
+    gPaths.appendChild(ball);
+
+    var ex = carrier.x + (receiver.x - carrier.x) * ratio;
+    var ey = carrier.y + (receiver.y - carrier.y) * ratio;
+    var start = null, duration = 600;
+    function frame(ts) {
+      if (start === null) start = ts;
+      var t = clamp((ts - start) / duration, 0, 1);
+      var bx = carrier.x + (ex - carrier.x) * t;
+      var by = carrier.y + (ey - carrier.y) * t;
+      ball.setAttribute("cx", bx);
+      ball.setAttribute("cy", by);
+      if (t < 1) requestAnimationFrame(frame);
+      else {
+        // flash an X at interception point
+        var cross = el("text", { x: ex, y: ey - 14, "text-anchor": "middle", "font-size": "22", "font-weight": "800", fill: "#ffcdd2" });
+        cross.textContent = "X";
+        gPaths.appendChild(cross);
+        setTimeout(function () {
+          animating = false;
+          runBtn.disabled = false; resetBtn.disabled = false;
+          onDone();
+        }, 300);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- run play ----------
+  function runPlay() {
+    if (animating) return;
+    var ev = evaluatePlan();
+    var carrier = ev.carrier;
+    var best = ev.best;
+    if (!best) { setVerdict("warn", "No team mate to pass to.", []); return; }
+    var r = best.r;
+
+    // interception check: is the pass lane too close to a defender, before reaching receiver?
+    var risky = best.lane < 30 && best.forwardGain > -20;
+    // find which defender and how far along
+    var interceptDef = null, ratio = 0.5;
+    if (risky) {
+      var minLane = Infinity;
+      for (var j = 0; j < players.length; j++) {
+        if (players[j].team === "def") {
+          var d = players[j];
+          var lane = pointToSegment(d.x, d.y, carrier.x, carrier.y, r.x, r.y);
+          if (lane < minLane) {
+            minLane = lane;
+            interceptDef = d;
+            // projection t
+            var dx = r.x - carrier.x, dy = r.y - carrier.y;
+            var len2 = dx * dx + dy * dy || 1;
+            ratio = clamp(((d.x - carrier.x) * dx + (d.y - carrier.y) * dy) / len2, 0.15, 0.95);
+          }
+        }
+      }
+    }
+
+    updateSpaceMeter(best.space);
+
+    if (risky && interceptDef) {
+      showInterception(carrier, r, interceptDef, ratio, function () {
+        var num = interceptDef.team === "def" ? interceptDef.name : interceptDef.name;
+        setVerdict("bad", "Intercepted! &#x274C;", [
+          "The pass to " + r.name + " went too close to defender " + num + ".",
+          "Move " + r.name + " away from the red player so the passing lane is clear.",
+          "Aim to receive where no defender can step across the ball."
+        ]);
+        liveScore.textContent = "Result: pass intercepted by defender " + num + ".";
+      });
+      return;
+    }
+
+    // good or okay
+    animatePass(carrier, r, function () {
+      var goalDist = dist(r.x, r.y, ev.goal.x, ev.goal.y);
+      var forward = best.forwardGain;
+      var space = best.space;
+      var inTarget = goalDist <= ev.goal.r;
+      var reasons = [];
+      var grade;
+
+      if (forward < -10) {
+        grade = "warn";
+        setVerdict("warn", "Pass complete, but backwards. &#x1F914;", [
+          r.name + " caught the ball, but the pass went away from the " + SCENARIOS[current].goalLabel + ".",
+          "In invasion games we try to move the ball forwards towards the target.",
+          "Try moving a team mate into space nearer the " + SCENARIOS[current].goalLabel + "."
+        ]);
+        liveScore.textContent = "Result: safe pass, but no progress towards goal.";
+        return;
+      }
+
+      if (inTarget && space > 55) {
+        setVerdict("good", "Goal-scoring chance! &#x1F389;", [
+          "Brilliant. " + r.name + " received in space inside the " + SCENARIOS[current].goalLabel + ".",
+          "The pass moved forwards by about " + Math.round(forward) + " units and beat the defenders.",
+          "That is exactly how you create a shot: find the space, then pass forward."
+        ]);
+        liveScore.textContent = "Result: clear chance created. Well played.";
+      } else if (space > 55 && forward > 20) {
+        setVerdict("good", "Good attack. &#x2705;", [
+          r.name + " received in space and the ball moved forwards by about " + Math.round(forward) + " units.",
+          "You have broken the defensive line. Next, look for the " + SCENARIOS[current].goalLabel + ".",
+          "Try pushing a player further forward to turn this into a shooting chance."
+        ]);
+        liveScore.textContent = "Result: ball moved forward into space. Keep attacking.";
+      } else if (space <= 55) {
+        setVerdict("warn", "Pass complete, but marked. &#x1F7E1;", [
+          r.name + " caught the ball, but a defender is close by (about " + Math.round(space) + " units).",
+          "A marked player can lose the ball quickly.",
+          "Drag a team mate into a bigger gap, away from the red players, then run it again."
+        ]);
+        liveScore.textContent = "Result: pass made under pressure. Find more space.";
+      } else {
+        setVerdict("warn", "Pass complete. &#x1F44D;", [
+          r.name + " received the ball safely.",
+          "It is a steady pass, but you have not created a clear chance yet.",
+          "Move forwards into space nearer the " + SCENARIOS[current].goalLabel + " to build the attack."
+        ]);
+        liveScore.textContent = "Result: steady pass completed.";
+      }
+    });
+  }
+
+  function setVerdict(grade, headline, bullets) {
+    verdictEl.className = "verdict " + grade;
+    verdictEl.innerHTML = headline;
+    var html = "";
+    if (bullets && bullets.length) {
+      html = "<ul>";
+      for (var i = 0; i < bullets.length; i++) html += "<li>" + bullets[i] + "</li>";
+      html += "</ul>";
+    }
+    reasonBlock.innerHTML = html;
+    hintEl.style.display = "none";
+  }
+
+  function updateSpaceMeter(space) {
+    var pct = clamp(Math.round((space / 130) * 100), 0, 100);
+    spaceBar.style.width = pct + "%";
+    var colour = pct >= 60 ? "#1b7a3e" : (pct >= 35 ? "#b8860b" : "#b3261e");
+    spaceBar.style.background = colour;
+    var word = pct >= 60 ? "lots of space" : (pct >= 35 ? "some space" : "tightly marked");
+    spaceVal.textContent = "Receiver had " + word + " (" + pct + " per cent open).";
+  }
+
+  // ---------- setup ----------
+  function loadScenario(key) {
+    current = key;
+    var scn = SCENARIOS[key];
+    scenarioDesc.textContent = scn.desc;
+    players = scn.players.map(function (p) {
+      return { id: p.id, team: p.team, name: p.name, x: p.x, y: p.y, ball: !!p.ball };
+    });
+    startPositions = {};
+    players.forEach(function (p) { startPositions[p.id] = { x: p.x, y: p.y }; });
+    selectedId = null;
+    drawMarkings();
+    drawTokens();
+    gPaths.innerHTML = "";
+    spaceBar.style.width = "0%";
+    spaceVal.textContent = "No play run yet.";
+    liveScore.textContent = "";
+    verdictEl.className = "verdict";
+    verdictEl.textContent = "Plan your move, then run the play.";
+    reasonBlock.innerHTML = "";
+    hintEl.style.display = "block";
+    hintEl.innerHTML = "Move at least one attacker into an open space away from the red defenders, then press <strong>Run the play</strong>.";
+  }
+
+  function resetPositions() {
+    players.forEach(function (p) {
+      var s = startPositions[p.id];
+      if (s) { p.x = s.x; p.y = s.y; updateToken(p); }
+    });
+    gPaths.innerHTML = "";
+    spaceBar.style.width = "0%";
+    spaceVal.textContent = "No play run yet.";
+    liveScore.textContent = "Positions reset.";
+    verdictEl.className = "verdict";
+    verdictEl.textContent = "Plan your move, then run the play.";
+    reasonBlock.innerHTML = "";
+    hintEl.style.display = "block";
+  }
+
+  // scenario buttons
+  var scnBtns = document.querySelectorAll(".scenario-btn");
+  for (var i = 0; i < scnBtns.length; i++) {
+    scnBtns[i].addEventListener("click", function () {
+      if (animating) return;
+      var key = this.getAttribute("data-scn");
+      for (var j = 0; j < scnBtns.length; j++) {
+        scnBtns[j].setAttribute("aria-pressed", scnBtns[j] === this ? "true" : "false");
+      }
+      loadScenario(key);
+    });
+  }
+
+  runBtn.addEventListener("click", runPlay);
+  resetBtn.addEventListener("click", resetPositions);
+
+  // init
+  loadScenario("football");
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Empires Connected</title>
+<style>
+  :root {
+    --ink: #1c2230;
+    --muted: #5a6478;
+    --paper: #f6f2e9;
+    --card: #ffffff;
+    --line: #d9d2c4;
+    --accent: #8a5a2b;
+    --accent-soft: #f0e3d2;
+    --trade: #2f7d52;
+    --idea: #3056a8;
+    --conflict: #b03030;
+    --good: #2f7d52;
+    --bad: #b03030;
+    --shadow: 0 4px 16px rgba(28,34,48,0.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  header {
+    background: linear-gradient(135deg, #2a3147, #1c2230);
+    color: #fff;
+    padding: 1.4rem 1.2rem 1.2rem;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 1rem; }
+  h1 { margin: 0 0 0.25rem; font-size: clamp(1.5rem, 4vw, 2.1rem); letter-spacing: 0.3px; }
+  .aim {
+    font-size: 0.9rem; color: #d7dbe6; margin: 0.4rem 0 0;
+    background: rgba(255,255,255,0.08); border-left: 3px solid var(--accent);
+    padding: 0.5rem 0.75rem; border-radius: 4px;
+  }
+  .aim strong { color: #fff; }
+  main { padding: 1.2rem 0 3rem; }
+  .panel {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 1.1rem; margin-bottom: 1.1rem;
+    box-shadow: var(--shadow);
+  }
+  h2 { font-size: 1.1rem; margin: 0 0 0.6rem; color: var(--ink); }
+  p.lead { color: var(--muted); margin: 0 0 0.9rem; font-size: 0.95rem; }
+
+  /* Empire chooser */
+  .empire-choice { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+  .empire-btn {
+    flex: 1 1 220px; text-align: left; cursor: pointer;
+    border: 2px solid var(--line); background: var(--paper);
+    border-radius: 10px; padding: 0.9rem 1rem; font: inherit; color: var(--ink);
+    transition: border-color .15s, transform .1s, background .15s;
+  }
+  .empire-btn:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .empire-btn.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .empire-btn:focus-visible { outline: 3px solid #3056a8; outline-offset: 2px; }
+  .empire-btn .ename { font-weight: 700; font-size: 1.05rem; display: block; }
+  .empire-btn .emeta { font-size: 0.82rem; color: var(--muted); display: block; margin-top: 0.2rem; }
+
+  .context-card { font-size: 0.92rem; }
+  .context-card h3 { margin: 0 0 0.4rem; font-size: 1rem; color: var(--accent); }
+
+  /* Legend */
+  .legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.85rem; margin: 0.2rem 0 0.9rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .chip { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+  .chip.trade { background: var(--trade); }
+  .chip.idea { background: var(--idea); }
+  .chip.conflict { background: var(--conflict); }
+
+  /* Workspace */
+  .workspace { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+  @media (min-width: 820px) { .workspace { grid-template-columns: 320px 1fr; } }
+
+  .cardstack h3, .map-area h3 { font-size: 0.95rem; margin: 0 0 0.5rem; }
+
+  .conn-card {
+    border: 1px solid var(--line); border-radius: 8px; background: #fff;
+    padding: 0.65rem 0.7rem; margin-bottom: 0.6rem; cursor: grab;
+    touch-action: none; position: relative;
+    border-left-width: 5px;
+  }
+  .conn-card[data-type="trade"] { border-left-color: var(--trade); }
+  .conn-card[data-type="idea"] { border-left-color: var(--idea); }
+  .conn-card[data-type="conflict"] { border-left-color: var(--conflict); }
+  .conn-card:focus-visible { outline: 3px solid #3056a8; outline-offset: 2px; }
+  .conn-card.placed { opacity: 0.45; cursor: default; }
+  .conn-card.dragging { opacity: 0.9; box-shadow: 0 8px 22px rgba(0,0,0,0.2); }
+  .conn-card .ctype {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.6px;
+    font-weight: 700; color: #fff; padding: 1px 6px; border-radius: 10px; display: inline-block;
+  }
+  .conn-card[data-type="trade"] .ctype { background: var(--trade); }
+  .conn-card[data-type="idea"] .ctype { background: var(--idea); }
+  .conn-card[data-type="conflict"] .ctype { background: var(--conflict); }
+  .conn-card .ctext { font-size: 0.86rem; margin-top: 0.35rem; }
+  .conn-card .keyboard-hint { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; display: none; }
+  .conn-card.kbselected { background: #eef3ff; border-color: #3056a8; }
+  .conn-card.kbselected .keyboard-hint { display: block; }
+
+  /* Map / drop targets */
+  .map-area { min-height: 360px; }
+  .targets { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+  @media (max-width: 520px) { .targets { grid-template-columns: 1fr; } }
+  .target {
+    border: 2px dashed var(--line); border-radius: 10px; padding: 0.7rem;
+    background: var(--paper); min-height: 110px; transition: border-color .15s, background .15s;
+  }
+  .target.over { border-color: var(--accent); background: var(--accent-soft); }
+  .target.kbtarget { border-color: #3056a8; background: #eef3ff; }
+  .target h4 { margin: 0 0 0.3rem; font-size: 0.92rem; color: var(--accent); }
+  .target .region-sub { font-size: 0.74rem; color: var(--muted); margin: 0 0 0.45rem; }
+  .dropped {
+    font-size: 0.8rem; background: #fff; border: 1px solid var(--line);
+    border-radius: 6px; padding: 0.3rem 0.45rem; margin-top: 0.35rem;
+    border-left: 4px solid var(--line);
+  }
+  .dropped.ok { border-left-color: var(--good); }
+  .dropped.no { border-left-color: var(--bad); }
+  .dropped .res { font-weight: 700; font-size: 0.74rem; }
+  .dropped.ok .res { color: var(--good); }
+  .dropped.no .res { color: var(--bad); }
+
+  /* Feedback live region */
+  .feedback {
+    margin-top: 1rem; padding: 0.8rem 0.9rem; border-radius: 8px;
+    font-size: 0.9rem; min-height: 1.5rem; border: 1px solid var(--line);
+    background: #fff;
+  }
+  .feedback.good { border-color: var(--good); background: #eef7f0; }
+  .feedback.bad { border-color: var(--bad); background: #fbeeee; }
+  .feedback .ftitle { font-weight: 700; display: block; margin-bottom: 0.2rem; }
+
+  .controls { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 1rem; align-items: center; }
+  button.action {
+    font: inherit; cursor: pointer; border: none; border-radius: 8px;
+    padding: 0.55rem 1rem; font-weight: 600; background: var(--accent); color: #fff;
+  }
+  button.action.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+  button.action:hover { filter: brightness(1.05); }
+  button.action:focus-visible { outline: 3px solid #3056a8; outline-offset: 2px; }
+  button.action:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .score { font-weight: 700; margin-left: auto; font-size: 0.95rem; }
+
+  .hidden { display: none !important; }
+
+  .synthesis { font-size: 0.92rem; }
+  .synthesis ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+  .synthesis li { margin-bottom: 0.4rem; }
+
+  .skip-link {
+    position: absolute; left: -999px; top: 0; background: #fff; color: var(--ink);
+    padding: 0.5rem 0.8rem; z-index: 10; border-radius: 0 0 6px 0;
+  }
+  .skip-link:focus { left: 0; }
+
+  footer { font-size: 0.78rem; color: var(--muted); text-align: center; padding: 1rem; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<a class="skip-link" href="#work">Skip to the activity</a>
+<header>
+  <div class="wrap">
+    <h1>Empires Connected</h1>
+    <p class="aim"><strong>Teacher aim:</strong> Pupils study a non-British world empire (Mughal India or Qing China) and map its trade, idea and conflict links to Europe, building the concept of global interconnection rather than isolated national history. KS3 World History strand.</p>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+
+  <!-- STEP 1: choose empire -->
+  <section class="panel" id="step-choose">
+    <h2>1. Choose a world empire to study</h2>
+    <p class="lead">Both were among the wealthiest, most powerful states on Earth in their day, and both were tied into a connected world long before British rule. Pick one to investigate.</p>
+    <div class="empire-choice" role="group" aria-label="Choose an empire">
+      <button class="empire-btn" id="btn-mughal" type="button" aria-pressed="false">
+        <span class="ename">Mughal India</span>
+        <span class="emeta">c. 1526 to 1857. Capitals at Agra and Delhi. Rulers including Akbar, Shah Jahan, Aurangzeb.</span>
+      </button>
+      <button class="empire-btn" id="btn-qing" type="button" aria-pressed="false">
+        <span class="ename">Qing China</span>
+        <span class="emeta">1644 to 1912. Capital at Beijing. Rulers including the Kangxi and Qianlong emperors.</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- STEP 2: context -->
+  <section class="panel hidden context-card" id="step-context" aria-live="polite">
+    <h3 id="context-title"></h3>
+    <p id="context-body"></p>
+  </section>
+
+  <!-- STEP 3: activity -->
+  <section class="panel hidden" id="work">
+    <h2>2. Map the connections to Europe</h2>
+    <p class="lead" id="work-intro"></p>
+    <div class="legend" aria-hidden="true">
+      <span><span class="chip trade"></span> Trade link</span>
+      <span><span class="chip idea"></span> Idea / culture link</span>
+      <span><span class="chip conflict"></span> Conflict / rivalry link</span>
+    </div>
+    <p class="lead" style="font-size:0.85rem;">Drag each connection card onto the world region it links your empire to. On a keyboard, press a card to pick it up, then press a region to place it. Each card belongs to exactly one region.</p>
+
+    <div class="workspace">
+      <div class="cardstack">
+        <h3>Connection cards</h3>
+        <div id="cardstack" role="list" aria-label="Connection cards to place"></div>
+      </div>
+      <div class="map-area">
+        <h3>World regions linked to your empire</h3>
+        <div class="targets" id="targets"></div>
+      </div>
+    </div>
+
+    <div class="feedback" id="feedback" role="status" aria-live="polite">
+      <span class="ftitle">Get started</span>
+      Place a card to see whether the link is correct and why it mattered.
+    </div>
+
+    <div class="controls">
+      <button class="action ghost" type="button" id="btn-reset">Reset cards</button>
+      <button class="action" type="button" id="btn-finish" disabled>See what it shows about the connected world</button>
+      <span class="score" id="score" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <!-- STEP 4: synthesis -->
+  <section class="panel hidden synthesis" id="step-synth" aria-live="polite">
+    <h2>3. The connected world</h2>
+    <div id="synth-body"></div>
+    <div class="controls">
+      <button class="action ghost" type="button" id="btn-switch">Study the other empire</button>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Empires Connected. A WeST classroom demonstration tool. All people and figures shown are illustrative only.
+</footer>
+
+<script>
+"use strict";
+
+/* ---------- Data ---------- */
+/* Regions are shared drop targets. Each connection card maps to exactly one correct region. */
+
+const REGIONS = [
+  { id: "iberia",  name: "Portugal & Spain", sub: "Iberian sea traders and missionaries" },
+  { id: "nwest",   name: "Britain, Netherlands & France", sub: "North-west European trading companies" },
+  { id: "ott",     name: "Ottoman & Persian lands", sub: "Bridge between empire and Europe" },
+  { id: "central", name: "Central & Inner Asia", sub: "Steppe and overland Silk Road routes" }
+];
+
+const EMPIRES = {
+  mughal: {
+    name: "Mughal India",
+    context: {
+      title: "Mughal India: a hub of the early-modern world",
+      body: "From 1526 the Mughal emperors ruled most of the Indian subcontinent from Agra and Delhi. Under Akbar (ruled 1556 to 1605) the empire grew rich on farming, textiles and trade, and was famous across Europe for its cotton cloth, spices and gemstones. Mughal India was not cut off from the wider world: European traders, ideas and rivalries all reached its courts and ports long before any British conquest."
+    },
+    intro: "Mughal India sat at the centre of trade routes joining Europe, the Islamic world and Asia. Map how trade, ideas and conflict connected it to four parts of the wider world.",
+    cards: [
+      { id: "m1", type: "trade", region: "nwest",
+        text: "The English and Dutch East India Companies set up trading posts at ports such as Surat to buy Indian cotton textiles.",
+        why: "North-west European companies came to buy, not yet to rule. Indian cotton was so prized in Europe that the word 'calico' (from Calicut) entered English." },
+      { id: "m2", type: "trade", region: "iberia",
+        text: "Portuguese ships based at Goa traded spices and goods between India and Lisbon along the sea route round Africa.",
+        why: "Portugal was the first European power to reach India by sea (Vasco da Gama, 1498) and ran a coastal trading network for over a century." },
+      { id: "m3", type: "idea", region: "iberia",
+        text: "Catholic Jesuit missionaries from Portugal visited Akbar's court to debate religion and brought European paintings.",
+        why: "Akbar invited scholars of many faiths to debate. Mughal artists studied the European prints the Jesuits brought, blending styles." },
+      { id: "m4", type: "idea", region: "central",
+        text: "Persian language, poetry and Timurid artistic traditions reached the Mughal court from Central Asia.",
+        why: "The Mughals descended from the Central Asian conqueror Timur. Persian was the court language and shaped art, gardens and architecture like the Taj Mahal." },
+      { id: "m5", type: "conflict", region: "central",
+        text: "In 1739 the Persian ruler Nader Shah invaded from the north-west and sacked Delhi, carrying off the Peacock Throne.",
+        why: "This invasion from Inner Asia shattered Mughal power and showed how exposed the empire was to its land frontiers." },
+      { id: "m6", type: "conflict", region: "nwest",
+        text: "After the Battle of Plassey (1757) the British East India Company began seizing territory and taxes in Bengal.",
+        why: "A trading company turned into a conquering power, the turning point from connection through trade to British political control." },
+      { id: "m7", type: "trade", region: "ott",
+        text: "Caravans and ships carried Indian goods west through Persian and Ottoman lands to reach European markets.",
+        why: "Before sea routes dominated, the Islamic empires were the middlemen linking Indian production to European demand." },
+      { id: "m8", type: "idea", region: "ott",
+        text: "Islamic learning, law and Sufi spiritual traditions flowed between Mughal India and the wider Muslim world.",
+        why: "Shared religion and scholarship connected Mughal India to Persia, the Ottomans and the Arab lands as one cultural world." }
+    ]
+  },
+  qing: {
+    name: "Qing China",
+    context: {
+      title: "Qing China: the centre of a connected world",
+      body: "The Qing dynasty ruled China from 1644 to 1912. Under the Kangxi and Qianlong emperors it was vast, populous and immensely wealthy. China's tea, silk and porcelain were wanted across the world, and Europeans paid in silver to get them. The Qing controlled trade carefully and saw itself as the centre of the world, yet ideas, goods and conflicts still tied it tightly to Europe."
+    },
+    intro: "Qing China traded with the whole world on its own terms. Map how trade, ideas and conflict connected it to four parts of the wider world.",
+    cards: [
+      { id: "q1", type: "trade", region: "nwest",
+        text: "The British East India Company bought huge amounts of Chinese tea through the single open port of Canton (Guangzhou).",
+        why: "Britain's love of tea created a massive trade. The Qing limited foreigners to Canton under the strict 'Canton System'." },
+      { id: "q2", type: "trade", region: "iberia",
+        text: "Spanish galleons carried silver from the Americas across the Pacific to Manila, where it was exchanged for Chinese silk and porcelain.",
+        why: "American silver flowed into China to pay for its goods, linking the Qing economy to a truly global trade network." },
+      { id: "q3", type: "idea", region: "iberia",
+        text: "Jesuit missionaries from Catholic Europe served at the Qing court as astronomers, map-makers and painters.",
+        why: "The Kangxi emperor valued European maths and astronomy. Jesuits like Matteo Ricci had earlier bridged Chinese and European learning." },
+      { id: "q4", type: "idea", region: "nwest",
+        text: "European collectors prized Chinese porcelain, silk and garden design, sparking a fashion known as 'chinoiserie'.",
+        why: "Chinese style shaped European tastes in pottery, wallpaper and gardens, showing ideas and culture travelling west, not just goods." },
+      { id: "q5", type: "conflict", region: "nwest",
+        text: "Britain smuggled opium into China to balance its trade, leading to the First Opium War of 1839 to 1842.",
+        why: "When the Qing tried to stop the opium trade, Britain went to war and forced open Chinese ports, a turning point in China's relations with Europe." },
+      { id: "q6", type: "conflict", region: "central",
+        text: "The Qing fought long wars to conquer the Dzungar Mongols and expand into Xinjiang in Inner Asia.",
+        why: "Much Qing conflict faced inland, not the sea. These campaigns nearly doubled the empire's size across Central Asia." },
+      { id: "q7", type: "trade", region: "central",
+        text: "Overland caravans carried Chinese tea and goods to Russia through the border trade town of Kyakhta.",
+        why: "Not all trade went by sea. The Qing and the Russian empire ran a regulated overland tea trade across Inner Asia." },
+      { id: "q8", type: "conflict", region: "ott",
+        text: "The Qing and the Russian empire clashed over the northern frontier, settled by the Treaty of Nerchinsk in 1689.",
+        why: "This was the first treaty China signed with a European power as an equal, fixing the border after armed conflict." }
+    ]
+  }
+};
+
+/* ---------- State ---------- */
+let currentEmpire = null;
+let placed = {};        /* cardId -> regionId */
+let kbCard = null;      /* card element currently 'picked up' by keyboard */
+
+/* ---------- Elements ---------- */
+const elContext = document.getElementById("step-context");
+const elContextTitle = document.getElementById("context-title");
+const elContextBody = document.getElementById("context-body");
+const elWork = document.getElementById("work");
+const elWorkIntro = document.getElementById("work-intro");
+const elCardstack = document.getElementById("cardstack");
+const elTargets = document.getElementById("targets");
+const elFeedback = document.getElementById("feedback");
+const elScore = document.getElementById("score");
+const elFinish = document.getElementById("btn-finish");
+const elReset = document.getElementById("btn-reset");
+const elSynth = document.getElementById("step-synth");
+const elSynthBody = document.getElementById("synth-body");
+const btnMughal = document.getElementById("btn-mughal");
+const btnQing = document.getElementById("btn-qing");
+const btnSwitch = document.getElementById("btn-switch");
+
+/* ---------- Helpers ---------- */
+function typeLabel(t) {
+  return t === "trade" ? "Trade" : t === "idea" ? "Idea / culture" : "Conflict";
+}
+
+function setFeedback(state, title, body) {
+  elFeedback.className = "feedback" + (state ? " " + state : "");
+  elFeedback.innerHTML = '<span class="ftitle"></span>';
+  elFeedback.querySelector(".ftitle").textContent = title;
+  elFeedback.appendChild(document.createTextNode(body));
+}
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* ---------- Build the activity ---------- */
+function buildEmpire(key) {
+  currentEmpire = key;
+  placed = {};
+  kbCard = null;
+  const emp = EMPIRES[key];
+
+  btnMughal.classList.toggle("selected", key === "mughal");
+  btnQing.classList.toggle("selected", key === "qing");
+  btnMughal.setAttribute("aria-pressed", String(key === "mughal"));
+  btnQing.setAttribute("aria-pressed", String(key === "qing"));
+
+  elContextTitle.textContent = emp.context.title;
+  elContextBody.textContent = emp.context.body;
+  elContext.classList.remove("hidden");
+
+  elWorkIntro.textContent = emp.intro;
+  elWork.classList.remove("hidden");
+  elSynth.classList.add("hidden");
+
+  /* Cards */
+  elCardstack.innerHTML = "";
+  shuffle(emp.cards).forEach(c => {
+    const card = document.createElement("div");
+    card.className = "conn-card";
+    card.dataset.type = c.type;
+    card.dataset.id = c.id;
+    card.dataset.region = c.region;
+    card.setAttribute("role", "listitem");
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("aria-label", typeLabel(c.type) + " link. " + c.text + ". Press Enter to pick up.");
+    card.innerHTML =
+      '<span class="ctype">' + typeLabel(c.type) + '</span>' +
+      '<div class="ctext"></div>' +
+      '<div class="keyboard-hint">Picked up. Now press a region to place it, or press Escape to cancel.</div>';
+    card.querySelector(".ctext").textContent = c.text;
+    attachDrag(card);
+    card.addEventListener("keydown", onCardKey);
+    elCardstack.appendChild(card);
+  });
+
+  /* Targets */
+  elTargets.innerHTML = "";
+  REGIONS.forEach(r => {
+    const t = document.createElement("div");
+    t.className = "target";
+    t.dataset.region = r.id;
+    t.setAttribute("role", "button");
+    t.setAttribute("tabindex", "0");
+    t.setAttribute("aria-label", "Region: " + r.name + ". " + r.sub + ". Drop or place a card here.");
+    t.innerHTML = '<h4></h4><p class="region-sub"></p><div class="drops"></div>';
+    t.querySelector("h4").textContent = r.name;
+    t.querySelector(".region-sub").textContent = r.sub;
+    t.addEventListener("keydown", onTargetKey);
+    t.addEventListener("click", () => { if (kbCard) placeCard(kbCard, t); });
+    elTargets.appendChild(t);
+  });
+
+  elFinish.disabled = true;
+  updateScore();
+  setFeedback("", "Get started", "Place a card to see whether the link is correct and why it mattered.");
+  elWork.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ---------- Placement logic ---------- */
+function cardData(id) {
+  return EMPIRES[currentEmpire].cards.find(c => c.id === id);
+}
+
+function placeCard(cardEl, targetEl) {
+  const id = cardEl.dataset.id;
+  if (placed[id]) return;
+  const data = cardData(id);
+  const correct = data.region === targetEl.dataset.region;
+
+  placed[id] = targetEl.dataset.region;
+
+  /* Append a record into the region */
+  const rec = document.createElement("div");
+  rec.className = "dropped " + (correct ? "ok" : "no");
+  const resLabel = correct ? "Correct link" : "Not the right region";
+  rec.innerHTML = '<span class="res"></span> ';
+  rec.querySelector(".res").textContent = resLabel;
+  rec.appendChild(document.createTextNode(data.text));
+  targetEl.querySelector(".drops").appendChild(rec);
+
+  /* Mark card placed */
+  cardEl.classList.add("placed");
+  cardEl.classList.remove("kbselected", "dragging");
+  cardEl.setAttribute("aria-disabled", "true");
+  cardEl.setAttribute("tabindex", "-1");
+
+  /* Clear keyboard state */
+  clearKbTargets();
+  kbCard = null;
+
+  /* Feedback */
+  const region = REGIONS.find(r => r.id === targetEl.dataset.region);
+  if (correct) {
+    setFeedback("good",
+      typeLabel(data.type) + " link confirmed: " + region.name,
+      data.why);
+  } else {
+    const right = REGIONS.find(r => r.id === data.region);
+    setFeedback("bad",
+      "Reconsider this link.",
+      "This is actually a connection to " + right.name + ", not " + region.name + ". " + data.why);
+  }
+
+  updateScore();
+  checkComplete();
+}
+
+function updateScore() {
+  const total = EMPIRES[currentEmpire].cards.length;
+  const done = Object.keys(placed).length;
+  let correct = 0;
+  Object.keys(placed).forEach(id => {
+    if (cardData(id).region === placed[id]) correct++;
+  });
+  elScore.textContent = "Placed " + done + " / " + total + "  (" + correct + " correct)";
+}
+
+function checkComplete() {
+  const total = EMPIRES[currentEmpire].cards.length;
+  if (Object.keys(placed).length === total) {
+    elFinish.disabled = false;
+  }
+}
+
+/* ---------- Drag and drop (Pointer Events) ---------- */
+let dragEl = null, ghost = null, offsetX = 0, offsetY = 0;
+
+function attachDrag(card) {
+  card.addEventListener("pointerdown", onPointerDown);
+}
+
+function onPointerDown(e) {
+  const card = e.currentTarget;
+  if (card.classList.contains("placed")) return;
+  if (e.button !== undefined && e.button !== 0) return;
+  e.preventDefault();
+  dragEl = card;
+  card.setPointerCapture(e.pointerId);
+  card.classList.add("dragging");
+
+  const rect = card.getBoundingClientRect();
+  ghost = card.cloneNode(true);
+  ghost.style.position = "fixed";
+  ghost.style.left = rect.left + "px";
+  ghost.style.top = rect.top + "px";
+  ghost.style.width = rect.width + "px";
+  ghost.style.pointerEvents = "none";
+  ghost.style.zIndex = "999";
+  ghost.style.opacity = "0.95";
+  ghost.classList.add("dragging");
+  document.body.appendChild(ghost);
+  offsetX = e.clientX - rect.left;
+  offsetY = e.clientY - rect.top;
+
+  card.addEventListener("pointermove", onPointerMove);
+  card.addEventListener("pointerup", onPointerUp);
+  card.addEventListener("pointercancel", onPointerUp);
+}
+
+function onPointerMove(e) {
+  if (!ghost) return;
+  ghost.style.left = (e.clientX - offsetX) + "px";
+  ghost.style.top = (e.clientY - offsetY) + "px";
+  const t = targetUnder(e.clientX, e.clientY);
+  document.querySelectorAll(".target").forEach(el => el.classList.toggle("over", el === t));
+}
+
+function onPointerUp(e) {
+  const card = dragEl;
+  if (!card) return;
+  const t = targetUnder(e.clientX, e.clientY);
+  cleanupDrag(card);
+  document.querySelectorAll(".target").forEach(el => el.classList.remove("over"));
+  if (t) placeCard(card, t);
+}
+
+function cleanupDrag(card) {
+  if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+  ghost = null;
+  card.classList.remove("dragging");
+  card.removeEventListener("pointermove", onPointerMove);
+  card.removeEventListener("pointerup", onPointerUp);
+  card.removeEventListener("pointercancel", onPointerUp);
+  dragEl = null;
+}
+
+function targetUnder(x, y) {
+  const els = document.elementsFromPoint(x, y);
+  for (const el of els) {
+    const t = el.closest && el.closest(".target");
+    if (t) return t;
+  }
+  return null;
+}
+
+/* ---------- Keyboard placement ---------- */
+function onCardKey(e) {
+  const card = e.currentTarget;
+  if (card.classList.contains("placed")) return;
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    if (kbCard === card) { cancelKb(); return; }
+    clearKbTargets();
+    document.querySelectorAll(".conn-card").forEach(c => c.classList.remove("kbselected"));
+    kbCard = card;
+    card.classList.add("kbselected");
+    document.querySelectorAll(".target").forEach(t => t.classList.add("kbtarget"));
+    setFeedback("", "Card picked up", "Now move to a region with Tab and press Enter to place it, or press Escape to cancel.");
+  } else if (e.key === "Escape") {
+    cancelKb();
+  }
+}
+
+function onTargetKey(e) {
+  if (e.key === "Enter" || e.key === " ") {
+    if (!kbCard) return;
+    e.preventDefault();
+    placeCard(kbCard, e.currentTarget);
+  } else if (e.key === "Escape") {
+    cancelKb();
+  }
+}
+
+function cancelKb() {
+  if (kbCard) kbCard.classList.remove("kbselected");
+  kbCard = null;
+  clearKbTargets();
+  setFeedback("", "Cancelled", "Pick up another card to continue.");
+}
+
+function clearKbTargets() {
+  document.querySelectorAll(".target").forEach(t => t.classList.remove("kbtarget"));
+}
+
+/* ---------- Synthesis ---------- */
+function buildSynthesis() {
+  const emp = EMPIRES[currentEmpire];
+  let correct = 0;
+  Object.keys(placed).forEach(id => { if (cardData(id).region === placed[id]) correct++; });
+  const total = emp.cards.length;
+
+  /* Count by type, correctly placed */
+  const byType = { trade: 0, idea: 0, conflict: 0 };
+  emp.cards.forEach(c => { if (placed[c.id] === c.region) byType[c.type]++; });
+
+  const lead = document.createElement("p");
+  lead.innerHTML = "You correctly mapped <strong>" + correct + " of " + total +
+    "</strong> connections for " + emp.name + ".";
+  elSynthBody.innerHTML = "";
+  elSynthBody.appendChild(lead);
+
+  const ul = document.createElement("ul");
+  const points = [];
+
+  if (currentEmpire === "mughal") {
+    points.push("Mughal India was tied to Europe by <strong>trade</strong> (cotton, spices, gemstones) long before British rule, drawing in the Portuguese, Dutch, English and French.");
+    points.push("<strong>Ideas</strong> moved in every direction: Jesuit paintings reached Akbar's court, while Persian and Islamic learning connected India to a wider cultural world.");
+    points.push("<strong>Conflict</strong> came from the land as well as the sea. Nader Shah's invasion of 1739 weakened the empire before the East India Company turned trade into conquest after 1757.");
+    points.push("The big idea: India's history is not 'isolated then British'. It was a connected centre of the early-modern world, and Britain entered an already global story.");
+  } else {
+    points.push("Qing China set the terms of its own <strong>trade</strong>: Europeans came for tea, silk and porcelain and paid in American silver, with foreigners restricted to Canton.");
+    points.push("<strong>Ideas</strong> flowed both ways: Jesuit astronomers served the emperor, while Chinese style swept European tastes as 'chinoiserie'.");
+    points.push("<strong>Conflict</strong> faced inland (the Dzungar wars, the Russian frontier) as well as the sea. The Opium Wars after 1839 marked the moment Europe forced China open.");
+    points.push("The big idea: China was not a closed, unchanging place. It was a powerful hub of a connected world that shaped, and was shaped by, Europe.");
+  }
+
+  points.forEach(p => {
+    const li = document.createElement("li");
+    li.innerHTML = p;
+    ul.appendChild(li);
+  });
+  elSynthBody.appendChild(ul);
+
+  const summary = document.createElement("p");
+  summary.style.marginTop = "0.6rem";
+  summary.innerHTML = "Across your map you confirmed <strong>" + byType.trade + "</strong> trade, <strong>" +
+    byType.idea + "</strong> idea and <strong>" + byType.conflict + "</strong> conflict links. " +
+    "Interconnection runs through all three.";
+  elSynthBody.appendChild(summary);
+
+  elSynth.classList.remove("hidden");
+  elSynth.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ---------- Wiring ---------- */
+btnMughal.addEventListener("click", () => buildEmpire("mughal"));
+btnQing.addEventListener("click", () => buildEmpire("qing"));
+elReset.addEventListener("click", () => buildEmpire(currentEmpire));
+elFinish.addEventListener("click", buildSynthesis);
+btnSwitch.addEventListener("click", () => {
+  buildEmpire(currentEmpire === "mughal" ? "qing" : "mughal");
+  document.getElementById("step-choose").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recursion Unrolled</title>
+<style>
+  :root {
+    --bg: #0f1320;
+    --panel: #1a2032;
+    --panel-2: #222a40;
+    --ink: #eef2fb;
+    --muted: #9aa6c4;
+    --line: #2e3850;
+    --accent: #5ad1c4;
+    --accent-2: #8a8aff;
+    --call: #3b82f6;
+    --base: #f59e0b;
+    --ret: #34d399;
+    --warn: #f87171;
+    --frame-h: 54px;
+    --radius: 14px;
+    font-size: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(1200px 600px at 80% -10%, #1c2440 0%, var(--bg) 55%) fixed;
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    padding: 18px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header.app-head { margin-bottom: 14px; }
+  h1 {
+    font-size: clamp(1.5rem, 3.5vw, 2.2rem);
+    margin: 0 0 4px;
+    letter-spacing: 0.3px;
+  }
+  .aim {
+    color: var(--muted);
+    font-size: 0.95rem;
+    margin: 0 0 2px;
+    max-width: 70ch;
+  }
+  .aim strong { color: var(--accent); font-weight: 600; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--muted);
+    margin: 0 0 12px;
+    font-weight: 700;
+  }
+
+  /* Controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+  select, input[type="number"] {
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 9px 11px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    min-width: 130px;
+  }
+  input[type="number"] { width: 92px; min-width: 0; }
+  select:focus, input:focus, button:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .btns { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+  button {
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 15px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform .06s ease, background .15s ease, border-color .15s ease;
+  }
+  button:hover:not(:disabled) { background: #2a3350; border-color: #44507a; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #08231f; border-color: var(--accent); }
+  button.primary:hover:not(:disabled) { background: #74e0d4; }
+  button.ghost { background: transparent; }
+
+  .step-readout {
+    margin-top: 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent-2);
+    border-radius: 10px;
+    padding: 12px 14px;
+    min-height: 64px;
+    font-size: 0.95rem;
+  }
+  .step-readout .tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .tag.call { background: rgba(59,130,246,.2); color: #93c5fd; }
+  .tag.base { background: rgba(245,158,11,.2); color: #fcd34d; }
+  .tag.ret  { background: rgba(52,211,153,.2); color: #6ee7b7; }
+  .tag.done { background: rgba(90,209,196,.22); color: var(--accent); }
+  .step-readout code {
+    background: #11162a; padding: 1px 6px; border-radius: 6px; color: #ffe08a;
+    font-family: "Cascadia Code", Consolas, monospace;
+  }
+
+  /* Stack visual */
+  .stack-region { display: flex; gap: 14px; }
+  .stack-col {
+    flex: 1;
+    min-height: 360px;
+    display: flex;
+    flex-direction: column-reverse; /* base of stack at bottom */
+    gap: 8px;
+    padding: 10px;
+    background: linear-gradient(180deg, rgba(255,255,255,.02), transparent);
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    position: relative;
+  }
+  .stack-col::before {
+    content: "STACK GROWS UPWARDS \2191";
+    position: absolute;
+    top: 6px; left: 0; right: 0;
+    text-align: center;
+    font-size: 0.62rem;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  .frame {
+    border-radius: 11px;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    box-shadow: 0 4px 14px rgba(0,0,0,.25);
+    animation: pop .22s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  @keyframes pop { from { transform: translateY(10px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+  .frame.active { border-color: var(--call); box-shadow: 0 0 0 2px rgba(59,130,246,.55), 0 6px 18px rgba(0,0,0,.35); }
+  .frame.returning { border-color: var(--ret); box-shadow: 0 0 0 2px rgba(52,211,153,.55); }
+  .frame.basecase { border-color: var(--base); }
+  .frame .call-sig { font-family: "Cascadia Code", Consolas, monospace; font-size: 0.92rem; font-weight: 700; }
+  .frame .ret-val {
+    font-family: "Cascadia Code", Consolas, monospace;
+    font-size: 0.82rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .frame .ret-val.has { color: var(--ret); }
+  .empty-note { color: var(--muted); font-size: 0.85rem; text-align: center; margin: auto; padding: 20px; }
+
+  /* Code listing */
+  .code-listing {
+    background: #0c1020;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 4px 12px 0;
+    font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+    font-size: 0.86rem;
+    overflow-x: auto;
+  }
+  .code-listing .ln {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    padding: 1px 0;
+    white-space: pre;
+  }
+  .code-listing .ln .num { color: #4b5675; text-align: right; padding-right: 12px; user-select: none; }
+  .code-listing .ln.hl { background: rgba(138,138,255,.18); border-left: 3px solid var(--accent-2); }
+  .code-listing .ln.hl .num { color: var(--accent-2); }
+  .kw { color: #ff9ec7; }
+  .fn { color: #7ee0ff; }
+  .num-lit { color: #ffd479; }
+  .cmt { color: #6a7390; font-style: italic; }
+
+  .meta-row { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; }
+  .stat {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 14px; min-width: 92px;
+  }
+  .stat .k { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .stat .v { font-size: 1.25rem; font-weight: 800; }
+  .stat .v.warn { color: var(--warn); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; font-size: 0.78rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--line); display: inline-block; }
+  .sw-call { background: var(--call); } .sw-base { background: var(--base); } .sw-ret { background: var(--ret); }
+
+  /* Predict challenge */
+  .predict {
+    margin-top: 16px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .predict h3 { margin: 0 0 6px; font-size: 0.95rem; }
+  .predict p { margin: 0 0 10px; font-size: 0.88rem; color: var(--muted); }
+  .predict .prow { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+  .predict input[type="number"] { width: 110px; }
+  .feedback {
+    margin-top: 10px; padding: 10px 12px; border-radius: 9px; font-size: 0.9rem;
+    display: none;
+  }
+  .feedback.show { display: block; }
+  .feedback.ok { background: rgba(52,211,153,.14); border: 1px solid rgba(52,211,153,.5); color: #b7f5dc; }
+  .feedback.no { background: rgba(248,113,113,.14); border: 1px solid rgba(248,113,113,.5); color: #ffd0d0; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  footer.note { margin-top: 18px; color: var(--muted); font-size: 0.78rem; text-align: center; }
+  .speed-slider { width: 130px; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <h1>Recursion Unrolled &#x1F501;</h1>
+    <p class="aim"><strong>Teacher aim:</strong> make the hidden call stack visible. Pupils step a recursive function frame by frame, watch it grow to the base case, then unwind as each frame returns its value to its caller.</p>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: control + stack -->
+    <section class="panel" aria-labelledby="stack-h">
+      <h2 id="stack-h">Call stack visualiser</h2>
+
+      <div class="controls">
+        <div class="field">
+          <label for="fnSelect">Recursive function</label>
+          <select id="fnSelect" aria-describedby="fnHint">
+            <option value="factorial">factorial(n)</option>
+            <option value="fibonacci">fibonacci(n)</option>
+            <option value="sumTo">sumTo(n)</option>
+            <option value="power">power(2, n)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="nInput">Argument n</label>
+          <input type="number" id="nInput" value="4" min="0" max="9" inputmode="numeric" aria-describedby="fnHint">
+        </div>
+        <div class="field">
+          <label for="speed">Auto-play speed</label>
+          <input type="range" id="speed" class="speed-slider" min="200" max="1600" value="700" step="100" aria-label="Auto-play speed in milliseconds per step">
+        </div>
+      </div>
+      <p id="fnHint" class="sr-only">Choose a function and value, then step through the call stack.</p>
+
+      <div class="btns">
+        <button id="buildBtn" class="primary">Load &#x21BB;</button>
+        <button id="stepBtn">Step &#x25B6;</button>
+        <button id="backBtn">Back &#x25C0;</button>
+        <button id="playBtn" class="ghost">Auto-play &#x23E9;</button>
+        <button id="resetBtn" class="ghost">Reset</button>
+      </div>
+
+      <div class="step-readout" id="readout" role="status" aria-live="polite">
+        Press <strong>Load</strong> to set up <code>factorial(4)</code>, then <strong>Step</strong> to watch the stack grow.
+      </div>
+
+      <div class="stack-region" style="margin-top:14px;">
+        <div class="stack-col" id="stackCol" role="img" aria-label="Call stack frames, base of stack at the bottom" aria-describedby="stackText">
+          <div class="empty-note" id="emptyNote">The stack is empty. The first call has not happened yet.</div>
+        </div>
+      </div>
+      <p id="stackText" class="sr-only" aria-live="polite"></p>
+
+      <div class="legend" aria-hidden="true">
+        <span><i class="swatch sw-call"></i> active call (top of stack)</span>
+        <span><i class="swatch sw-base"></i> base case reached</span>
+        <span><i class="swatch sw-ret"></i> returning a value</span>
+      </div>
+
+      <div class="meta-row">
+        <div class="stat"><div class="k">Stack depth</div><div class="v" id="depthStat">0</div></div>
+        <div class="stat"><div class="k">Max depth</div><div class="v" id="maxStat">0</div></div>
+        <div class="stat"><div class="k">Total calls</div><div class="v" id="callsStat">0</div></div>
+        <div class="stat"><div class="k">Step</div><div class="v" id="stepStat">0 / 0</div></div>
+      </div>
+    </section>
+
+    <!-- RIGHT: code + explanation + predict -->
+    <section class="panel" aria-labelledby="code-h">
+      <h2 id="code-h">The function (highlighted line is running)</h2>
+      <div class="code-listing" id="codeBox" aria-label="Source code of the selected function"></div>
+
+      <div class="predict">
+        <h3>Predict the result &#x1F3AF;</h3>
+        <p id="predictPrompt">Before you step through, what will the top-level call return?</p>
+        <div class="prow">
+          <label for="predInput" class="sr-only">Your predicted return value</label>
+          <input type="number" id="predInput" placeholder="your answer" inputmode="numeric">
+          <button id="checkBtn">Check prediction</button>
+          <button id="revealBtn" class="ghost">Reveal &amp; replay</button>
+        </div>
+        <div class="feedback" id="feedback" role="alert" aria-live="assertive"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="note">
+    Demonstration tool for KS5 Computer Science: programming paradigms (recursion). Fictional example values only. Works fully offline.
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   Recursion Unrolled
+   Each function builds a list of "trace events" by actually
+   running a recursion that records every call / base / return.
+   The UI replays those events forward and backward so pupils
+   see the call stack grow and unwind frame by frame.
+   ============================================================ */
+
+// --- Function definitions: source lines + a tracer ---------
+// Each tracer pushes events: {type:'call'|'base'|'return', ...}
+
+const FUNCTIONS = {
+  factorial: {
+    sig: n => "factorial(" + n + ")",
+    desc: "factorial(n) = n &times; factorial(n - 1), with factorial(0) = 1.",
+    code: [
+      {t:'<span class="kw">def</span> <span class="fn">factorial</span>(n):', map:'header'},
+      {t:'    <span class="kw">if</span> n == <span class="num-lit">0</span>:        <span class="cmt"># base case</span>', map:'base'},
+      {t:'        <span class="kw">return</span> <span class="num-lit">1</span>', map:'baseret'},
+      {t:'    <span class="kw">return</span> n * <span class="fn">factorial</span>(n - <span class="num-lit">1</span>)', map:'recurse'}
+    ],
+    trace(n, ev) {
+      ev.push({type:'call', sig:this.sig(n), n, line:0});
+      if (n === 0) {
+        ev.push({type:'base', sig:this.sig(n), line:1, msg:"n is 0, so this is the base case."});
+        ev.push({type:'return', sig:this.sig(n), value:1, line:2,
+          msg:"Base case returns <code>1</code>."});
+        return 1;
+      }
+      ev.push({type:'base', sig:this.sig(n), line:1, msg:"n is " + n + " (not 0), so we recurse."});
+      ev.push({type:'enter', sig:this.sig(n), line:3, msg:"Evaluate <code>factorial(" + (n-1) + ")</code> first."});
+      const sub = this.trace(n-1, ev);
+      const val = n * sub;
+      ev.push({type:'return', sig:this.sig(n), value:val, line:3,
+        msg:"Now multiply: <code>" + n + " &times; " + sub + " = " + val + "</code>, then return."});
+      return val;
+    }
+  },
+
+  fibonacci: {
+    sig: n => "fib(" + n + ")",
+    desc: "fib(n) = fib(n - 1) + fib(n - 2), with fib(0) = 0 and fib(1) = 1.",
+    code: [
+      {t:'<span class="kw">def</span> <span class="fn">fib</span>(n):'},
+      {t:'    <span class="kw">if</span> n &lt; <span class="num-lit">2</span>:          <span class="cmt"># two base cases</span>'},
+      {t:'        <span class="kw">return</span> n'},
+      {t:'    <span class="kw">return</span> <span class="fn">fib</span>(n-<span class="num-lit">1</span>) + <span class="fn">fib</span>(n-<span class="num-lit">2</span>)'}
+    ],
+    trace(n, ev) {
+      ev.push({type:'call', sig:this.sig(n), n, line:0});
+      if (n < 2) {
+        ev.push({type:'base', sig:this.sig(n), line:1, msg:"n &lt; 2, so this is a base case."});
+        ev.push({type:'return', sig:this.sig(n), value:n, line:2,
+          msg:"Base case returns <code>" + n + "</code>."});
+        return n;
+      }
+      ev.push({type:'base', sig:this.sig(n), line:1, msg:"n is " + n + " (not a base case), so we recurse twice."});
+      ev.push({type:'enter', sig:this.sig(n), line:3, msg:"First evaluate <code>fib(" + (n-1) + ")</code>."});
+      const a = this.trace(n-1, ev);
+      ev.push({type:'enter', sig:this.sig(n), line:3, msg:"Now evaluate <code>fib(" + (n-2) + ")</code>."});
+      const b = this.trace(n-2, ev);
+      const val = a + b;
+      ev.push({type:'return', sig:this.sig(n), value:val, line:3,
+        msg:"Add the two results: <code>" + a + " + " + b + " = " + val + "</code>, then return."});
+      return val;
+    }
+  },
+
+  sumTo: {
+    sig: n => "sumTo(" + n + ")",
+    desc: "sumTo(n) = n + sumTo(n - 1), with sumTo(0) = 0. Adds 0..n.",
+    code: [
+      {t:'<span class="kw">def</span> <span class="fn">sumTo</span>(n):'},
+      {t:'    <span class="kw">if</span> n == <span class="num-lit">0</span>:'},
+      {t:'        <span class="kw">return</span> <span class="num-lit">0</span>'},
+      {t:'    <span class="kw">return</span> n + <span class="fn">sumTo</span>(n - <span class="num-lit">1</span>)'}
+    ],
+    trace(n, ev) {
+      ev.push({type:'call', sig:this.sig(n), n, line:0});
+      if (n === 0) {
+        ev.push({type:'base', sig:this.sig(n), line:1, msg:"n is 0, base case."});
+        ev.push({type:'return', sig:this.sig(n), value:0, line:2, msg:"Base case returns <code>0</code>."});
+        return 0;
+      }
+      ev.push({type:'base', sig:this.sig(n), line:1, msg:"n is " + n + ", so recurse."});
+      ev.push({type:'enter', sig:this.sig(n), line:3, msg:"Evaluate <code>sumTo(" + (n-1) + ")</code> first."});
+      const sub = this.trace(n-1, ev);
+      const val = n + sub;
+      ev.push({type:'return', sig:this.sig(n), value:val, line:3,
+        msg:"Add: <code>" + n + " + " + sub + " = " + val + "</code>, then return."});
+      return val;
+    }
+  },
+
+  power: {
+    sig: n => "power(2, " + n + ")",
+    desc: "power(2, n) = 2 &times; power(2, n - 1), with power(2, 0) = 1. Computes 2 to the n.",
+    code: [
+      {t:'<span class="kw">def</span> <span class="fn">power</span>(base, exp):'},
+      {t:'    <span class="kw">if</span> exp == <span class="num-lit">0</span>:'},
+      {t:'        <span class="kw">return</span> <span class="num-lit">1</span>'},
+      {t:'    <span class="kw">return</span> base * <span class="fn">power</span>(base, exp - <span class="num-lit">1</span>)'}
+    ],
+    trace(n, ev) {
+      ev.push({type:'call', sig:this.sig(n), n, line:0});
+      if (n === 0) {
+        ev.push({type:'base', sig:this.sig(n), line:1, msg:"exp is 0, base case."});
+        ev.push({type:'return', sig:this.sig(n), value:1, line:2, msg:"Base case returns <code>1</code>."});
+        return 1;
+      }
+      ev.push({type:'base', sig:this.sig(n), line:1, msg:"exp is " + n + ", so recurse."});
+      ev.push({type:'enter', sig:this.sig(n), line:3, msg:"Evaluate <code>power(2, " + (n-1) + ")</code> first."});
+      const sub = this.trace(n-1, ev);
+      const val = 2 * sub;
+      ev.push({type:'return', sig:this.sig(n), value:val, line:3,
+        msg:"Multiply: <code>2 &times; " + sub + " = " + val + "</code>, then return."});
+      return val;
+    }
+  }
+};
+
+// --- State ---------------------------------------------------
+const state = {
+  key: 'factorial',
+  n: 4,
+  events: [],
+  idx: 0,         // number of events applied (0 = nothing)
+  finalValue: null,
+  totalCalls: 0,
+  maxDepth: 0,
+  timer: null,
+  predictionLocked: false
+};
+
+// --- DOM -----------------------------------------------------
+const $ = id => document.getElementById(id);
+const stackCol = $('stackCol');
+const emptyNote = $('emptyNote');
+const readout = $('readout');
+const stackText = $('stackText');
+const codeBox = $('codeBox');
+const feedback = $('feedback');
+
+// --- Build events from chosen function -----------------------
+function buildEvents() {
+  const fn = FUNCTIONS[state.key];
+  const ev = [];
+  state.finalValue = fn.trace(state.n, ev);
+  // append a final "complete" event
+  ev.push({type:'complete', value:state.finalValue,
+    msg:"The whole stack has unwound. <code>" + fn.sig(state.n) + "</code> returned <code>" + state.finalValue + "</code>."});
+  state.events = ev;
+  state.totalCalls = ev.filter(e => e.type === 'call').length;
+  // compute max depth
+  let d = 0, max = 0;
+  ev.forEach(e => {
+    if (e.type === 'call') { d++; if (d > max) max = d; }
+    if (e.type === 'return') d--;
+  });
+  state.maxDepth = max;
+  state.idx = 0;
+}
+
+// --- Reconstruct stack at current idx ------------------------
+// Replay events[0..idx-1] to get the live stack + which frame returned last.
+function computeStack() {
+  const frames = []; // {sig, value:null|num, line, status}
+  let lastEvent = null;
+  let activeStatus = null;
+  for (let i = 0; i < state.idx; i++) {
+    const e = state.events[i];
+    lastEvent = e;
+    if (e.type === 'call') {
+      frames.push({sig:e.sig, value:null, n:e.n, status:'active', line:e.line});
+    } else if (e.type === 'base') {
+      if (frames.length) { frames[frames.length-1].status = 'basecase'; frames[frames.length-1].line = e.line; }
+    } else if (e.type === 'enter') {
+      if (frames.length) { frames[frames.length-1].status = 'active'; frames[frames.length-1].line = e.line; }
+    } else if (e.type === 'return') {
+      if (frames.length) {
+        frames[frames.length-1].value = e.value;
+        frames[frames.length-1].status = 'returning';
+        frames[frames.length-1].line = e.line;
+        // mark as popped after render of THIS step: we pop now so depth reflects post-return
+        frames.pop();
+      }
+    }
+  }
+  return { frames, lastEvent };
+}
+
+// --- Render --------------------------------------------------
+function render() {
+  const { frames, lastEvent } = computeStack();
+
+  // Stack frames
+  stackCol.querySelectorAll('.frame').forEach(f => f.remove());
+  if (frames.length === 0) {
+    emptyNote.style.display = '';
+  } else {
+    emptyNote.style.display = 'none';
+    frames.forEach((fr, i) => {
+      const div = document.createElement('div');
+      div.className = 'frame';
+      const isTop = i === frames.length - 1;
+      if (fr.status === 'basecase') div.classList.add('basecase');
+      if (fr.status === 'returning') div.classList.add('returning');
+      else if (isTop && fr.status === 'active') div.classList.add('active');
+      const valHtml = fr.value === null
+        ? '<span class="ret-val">waiting&#x2026;</span>'
+        : '<span class="ret-val has">returns ' + fr.value + '</span>';
+      div.innerHTML = '<span class="call-sig">' + fr.sig + '</span>' + valHtml;
+      stackCol.appendChild(div);
+    });
+  }
+
+  // After a return event, briefly show the popped frame's value in the readout (handled by message).
+  // Code highlight
+  highlightCode(lastEvent);
+
+  // Readout message
+  if (state.idx === 0) {
+    readout.innerHTML = 'Stack is empty. Press <strong>Step</strong> to make the first call: <code>' +
+      FUNCTIONS[state.key].sig(state.n) + '</code>.';
+  } else if (lastEvent) {
+    let tag = '';
+    if (lastEvent.type === 'call') tag = '<span class="tag call">call</span>';
+    else if (lastEvent.type === 'base') tag = '<span class="tag base">test</span>';
+    else if (lastEvent.type === 'enter') tag = '<span class="tag call">recurse</span>';
+    else if (lastEvent.type === 'return') tag = '<span class="tag ret">return</span>';
+    else if (lastEvent.type === 'complete') tag = '<span class="tag done">done</span>';
+    let msg = lastEvent.msg;
+    if (lastEvent.type === 'call') {
+      msg = "Push a new frame for <code>" + lastEvent.sig + "</code> onto the stack.";
+    }
+    readout.innerHTML = tag + msg;
+  }
+
+  // Live region text for screen readers
+  stackText.textContent = describeStack(frames, lastEvent);
+
+  // Stats
+  $('depthStat').textContent = frames.length;
+  $('maxStat').textContent = Math.max(state.maxDepth, 0);
+  $('callsStat').textContent = state.events.slice(0, state.idx).filter(e => e.type === 'call').length;
+  $('stepStat').textContent = state.idx + ' / ' + state.events.length;
+  const depthEl = $('depthStat');
+  depthEl.classList.toggle('warn', frames.length >= 7);
+
+  // Button enable/disable
+  $('stepBtn').disabled = state.idx >= state.events.length;
+  $('backBtn').disabled = state.idx <= 0;
+}
+
+function describeStack(frames, lastEvent) {
+  if (state.idx === 0) return "Call stack is empty.";
+  let parts = ["Stack depth " + frames.length + "."];
+  if (frames.length) {
+    parts.push("Top of stack is " + frames[frames.length-1].sig + ".");
+  }
+  if (lastEvent && lastEvent.type === 'return') {
+    parts.push("A frame just returned the value " + lastEvent.value + " to its caller.");
+  } else if (lastEvent && lastEvent.type === 'complete') {
+    parts.push("Finished. Final result " + lastEvent.value + ".");
+  }
+  return parts.join(' ');
+}
+
+function highlightCode(lastEvent) {
+  const lines = codeBox.querySelectorAll('.ln');
+  lines.forEach(l => l.classList.remove('hl'));
+  if (lastEvent && typeof lastEvent.line === 'number') {
+    const target = codeBox.querySelector('.ln[data-line="' + lastEvent.line + '"]');
+    if (target) target.classList.add('hl');
+  }
+}
+
+function renderCode() {
+  const fn = FUNCTIONS[state.key];
+  codeBox.innerHTML = '';
+  fn.code.forEach((c, i) => {
+    const ln = document.createElement('div');
+    ln.className = 'ln';
+    ln.setAttribute('data-line', i);
+    ln.innerHTML = '<span class="num">' + (i+1) + '</span><span class="src">' + c.t + '</span>';
+    codeBox.appendChild(ln);
+  });
+}
+
+// --- Step controls -------------------------------------------
+function stepForward() {
+  if (state.idx < state.events.length) {
+    state.idx++;
+    render();
+  } else {
+    stopPlay();
+  }
+}
+function stepBack() {
+  if (state.idx > 0) { state.idx--; render(); }
+}
+
+function load() {
+  stopPlay();
+  state.key = $('fnSelect').value;
+  let n = parseInt($('nInput').value, 10);
+  if (isNaN(n)) n = 0;
+  n = Math.max(0, Math.min(9, n));
+  $('nInput').value = n;
+  state.n = n;
+  buildEvents();
+  renderCode();
+  feedback.classList.remove('show');
+  state.predictionLocked = false;
+  updatePredictPrompt();
+  render();
+  readout.innerHTML = 'Loaded <code>' + FUNCTIONS[state.key].sig(n) +
+    '</code>. There will be <strong>' + state.totalCalls + '</strong> calls in total. Press <strong>Step</strong> to begin.';
+}
+
+function reset() {
+  stopPlay();
+  state.idx = 0;
+  feedback.classList.remove('show');
+  render();
+}
+
+function togglePlay() {
+  if (state.timer) { stopPlay(); return; }
+  if (state.idx >= state.events.length) state.idx = 0;
+  $('playBtn').textContent = 'Pause ⏸';
+  const tick = () => {
+    if (state.idx >= state.events.length) { stopPlay(); return; }
+    stepForward();
+    const delay = parseInt($('speed').value, 10);
+    state.timer = setTimeout(tick, delay);
+  };
+  const delay = parseInt($('speed').value, 10);
+  state.timer = setTimeout(tick, delay);
+}
+function stopPlay() {
+  if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+  $('playBtn').textContent = 'Auto-play ⏩';
+}
+
+// --- Predict challenge ---------------------------------------
+function updatePredictPrompt() {
+  $('predInput').value = '';
+  $('predictPrompt').innerHTML = 'Before you step through, what will <code>' +
+    FUNCTIONS[state.key].sig(state.n) + '</code> return? Type your prediction.';
+}
+
+function checkPrediction() {
+  const raw = $('predInput').value.trim();
+  if (raw === '') {
+    showFeedback(false, 'Type a number first, then press Check prediction.');
+    return;
+  }
+  const guess = parseInt(raw, 10);
+  const correct = state.finalValue;
+  if (guess === correct) {
+    showFeedback(true, 'Correct. <code>' + FUNCTIONS[state.key].sig(state.n) +
+      '</code> returns <code>' + correct + '</code>. Now step through to confirm how each frame builds that value on the way back down.');
+  } else {
+    // targeted feedback
+    let hint = '';
+    if (state.key === 'factorial') hint = ' Remember factorial multiplies every integer from n down to 1, and factorial(0) is 1.';
+    else if (state.key === 'fibonacci') hint = ' Remember each fib value is the sum of the previous two, starting 0, 1, 1, 2, 3, 5, 8.';
+    else if (state.key === 'sumTo') hint = ' This adds every integer from n down to 0.';
+    else if (state.key === 'power') hint = ' This doubles repeatedly: 2 to the power n.';
+    const dir = guess < correct ? 'too low' : 'too high';
+    showFeedback(false, 'Not quite: <code>' + correct + '</code> is the answer, your guess of <code>' +
+      guess + '</code> is ' + dir + '.' + hint + ' Use Step to see exactly where the value comes from.');
+  }
+}
+
+function revealReplay() {
+  showFeedback(true, '<code>' + FUNCTIONS[state.key].sig(state.n) + '</code> returns <code>' +
+    state.finalValue + '</code>. Replaying from the first call now.');
+  state.idx = 0;
+  render();
+  togglePlay();
+}
+
+function showFeedback(ok, html) {
+  feedback.className = 'feedback show ' + (ok ? 'ok' : 'no');
+  feedback.innerHTML = html;
+}
+
+// --- Keyboard accessibility ----------------------------------
+document.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+  if (e.key === 'ArrowRight') { e.preventDefault(); stopPlay(); stepForward(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); stopPlay(); stepBack(); }
+  else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+  else if (e.key.toLowerCase() === 'r') { reset(); }
+});
+
+// --- Wire up -------------------------------------------------
+$('buildBtn').addEventListener('click', load);
+$('stepBtn').addEventListener('click', () => { stopPlay(); stepForward(); });
+$('backBtn').addEventListener('click', () => { stopPlay(); stepBack(); });
+$('playBtn').addEventListener('click', togglePlay);
+$('resetBtn').addEventListener('click', reset);
+$('checkBtn').addEventListener('click', checkPrediction);
+$('revealBtn').addEventListener('click', revealReplay);
+$('fnSelect').addEventListener('change', load);
+$('predInput').addEventListener('keydown', e => { if (e.key === 'Enter') checkPrediction(); });
+
+// Initial load
+load();
+</script>
+</body>
+</html>

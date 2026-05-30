@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>High Low Slider | KS1 Music</title>
+<style>
+  :root {
+    --bg: #f3f7ff;
+    --panel: #ffffff;
+    --ink: #1f2440;
+    --muted: #5d6488;
+    --accent: #ff7a59;
+    --accent2: #5b6cf0;
+    --good: #2e9e5b;
+    --good-bg: #e7f7ec;
+    --warn: #d2553a;
+    --line: #dde3f2;
+    --sky-top: #cfe4ff;
+    --sky-bot: #fff3e6;
+    --shadow: 0 8px 24px rgba(31,36,64,.12);
+    --radius: 22px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Trebuchet MS", system-ui, -apple-system, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #e8f1ff, var(--bg));
+    color: var(--ink);
+    line-height: 1.45;
+    min-height: 100vh;
+    padding: 16px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+
+  header.app-head { text-align: center; margin-bottom: 14px; }
+  .app-head h1 {
+    font-size: clamp(1.6rem, 4.5vw, 2.6rem);
+    margin: 4px 0 6px;
+    letter-spacing: .5px;
+  }
+  .app-head .aim {
+    background: var(--panel);
+    border: 2px dashed var(--line);
+    border-radius: 16px;
+    padding: 8px 14px;
+    display: inline-block;
+    font-size: .95rem;
+    color: var(--muted);
+    max-width: 780px;
+  }
+  .app-head .aim strong { color: var(--accent2); }
+
+  .tabs {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 14px 0;
+  }
+  .tab-btn {
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    border: 2px solid var(--line);
+    background: var(--panel);
+    color: var(--muted);
+    padding: 10px 18px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform .08s, background .15s, color .15s, border-color .15s;
+  }
+  .tab-btn:hover { transform: translateY(-1px); }
+  .tab-btn[aria-selected="true"] {
+    background: var(--accent2);
+    color: #fff;
+    border-color: var(--accent2);
+  }
+  .tab-btn:focus-visible { outline: 3px solid #ffbf00; outline-offset: 2px; }
+
+  .panel {
+    background: var(--panel);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .panel h2 { margin: 0 0 6px; font-size: 1.25rem; }
+  .panel p.lead { margin: 0 0 12px; color: var(--muted); font-size: .98rem; }
+
+  /* ---- Balloon stage ---- */
+  .balloon-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 16px;
+    align-items: stretch;
+  }
+  @media (max-width: 760px) {
+    .balloon-layout { grid-template-columns: 1fr; }
+  }
+
+  .sky {
+    position: relative;
+    height: 460px;
+    border-radius: 18px;
+    background: linear-gradient(to bottom, var(--sky-top) 0%, #eaf3ff 55%, var(--sky-bot) 100%);
+    border: 2px solid var(--line);
+    overflow: hidden;
+    touch-action: none;
+  }
+  .cloud {
+    position: absolute;
+    font-size: 2rem;
+    opacity: .8;
+    user-select: none;
+    pointer-events: none;
+  }
+  .ground {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 46px;
+    background: linear-gradient(to bottom, #cdebc2, #aadd9c);
+    border-top: 3px solid #87c879;
+  }
+  .marker {
+    position: absolute;
+    left: 8px;
+    font-weight: 800;
+    font-size: .9rem;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background: rgba(255,255,255,.75);
+    color: var(--accent2);
+    pointer-events: none;
+  }
+  .marker.low { color: var(--accent); }
+
+  .balloon {
+    position: absolute;
+    left: 50%;
+    width: 96px;
+    height: 118px;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    touch-action: none;
+    will-change: top;
+  }
+  .balloon:active { cursor: grabbing; }
+  .balloon:focus-visible { outline: 4px solid #ffbf00; outline-offset: 4px; border-radius: 50%; }
+  .balloon svg { display: block; width: 100%; height: 100%; pointer-events: none; }
+
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .readout {
+    border: 2px solid var(--line);
+    border-radius: 16px;
+    padding: 14px;
+    text-align: center;
+    background: #fbfcff;
+  }
+  .readout .word {
+    font-size: 2rem;
+    font-weight: 800;
+    margin: 4px 0;
+    color: var(--accent2);
+  }
+  .readout .note-name {
+    font-size: 1.1rem;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .pitch-bar-wrap {
+    height: 14px;
+    background: #eef1fb;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 10px;
+  }
+  .pitch-bar {
+    height: 100%;
+    width: 50%;
+    background: linear-gradient(to right, var(--accent), var(--accent2));
+    transition: width .05s linear;
+  }
+
+  .controls-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .btn {
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    border: 2px solid var(--accent2);
+    background: var(--accent2);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform .08s, filter .15s;
+  }
+  .btn.ghost { background: #fff; color: var(--accent2); }
+  .btn:hover { transform: translateY(-1px); filter: brightness(1.03); }
+  .btn:focus-visible { outline: 3px solid #ffbf00; outline-offset: 2px; }
+
+  .hint {
+    font-size: .9rem;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* ---- Listen and choose game ---- */
+  .game-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .choice-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .choice {
+    flex: 1 1 160px;
+    font-family: inherit;
+    font-size: 1.15rem;
+    font-weight: 800;
+    padding: 18px;
+    border-radius: 16px;
+    border: 3px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+    transition: transform .08s, border-color .15s, background .15s;
+  }
+  .choice:hover { transform: translateY(-2px); }
+  .choice:focus-visible { outline: 3px solid #ffbf00; outline-offset: 2px; }
+  .choice.is-right { border-color: var(--good); background: var(--good-bg); }
+  .choice.is-wrong { border-color: var(--warn); background: #fdeee9; }
+  .score-pill {
+    font-weight: 800;
+    background: #eef1fb;
+    color: var(--accent2);
+    padding: 8px 14px;
+    border-radius: 999px;
+  }
+  .feedback {
+    margin-top: 12px;
+    min-height: 28px;
+    font-weight: 700;
+    font-size: 1.05rem;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.try { color: var(--warn); }
+
+  /* ---- Mixer ---- */
+  .mixer-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 560px) { .mixer-grid { grid-template-columns: 1fr; } }
+  .mix-card {
+    border: 2px solid var(--line);
+    border-radius: 16px;
+    padding: 14px;
+    background: #fbfcff;
+  }
+  .mix-card h3 { margin: 0 0 8px; font-size: 1.05rem; }
+  .mix-card .label-row {
+    display: flex; justify-content: space-between;
+    font-size: .85rem; color: var(--muted); font-weight: 700;
+    margin-bottom: 4px;
+  }
+  input[type="range"] { width: 100%; height: 30px; cursor: pointer; touch-action: none; accent-color: var(--accent2); }
+  input[type="range"]:focus-visible { outline: 3px solid #ffbf00; outline-offset: 2px; }
+  .mix-state { font-weight: 800; color: var(--accent2); margin-top: 6px; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  footer.note { text-align: center; color: var(--muted); font-size: .85rem; margin: 8px 0 20px; }
+  .nc-tag {
+    display: inline-block; background: #eef1fb; color: var(--accent2);
+    font-size: .78rem; font-weight: 700; padding: 4px 10px; border-radius: 999px;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <span class="nc-tag">KS1 Music &#x2022; Exploring the dimensions of music</span>
+    <h1>High Low Slider &#x1F388;</h1>
+    <div class="aim">
+      <strong>Teaching aim:</strong> children hear and see that when a sound goes <strong>up</strong> it gets <strong>higher</strong>, and when it goes <strong>down</strong> it gets <strong>lower</strong>. Then they explore loud, soft, fast and slow.
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Activities">
+    <button class="tab-btn" id="tab-balloon" role="tab" aria-selected="true" aria-controls="panel-balloon">&#x1F388; Move the balloon</button>
+    <button class="tab-btn" id="tab-game" role="tab" aria-selected="false" aria-controls="panel-game" tabindex="-1">&#x1F442; High or low?</button>
+    <button class="tab-btn" id="tab-mixer" role="tab" aria-selected="false" aria-controls="panel-mixer" tabindex="-1">&#x1F39A;&#xFE0F; Sound mixer</button>
+  </nav>
+
+  <!-- ============ BALLOON ============ -->
+  <section class="panel" id="panel-balloon" role="tabpanel" aria-labelledby="tab-balloon">
+    <h2>Move the balloon up and down</h2>
+    <p class="lead">Drag the balloon high in the sky for a <strong>high</strong> sound. Pull it down near the grass for a <strong>low</strong> sound. You can also use the arrow keys.</p>
+    <div class="balloon-layout">
+      <div class="sky" id="sky">
+        <span class="cloud" style="top:14%; left:12%;">&#x2601;&#xFE0F;</span>
+        <span class="cloud" style="top:8%; right:16%;">&#x2601;&#xFE0F;</span>
+        <span class="cloud" style="top:34%; right:8%;">&#x2601;&#xFE0F;</span>
+        <span class="marker" style="top:6px;">&#x2B06;&#xFE0F; HIGH</span>
+        <span class="marker low" style="bottom:58px;">&#x2B07;&#xFE0F; LOW</span>
+        <div class="ground" aria-hidden="true"></div>
+        <div class="balloon" id="balloon" tabindex="0" role="slider"
+             aria-label="Balloon pitch slider. Up arrow for higher, down arrow for lower."
+             aria-valuemin="1" aria-valuemax="8" aria-valuenow="4" aria-valuetext="middle pitch">
+          <svg viewBox="0 0 96 118" aria-hidden="true">
+            <ellipse cx="48" cy="48" rx="42" ry="48" fill="#ff5e7e"/>
+            <ellipse cx="34" cy="34" rx="12" ry="16" fill="#ffd0db" opacity="0.7"/>
+            <polygon points="48,94 40,104 56,104" fill="#e0476a"/>
+            <path d="M48 104 Q44 112 50 118" stroke="#7a5a3a" stroke-width="2.5" fill="none"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="readout" aria-hidden="true">
+          <div>The sound is</div>
+          <div class="word" id="pitchWord">middle</div>
+          <div class="note-name" id="noteName">note: G</div>
+          <div class="pitch-bar-wrap"><div class="pitch-bar" id="pitchBar"></div></div>
+        </div>
+        <div class="controls-row">
+          <button class="btn" id="playBtn" type="button">&#x25B6;&#xFE0F; Play sound</button>
+          <button class="btn ghost" id="stopBtn" type="button">&#x23F9;&#xFE0F; Stop</button>
+        </div>
+        <p class="hint">Tip: hold <strong>Play sound</strong> on, then drag the balloon to hear the pitch slide up and down.</p>
+      </div>
+    </div>
+    <p class="sr-only" id="balloonLive" role="status" aria-live="polite"></p>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section class="panel" id="panel-game" role="tabpanel" aria-labelledby="tab-game" hidden>
+    <h2>Listen: was it high or low?</h2>
+    <p class="lead">Press <strong>Play a sound</strong>, listen carefully, then tap the matching word. Miss Okafor's class are on a roll today.</p>
+    <div class="game-actions">
+      <button class="btn" id="gamePlayBtn" type="button">&#x1F50A; Play a sound</button>
+      <span class="score-pill" id="scorePill">Stars: 0</span>
+    </div>
+    <div class="choice-row" role="group" aria-label="Choose high or low">
+      <button class="choice" data-answer="high" type="button">&#x2B06;&#xFE0F; HIGH</button>
+      <button class="choice" data-answer="low" type="button">&#x2B07;&#xFE0F; LOW</button>
+    </div>
+    <p class="feedback" id="gameFeedback" role="status" aria-live="polite">Press play to hear your first sound.</p>
+  </section>
+
+  <!-- ============ MIXER ============ -->
+  <section class="panel" id="panel-mixer" role="tabpanel" aria-labelledby="tab-mixer" hidden>
+    <h2>Loud, soft, fast and slow mixer</h2>
+    <p class="lead">Slide to change how the music sounds. The drum keeps a beat so you can hear the change straight away.</p>
+    <div class="mixer-grid">
+      <div class="mix-card">
+        <h3>&#x1F50A; Loud or soft?</h3>
+        <div class="label-row"><span>Soft</span><span>Loud</span></div>
+        <input type="range" id="volRange" min="0" max="100" value="60"
+               aria-label="Loud or soft, dynamics" aria-valuetext="medium">
+        <div class="mix-state" id="volState">Medium</div>
+      </div>
+      <div class="mix-card">
+        <h3>&#x23F1;&#xFE0F; Fast or slow?</h3>
+        <div class="label-row"><span>Slow</span><span>Fast</span></div>
+        <input type="range" id="tempoRange" min="0" max="100" value="50"
+               aria-label="Fast or slow, tempo" aria-valuetext="walking speed">
+        <div class="mix-state" id="tempoState">Walking speed</div>
+      </div>
+    </div>
+    <div class="controls-row" style="margin-top:14px;">
+      <button class="btn" id="beatBtn" type="button">&#x25B6;&#xFE0F; Start the beat</button>
+      <button class="btn ghost" id="beatStopBtn" type="button">&#x23F9;&#xFE0F; Stop the beat</button>
+    </div>
+    <p class="hint">Words to use: <strong>dynamics</strong> means loud and soft. <strong>Tempo</strong> means fast and slow.</p>
+    <p class="sr-only" id="mixerLive" role="status" aria-live="polite"></p>
+  </section>
+
+  <footer class="note">High Low Slider. A WeST classroom demo for KS1 Music. Sounds are made in your browser, no recordings needed.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Web Audio (created on first interaction) ---------- */
+  var audioCtx = null;
+  function getCtx() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) { audioCtx = new AC(); }
+    }
+    if (audioCtx && audioCtx.state === "suspended") { audioCtx.resume(); }
+    return audioCtx;
+  }
+
+  /* Eight pitches low to high, a friendly C-ish scale */
+  var SCALE = [196.00, 220.00, 246.94, 261.63, 293.66, 329.63, 392.00, 523.25];
+  var NOTE_NAMES = ["G", "A", "B", "C", "D", "E", "G", "C"];
+
+  /* ---------- Tab switching ---------- */
+  var tabs = [
+    { btn: document.getElementById("tab-balloon"), panel: document.getElementById("panel-balloon") },
+    { btn: document.getElementById("tab-game"),    panel: document.getElementById("panel-game") },
+    { btn: document.getElementById("tab-mixer"),   panel: document.getElementById("panel-mixer") }
+  ];
+  function selectTab(idx) {
+    tabs.forEach(function (t, i) {
+      var on = i === idx;
+      t.btn.setAttribute("aria-selected", on ? "true" : "false");
+      t.btn.tabIndex = on ? 0 : -1;
+      t.panel.hidden = !on;
+    });
+    stopBalloonTone();
+    stopBeat();
+  }
+  tabs.forEach(function (t, i) {
+    t.btn.addEventListener("click", function () { selectTab(i); });
+    t.btn.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowRight") { e.preventDefault(); var n = (i + 1) % tabs.length; tabs[n].btn.focus(); selectTab(n); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); var p = (i - 1 + tabs.length) % tabs.length; tabs[p].btn.focus(); selectTab(p); }
+    });
+  });
+
+  /* ====================================================
+     BALLOON
+     ==================================================== */
+  var sky = document.getElementById("sky");
+  var balloon = document.getElementById("balloon");
+  var pitchWord = document.getElementById("pitchWord");
+  var noteName = document.getElementById("noteName");
+  var pitchBar = document.getElementById("pitchBar");
+  var balloonLive = document.getElementById("balloonLive");
+
+  /* position is a fraction 0 (top, high) .. 1 (bottom, low) */
+  var pos = 0.5;
+  var balloonOsc = null, balloonGain = null;
+
+  function freqFromPos(p) {
+    /* high at top (p=0), low at bottom (p=1) */
+    var hi = SCALE[SCALE.length - 1], lo = SCALE[0];
+    /* glide smoothly in log space for a natural pitch slide */
+    var logLo = Math.log(lo), logHi = Math.log(hi);
+    var v = logHi - (logHi - logLo) * p;
+    return Math.exp(v);
+  }
+  function stepFromPos(p) {
+    /* nearest of 8 steps, 1 = low, 8 = high */
+    var idx = Math.round((1 - p) * (SCALE.length - 1));
+    return Math.max(0, Math.min(SCALE.length - 1, idx));
+  }
+  function wordFromPos(p) {
+    if (p < 0.2) return "very high";
+    if (p < 0.4) return "high";
+    if (p < 0.6) return "middle";
+    if (p < 0.8) return "low";
+    return "very low";
+  }
+
+  function renderBalloon() {
+    /* place balloon vertically inside sky, keeping it clear of the ground strip */
+    var skyH = sky.clientHeight;
+    var topPad = 62, botPad = 70;
+    var usable = skyH - topPad - botPad;
+    var y = topPad + pos * usable;
+    balloon.style.top = y + "px";
+
+    var step = stepFromPos(pos);
+    var word = wordFromPos(pos);
+    pitchWord.textContent = word;
+    noteName.textContent = "note: " + NOTE_NAMES[step];
+    pitchBar.style.width = ((1 - pos) * 100) + "%";
+
+    balloon.setAttribute("aria-valuenow", String(step + 1));
+    balloon.setAttribute("aria-valuetext", word + " pitch, note " + NOTE_NAMES[step]);
+
+    if (balloonOsc) {
+      balloonOsc.frequency.setTargetAtTime(freqFromPos(pos), getCtx().currentTime, 0.03);
+    }
+  }
+
+  function startBalloonTone() {
+    var ctx = getCtx();
+    if (!ctx) return;
+    if (balloonOsc) return;
+    balloonOsc = ctx.createOscillator();
+    balloonGain = ctx.createGain();
+    balloonOsc.type = "triangle";
+    balloonOsc.frequency.value = freqFromPos(pos);
+    balloonGain.gain.value = 0;
+    balloonOsc.connect(balloonGain).connect(ctx.destination);
+    balloonOsc.start();
+    balloonGain.gain.setTargetAtTime(0.18, ctx.currentTime, 0.02);
+  }
+  function stopBalloonTone() {
+    if (balloonOsc && balloonGain) {
+      var ctx = getCtx();
+      balloonGain.gain.setTargetAtTime(0, ctx.currentTime, 0.04);
+      var osc = balloonOsc;
+      setTimeout(function () { try { osc.stop(); } catch (e) {} }, 200);
+      balloonOsc = null;
+      balloonGain = null;
+    }
+  }
+
+  document.getElementById("playBtn").addEventListener("click", function () {
+    startBalloonTone();
+    announceBalloon();
+  });
+  document.getElementById("stopBtn").addEventListener("click", stopBalloonTone);
+
+  function announceBalloon() {
+    balloonLive.textContent = "The balloon is " + wordFromPos(pos) + ", note " + NOTE_NAMES[stepFromPos(pos)] + ".";
+  }
+
+  /* Pointer drag */
+  var dragging = false;
+  function posFromClientY(clientY) {
+    var rect = sky.getBoundingClientRect();
+    var topPad = 62, botPad = 70;
+    var usable = rect.height - topPad - botPad;
+    var y = clientY - rect.top - topPad;
+    var p = y / usable;
+    return Math.max(0, Math.min(1, p));
+  }
+  balloon.addEventListener("pointerdown", function (e) {
+    dragging = true;
+    balloon.setPointerCapture(e.pointerId);
+    startBalloonTone();
+    pos = posFromClientY(e.clientY);
+    renderBalloon();
+    e.preventDefault();
+  });
+  balloon.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    pos = posFromClientY(e.clientY);
+    renderBalloon();
+    e.preventDefault();
+  });
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    try { balloon.releasePointerCapture(e.pointerId); } catch (err) {}
+    announceBalloon();
+  }
+  balloon.addEventListener("pointerup", endDrag);
+  balloon.addEventListener("pointercancel", endDrag);
+
+  /* Tap anywhere in the sky to jump the balloon */
+  sky.addEventListener("pointerdown", function (e) {
+    if (e.target === balloon || balloon.contains(e.target)) return;
+    startBalloonTone();
+    pos = posFromClientY(e.clientY);
+    renderBalloon();
+    announceBalloon();
+  });
+
+  /* Keyboard control */
+  balloon.addEventListener("keydown", function (e) {
+    var stepSize = 1 / (SCALE.length - 1);
+    var handled = true;
+    if (e.key === "ArrowUp" || e.key === "ArrowRight") { pos = Math.max(0, pos - stepSize); }
+    else if (e.key === "ArrowDown" || e.key === "ArrowLeft") { pos = Math.min(1, pos + stepSize); }
+    else if (e.key === "Home") { pos = 0; }
+    else if (e.key === "End") { pos = 1; }
+    else if (e.key === " " || e.key === "Enter") { startBalloonTone(); }
+    else { handled = false; }
+    if (handled) {
+      e.preventDefault();
+      /* snap to nearest step for keyboard so each press is a clear note */
+      pos = (SCALE.length - 1 - stepFromPos(pos)) / (SCALE.length - 1);
+      startBalloonTone();
+      renderBalloon();
+      announceBalloon();
+    }
+  });
+  balloon.addEventListener("blur", function () {
+    /* keep tone going only while actively used; stop when leaving balloon by keyboard */
+  });
+
+  window.addEventListener("resize", renderBalloon);
+
+  /* ====================================================
+     HIGH OR LOW GAME
+     ==================================================== */
+  var currentAnswer = null;
+  var score = 0;
+  var awaiting = false;
+  var gameFeedback = document.getElementById("gameFeedback");
+  var scorePill = document.getElementById("scorePill");
+  var choices = document.querySelectorAll(".choice");
+
+  function playGameNote(high) {
+    var ctx = getCtx();
+    if (!ctx) return;
+    var freq = high ? SCALE[6] : SCALE[1]; /* clearly high vs clearly low */
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.value = freq;
+    g.gain.value = 0;
+    osc.connect(g).connect(ctx.destination);
+    var t = ctx.currentTime;
+    g.gain.setTargetAtTime(0.2, t, 0.02);
+    g.gain.setTargetAtTime(0, t + 0.9, 0.08);
+    osc.start(t);
+    osc.stop(t + 1.4);
+  }
+
+  document.getElementById("gamePlayBtn").addEventListener("click", function () {
+    clearChoiceMarks();
+    currentAnswer = Math.random() < 0.5 ? "high" : "low";
+    awaiting = true;
+    playGameNote(currentAnswer === "high");
+    gameFeedback.className = "feedback";
+    gameFeedback.textContent = "Listen, then tap HIGH or LOW.";
+  });
+
+  function clearChoiceMarks() {
+    choices.forEach(function (c) { c.classList.remove("is-right", "is-wrong"); });
+  }
+
+  choices.forEach(function (c) {
+    c.addEventListener("click", function () {
+      if (!awaiting) {
+        gameFeedback.className = "feedback try";
+        gameFeedback.textContent = "Press Play a sound first.";
+        return;
+      }
+      var pick = c.getAttribute("data-answer");
+      if (pick === currentAnswer) {
+        score++;
+        scorePill.textContent = "Stars: " + score;
+        c.classList.add("is-right");
+        gameFeedback.className = "feedback good";
+        gameFeedback.textContent = "Yes! That sound was " + currentAnswer + ". Well done. ⭐";
+      } else {
+        c.classList.add("is-wrong");
+        gameFeedback.className = "feedback try";
+        gameFeedback.textContent = "Good try. That sound was " + currentAnswer + ". Press play and listen again.";
+      }
+      awaiting = false;
+    });
+  });
+
+  /* ====================================================
+     MIXER (dynamics + tempo with a steady beat)
+     ==================================================== */
+  var volRange = document.getElementById("volRange");
+  var tempoRange = document.getElementById("tempoRange");
+  var volState = document.getElementById("volState");
+  var tempoState = document.getElementById("tempoState");
+  var mixerLive = document.getElementById("mixerLive");
+
+  var beatTimer = null;
+  var beatOn = false;
+
+  function volWord(v) {
+    if (v < 25) return "Very soft";
+    if (v < 50) return "Soft";
+    if (v < 75) return "Medium";
+    return "Loud";
+  }
+  function tempoWord(t) {
+    if (t < 25) return "Very slow";
+    if (t < 50) return "Slow";
+    if (t < 75) return "Walking speed";
+    return "Fast";
+  }
+  function beatInterval() {
+    /* tempo 0 -> 1000ms, tempo 100 -> 260ms */
+    var t = Number(tempoRange.value);
+    return 1000 - (t / 100) * 740;
+  }
+  function beatVolume() {
+    return (Number(volRange.value) / 100) * 0.4 + 0.02;
+  }
+
+  function clickSound() {
+    var ctx = getCtx();
+    if (!ctx) return;
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = 180;
+    g.gain.value = 0;
+    osc.connect(g).connect(ctx.destination);
+    var t = ctx.currentTime;
+    var peak = beatVolume();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(peak, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    osc.frequency.setValueAtTime(180, t);
+    osc.frequency.exponentialRampToValueAtTime(90, t + 0.16);
+    osc.start(t);
+    osc.stop(t + 0.2);
+  }
+
+  function scheduleBeat() {
+    if (!beatOn) return;
+    clickSound();
+    beatTimer = setTimeout(scheduleBeat, beatInterval());
+  }
+  function startBeat() {
+    getCtx();
+    if (beatOn) return;
+    beatOn = true;
+    scheduleBeat();
+  }
+  function stopBeat() {
+    beatOn = false;
+    if (beatTimer) { clearTimeout(beatTimer); beatTimer = null; }
+  }
+
+  document.getElementById("beatBtn").addEventListener("click", startBeat);
+  document.getElementById("beatStopBtn").addEventListener("click", stopBeat);
+
+  function updateMixerLabels() {
+    var vw = volWord(Number(volRange.value));
+    var tw = tempoWord(Number(tempoRange.value));
+    volState.textContent = vw;
+    tempoState.textContent = tw;
+    volRange.setAttribute("aria-valuetext", vw);
+    tempoRange.setAttribute("aria-valuetext", tw);
+    mixerLive.textContent = "Dynamics " + vw + ", tempo " + tw + ".";
+  }
+  volRange.addEventListener("input", updateMixerLabels);
+  tempoRange.addEventListener("input", updateMixerLabels);
+
+  /* ---------- init ---------- */
+  renderBalloon();
+  updateMixerLabels();
+})();
+</script>
+</body>
+</html>

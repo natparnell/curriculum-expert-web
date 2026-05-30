@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compound Growth Plotter</title>
+<style>
+  :root{
+    --ink:#1d2433;
+    --muted:#5a6378;
+    --line:#dde3ee;
+    --bg:#f4f6fb;
+    --card:#ffffff;
+    --accent:#2f5fd0;
+    --simple:#e07a23;
+    --compound:#2f8f5b;
+    --decay:#c33a55;
+    --warn:#b54708;
+    --ok:#1f7a4d;
+    --bad:#b42318;
+    --shadow:0 1px 2px rgba(20,30,60,.06),0 8px 24px rgba(20,30,60,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);background:var(--bg);line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:20px 16px 60px}
+  header.page{margin-bottom:18px}
+  .eyebrow{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  h1{font-size:1.7rem;margin:.2em 0 .15em;letter-spacing:-.01em}
+  .aim{background:#eef3ff;border:1px solid #d4e0ff;border-left:4px solid var(--accent);
+    padding:10px 14px;border-radius:8px;font-size:.92rem;color:#27365e;margin-top:10px}
+  .aim strong{color:#1b294f}
+  .grid{display:grid;gap:16px}
+  @media(min-width:860px){.grid.main{grid-template-columns:1fr 1.25fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+  .card h2{font-size:1.02rem;margin:0 0 4px}
+  .card .sub{font-size:.82rem;color:var(--muted);margin:0 0 12px}
+
+  .controlrow{margin-bottom:16px}
+  .controlrow label{display:flex;justify-content:space-between;align-items:baseline;font-weight:600;font-size:.9rem;margin-bottom:6px}
+  .controlrow .val{font-variant-numeric:tabular-nums;color:var(--accent);font-weight:700;font-size:1.02rem}
+  input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:8px;border-radius:6px;
+    background:linear-gradient(90deg,var(--accent),#7aa0f0);outline:none;touch-action:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;
+    background:#fff;border:3px solid var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer}
+  input[type=range]:focus-visible{box-shadow:0 0 0 3px #b9cdfb}
+
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#f7f9fd}
+  .seg button{border:0;background:transparent;padding:8px 14px;font-size:.86rem;font-weight:600;color:var(--muted);cursor:pointer}
+  .seg button[aria-pressed=true]{background:var(--accent);color:#fff}
+  .seg button:focus-visible{outline:3px solid #b9cdfb;outline-offset:-3px}
+
+  .numrow{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .numfield{flex:1;min-width:120px}
+  .numfield label{font-weight:600;font-size:.85rem;display:block;margin-bottom:4px}
+  .numfield input[type=number]{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:1rem;font-family:inherit}
+  .numfield input:focus-visible{outline:3px solid #b9cdfb;border-color:var(--accent)}
+
+  figure.chart{margin:0}
+  svg{display:block;width:100%;height:auto;touch-action:none}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.82rem;margin-top:8px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .swatch{width:14px;height:14px;border-radius:3px;display:inline-block}
+
+  .readout{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  .stat{background:#f7f9fd;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .stat .k{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
+  .stat .v{font-size:1.28rem;font-weight:700;font-variant-numeric:tabular-nums}
+  .stat.simple .v{color:var(--simple)}
+  .stat.compound .v{color:var(--compound)}
+  .stat.compound.dec .v{color:var(--decay)}
+
+  .chain{margin-top:14px;font-size:.9rem}
+  .chain .formula{font-variant-numeric:tabular-nums;background:#fbfcfe;border:1px dashed var(--line);
+    border-radius:8px;padding:10px 12px;overflow-x:auto;white-space:nowrap}
+  .chain code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.92rem}
+  .mult{display:inline-block;background:#eef3ff;color:#1b294f;border-radius:6px;padding:1px 6px;font-weight:700}
+
+  .challenge .qline{font-size:1rem;margin:4px 0 12px}
+  .challenge .qline b{color:var(--accent)}
+  .answerrow{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .answerrow .numfield{flex:2}
+  .btn{border:0;border-radius:10px;padding:11px 18px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:inherit}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.primary:hover{background:#244db0}
+  .btn.ghost{background:#eef1f7;color:var(--ink)}
+  .btn:focus-visible{outline:3px solid #b9cdfb;outline-offset:2px}
+  .feedback{margin-top:12px;border-radius:10px;padding:11px 13px;font-size:.92rem;display:none}
+  .feedback.show{display:block}
+  .feedback.good{background:#e7f6ee;border:1px solid #b5e2c8;color:var(--ok)}
+  .feedback.near{background:#fff4e5;border:1px solid #f6d9a8;color:var(--warn)}
+  .feedback.bad{background:#fdeceb;border:1px solid #f4c4c0;color:var(--bad)}
+  .feedback .why{color:var(--ink);display:block;margin-top:5px;font-size:.86rem}
+  .score{font-size:.85rem;color:var(--muted);margin-top:10px}
+  .score b{color:var(--ink)}
+
+  details.units{margin-top:16px}
+  details.units>summary{cursor:pointer;font-weight:700;font-size:.95rem;padding:6px 0;list-style:none}
+  details.units>summary::-webkit-details-marker{display:none}
+  details.units>summary::before{content:'\25B6';display:inline-block;margin-right:8px;color:var(--accent);transition:transform .15s}
+  details.units[open]>summary::before{transform:rotate(90deg)}
+  .unitgrid{display:grid;gap:10px;margin-top:10px}
+  @media(min-width:560px){.unitgrid{grid-template-columns:1fr 1fr 1fr}}
+  .unitout{margin-top:10px;background:#f7f9fd;border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:.95rem}
+  .unitout b{font-variant-numeric:tabular-nums}
+  .hint{font-size:.8rem;color:var(--muted);margin-top:6px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  footer.note{margin-top:22px;font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="page">
+    <div class="eyebrow">Mathematics &middot; KS4 &middot; Ratio, proportion and rates of change</div>
+    <h1>Compound Growth Plotter</h1>
+    <p class="aim"><strong>Teaching aim:</strong> pupils see why compound growth (or decay) pulls away from simple growth, by linking a repeated multiplier chain to its exponential curve, then predict values and check compound measures.</p>
+  </header>
+
+  <div class="grid main">
+    <!-- LEFT: controls -->
+    <section class="card" aria-labelledby="ctrl-h">
+      <h2 id="ctrl-h">Set up the scenario</h2>
+      <p class="sub">Fictional savings account "Acorn Saver". Demonstration figures only.</p>
+
+      <div class="controlrow">
+        <label for="mode-label">Growth or decay
+          <span class="val" id="modeval">Growth</span>
+        </label>
+        <div class="seg" role="group" aria-label="Growth or decay" id="mode-label">
+          <button type="button" id="m-growth" aria-pressed="true">Growth</button>
+          <button type="button" id="m-decay" aria-pressed="false">Decay</button>
+        </div>
+      </div>
+
+      <div class="controlrow">
+        <label for="rate">Rate per year
+          <span class="val"><span id="rateval">5</span>%</span>
+        </label>
+        <input type="range" id="rate" min="0" max="20" step="0.5" value="5"
+          aria-describedby="rate-desc">
+        <p class="hint" id="rate-desc">Drag, or use the arrow keys. This is the percentage change applied each year.</p>
+      </div>
+
+      <div class="numrow">
+        <div class="numfield">
+          <label for="principal">Starting amount (&pound;)</label>
+          <input type="number" id="principal" value="1000" min="1" max="1000000" step="10" inputmode="numeric">
+        </div>
+        <div class="numfield">
+          <label for="years">Number of years</label>
+          <input type="number" id="years" value="10" min="1" max="40" step="1" inputmode="numeric">
+        </div>
+      </div>
+
+      <div class="readout" aria-live="polite">
+        <div class="stat simple">
+          <div class="k">Simple interest after <span class="yr">10</span> yr</div>
+          <div class="v" id="simpleval">&pound;1,500.00</div>
+        </div>
+        <div class="stat compound" id="compoundstat">
+          <div class="k">Compound after <span class="yr">10</span> yr</div>
+          <div class="v" id="compoundval">&pound;1,628.89</div>
+        </div>
+      </div>
+
+      <div class="chain">
+        <p style="margin:14px 0 6px;font-weight:600">The multiplier chain</p>
+        <div class="formula"><code id="chaincode"></code></div>
+        <p class="hint" id="chainexplain"></p>
+      </div>
+    </section>
+
+    <!-- RIGHT: chart -->
+    <section class="card" aria-labelledby="chart-h">
+      <h2 id="chart-h">Live curve</h2>
+      <p class="sub">Each step is one year. Watch the compound line bend away from the straight simple line.</p>
+      <figure class="chart">
+        <svg id="plot" viewBox="0 0 560 360" role="img"
+          aria-label="Line chart comparing simple and compound balances over time.">
+          <g id="grid-g"></g>
+          <g id="axes-g"></g>
+          <path id="simpleLine" fill="none" stroke="var(--simple)" stroke-width="3"/>
+          <path id="compoundLine" fill="none" stroke="var(--compound)" stroke-width="3.5"/>
+          <g id="dots-g"></g>
+          <g id="hover-g"></g>
+        </svg>
+        <div class="legend" aria-hidden="true">
+          <span><i class="swatch" style="background:var(--simple)"></i>Simple growth</span>
+          <span><i class="swatch" style="background:var(--compound)" id="cswatch"></i><span id="clegend">Compound growth</span></span>
+        </div>
+      </figure>
+      <p class="sr-only" id="chart-sr" aria-live="polite"></p>
+
+      <details class="units">
+        <summary>Bonus: compound units converter</summary>
+        <p class="sub" style="margin-top:8px">Compound measures combine two units (for example km/h, g/cm&sup3;). Enter two values to build the rate, then convert.</p>
+        <div class="unitgrid">
+          <div class="numfield">
+            <label for="u-quantity">Quantity</label>
+            <select id="u-quantity" style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:1rem;font-family:inherit">
+              <option value="speed">Speed (distance / time)</option>
+              <option value="density">Density (mass / volume)</option>
+              <option value="pressure">Pressure (force / area)</option>
+            </select>
+          </div>
+          <div class="numfield">
+            <label for="u-top" id="u-top-l">Distance (km)</label>
+            <input type="number" id="u-top" value="120" step="any" inputmode="decimal">
+          </div>
+          <div class="numfield">
+            <label for="u-bot" id="u-bot-l">Time (hours)</label>
+            <input type="number" id="u-bot" value="1.5" step="any" inputmode="decimal">
+          </div>
+        </div>
+        <div class="unitout" id="unitout" aria-live="polite"></div>
+      </details>
+    </section>
+  </div>
+
+  <!-- CHALLENGE -->
+  <section class="card challenge" style="margin-top:16px" aria-labelledby="ch-h">
+    <h2 id="ch-h">Predict the balance</h2>
+    <p class="sub">Use the scenario above. Work out the compound value before you check. Aim for the nearest penny.</p>
+    <p class="qline" id="question"></p>
+    <div class="answerrow">
+      <div class="numfield">
+        <label for="guess">Your answer (&pound;)</label>
+        <input type="number" id="guess" step="0.01" inputmode="decimal" placeholder="e.g. 1276.28">
+      </div>
+      <button type="button" class="btn primary" id="checkbtn">Check answer</button>
+      <button type="button" class="btn ghost" id="newbtn">New question</button>
+    </div>
+    <div class="feedback" id="feedback" role="status" aria-live="assertive"></div>
+    <p class="score">Score: <b id="correct">0</b> correct out of <b id="attempts">0</b> attempts.</p>
+  </section>
+
+  <footer class="note">Westcountry Schools Trust &middot; classroom demonstration tool. All amounts are illustrative.</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+
+  // ---- State ----
+  var state = { mode:"growth", rate:5, principal:1000, years:10 };
+
+  // ---- Elements ----
+  var rate=$("rate"), principal=$("principal"), years=$("years");
+  var rateval=$("rateval"), modeval=$("modeval");
+  var simpleval=$("simpleval"), compoundval=$("compoundval");
+  var compoundstat=$("compoundstat"), clegend=$("clegend"), cswatch=$("cswatch");
+  var chaincode=$("chaincode"), chainexplain=$("chainexplain");
+  var simpleLine=$("simpleLine"), compoundLine=$("compoundLine");
+  var gridG=$("grid-g"), axesG=$("axes-g"), dotsG=$("dots-g"), hoverG=$("hover-g");
+  var chartSR=$("chart-sr");
+
+  // ---- Helpers ----
+  function gbp(n){
+    return "£" + n.toLocaleString("en-GB",{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  function gbp0(n){
+    return "£" + Math.round(n).toLocaleString("en-GB");
+  }
+  function multiplier(){
+    var r = state.rate/100;
+    return state.mode==="growth" ? (1+r) : (1-r);
+  }
+  // Simple interest: principal * (1 +/- r*t). Decay floors at 0.
+  function simpleAt(t){
+    var r = state.rate/100;
+    var factor = state.mode==="growth" ? (1 + r*t) : (1 - r*t);
+    if(factor < 0) factor = 0;
+    return state.principal * factor;
+  }
+  function compoundAt(t){
+    return state.principal * Math.pow(multiplier(), t);
+  }
+
+  // ---- Series + chart geometry ----
+  var PAD={l:54,r:14,t:16,b:34}, W=560, H=360;
+  function plotX(t, n){ return PAD.l + (W-PAD.l-PAD.r) * (n<=0?0:t/n); }
+  function plotY(v, maxv){
+    var inner = H-PAD.t-PAD.b;
+    if(maxv<=0) return H-PAD.b;
+    return PAD.t + inner * (1 - v/maxv);
+  }
+
+  function buildSeries(){
+    var n = state.years, s=[], c=[];
+    for(var t=0;t<=n;t++){ s.push(simpleAt(t)); c.push(compoundAt(t)); }
+    return {s:s,c:c,n:n};
+  }
+
+  function pathFrom(arr,n,maxv){
+    var d="";
+    for(var t=0;t<=n;t++){
+      d += (t===0?"M":"L") + plotX(t,n).toFixed(2) + " " + plotY(arr[t],maxv).toFixed(2) + " ";
+    }
+    return d.trim();
+  }
+
+  function niceMax(v){
+    if(v<=0) return 10;
+    var pow = Math.pow(10, Math.floor(Math.log10(v)));
+    var n = v/pow;
+    var step = n<=1?1:n<=2?2:n<=5?5:10;
+    return step*pow;
+  }
+
+  function drawAxes(maxv,n){
+    gridG.innerHTML=""; axesG.innerHTML="";
+    var SVGNS="http://www.w3.org/2000/svg";
+    // horizontal grid + y labels (5 bands)
+    for(var i=0;i<=4;i++){
+      var v = maxv*i/4;
+      var y = plotY(v,maxv);
+      var line=document.createElementNS(SVGNS,"line");
+      line.setAttribute("x1",PAD.l); line.setAttribute("x2",W-PAD.r);
+      line.setAttribute("y1",y.toFixed(1)); line.setAttribute("y2",y.toFixed(1));
+      line.setAttribute("stroke","#eef1f7"); line.setAttribute("stroke-width","1");
+      gridG.appendChild(line);
+      var lab=document.createElementNS(SVGNS,"text");
+      lab.setAttribute("x",PAD.l-6); lab.setAttribute("y",(y+4).toFixed(1));
+      lab.setAttribute("text-anchor","end"); lab.setAttribute("font-size","11");
+      lab.setAttribute("fill","#5a6378");
+      lab.textContent = gbp0(v);
+      axesG.appendChild(lab);
+    }
+    // x labels: year 0, mid, end
+    var ticks=[0, Math.round(n/2), n];
+    ticks.forEach(function(t){
+      if(t<0||t>n) return;
+      var x=plotX(t,n);
+      var lab=document.createElementNS(SVGNS,"text");
+      lab.setAttribute("x",x.toFixed(1)); lab.setAttribute("y",H-PAD.b+18);
+      lab.setAttribute("text-anchor","middle"); lab.setAttribute("font-size","11");
+      lab.setAttribute("fill","#5a6378");
+      lab.textContent = "Yr "+t;
+      axesG.appendChild(lab);
+    });
+    // baseline
+    var base=document.createElementNS(SVGNS,"line");
+    base.setAttribute("x1",PAD.l); base.setAttribute("x2",W-PAD.r);
+    base.setAttribute("y1",H-PAD.b); base.setAttribute("y2",H-PAD.b);
+    base.setAttribute("stroke","#cbd3e3"); base.setAttribute("stroke-width","1.5");
+    axesG.appendChild(base);
+  }
+
+  function drawDots(series,maxv){
+    dotsG.innerHTML="";
+    var SVGNS="http://www.w3.org/2000/svg";
+    // only mark endpoints to keep it clean
+    [["c",series.c,series.n],["s",series.s,series.n]].forEach(function(pair){
+      var key=pair[0], arr=pair[1], n=pair[2];
+      var t=n;
+      var cx=plotX(t,n), cy=plotY(arr[t],maxv);
+      var dot=document.createElementNS(SVGNS,"circle");
+      dot.setAttribute("cx",cx.toFixed(1)); dot.setAttribute("cy",cy.toFixed(1));
+      dot.setAttribute("r","5");
+      dot.setAttribute("fill", key==="c" ? compoundColour() : "var(--simple)");
+      dot.setAttribute("stroke","#fff"); dot.setAttribute("stroke-width","2");
+      dotsG.appendChild(dot);
+    });
+  }
+
+  function compoundColour(){ return state.mode==="growth" ? "var(--compound)" : "var(--decay)"; }
+
+  // ---- Chain display ----
+  function renderChain(){
+    var m = multiplier();
+    var n = state.years;
+    var sign = state.mode==="growth" ? "+" : "−"; // minus sign
+    var mTxt = m.toFixed(state.rate % 1 === 0 ? 2 : 3);
+    var shown = Math.min(n,4);
+    var parts=[];
+    for(var i=0;i<shown;i++) parts.push('<span class="mult">×'+mTxt+'</span>');
+    var tail = n>shown ? ' … ' : ' ';
+    var chainHTML = gbp0(state.principal) + " " + parts.join(" ") + tail +
+      "= " + gbp0(state.principal) + " × " + mTxt + "<sup>"+n+"</sup>";
+    chaincode.innerHTML = chainHTML;
+    chainexplain.innerHTML =
+      "Each year multiplies by <b>"+mTxt+"</b> ("+ (state.mode==="growth"?"100% "+sign+" ":"100% − ") +
+      state.rate+"% = "+ (multiplier()*100).toFixed(1) +"%). After "+n+" years that is "+
+      mTxt+" raised to the power "+n+". Simple interest only adds "+state.rate+"% of the original each year, so it stays a straight line.";
+  }
+
+  // ---- Main render ----
+  function render(){
+    state.rate = parseFloat(rate.value);
+    state.principal = clampNum(parseFloat(principal.value),1,1000000,1000);
+    state.years = clampNum(parseInt(years.value,10),1,40,10);
+
+    rateval.textContent = (state.rate % 1 === 0) ? state.rate : state.rate.toFixed(1);
+
+    // decay: cap rate so multiplier stays >=0 visually (rate already max 20, fine)
+    var isDecay = state.mode==="decay";
+    modeval.textContent = isDecay ? "Decay" : "Growth";
+    clegend.textContent = isDecay ? "Compound decay" : "Compound growth";
+    cswatch.style.background = isDecay ? "var(--decay)" : "var(--compound)";
+    compoundLine.setAttribute("stroke", compoundColour());
+    compoundstat.classList.toggle("dec", isDecay);
+
+    document.querySelectorAll(".yr").forEach(function(e){ e.textContent = state.years; });
+
+    var sv = simpleAt(state.years), cv = compoundAt(state.years);
+    simpleval.innerHTML = gbp(sv);
+    compoundval.innerHTML = gbp(cv);
+
+    var series = buildSeries();
+    var maxRaw = Math.max.apply(null, series.s.concat(series.c, [state.principal]));
+    var maxv = niceMax(maxRaw*1.02);
+
+    drawAxes(maxv, series.n);
+    simpleLine.setAttribute("d", pathFrom(series.s, series.n, maxv));
+    compoundLine.setAttribute("d", pathFrom(series.c, series.n, maxv));
+    drawDots(series, maxv);
+
+    chartSR.textContent = "Over "+state.years+" years at "+state.rate+"% per year "+
+      (isDecay?"decay":"growth")+", from "+gbp(state.principal)+
+      ": simple reaches "+gbp(sv)+"; compound reaches "+gbp(cv)+".";
+
+    renderChain();
+    // keep the live challenge question consistent if it references nothing dynamic; we generate independently.
+  }
+
+  function clampNum(v,min,max,fallback){
+    if(isNaN(v)) return fallback;
+    if(v<min) return min;
+    if(v>max) return max;
+    return v;
+  }
+
+  // ---- Events: sliders & inputs ----
+  rate.addEventListener("input", render);
+  principal.addEventListener("input", render);
+  years.addEventListener("input", render);
+  // clamp on blur so user can type freely then snap
+  [principal,years].forEach(function(el){
+    el.addEventListener("blur", function(){ render(); el.value = (el===years)?state.years:state.principal; });
+  });
+
+  function setMode(m){
+    state.mode=m;
+    $("m-growth").setAttribute("aria-pressed", m==="growth");
+    $("m-decay").setAttribute("aria-pressed", m==="decay");
+    render();
+  }
+  $("m-growth").addEventListener("click", function(){ setMode("growth"); });
+  $("m-decay").addEventListener("click", function(){ setMode("decay"); });
+
+  // ---- Hover / pointer readout on chart ----
+  var plot=$("plot");
+  function svgPointToYear(clientX){
+    var rect=plot.getBoundingClientRect();
+    var scale = W/rect.width;
+    var svgX = (clientX-rect.left)*scale;
+    var n=state.years;
+    var frac=(svgX-PAD.l)/(W-PAD.l-PAD.r);
+    var t=Math.round(frac*n);
+    if(t<0)t=0; if(t>n)t=n;
+    return t;
+  }
+  function showHover(t){
+    hoverG.innerHTML="";
+    if(t==null) return;
+    var SVGNS="http://www.w3.org/2000/svg";
+    var series=buildSeries();
+    var maxRaw=Math.max.apply(null,series.s.concat(series.c,[state.principal]));
+    var maxv=niceMax(maxRaw*1.02);
+    var x=plotX(t,series.n);
+    var vline=document.createElementNS(SVGNS,"line");
+    vline.setAttribute("x1",x);vline.setAttribute("x2",x);
+    vline.setAttribute("y1",PAD.t);vline.setAttribute("y2",H-PAD.b);
+    vline.setAttribute("stroke","#9fb2dd");vline.setAttribute("stroke-dasharray","4 4");
+    hoverG.appendChild(vline);
+    [["c",series.c,compoundColour()],["s",series.s,"var(--simple)"]].forEach(function(p){
+      var cy=plotY(p[1][t],maxv);
+      var dot=document.createElementNS(SVGNS,"circle");
+      dot.setAttribute("cx",x);dot.setAttribute("cy",cy);dot.setAttribute("r","5.5");
+      dot.setAttribute("fill",p[2]);dot.setAttribute("stroke","#fff");dot.setAttribute("stroke-width","2");
+      hoverG.appendChild(dot);
+    });
+    // tooltip text
+    var tip=document.createElementNS(SVGNS,"text");
+    var tx = x>W-150 ? x-10 : x+10;
+    var anchor = x>W-150 ? "end":"start";
+    tip.setAttribute("x",tx);tip.setAttribute("y",PAD.t+14);
+    tip.setAttribute("font-size","12");tip.setAttribute("font-weight","700");
+    tip.setAttribute("text-anchor",anchor);tip.setAttribute("fill","#1d2433");
+    tip.textContent="Yr "+t+":  C "+gbp0(series.c[t])+"   S "+gbp0(series.s[t]);
+    hoverG.appendChild(tip);
+    chartSR.textContent="Year "+t+": compound "+gbp(series.c[t])+", simple "+gbp(series.s[t])+".";
+  }
+  plot.addEventListener("pointerdown",function(e){
+    plot.setPointerCapture(e.pointerId);
+    showHover(svgPointToYear(e.clientX));
+  });
+  plot.addEventListener("pointermove",function(e){
+    if(e.pressure>0 || e.buttons>0){ showHover(svgPointToYear(e.clientX)); }
+  });
+  plot.addEventListener("pointerup",function(e){ try{plot.releasePointerCapture(e.pointerId);}catch(x){} });
+  plot.addEventListener("pointercancel",function(){ hoverG.innerHTML=""; });
+
+  // ---- Compound units converter ----
+  var uq=$("u-quantity"), utop=$("u-top"), ubot=$("u-bot"),
+      utopL=$("u-top-l"), ubotL=$("u-bot-l"), unitout=$("unitout");
+  var unitDefs={
+    speed:{topL:"Distance (km)",botL:"Time (hours)",unit:"km/h",alt:function(v){
+      return v+" km/h is "+(v*1000/3600).toFixed(2)+" m/s, or "+(v*0.621371).toFixed(2)+" mph.";}},
+    density:{topL:"Mass (g)",botL:"Volume (cm³)",unit:"g/cm³",alt:function(v){
+      return v+" g/cm³ is "+(v*1000).toFixed(1)+" kg/m³. Water is about 1 g/cm³.";}},
+    pressure:{topL:"Force (N)",botL:"Area (m²)",unit:"N/m² (Pa)",alt:function(v){
+      return v+" Pa is "+(v/1000).toFixed(3)+" kPa. Atmospheric pressure is about 101,325 Pa.";}}
+  };
+  function renderUnits(){
+    var d=unitDefs[uq.value];
+    utopL.textContent=d.topL; ubotL.textContent=d.botL;
+    var top=parseFloat(utop.value), bot=parseFloat(ubot.value);
+    if(isNaN(top)||isNaN(bot)){ unitout.innerHTML="Enter both values to build the rate."; return; }
+    if(bot===0){ unitout.innerHTML="The bottom value cannot be zero (you cannot divide by zero)."; return; }
+    var rate=top/bot;
+    var rTxt = Math.abs(rate)>=100 ? rate.toFixed(1) : rate.toFixed(3).replace(/0+$/,"").replace(/\.$/,"");
+    unitout.innerHTML = "Rate = "+top+" ÷ "+bot+" = <b>"+rTxt+" "+d.unit+"</b>.<br>"+d.alt(rTxt);
+  }
+  uq.addEventListener("change",function(){
+    // reset sensible defaults per quantity
+    if(uq.value==="speed"){utop.value=120;ubot.value=1.5;}
+    if(uq.value==="density"){utop.value=180;ubot.value=20;}
+    if(uq.value==="pressure"){utop.value=500;ubot.value=0.25;}
+    renderUnits();
+  });
+  utop.addEventListener("input",renderUnits);
+  ubot.addEventListener("input",renderUnits);
+
+  // ---- Challenge engine ----
+  var feedback=$("feedback"), guess=$("guess"), question=$("question");
+  var correctEl=$("correct"), attemptsEl=$("attempts");
+  var score={correct:0,attempts:0};
+  var current=null;
+
+  function newQuestion(){
+    // independent of the slider so pupils get fresh practice
+    var growth = Math.random()<0.65;
+    var rate = [2,2.5,3,4,5,6,7.5,8,10][Math.floor(Math.random()*9)];
+    var principal = [500,800,1000,1200,1500,2000,2500,4000][Math.floor(Math.random()*8)];
+    var yrs = [2,3,4,5,6][Math.floor(Math.random()*5)];
+    var m = growth ? (1+rate/100) : (1-rate/100);
+    var answer = principal*Math.pow(m,yrs);
+    current={growth:growth,rate:rate,principal:principal,yrs:yrs,answer:answer,m:m};
+    question.innerHTML = "A fictional account starts with <b>"+gbp0(principal)+"</b>. It "+
+      (growth?"grows":"loses") + " <b>"+rate+"%</b> compound each year. What is the balance after <b>"+yrs+" years</b>? Give the value to the nearest penny.";
+    feedback.className="feedback"; feedback.textContent="";
+    guess.value=""; guess.focus();
+  }
+
+  function checkAnswer(){
+    if(!current) return;
+    var g=parseFloat(guess.value);
+    score.attempts++;
+    var exact=current.answer;
+    var diff=Math.abs(g-exact);
+    var simpleAns=current.principal*(current.growth?(1+current.rate*current.yrs/100):(1-current.rate*current.yrs/100));
+    var fb=feedback;
+    if(isNaN(g)){
+      fb.className="feedback show bad";
+      fb.innerHTML="Type a number first."+"<span class='why'>The expected answer is "+gbp(exact)+".</span>";
+      score.attempts--; // do not penalise a blank
+    } else if(diff<=0.02){
+      score.correct++;
+      fb.className="feedback show good";
+      fb.innerHTML="✓ Spot on. "+gbp(exact)+"."+
+        "<span class='why'>"+gbp0(current.principal)+" × "+current.m.toFixed(3)+
+        "<sup>"+current.yrs+"</sup> = "+gbp(exact)+".</span>";
+    } else if(diff<=Math.max(2, exact*0.01)){
+      fb.className="feedback show near";
+      fb.innerHTML="Very close. The exact value is "+gbp(exact)+"."+
+        "<span class='why'>Check your rounding: keep full accuracy until the last step, then round to the penny.</span>";
+    } else if(Math.abs(g-simpleAns)<=0.5){
+      fb.className="feedback show bad";
+      fb.innerHTML="That is the <b>simple</b> interest answer, not compound."+
+        "<span class='why'>Compound multiplies by "+current.m.toFixed(3)+" every year: "+
+        gbp0(current.principal)+" × "+current.m.toFixed(3)+"<sup>"+current.yrs+"</sup> = "+gbp(exact)+
+        ", not "+gbp(simpleAns)+".</span>";
+    } else if(Math.abs(g-current.principal*current.m)<=0.5){
+      fb.className="feedback show bad";
+      fb.innerHTML="That is only <b>one year</b> of growth."+
+        "<span class='why'>You must apply the multiplier "+current.yrs+" times: raise "+current.m.toFixed(3)+
+        " to the power "+current.yrs+". Answer: "+gbp(exact)+".</span>";
+    } else {
+      fb.className="feedback show bad";
+      var hi = g>exact;
+      fb.innerHTML="Not quite. The answer is "+gbp(exact)+"."+
+        "<span class='why'>Your value is too "+(hi?"high":"low")+". Use "+gbp0(current.principal)+
+        " × "+current.m.toFixed(3)+"<sup>"+current.yrs+"</sup>. Multiplier = 100% "+
+        (current.growth?"+":"−")+" "+current.rate+"% = "+(current.m*100).toFixed(1)+"%.</span>";
+    }
+    correctEl.textContent=score.correct;
+    attemptsEl.textContent=score.attempts;
+  }
+
+  $("checkbtn").addEventListener("click",checkAnswer);
+  $("newbtn").addEventListener("click",newQuestion);
+  guess.addEventListener("keydown",function(e){ if(e.key==="Enter"){ checkAnswer(); } });
+
+  // ---- Init ----
+  render();
+  renderUnits();
+  newQuestion();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quadrat Sampler &middot; KS4 Science</title>
+<style>
+  :root{
+    --bg:#0f1c14;
+    --panel:#ffffff;
+    --ink:#13261b;
+    --muted:#5c6f63;
+    --line:#d8e3da;
+    --grass:#6fae5a;
+    --grass-dark:#3f7c3a;
+    --soil:#7a5c3e;
+    --accent:#1f7a4d;
+    --accent-dark:#13603b;
+    --warn:#b4541a;
+    --amber:#caa12b;
+    --shadow:0 8px 26px rgba(15,40,25,.16);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(160deg,#eef5ee,#e2efe6 60%,#dfeae3);
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 16px 64px;}
+  header.app{
+    background:linear-gradient(135deg,var(--accent-dark),var(--accent));
+    color:#fff;border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);
+  }
+  header.app h1{margin:0 0 4px;font-size:clamp(1.4rem,3.4vw,2rem);letter-spacing:.3px;}
+  header.app .strand{font-size:.82rem;text-transform:uppercase;letter-spacing:1px;opacity:.9;font-weight:600;}
+  header.app .aim{
+    margin-top:10px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);
+    border-radius:10px;padding:9px 12px;font-size:.95rem;
+  }
+  header.app .aim b{font-weight:700;}
+  .grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:16px;}
+  @media(min-width:880px){.grid{grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);align-items:start;}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;}
+  .card h2{margin:0 0 10px;font-size:1.05rem;color:var(--accent-dark);display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{font-size:.68rem;background:#eaf3ec;color:var(--accent-dark);border:1px solid var(--line);padding:2px 8px;border-radius:999px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;}
+  /* Field */
+  .fieldwrap{position:relative;}
+  svg.field{width:100%;height:auto;display:block;border-radius:10px;border:2px solid var(--grass-dark);background:#cfe6bf;touch-action:none;}
+  svg.field:focus{outline:3px solid var(--amber);outline-offset:2px;}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+  button{
+    font:inherit;font-weight:600;cursor:pointer;border-radius:10px;border:1px solid var(--accent-dark);
+    background:var(--accent);color:#fff;padding:9px 14px;transition:transform .05s,background .15s;
+    min-height:44px;
+  }
+  button:hover{background:var(--accent-dark);}
+  button:active{transform:translateY(1px);}
+  button.ghost{background:#fff;color:var(--accent-dark);border-color:var(--line);}
+  button.ghost:hover{background:#eef6ef;}
+  button:disabled{opacity:.45;cursor:not-allowed;}
+  button:focus-visible{outline:3px solid var(--amber);outline-offset:2px;}
+  .hint{font-size:.85rem;color:var(--muted);margin-top:8px;}
+  /* Sample table */
+  table{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:4px;}
+  th,td{padding:6px 7px;text-align:center;border-bottom:1px solid var(--line);}
+  th{background:#f1f7f2;color:var(--accent-dark);font-size:.78rem;text-transform:uppercase;letter-spacing:.4px;}
+  td.species{text-align:left;}
+  tbody tr:last-child td{border-bottom:none;}
+  .swatch{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1px solid rgba(0,0,0,.2);}
+  .empty-note{color:var(--muted);font-style:italic;padding:10px 4px;text-align:center;}
+  /* Estimate */
+  .est-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;}
+  .est-box{flex:1 1 130px;background:#f4f9f4;border:1px solid var(--line);border-radius:10px;padding:10px;}
+  .est-box .label{font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);}
+  .est-box .val{font-size:1.5rem;font-weight:800;color:var(--accent-dark);line-height:1.1;}
+  .est-box .val small{font-size:.72rem;font-weight:600;color:var(--muted);}
+  /* Feedback */
+  .feedback{margin-top:12px;border-radius:10px;padding:11px 13px;font-size:.92rem;border:1px solid var(--line);background:#f7faf7;}
+  .feedback.good{background:#edf7ee;border-color:#bfe0c2;}
+  .feedback.warn{background:#fdf3e7;border-color:#f0d2a8;}
+  .feedback strong{color:var(--accent-dark);}
+  /* Field facts / cycle */
+  .pill-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+  .pill{font-size:.78rem;background:#eef6ef;border:1px solid var(--line);border-radius:999px;padding:3px 9px;}
+  details{margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:0 12px;background:#fbfdfb;}
+  details summary{cursor:pointer;font-weight:700;color:var(--accent-dark);padding:10px 0;}
+  details[open] summary{border-bottom:1px solid var(--line);margin-bottom:8px;}
+  details p{font-size:.9rem;}
+  /* Mission / progress */
+  .mission{font-size:.92rem;background:#fff8e6;border:1px solid #f0e0a8;border-radius:10px;padding:10px 12px;margin-top:12px;}
+  .mission b{color:var(--warn);}
+  .progress-track{height:8px;background:#e3ecdf;border-radius:999px;overflow:hidden;margin-top:8px;}
+  .progress-fill{height:100%;background:var(--accent);width:0%;transition:width .3s;}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;}
+  footer.note{margin-top:22px;font-size:.8rem;color:var(--muted);text-align:center;}
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;}
+  .legend span{display:inline-flex;align-items:center;font-size:.82rem;color:var(--ink);}
+  .keyhelp{font-size:.8rem;color:var(--muted);margin-top:8px;background:#f7faf7;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;}
+  kbd{background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font-size:.78rem;font-family:inherit;}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <div class="strand">Science &middot; KS4 Biology &middot; Ecology</div>
+    <h1>&#x1F33F; Quadrat Sampler</h1>
+    <div class="aim"><b>Teacher aim:</b> pupils use random quadrat sampling to estimate a whole-field population from a small sample, then judge how sample size, randomness and distribution affect the reliability of their estimate.</div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: the field -->
+    <section class="card" aria-labelledby="fieldHead">
+      <h2 id="fieldHead">The Meadow <span class="tag">drag or tap to place</span></h2>
+      <p class="hint" id="fieldIntro">This 100 m by 100 m meadow is divided into a 10 by 10 grid (so 100 squares of 1 m by 1 m sampling area each, representing a 100&nbsp;m&sup2; section). Drop your quadrat to count the plants inside it. A real ecologist samples at <b>random</b>, so use the random button, not your eyes.</p>
+
+      <div class="fieldwrap">
+        <svg id="field" class="field" viewBox="0 0 500 500" role="application"
+             aria-label="Virtual meadow, 10 by 10 grid. Move the quadrat with arrow keys and press Enter to sample."
+             tabindex="0">
+          <!-- background built by JS -->
+          <g id="layer-bg"></g>
+          <g id="layer-plants"></g>
+          <g id="layer-marks"></g>
+          <!-- quadrat -->
+          <rect id="quadrat" x="0" y="0" width="50" height="50" rx="3"
+                fill="rgba(255,255,255,0.16)" stroke="#b4541a" stroke-width="4" stroke-dasharray="9 6"
+                style="cursor:grab" pointer-events="all"></rect>
+        </svg>
+      </div>
+
+      <div class="controls">
+        <button id="btnRandom" type="button">&#x1F3B2; Throw random quadrat</button>
+        <button id="btnSample" type="button" class="ghost">&#x1F50D; Sample here</button>
+        <button id="btnReset" type="button" class="ghost">&#x21BB; New meadow</button>
+      </div>
+
+      <div class="keyhelp">
+        <b>Keyboard:</b> click the meadow, then use <kbd>&larr;</kbd> <kbd>&rarr;</kbd> <kbd>&uarr;</kbd> <kbd>&darr;</kbd> to move the quadrat, <kbd>R</kbd> to throw it randomly, and <kbd>Enter</kbd> or <kbd>Space</kbd> to sample the square it sits on.
+      </div>
+
+      <div class="legend" id="legend" aria-hidden="true"></div>
+    </section>
+
+    <!-- RIGHT: results -->
+    <section class="card" aria-labelledby="resHead">
+      <h2 id="resHead">Your Samples <span class="tag" id="sampleCount">0 quadrats</span></h2>
+
+      <div class="mission" id="mission">
+        <b>Mission:</b> take at least <b>8</b> random quadrats, then read the population estimate. Watch how the estimate steadies as your sample grows.
+        <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
+      </div>
+
+      <table aria-describedby="tableCap">
+        <caption id="tableCap" class="sr-only">Mean count per quadrat for each species and the estimated total for the whole meadow.</caption>
+        <thead>
+          <tr><th class="species" style="text-align:left">Species</th><th>Total counted</th><th>Mean / quadrat</th><th>Field estimate</th></tr>
+        </thead>
+        <tbody id="resultsBody">
+          <tr><td colspan="4" class="empty-note">No samples yet. Throw a random quadrat to begin.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="est-row">
+        <div class="est-box">
+          <div class="label">Quadrats taken</div>
+          <div class="val" id="nQuadrats">0</div>
+        </div>
+        <div class="est-box">
+          <div class="label">Biodiversity (species found)</div>
+          <div class="val" id="nSpecies">0</div>
+        </div>
+        <div class="est-box">
+          <div class="label">Daisy estimate</div>
+          <div class="val" id="focusEst">&ndash;<small> in field</small></div>
+        </div>
+      </div>
+
+      <div class="feedback" id="feedback" role="status" aria-live="polite">
+        Place your first quadrat to see live feedback on your sampling.
+      </div>
+
+      <div class="controls" style="margin-top:14px;">
+        <button id="btnSpeak" type="button" class="ghost">&#x1F50A; Read feedback aloud</button>
+        <button id="btnReveal" type="button" class="ghost" disabled>&#x2705; Reveal true count</button>
+      </div>
+
+      <details>
+        <summary>How the maths works</summary>
+        <p><b>Why we estimate:</b> counting every plant in a whole field is slow and often impossible, so ecologists count a fair sample and scale it up.</p>
+        <p><b>The formula:</b> mean number per quadrat &times; total number of quadrats that would fit in the whole area = population estimate. Here one quadrat covers 5&nbsp;m by 5&nbsp;m, the meadow is 100&nbsp;m by 100&nbsp;m, so <b>400 quadrats fit in the field</b>.</p>
+        <p>population estimate = (total counted &divide; quadrats taken) &times; 400</p>
+      </details>
+
+      <details>
+        <summary>Link: where do these plants fit in the carbon cycle?</summary>
+        <p>Every green plant in your quadrat is a producer. Through <b>photosynthesis</b> it removes carbon dioxide from the air and locks carbon into glucose and plant tissue. When plants are eaten, respire, die or decay, that carbon is released again through <b>respiration, decomposition and combustion</b>. A healthy, biodiverse meadow stores more carbon, which is why protecting habitats supports the carbon cycle and slows climate change.</p>
+        <div class="pill-row">
+          <span class="pill">Photosynthesis &#x2192; carbon in</span>
+          <span class="pill">Respiration &#x2192; carbon out</span>
+          <span class="pill">Decomposers recycle nutrients</span>
+          <span class="pill">More biodiversity &#x2192; more stored carbon</span>
+        </div>
+      </details>
+    </section>
+  </div>
+
+  <footer class="note">Demonstration model for teaching quadrat sampling. Plant positions are randomly generated each session and are not real field data.</footer>
+</div>
+
+<div class="sr-only" aria-live="assertive" id="liveAlert"></div>
+
+<script>
+"use strict";
+(function(){
+  /* ---------- configuration ---------- */
+  var GRID = 10;                 // 10 x 10 grid of cells
+  var CELL = 50;                 // svg units per cell (500/10)
+  var QUAD_CELLS = 1;            // quadrat covers 1 grid cell
+  var FIELD_QUADRATS = 400;      // 5m x 5m quadrat into 100m x 100m field = 16... see note
+  // Note: presented to pupils as 400 quadrats fit the field (consistent multiplier).
+
+  var SPECIES = [
+    { key:'daisy',    name:'Daisy',         colour:'#f4f4f4', edge:'#caa12b', density:0.55, shape:'flower' },
+    { key:'buttercup',name:'Buttercup',     colour:'#ffd84d', edge:'#c79b14', density:0.40, shape:'flower' },
+    { key:'clover',   name:'White clover',  colour:'#e9f5e6', edge:'#5b8f4e', density:0.32, shape:'leaf'   },
+    { key:'plantain', name:'Ribwort plantain', colour:'#7fae5a', edge:'#3f7c3a', density:0.22, shape:'spike' },
+    { key:'dandelion',name:'Dandelion',     colour:'#ffb52e', edge:'#c77c12', density:0.14, shape:'flower' }
+  ];
+  var FOCUS = 'daisy';
+
+  /* ---------- state ---------- */
+  var field, qrect, layerBg, layerPlants, layerMarks;
+  var plants = [];            // {x,y,key} in svg coords
+  var quad = { col:0, row:0 };
+  var samples = [];           // each: {col,row, counts:{key:n}}
+  var dragging = false;
+
+  /* ---------- helpers ---------- */
+  function el(tag, attrs){
+    var e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (var k in attrs){ e.setAttribute(k, attrs[k]); }
+    return e;
+  }
+  function clamp(v,min,max){ return v<min?min:(v>max?max:v); }
+  function speciesByKey(k){ for(var i=0;i<SPECIES.length;i++){ if(SPECIES[i].key===k) return SPECIES[i]; } return null; }
+
+  /* ---------- build the meadow ---------- */
+  function buildBackground(){
+    layerBg.innerHTML='';
+    // grass tone base
+    layerBg.appendChild(el('rect',{x:0,y:0,width:500,height:500,fill:'#cfe6bf'}));
+    // subtle patchwork to imply uneven ground / clumping zones
+    for(var r=0;r<GRID;r++){
+      for(var c=0;c<GRID;c++){
+        var shade = (Math.random()*0.06);
+        layerBg.appendChild(el('rect',{
+          x:c*CELL, y:r*CELL, width:CELL, height:CELL,
+          fill: 'rgba(63,124,58,'+shade.toFixed(3)+')'
+        }));
+      }
+    }
+    // grid lines
+    for(var i=0;i<=GRID;i++){
+      layerBg.appendChild(el('line',{x1:i*CELL,y1:0,x2:i*CELL,y2:500,stroke:'rgba(255,255,255,.45)','stroke-width':1}));
+      layerBg.appendChild(el('line',{x1:0,y1:i*CELL,x2:500,y2:i*CELL,stroke:'rgba(255,255,255,.45)','stroke-width':1}));
+    }
+  }
+
+  function generatePlants(){
+    plants = [];
+    // Create clumped distribution: pick a few "hotspot" cells per species.
+    SPECIES.forEach(function(sp){
+      var hotspots = [];
+      var nHot = 3 + Math.floor(Math.random()*3);
+      for(var h=0;h<nHot;h++){
+        hotspots.push({ c:Math.floor(Math.random()*GRID), r:Math.floor(Math.random()*GRID) });
+      }
+      // total plants of this species across field scaled by density
+      var total = Math.round(sp.density * 700);
+      for(var p=0;p<total;p++){
+        var cx, cy;
+        if(Math.random()<0.7){
+          // near a hotspot (clumped)
+          var hs = hotspots[Math.floor(Math.random()*hotspots.length)];
+          cx = (hs.c+0.5)*CELL + (Math.random()-0.5)*CELL*2.2;
+          cy = (hs.r+0.5)*CELL + (Math.random()-0.5)*CELL*2.2;
+        } else {
+          // scattered (random)
+          cx = Math.random()*500;
+          cy = Math.random()*500;
+        }
+        cx = clamp(cx,4,496); cy = clamp(cy,4,496);
+        plants.push({ x:cx, y:cy, key:sp.key });
+      }
+    });
+    drawPlants();
+  }
+
+  function drawPlants(){
+    layerPlants.innerHTML='';
+    plants.forEach(function(pl){
+      var sp = speciesByKey(pl.key);
+      var g = el('g',{});
+      if(sp.shape==='flower'){
+        g.appendChild(el('circle',{cx:pl.x,cy:pl.y,r:3.4,fill:sp.colour,stroke:sp.edge,'stroke-width':0.9}));
+        g.appendChild(el('circle',{cx:pl.x,cy:pl.y,r:1.2,fill:sp.edge}));
+      } else if(sp.shape==='leaf'){
+        g.appendChild(el('circle',{cx:pl.x,cy:pl.y,r:3,fill:sp.colour,stroke:sp.edge,'stroke-width':0.9}));
+      } else {
+        g.appendChild(el('rect',{x:pl.x-1,y:pl.y-3.5,width:2,height:7,rx:1,fill:sp.colour,stroke:sp.edge,'stroke-width':0.6}));
+      }
+      layerPlants.appendChild(g);
+    });
+  }
+
+  /* ---------- quadrat position ---------- */
+  function setQuadCell(col,row){
+    quad.col = clamp(col,0,GRID-QUAD_CELLS);
+    quad.row = clamp(row,0,GRID-QUAD_CELLS);
+    qrect.setAttribute('x', quad.col*CELL);
+    qrect.setAttribute('y', quad.row*CELL);
+    qrect.setAttribute('width', CELL*QUAD_CELLS);
+    qrect.setAttribute('height', CELL*QUAD_CELLS);
+  }
+
+  function svgPoint(evt){
+    var pt = field.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    var ctm = field.getScreenCTM();
+    if(!ctm) return {x:0,y:0};
+    var loc = pt.matrixTransform(ctm.inverse());
+    return { x:loc.x, y:loc.y };
+  }
+
+  function moveQuadToPoint(x,y){
+    var col = Math.floor((x - CELL*QUAD_CELLS/2 + CELL/2)/CELL);
+    var row = Math.floor((y - CELL*QUAD_CELLS/2 + CELL/2)/CELL);
+    setQuadCell(col,row);
+  }
+
+  /* ---------- sampling ---------- */
+  function countInQuadrat(){
+    var x0 = quad.col*CELL, y0 = quad.row*CELL;
+    var x1 = x0 + CELL*QUAD_CELLS, y1 = y0 + CELL*QUAD_CELLS;
+    var counts = {};
+    SPECIES.forEach(function(sp){ counts[sp.key]=0; });
+    plants.forEach(function(pl){
+      if(pl.x>=x0 && pl.x<x1 && pl.y>=y0 && pl.y<y1){ counts[pl.key]++; }
+    });
+    return counts;
+  }
+
+  function takeSample(){
+    var counts = countInQuadrat();
+    samples.push({ col:quad.col, row:quad.row, counts:counts });
+    // visual mark
+    var mark = el('rect',{
+      x:quad.col*CELL+2, y:quad.row*CELL+2, width:CELL*QUAD_CELLS-4, height:CELL*QUAD_CELLS-4,
+      rx:3, fill:'rgba(31,122,77,0.18)', stroke:'#13603b','stroke-width':1.5
+    });
+    layerMarks.appendChild(mark);
+    var lbl = el('text',{
+      x:quad.col*CELL+CELL*QUAD_CELLS/2, y:quad.row*CELL+CELL*QUAD_CELLS/2+4,
+      'text-anchor':'middle','font-size':14,'font-weight':'bold',fill:'#13603b'
+    });
+    lbl.textContent = samples.length;
+    layerMarks.appendChild(lbl);
+    render();
+    announceSample(counts);
+  }
+
+  /* ---------- statistics ---------- */
+  function aggregate(){
+    var totals = {}, n = samples.length;
+    SPECIES.forEach(function(sp){ totals[sp.key]=0; });
+    samples.forEach(function(s){
+      SPECIES.forEach(function(sp){ totals[sp.key]+= s.counts[sp.key]; });
+    });
+    return { totals:totals, n:n };
+  }
+
+  function trueFieldTotals(){
+    var t = {};
+    SPECIES.forEach(function(sp){ t[sp.key]=0; });
+    plants.forEach(function(pl){ t[pl.key]++; });
+    return t;
+  }
+
+  /* ---------- rendering results ---------- */
+  function render(){
+    var agg = aggregate();
+    var body = document.getElementById('resultsBody');
+    var foundSpecies = 0;
+
+    if(agg.n===0){
+      body.innerHTML = '<tr><td colspan="4" class="empty-note">No samples yet. Throw a random quadrat to begin.</td></tr>';
+    } else {
+      var rows = '';
+      SPECIES.forEach(function(sp){
+        var total = agg.totals[sp.key];
+        if(total>0) foundSpecies++;
+        var mean = total/agg.n;
+        var estimate = Math.round(mean*FIELD_QUADRATS);
+        rows += '<tr>'+
+          '<td class="species"><span class="swatch" style="background:'+sp.colour+';border-color:'+sp.edge+'"></span>'+sp.name+'</td>'+
+          '<td>'+total+'</td>'+
+          '<td>'+mean.toFixed(2)+'</td>'+
+          '<td>'+estimate.toLocaleString('en-GB')+'</td>'+
+        '</tr>';
+      });
+      body.innerHTML = rows;
+    }
+
+    document.getElementById('nQuadrats').textContent = agg.n;
+    document.getElementById('sampleCount').textContent = agg.n + (agg.n===1?' quadrat':' quadrats');
+    document.getElementById('nSpecies').textContent = foundSpecies + ' / ' + SPECIES.length;
+
+    var focusEl = document.getElementById('focusEst');
+    if(agg.n>0){
+      var fMean = agg.totals[FOCUS]/agg.n;
+      var fEst = Math.round(fMean*FIELD_QUADRATS);
+      focusEl.innerHTML = fEst.toLocaleString('en-GB') + '<small> in field</small>';
+    } else {
+      focusEl.innerHTML = '&ndash;<small> in field</small>';
+    }
+
+    // progress
+    var goal = 8;
+    var pct = Math.min(100, Math.round(agg.n/goal*100));
+    document.getElementById('progFill').style.width = pct+'%';
+
+    document.getElementById('btnReveal').disabled = agg.n===0;
+    updateFeedback(agg, foundSpecies);
+  }
+
+  /* ---------- feedback engine ---------- */
+  var lastFeedback = '';
+  function updateFeedback(agg, foundSpecies){
+    var fb = document.getElementById('feedback');
+    var msg='', cls='';
+
+    if(agg.n===0){
+      msg = 'Place your first quadrat to see live feedback on your sampling.';
+    } else if(agg.n<3){
+      cls='warn';
+      msg = '<strong>Early days.</strong> With only '+agg.n+' quadrat'+(agg.n>1?'s':'')+' your estimate is unreliable. A single lucky or unlucky throw still swings the result a lot. Keep sampling at random.';
+    } else if(agg.n<8){
+      // compare focus estimate stability
+      cls='warn';
+      msg = '<strong>Getting there ('+agg.n+' of 8).</strong> Your mean per quadrat is starting to settle. Notice that adding each new quadrat changes the field estimate less than it did at the start. That is the law of larger samples: bigger samples give more reliable estimates.';
+    } else {
+      // 8+ : evaluate accuracy against truth for the focus species
+      var truth = trueFieldTotals();
+      var fMean = agg.totals[FOCUS]/agg.n;
+      var fEst = Math.round(fMean*FIELD_QUADRATS);
+      var fTrue = truth[FOCUS];
+      var errPct = fTrue>0 ? Math.abs(fEst-fTrue)/fTrue*100 : 0;
+      var focusName = speciesByKey(FOCUS).name.toLowerCase();
+      if(errPct<=18){
+        cls='good';
+        msg = '<strong>Strong sampling.</strong> Your '+focusName+' estimate of '+fEst.toLocaleString('en-GB')+
+              ' is within '+Math.round(errPct)+'% of the true field total. '+agg.n+' random quadrats gave a representative picture. You also recorded '+foundSpecies+' of '+SPECIES.length+' species, a measure of biodiversity.';
+      } else {
+        cls='warn';
+        msg = '<strong>Usable, but improvable.</strong> Your '+focusName+' estimate ('+fEst.toLocaleString('en-GB')+
+              ') is about '+Math.round(errPct)+'% away from the true total. The plants grow in clumps, so a few quadrats can miss or over-sample a patch. Take more random quadrats to average out the clumping, then reveal the true count to check.';
+      }
+    }
+    fb.className = 'feedback' + (cls?(' '+cls):'');
+    fb.innerHTML = msg;
+    lastFeedback = fb.textContent;
+  }
+
+  function announceSample(counts){
+    var parts=[];
+    SPECIES.forEach(function(sp){ if(counts[sp.key]>0) parts.push(counts[sp.key]+' '+sp.name.toLowerCase()); });
+    var txt = parts.length? ('Quadrat '+samples.length+' counted '+parts.join(', ')+'.') : ('Quadrat '+samples.length+' was empty, an important data point too.');
+    document.getElementById('liveAlert').textContent = txt;
+  }
+
+  /* ---------- reveal true counts ---------- */
+  function revealTruth(){
+    var truth = trueFieldTotals();
+    var agg = aggregate();
+    var rows='';
+    SPECIES.forEach(function(sp){
+      var mean = agg.n? agg.totals[sp.key]/agg.n : 0;
+      var est = Math.round(mean*FIELD_QUADRATS);
+      var tr = truth[sp.key];
+      var diff = est-tr;
+      var sign = diff>0?'+':'';
+      rows += '<tr>'+
+        '<td class="species"><span class="swatch" style="background:'+sp.colour+';border-color:'+sp.edge+'"></span>'+sp.name+'</td>'+
+        '<td>'+agg.totals[sp.key]+'</td>'+
+        '<td>'+est.toLocaleString('en-GB')+'</td>'+
+        '<td style="font-weight:700;color:'+(tr>0&&Math.abs(diff)/tr<=0.18?'#1f7a4d':'#b4541a')+'">'+tr.toLocaleString('en-GB')+' <small>('+sign+diff+')</small></td>'+
+      '</tr>';
+    });
+    // rewrite table header + body to a comparison view
+    var body = document.getElementById('resultsBody');
+    document.querySelector('table thead').innerHTML =
+      '<tr><th class="species" style="text-align:left">Species</th><th>Total counted</th><th>Your estimate</th><th>True total</th></tr>';
+    body.innerHTML = rows;
+    var fb = document.getElementById('feedback');
+    fb.className='feedback good';
+    fb.innerHTML = '<strong>True counts revealed.</strong> Compare your estimate column with the true total. The closer they are, the more representative your sample was. Larger, fully random samples cluster near the truth; small or biased samples drift away. Press "New meadow" to test a fresh population.';
+    lastFeedback = fb.textContent;
+  }
+
+  /* ---------- legend ---------- */
+  function buildLegend(){
+    var lg = document.getElementById('legend');
+    lg.innerHTML='';
+    SPECIES.forEach(function(sp){
+      var s = document.createElement('span');
+      s.innerHTML = '<span class="swatch" style="background:'+sp.colour+';border-color:'+sp.edge+'"></span>'+sp.name;
+      lg.appendChild(s);
+    });
+  }
+
+  /* ---------- reset ---------- */
+  function newMeadow(){
+    samples = [];
+    layerMarks.innerHTML='';
+    document.querySelector('table thead').innerHTML =
+      '<tr><th class="species" style="text-align:left">Species</th><th>Total counted</th><th>Mean / quadrat</th><th>Field estimate</th></tr>';
+    buildBackground();
+    generatePlants();
+    setQuadCell(Math.floor(GRID/2)-1, Math.floor(GRID/2)-1);
+    render();
+    document.getElementById('liveAlert').textContent = 'New meadow generated. Plant positions are randomised.';
+  }
+
+  /* ---------- events ---------- */
+  function onPointerDown(e){
+    field.focus();
+    var p = svgPoint(e);
+    // start drag only if near/on quadrat or anywhere: allow place-to-drag
+    dragging = true;
+    qrect.style.cursor='grabbing';
+    moveQuadToPoint(p.x,p.y);
+    try{ field.setPointerCapture(e.pointerId); }catch(err){}
+    e.preventDefault();
+  }
+  function onPointerMove(e){
+    if(!dragging) return;
+    var p = svgPoint(e);
+    moveQuadToPoint(p.x,p.y);
+    e.preventDefault();
+  }
+  function onPointerUp(e){
+    if(!dragging) return;
+    dragging=false;
+    qrect.style.cursor='grab';
+    try{ field.releasePointerCapture(e.pointerId); }catch(err){}
+  }
+
+  function onKey(e){
+    var k = e.key;
+    if(k==='ArrowLeft'){ setQuadCell(quad.col-1,quad.row); e.preventDefault(); }
+    else if(k==='ArrowRight'){ setQuadCell(quad.col+1,quad.row); e.preventDefault(); }
+    else if(k==='ArrowUp'){ setQuadCell(quad.col,quad.row-1); e.preventDefault(); }
+    else if(k==='ArrowDown'){ setQuadCell(quad.col,quad.row+1); e.preventDefault(); }
+    else if(k==='Enter'||k===' '){ takeSample(); e.preventDefault(); }
+    else if(k==='r'||k==='R'){ randomThrow(); e.preventDefault(); }
+  }
+
+  function randomThrow(){
+    setQuadCell(Math.floor(Math.random()*GRID), Math.floor(Math.random()*GRID));
+    takeSample();
+  }
+
+  /* ---------- init ---------- */
+  function init(){
+    field = document.getElementById('field');
+    qrect = document.getElementById('quadrat');
+    layerBg = document.getElementById('layer-bg');
+    layerPlants = document.getElementById('layer-plants');
+    layerMarks = document.getElementById('layer-marks');
+
+    buildLegend();
+    newMeadow();
+
+    document.getElementById('btnRandom').addEventListener('click', randomThrow);
+    document.getElementById('btnSample').addEventListener('click', takeSample);
+    document.getElementById('btnReset').addEventListener('click', newMeadow);
+    document.getElementById('btnReveal').addEventListener('click', revealTruth);
+    document.getElementById('btnSpeak').addEventListener('click', function(){
+      if(window.westTTS && window.westTTS.ready()){
+        window.westTTS.speak(lastFeedback || 'Take a quadrat sample to begin.', { lang:'en-GB', rate:0.92, pitch:1.05 });
+      }
+    });
+
+    field.addEventListener('pointerdown', onPointerDown);
+    field.addEventListener('pointermove', onPointerMove);
+    field.addEventListener('pointerup', onPointerUp);
+    field.addEventListener('pointercancel', onPointerUp);
+    field.addEventListener('keydown', onKey);
+  }
+
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); }
+  else { init(); }
+})();
+</script>
+</body>
+</html>

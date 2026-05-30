@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Context Layers</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#1f1a14;
+  --ink-soft:#473d30;
+  --paper:#f6f1e6;
+  --paper-edge:#e7dcc6;
+  --line:#d6c8ac;
+  --accent:#7a2e2e;
+  --accent-soft:#a85a4a;
+  --gold:#a87b1e;
+  --jacobean:#3a2c5e;
+  --jacobean-soft:#6b57a0;
+  --victorian:#2c4a3a;
+  --victorian-soft:#4f8166;
+  --bg:#2a2520;
+  --panel:#fbf7ee;
+  --shadow:0 10px 40px rgba(0,0,0,.35);
+  --serif:Georgia,'Times New Roman',serif;
+  --ui:'Segoe UI',Tahoma,Verdana,sans-serif;
+}
+html{font-size:16px}
+body{
+  font-family:var(--ui);color:var(--ink);background:var(--bg);
+  min-height:100vh;line-height:1.5;
+  background-image:
+    radial-gradient(ellipse at 15% 0%,rgba(58,44,94,.25),transparent 55%),
+    radial-gradient(ellipse at 90% 10%,rgba(44,74,58,.22),transparent 55%);
+}
+.wrap{max-width:1180px;margin:0 auto;padding:1.25rem 1rem 3rem}
+
+/* Header */
+.masthead{text-align:center;padding:1.25rem 0 .5rem}
+.masthead h1{
+  font-family:var(--serif);font-size:clamp(1.7rem,4.5vw,2.7rem);
+  color:var(--paper);letter-spacing:.5px;line-height:1.1;
+}
+.masthead h1 .em{font-style:normal;margin-right:.4rem}
+.masthead .strand{
+  font-size:clamp(.72rem,1.6vw,.9rem);letter-spacing:3px;text-transform:uppercase;
+  color:#d8c9a6;margin-top:.4rem;font-weight:600;
+}
+.aim{
+  max-width:760px;margin:.9rem auto 0;background:rgba(246,241,230,.08);
+  border:1px solid rgba(216,201,166,.3);border-radius:8px;
+  padding:.6rem .9rem;color:#ece3d0;font-size:.92rem;text-align:center;
+}
+.aim b{color:#f3e9d2}
+
+/* Controls */
+.controls{
+  display:flex;flex-wrap:wrap;gap:.7rem;justify-content:center;
+  margin:1.2rem 0 1.1rem;
+}
+.extract-pick{
+  display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center;align-items:center;
+  background:rgba(0,0,0,.18);border:1px solid rgba(216,201,166,.25);
+  border-radius:30px;padding:.35rem .45rem;
+}
+.extract-pick .lbl{color:#cdbf9f;font-size:.78rem;letter-spacing:1px;padding:0 .4rem;text-transform:uppercase}
+.txt-btn{
+  font-family:var(--serif);font-size:.95rem;padding:.5rem 1.05rem;border:none;
+  background:transparent;color:#e7dcc4;border-radius:24px;cursor:pointer;
+  transition:.2s;
+}
+.txt-btn:hover{background:rgba(168,123,30,.25)}
+.txt-btn[aria-pressed="true"]{background:var(--gold);color:#221a08;font-weight:700}
+.txt-btn:focus-visible{outline:3px solid #f3e9d2;outline-offset:2px}
+
+/* Main grid */
+.stage{display:grid;grid-template-columns:1.15fr .85fr;gap:1.3rem;align-items:start}
+@media(max-width:880px){.stage{grid-template-columns:1fr}}
+
+/* Reading panel */
+.reader{
+  background:var(--panel);border-radius:12px;box-shadow:var(--shadow);
+  overflow:hidden;border:1px solid var(--paper-edge);
+}
+.reader-head{
+  background:linear-gradient(135deg,#3a2e22,#5a4630);color:#f4ead2;
+  padding:.7rem 1.1rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;
+}
+.reader-head .title{font-family:var(--serif);font-size:1.15rem;font-weight:700}
+.reader-head .meta{
+  font-size:.72rem;letter-spacing:1px;text-transform:uppercase;
+  background:rgba(255,255,255,.12);padding:.2rem .55rem;border-radius:4px;color:#e8dcc2;
+}
+.reader-body{
+  padding:1.4rem 1.6rem;font-family:var(--serif);font-size:1.12rem;line-height:1.95;
+  color:#241d14;background:
+    repeating-linear-gradient(transparent,transparent 38px,rgba(168,123,30,.06) 39px);
+}
+.reader-body .speaker{
+  display:block;font-style:italic;color:#6b5638;font-size:.92rem;margin-bottom:.35rem;
+  font-family:var(--ui);letter-spacing:.5px;
+}
+.line{display:block;margin:0 0 .15rem}
+
+/* word spans for highlight layers */
+.w{border-radius:3px;padding:0 1px;transition:background .35s,box-shadow .35s,color .35s;cursor:pointer}
+.w.explodable{text-decoration:underline dotted rgba(122,46,46,.55);text-underline-offset:3px}
+.w:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.w.lit-jac{background:rgba(107,87,160,.32);box-shadow:0 0 0 1px rgba(58,44,94,.45)}
+.w.lit-vic{background:rgba(79,129,102,.34);box-shadow:0 0 0 1px rgba(44,74,58,.5)}
+.w.lit-both{background:linear-gradient(90deg,rgba(107,87,160,.34),rgba(79,129,102,.36));box-shadow:0 0 0 1px rgba(60,60,60,.4)}
+
+.reader-foot{
+  border-top:1px dashed var(--line);padding:.7rem 1.1rem;font-size:.8rem;color:#6b5b40;
+  display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;
+}
+.reader-foot .hint{font-style:italic}
+
+/* Side column */
+.side{display:flex;flex-direction:column;gap:1.1rem}
+
+/* Layer toggles */
+.layers{
+  background:var(--panel);border-radius:12px;box-shadow:var(--shadow);
+  border:1px solid var(--paper-edge);padding:1rem 1.05rem 1.1rem;
+}
+.layers h2{font-family:var(--serif);font-size:1.05rem;color:var(--accent);margin-bottom:.2rem}
+.layers .sub{font-size:.82rem;color:#6b5b40;margin-bottom:.85rem}
+.toggle{
+  display:flex;align-items:center;gap:.75rem;width:100%;text-align:left;
+  border:2px solid var(--line);background:#fff;border-radius:10px;
+  padding:.7rem .85rem;cursor:pointer;margin-bottom:.7rem;transition:.2s;
+}
+.toggle:last-child{margin-bottom:0}
+.toggle:hover{border-color:var(--gold)}
+.toggle:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.toggle .swatch{
+  width:1.6rem;height:1.6rem;border-radius:6px;flex:0 0 auto;border:1px solid rgba(0,0,0,.15);
+}
+.toggle.jac .swatch{background:linear-gradient(135deg,#6b57a0,#3a2c5e)}
+.toggle.vic .swatch{background:linear-gradient(135deg,#4f8166,#2c4a3a)}
+.toggle .tx{flex:1}
+.toggle .tx .nm{font-weight:700;font-size:.98rem;color:#241d14}
+.toggle .tx .dt{font-size:.78rem;color:#6b5b40}
+.toggle .pip{
+  width:2.6rem;height:1.5rem;border-radius:20px;background:#cdbf9f;position:relative;
+  flex:0 0 auto;transition:.2s;
+}
+.toggle .pip::after{
+  content:'';position:absolute;top:2px;left:2px;width:1.1rem;height:1.1rem;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:.2s;
+}
+.toggle.jac[aria-pressed="true"]{border-color:var(--jacobean);background:#f1eef9}
+.toggle.jac[aria-pressed="true"] .pip{background:var(--jacobean)}
+.toggle.vic[aria-pressed="true"]{border-color:var(--victorian);background:#edf5f0}
+.toggle.vic[aria-pressed="true"] .pip{background:var(--victorian)}
+.toggle[aria-pressed="true"] .pip::after{left:1.3rem}
+
+/* Reading card */
+.reading-card{
+  background:var(--panel);border-radius:12px;box-shadow:var(--shadow);
+  border:1px solid var(--paper-edge);overflow:hidden;
+}
+.reading-card .rc-head{
+  padding:.7rem 1.05rem;color:#fff;font-weight:700;font-size:.95rem;
+  display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;
+  background:#7a6a4e;transition:background .35s;
+}
+.reading-card.has-jac:not(.has-vic) .rc-head{background:linear-gradient(135deg,#3a2c5e,#6b57a0)}
+.reading-card.has-vic:not(.has-jac) .rc-head{background:linear-gradient(135deg,#2c4a3a,#4f8166)}
+.reading-card.has-jac.has-vic .rc-head{background:linear-gradient(135deg,#3a2c5e,#2c4a3a)}
+.rc-head .ao{background:rgba(255,255,255,.18);padding:.15rem .5rem;border-radius:4px;font-size:.7rem;letter-spacing:1px}
+.reading-card .rc-body{padding:1rem 1.1rem;font-size:.96rem;color:#2a2218;min-height:7rem}
+.reading-card .rc-body .reading-text{transition:opacity .25s}
+.reading-card .rc-body .reading-text.swap{opacity:0}
+.reading-card .rc-body .lead{font-weight:700;color:var(--accent);display:block;margin-bottom:.3rem}
+.reading-card .rc-body .layer-tags{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.7rem}
+.reading-card .rc-body .layer-tags .tag{
+  font-size:.72rem;padding:.2rem .55rem;border-radius:20px;font-weight:600;
+}
+.tag.t-jac{background:rgba(107,87,160,.18);color:#3a2c5e;border:1px solid rgba(58,44,94,.3)}
+.tag.t-vic{background:rgba(79,129,102,.2);color:#234634;border:1px solid rgba(44,74,58,.35)}
+
+/* Speak + reset row */
+.rc-actions{display:flex;gap:.5rem;flex-wrap:wrap;padding:0 1.1rem 1rem}
+.mini-btn{
+  font-family:var(--ui);font-size:.82rem;border:1px solid var(--line);background:#fff;
+  color:#3a2e1c;border-radius:8px;padding:.4rem .8rem;cursor:pointer;transition:.2s;
+}
+.mini-btn:hover{background:#f3ead4;border-color:var(--gold)}
+.mini-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* Quotation Explode modal */
+.qx-overlay{
+  position:fixed;inset:0;background:rgba(20,16,10,.72);display:none;
+  align-items:center;justify-content:center;padding:1rem;z-index:50;
+}
+.qx-overlay.open{display:flex}
+.qx-card{
+  background:var(--panel);max-width:520px;width:100%;border-radius:14px;
+  box-shadow:0 18px 60px rgba(0,0,0,.5);overflow:hidden;border:1px solid var(--paper-edge);
+}
+.qx-head{
+  background:linear-gradient(135deg,#7a2e2e,#a85a4a);color:#fff;padding:.85rem 1.1rem;
+  display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+}
+.qx-head .qt{font-family:var(--serif);font-size:1.15rem;font-weight:700}
+.qx-close{background:rgba(255,255,255,.2);border:none;color:#fff;font-size:1.1rem;
+  width:2rem;height:2rem;border-radius:50%;cursor:pointer;line-height:1}
+.qx-close:hover{background:rgba(255,255,255,.35)}
+.qx-close:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.qx-body{padding:1.1rem 1.2rem 1.3rem}
+.qx-word{
+  font-family:var(--serif);font-size:1.5rem;color:var(--accent);text-align:center;
+  margin-bottom:.2rem;font-weight:700;
+}
+.qx-quote{font-family:var(--serif);font-style:italic;text-align:center;color:#5a4a32;margin-bottom:1rem}
+.qx-section{margin-bottom:.9rem}
+.qx-section h4{font-size:.78rem;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:.25rem}
+.qx-section p{font-size:.95rem;color:#2a2218}
+.qx-ctx{display:none;border-left:3px solid var(--line);padding-left:.7rem;margin-top:.4rem}
+.qx-ctx.show{display:block}
+.qx-ctx.jac{border-color:var(--jacobean)}
+.qx-ctx.vic{border-color:var(--victorian)}
+.qx-ctx .ctx-tag{font-size:.72rem;font-weight:700;letter-spacing:.5px}
+.qx-ctx.jac .ctx-tag{color:var(--jacobean)}
+.qx-ctx.vic .ctx-tag{color:var(--victorian)}
+.qx-note{font-size:.8rem;color:#7a6a4e;font-style:italic;margin-top:.5rem}
+
+/* Challenge: build a reading */
+.builder{
+  background:var(--panel);border-radius:12px;box-shadow:var(--shadow);
+  border:1px solid var(--paper-edge);padding:1rem 1.1rem 1.15rem;
+}
+.builder h2{font-family:var(--serif);font-size:1.05rem;color:var(--accent);margin-bottom:.2rem}
+.builder .sub{font-size:.82rem;color:#6b5b40;margin-bottom:.8rem}
+.builder .q{font-weight:700;color:#241d14;margin-bottom:.7rem;font-size:.96rem}
+.opt{
+  display:block;width:100%;text-align:left;border:2px solid var(--line);background:#fff;
+  border-radius:9px;padding:.6rem .8rem;margin-bottom:.55rem;cursor:pointer;font-size:.92rem;
+  color:#2a2218;transition:.18s;
+}
+.opt:hover{border-color:var(--gold)}
+.opt:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.opt.correct{border-color:var(--victorian);background:#eaf4ee}
+.opt.wrong{border-color:var(--accent);background:#f8eceb}
+.opt .mk{font-weight:700;margin-right:.3rem}
+.builder-fb{
+  margin-top:.4rem;font-size:.9rem;padding:.6rem .75rem;border-radius:8px;min-height:1px;
+  display:none;
+}
+.builder-fb.show{display:block}
+.builder-fb.good{background:#eaf4ee;border:1px solid var(--victorian);color:#234634}
+.builder-fb.bad{background:#f8eceb;border:1px solid var(--accent);color:#6e2424}
+.next-q{margin-top:.7rem;display:none}
+.next-q.show{display:inline-block}
+
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
+footer.credit{text-align:center;color:#9c8e72;font-size:.78rem;margin-top:2rem}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<div class="wrap">
+  <header class="masthead">
+    <h1><span class="em">&#x1F4DC;</span>Context Layers</h1>
+    <div class="strand">English &middot; KS4 &middot; Literature: Shakespeare and the 19th-century novel</div>
+    <p class="aim"><b>Teacher aim:</b> pupils toggle context overlays onto a set-text extract and watch how each layer reshapes a plausible, AO3-informed reading. Tap an underlined word to Explode the quotation for AO2 method and AO3 context.</p>
+  </header>
+
+  <div class="controls">
+    <div class="extract-pick" role="group" aria-label="Choose an extract">
+      <span class="lbl">Extract</span>
+      <button class="txt-btn" id="pick-macbeth" aria-pressed="true">Macbeth</button>
+      <button class="txt-btn" id="pick-carol" aria-pressed="false">A Christmas Carol</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <!-- Reading panel -->
+    <section class="reader" aria-label="Set-text extract">
+      <div class="reader-head">
+        <span class="title" id="ext-title">Macbeth</span>
+        <span class="meta" id="ext-meta">Act 1, Scene 7</span>
+      </div>
+      <div class="reader-body" id="reader-body" aria-live="off"></div>
+      <div class="reader-foot">
+        <span class="hint">Underlined words can be exploded for AO2 and AO3.</span>
+        <button class="mini-btn" id="read-aloud" type="button">&#x1F50A; Read extract aloud</button>
+      </div>
+    </section>
+
+    <!-- Side column -->
+    <div class="side">
+      <section class="layers" aria-label="Context layer controls">
+        <h2>Context overlays</h2>
+        <p class="sub">Switch layers on to highlight where each context bites, and to rebuild the reading on the right.</p>
+        <button class="toggle jac" id="t-jac" aria-pressed="false">
+          <span class="swatch" aria-hidden="true"></span>
+          <span class="tx"><span class="nm">Jacobean kingship</span><span class="dt" id="jac-dt">Divine right, regicide, the Gunpowder Plot</span></span>
+          <span class="pip" aria-hidden="true"></span>
+        </button>
+        <button class="toggle vic" id="t-vic" aria-pressed="false">
+          <span class="swatch" aria-hidden="true"></span>
+          <span class="tx"><span class="nm">Victorian poverty</span><span class="dt" id="vic-dt">Poor Law, Malthus, the Condition of England</span></span>
+          <span class="pip" aria-hidden="true"></span>
+        </button>
+      </section>
+
+      <section class="reading-card" id="reading-card" aria-label="AO3-informed reading">
+        <div class="rc-head">
+          <span id="rc-head-text">Surface reading</span>
+          <span class="ao">AO1 &middot; AO2 &middot; AO3</span>
+        </div>
+        <div class="rc-body">
+          <div class="reading-text" id="reading-text" aria-live="polite"></div>
+        </div>
+        <div class="rc-actions">
+          <button class="mini-btn" id="copy-reading" type="button">&#x1F4CB; Copy reading</button>
+          <button class="mini-btn" id="speak-reading" type="button">&#x1F50A; Hear reading</button>
+        </div>
+      </section>
+
+      <section class="builder" aria-label="Apply it challenge">
+        <h2>Apply it</h2>
+        <p class="sub">Match the right context layer to the examiner's prompt.</p>
+        <div class="q" id="builder-q"></div>
+        <div id="builder-opts"></div>
+        <div class="builder-fb" id="builder-fb" role="status" aria-live="polite"></div>
+        <button class="mini-btn next-q" id="next-q" type="button">Next prompt &#x2192;</button>
+      </section>
+    </div>
+  </div>
+
+  <footer class="credit">Demonstration resource. Extracts are short quotations used for classroom study. Readings are model interpretations, not the only valid response.</footer>
+</div>
+
+<!-- Quotation Explode modal -->
+<div class="qx-overlay" id="qx-overlay" role="dialog" aria-modal="true" aria-labelledby="qx-word">
+  <div class="qx-card">
+    <div class="qx-head">
+      <span class="qt">Quotation Explode</span>
+      <button class="qx-close" id="qx-close" type="button" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="qx-body">
+      <div class="qx-word" id="qx-word"></div>
+      <div class="qx-quote" id="qx-quote"></div>
+      <div class="qx-section">
+        <h4>AO2: method</h4>
+        <p id="qx-method"></p>
+      </div>
+      <div class="qx-section">
+        <h4>AO3: context lens</h4>
+        <p id="qx-base"></p>
+        <div class="qx-ctx jac" id="qx-jac"><span class="ctx-tag">Jacobean kingship</span><p id="qx-jac-text"></p></div>
+        <div class="qx-ctx vic" id="qx-vic"><span class="ctx-tag">Victorian poverty</span><p id="qx-vic-text"></p></div>
+        <p class="qx-note" id="qx-note">Toggle a context overlay to see the layered reading.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ----------------------------------------------------------
+   DATA: two extracts. Each line is an array of tokens.
+   A token is either a plain string, or an object describing
+   an explodable word with AO2 method + AO3 context layers,
+   and which overlay(s) it belongs to (jac / vic / both).
+   ---------------------------------------------------------- */
+
+var EXTRACTS = {
+  macbeth: {
+    title: "Macbeth",
+    meta: "Act 1, Scene 7",
+    speaker: "Macbeth, alone, weighs the murder of King Duncan.",
+    lines: [
+      [
+        "He's here in ",
+        { w:"double trust", layer:"jac", method:"The noun phrase stacks two duties on top of one another, so the planned act breaks bond after bond.", base:"A reader weighs Macbeth against two obligations: host and subject.",
+          jac:"To a Jacobean audience the deeper trust is subject to king. Duncan is God's anointed, so killing him is regicide, the gravest sin against the divine order.",
+          vic:"" },
+        ":"
+      ],
+      [
+        "First, as I am his ",
+        { w:"kinsman", layer:"jac", method:"Macbeth names the blood tie before the political one, foregrounding loyalty he is about to betray.", base:"The word marks family loyalty owed to Duncan.",
+          jac:"Kinship reinforced a king's safety in a hierarchical Jacobean state. Betraying kin and king at once would read as an assault on the whole chain of being.",
+          vic:"" },
+        " and his ",
+        { w:"subject", layer:"jac", method:"A flat, formal noun that reduces Macbeth to one of many, underlining the duty of obedience.", base:"He owes the obedience any person owes a ruler.",
+          jac:"Subjecthood under James I carried the idea of the divine right of kings. Rebellion was not just treason but blasphemy, freshly charged by the 1605 Gunpowder Plot.",
+          vic:"" },
+        ","
+      ],
+      [
+        "Strong both against the ",
+        { w:"deed", layer:"jac", method:"The vague euphemism 'deed' lets Macbeth avoid naming the murder, exposing his moral evasion.", base:"He cannot bring himself to say 'murder', so he softens it.",
+          jac:"Naming regicide plainly would invoke damnation. The evasive 'deed' shows a conscience shaped by a culture that saw king-killing as cosmic crime.",
+          vic:"" },
+        "; then, as his host,"
+      ],
+      [
+        "Who should against his murderer ",
+        { w:"shut the door", layer:"jac", method:"A concrete domestic image of hospitality; the host's duty is to protect, not to wield, the knife.", base:"A host should guard a guest, the opposite of what Macbeth plans.",
+          jac:"Hospitality was a sacred social bond. Violating it, against an anointed king under his own roof, multiplies the offence in Jacobean moral terms.",
+          vic:"" },
+        ","
+      ],
+      [
+        "Not bear the ",
+        { w:"knife", layer:"jac", method:"The blunt, single-syllable image makes the violence sudden and physical after the abstract reasoning.", base:"The plain weapon cuts through Macbeth's careful argument.",
+          jac:"The knife turned on a king signals disorder. Jacobean thought held that regicide unleashed chaos in nature itself, a fear the play later dramatises.",
+          vic:"" },
+        " myself."
+      ]
+    ]
+  },
+  carol: {
+    title: "A Christmas Carol",
+    meta: "Stave 1",
+    speaker: "Scrooge answers two gentlemen collecting for the poor.",
+    lines: [
+      [
+        "\"Are there no ",
+        { w:"prisons", layer:"vic", method:"The plural noun and cold question turn human need into an administrative problem to be filed away.", base:"Scrooge points to institutions rather than offering help.",
+          vic:"In the 1840s prisons and the New Poor Law's workhouses were the state's answer to poverty. Dickens has Scrooge parrot official policy to expose its cruelty.",
+          jac:"" },
+        "?\" asked Scrooge."
+      ],
+      [
+        "\"Plenty of prisons. But the ",
+        { w:"Union workhouses", layer:"vic", method:"Naming the institution precisely makes the satire pointed; the reader is meant to recoil at the grim reality behind the name.", base:"The gentleman names the place the poor were sent.",
+          vic:"The Poor Law Amendment Act 1834 grouped parishes into Unions, each with a workhouse made deliberately harsh to deter applicants. Dickens campaigned against this 'deterrence' principle.",
+          jac:"" },
+        " are they still in operation?\""
+      ],
+      [
+        "\"Those who are ",
+        { w:"badly off", layer:"vic", method:"The blunt euphemism flattens suffering into a tidy category, mirroring Scrooge's emotional distance.", base:"Scrooge treats poverty as a mild inconvenience.",
+          vic:"Victorian moralists often blamed the poor for their own state. Dickens challenges this, presenting poverty as a social failure, not a personal fault.",
+          jac:"" },
+        " must go there.\""
+      ],
+      [
+        "\"If they would rather ",
+        { w:"die", layer:"vic", method:"The single harsh verb lands like a blow, stripping away politeness to reveal Scrooge's contempt.", base:"Scrooge dismisses the lives of the poor outright.",
+          vic:"This echoes Malthus, whose population theory argued charity only prolonged the misery of the poor. Dickens hands Scrooge that logic to condemn it.",
+          jac:"" },
+        ", they had better do it, and decrease the ",
+        { w:"surplus population", layer:"vic", method:"The clinical, statistical phrase dehumanises the poor, reducing them to a number to be reduced.", base:"People become a figure to be cut down.",
+          vic:"'Surplus population' is lifted straight from Malthusian economics. The Ghosts later throw the phrase back at Scrooge to force his moral reckoning.",
+          jac:"" },
+        ".\""
+      ]
+    ]
+  }
+};
+
+/* AO3-informed readings keyed by extract + layer state.
+   key: 'none' | 'jac' | 'vic' | 'both' (both only used where relevant) */
+var READINGS = {
+  macbeth: {
+    none: {
+      head: "Surface reading",
+      lead: "Macbeth, in soliloquy, talks himself through the murder.",
+      body: "On the surface the speech is a man counting his obligations to Duncan: he is kinsman, subject and host. The 'double trust' and the image of the host who should 'shut the door' on a murderer set duty against ambition. The euphemisms 'deed' and 'knife' show a conscience trying not to look at what it plans.",
+      tags: []
+    },
+    jac: {
+      head: "Through Jacobean kingship",
+      lead: "Read against divine right, the soliloquy becomes a debate about cosmic order.",
+      body: "With the kingship layer on, 'subject' and 'kinsman' stop being polite labels. Duncan is God's anointed, so killing him is regicide, a sin against the divine order James I claimed to embody. The vague 'deed' is no longer evasion but dread of damnation, and the 'knife' borne against a king foreshadows the disorder in nature the play unleashes. A 1606 audience, with the Gunpowder Plot a year behind them, would feel the blasphemy in Macbeth's hesitation.",
+      tags: ["Divine right", "Regicide", "Gunpowder Plot 1605"]
+    }
+  },
+  carol: {
+    none: {
+      head: "Surface reading",
+      lead: "Scrooge brushes off two charity collectors.",
+      body: "On the surface Scrooge is simply a cold, mean man. He answers requests for charity with questions about 'prisons' and 'Union workhouses', and dismisses the poor with 'die' and 'surplus population'. The blunt nouns and clipped replies build a portrait of a character who treats human need as an accounting problem.",
+      tags: []
+    },
+    vic: {
+      head: "Through Victorian poverty",
+      lead: "Read against the New Poor Law, the scene becomes targeted social protest.",
+      body: "With the poverty layer on, Scrooge stops being a private grump and becomes a mouthpiece for policy. 'Prisons' and 'Union workhouses' name the real machinery of the 1834 Poor Law, designed to be harsh enough to deter the poor. 'Surplus population' lifts Malthus's economics straight into Scrooge's mouth, and 'die' exposes where that logic leads. Dickens, writing in 1843 amid the 'Condition of England' debate, makes the reader recoil at official cruelty by voicing it through a villain the Ghosts will redeem.",
+      tags: ["Poor Law 1834", "Malthus", "Condition of England"]
+    }
+  }
+};
+
+/* Apply-it challenge bank */
+var CHALLENGES = [
+  {
+    q: "An examiner asks why Macbeth's word 'subject' carries more weight to a 1606 audience than to a modern one. Which overlay best informs the answer?",
+    opts: ["Victorian poverty", "Jacobean kingship", "Neither: it is purely about character"],
+    correct: 1,
+    good: "Yes. Under the divine right of kings, a subject who kills a king commits regicide and blasphemy, charged further by the Gunpowder Plot of 1605.",
+    bad: "Not quite. 'Subject' points to obedience owed to an anointed king, which is the Jacobean kingship context, not Victorian poverty."
+  },
+  {
+    q: "Why does Dickens put the phrase 'surplus population' in Scrooge's mouth? Which overlay explains the AO3 point?",
+    opts: ["Jacobean kingship", "Victorian poverty", "It is just an insult with no context"],
+    correct: 1,
+    good: "Correct. 'Surplus population' is Malthusian economics. Dickens voices the cruel logic through Scrooge so the reader rejects it.",
+    bad: "Look again. The phrase comes from Malthus and the 1834 Poor Law debate, which sits under the Victorian poverty overlay."
+  },
+  {
+    q: "A pupil writes that 'deed' simply means Macbeth is being polite. Which overlay sharpens this into a stronger AO3 reading?",
+    opts: ["Jacobean kingship", "Victorian poverty", "Both equally"],
+    correct: 0,
+    good: "Right. Through Jacobean kingship, the evasive 'deed' shows a conscience afraid to name regicide, a sin that risked damnation.",
+    bad: "Not this one. The fear behind the euphemism is about king-killing and damnation, which is the Jacobean kingship overlay."
+  },
+  {
+    q: "Which overlay turns Scrooge from a private grump into a target for social protest about real policy?",
+    opts: ["Victorian poverty", "Jacobean kingship", "Neither"],
+    correct: 0,
+    good: "Exactly. The Victorian poverty layer ties 'Union workhouses' to the 1834 Poor Law, making Scrooge a mouthpiece Dickens wants us to reject.",
+    bad: "Reconsider. 'Union workhouses' and the Poor Law are Victorian poverty context, which is what makes the scene protest, not just characterisation."
+  }
+];
+
+/* ---------------- State ---------------- */
+var state = { extract:"macbeth", jac:false, vic:false };
+
+/* ---------------- Element refs ---------------- */
+var $ = function(id){ return document.getElementById(id); };
+var readerBody = $("reader-body");
+var extTitle = $("ext-title"), extMeta = $("ext-meta");
+var tJac = $("t-jac"), tVic = $("t-vic");
+var rc = $("reading-card"), rcHeadText = $("rc-head-text"), readingText = $("reading-text");
+
+/* ---------------- Render the extract ---------------- */
+function renderExtract(){
+  var ex = EXTRACTS[state.extract];
+  extTitle.textContent = ex.title;
+  extMeta.textContent = ex.meta;
+  readerBody.innerHTML = "";
+
+  var sp = document.createElement("span");
+  sp.className = "speaker";
+  sp.textContent = ex.speaker;
+  readerBody.appendChild(sp);
+
+  ex.lines.forEach(function(line, li){
+    var lineEl = document.createElement("span");
+    lineEl.className = "line";
+    line.forEach(function(tok, ti){
+      if (typeof tok === "string"){
+        lineEl.appendChild(document.createTextNode(tok));
+      } else {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "w explodable";
+        b.textContent = tok.w;
+        b.setAttribute("data-li", li);
+        b.setAttribute("data-ti", ti);
+        b.setAttribute("aria-label", "Explode quotation: " + tok.w);
+        b.addEventListener("click", function(){ openExplode(li, ti); });
+        lineEl.appendChild(b);
+      }
+    });
+    readerBody.appendChild(lineEl);
+  });
+  applyHighlights();
+}
+
+/* ---------------- Apply highlight overlays to words ---------------- */
+function applyHighlights(){
+  var ex = EXTRACTS[state.extract];
+  var btns = readerBody.querySelectorAll(".w");
+  btns.forEach(function(b){
+    var li = +b.getAttribute("data-li"), ti = +b.getAttribute("data-ti");
+    var tok = ex.lines[li][ti];
+    b.classList.remove("lit-jac","lit-vic","lit-both");
+    var litJac = state.jac && (tok.layer === "jac" || tok.layer === "both");
+    var litVic = state.vic && (tok.layer === "vic" || tok.layer === "both");
+    if (litJac && litVic) b.classList.add("lit-both");
+    else if (litJac) b.classList.add("lit-jac");
+    else if (litVic) b.classList.add("lit-vic");
+  });
+}
+
+/* ---------------- Render the AO3 reading card ---------------- */
+function currentReadingKey(){
+  if (state.jac && state.vic) return "both";
+  if (state.jac) return "jac";
+  if (state.vic) return "vic";
+  return "none";
+}
+
+function renderReading(){
+  var set = READINGS[state.extract];
+  var key = currentReadingKey();
+  var reading;
+
+  if (key === "both"){
+    /* No single 'both' reading authored: choose the layer relevant to this text.
+       Each extract is built for one period, so 'both' falls back to its native layer
+       and notes the cross-period contrast. */
+    var native = (state.extract === "macbeth") ? "jac" : "vic";
+    reading = set[native];
+    state.crossNote = true;
+  } else {
+    reading = set[key] || set.none;
+    state.crossNote = false;
+  }
+
+  /* card colour classes */
+  rc.classList.toggle("has-jac", state.jac);
+  rc.classList.toggle("has-vic", state.vic);
+  rcHeadText.textContent = reading.head;
+
+  readingText.classList.add("swap");
+  window.setTimeout(function(){
+    var html = '<span class="lead">' + reading.lead + '</span>' + reading.body;
+    if (state.crossNote){
+      var off = (state.extract === "macbeth") ? "Victorian poverty" : "Jacobean kingship";
+      html += '<br><br><em style="color:#7a6a4e;font-size:.88rem">Note: the ' + off +
+        ' overlay does not fit this period text, so the reading stays anchored in its own context. Use cross-period comparison only to contrast, not to misread.</em>';
+    }
+    if (reading.tags && reading.tags.length){
+      var tg = (currentReadingKey() === "jac" || (state.crossNote && state.extract==="macbeth")) ? "t-jac" : "t-vic";
+      html += '<div class="layer-tags">';
+      reading.tags.forEach(function(t){ html += '<span class="tag ' + tg + '">' + t + '</span>'; });
+      html += '</div>';
+    }
+    readingText.innerHTML = html;
+    readingText.classList.remove("swap");
+  }, 180);
+}
+
+/* ---------------- Toggles ---------------- */
+function setToggle(which){
+  state[which] = !state[which];
+  var btn = (which === "jac") ? tJac : tVic;
+  btn.setAttribute("aria-pressed", state[which] ? "true" : "false");
+  applyHighlights();
+  renderReading();
+}
+tJac.addEventListener("click", function(){ setToggle("jac"); });
+tVic.addEventListener("click", function(){ setToggle("vic"); });
+
+/* ---------------- Extract picker ---------------- */
+function pickExtract(which){
+  if (state.extract === which) return;
+  state.extract = which;
+  $("pick-macbeth").setAttribute("aria-pressed", which==="macbeth" ? "true":"false");
+  $("pick-carol").setAttribute("aria-pressed", which==="carol" ? "true":"false");
+  renderExtract();
+  renderReading();
+}
+$("pick-macbeth").addEventListener("click", function(){ pickExtract("macbeth"); });
+$("pick-carol").addEventListener("click", function(){ pickExtract("carol"); });
+
+/* ---------------- Quotation Explode modal ---------------- */
+var qxOverlay = $("qx-overlay");
+var lastFocus = null;
+
+function openExplode(li, ti){
+  var ex = EXTRACTS[state.extract];
+  var tok = ex.lines[li][ti];
+  $("qx-word").textContent = tok.w;
+
+  /* assemble the quote line as plain text for context */
+  var quote = ex.lines[li].map(function(t){ return (typeof t === "string") ? t : t.w; }).join("");
+  $("qx-quote").textContent = "“" + quote.trim() + "”";
+
+  $("qx-method").textContent = tok.method;
+  $("qx-base").textContent = tok.base;
+
+  var jacBox = $("qx-jac"), vicBox = $("qx-vic");
+  var showJac = state.jac && tok.jac;
+  var showVic = state.vic && tok.vic;
+  jacBox.classList.toggle("show", !!showJac);
+  vicBox.classList.toggle("show", !!showVic);
+  if (showJac) $("qx-jac-text").textContent = tok.jac;
+  if (showVic) $("qx-vic-text").textContent = tok.vic;
+
+  var note = $("qx-note");
+  if (showJac || showVic){
+    note.style.display = "none";
+  } else {
+    note.style.display = "block";
+    var avail = tok.jac ? "Jacobean kingship" : (tok.vic ? "Victorian poverty" : "");
+    note.textContent = avail ? ("Toggle the " + avail + " overlay to add the context layer to this word.")
+                             : "No context overlay applies to this word.";
+  }
+
+  lastFocus = document.activeElement;
+  qxOverlay.classList.add("open");
+  $("qx-close").focus();
+}
+
+function closeExplode(){
+  qxOverlay.classList.remove("open");
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+}
+$("qx-close").addEventListener("click", closeExplode);
+qxOverlay.addEventListener("click", function(e){ if (e.target === qxOverlay) closeExplode(); });
+document.addEventListener("keydown", function(e){
+  if (e.key === "Escape" && qxOverlay.classList.contains("open")) closeExplode();
+});
+
+/* ---------------- Read aloud ---------------- */
+function plainExtract(){
+  var ex = EXTRACTS[state.extract];
+  return ex.lines.map(function(line){
+    return line.map(function(t){ return (typeof t==="string") ? t : t.w; }).join("");
+  }).join(" ");
+}
+$("read-aloud").addEventListener("click", function(){
+  if (window.westTTS && window.westTTS.ready()){
+    window.westTTS.speak(plainExtract(), { lang:"en-GB", rate:0.85, pitch:1.0 });
+  }
+});
+$("speak-reading").addEventListener("click", function(){
+  var t = readingText.textContent || "";
+  if (window.westTTS && window.westTTS.ready() && t){
+    window.westTTS.speak(t, { lang:"en-GB", rate:0.9, pitch:1.05 });
+  }
+});
+
+/* ---------------- Copy reading ---------------- */
+$("copy-reading").addEventListener("click", function(){
+  var btn = this;
+  var t = readingText.textContent || "";
+  var done = function(ok){
+    btn.textContent = ok ? "✓ Copied" : "Copy failed";
+    window.setTimeout(function(){ btn.innerHTML = "📋 Copy reading"; }, 1400);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(function(){ done(true); }, function(){ done(false); });
+  } else {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = t; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); document.body.removeChild(ta); done(true);
+    } catch(e){ done(false); }
+  }
+});
+
+/* ---------------- Apply-it challenge ---------------- */
+var cIndex = 0, cAnswered = false;
+var bq = $("builder-q"), bOpts = $("builder-opts"), bFb = $("builder-fb"), nextBtn = $("next-q");
+
+function renderChallenge(){
+  cAnswered = false;
+  var c = CHALLENGES[cIndex];
+  bq.textContent = c.q;
+  bOpts.innerHTML = "";
+  bFb.className = "builder-fb";
+  bFb.textContent = "";
+  nextBtn.classList.remove("show");
+  var letters = ["A","B","C","D"];
+  c.opts.forEach(function(opt, i){
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "opt";
+    btn.innerHTML = '<span class="mk">' + letters[i] + '</span>' + opt;
+    btn.addEventListener("click", function(){ answerChallenge(i, btn); });
+    bOpts.appendChild(btn);
+  });
+}
+
+function answerChallenge(i, btn){
+  if (cAnswered) return;
+  cAnswered = true;
+  var c = CHALLENGES[cIndex];
+  var optBtns = bOpts.querySelectorAll(".opt");
+  optBtns.forEach(function(o, oi){
+    o.disabled = true;
+    if (oi === c.correct) o.classList.add("correct");
+  });
+  if (i === c.correct){
+    bFb.className = "builder-fb show good";
+    bFb.textContent = c.good;
+  } else {
+    btn.classList.add("wrong");
+    bFb.className = "builder-fb show bad";
+    bFb.textContent = c.bad;
+  }
+  nextBtn.classList.add("show");
+}
+
+nextBtn.addEventListener("click", function(){
+  cIndex = (cIndex + 1) % CHALLENGES.length;
+  renderChallenge();
+  bq.focus && bq.setAttribute("tabindex","-1");
+});
+
+/* ---------------- Init ---------------- */
+renderExtract();
+renderReading();
+renderChallenge();
+</script>
+</body>
+</html>

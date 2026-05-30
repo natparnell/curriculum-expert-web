@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Globalisation Web</title>
+<style>
+  :root{
+    --ink:#13233a; --slate:#3d4f66; --mist:#eef3f8; --paper:#ffffff;
+    --line:#d4dde7; --accent:#0f6fc4; --accent-dk:#0b4f8e;
+    --supply:#e07b00; --factory:#c0392b; --market:#2e8b57; --hq:#6c2bd9;
+    --warm:#fff6ec; --good:#1c7a4a; --bad:#b3402c;
+    --shadow:0 6px 22px rgba(19,35,58,.12);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:linear-gradient(180deg,#f4f8fc,#e9f0f7);
+    line-height:1.45; -webkit-text-size-adjust:100%;
+  }
+  header.app{
+    background:linear-gradient(110deg,var(--accent-dk),var(--accent));
+    color:#fff; padding:18px 20px 16px;
+  }
+  header.app h1{margin:0 0 4px; font-size:1.55rem; letter-spacing:.2px;}
+  header.app .aim{
+    margin:0; font-size:.95rem; max-width:760px; opacity:.95;
+    border-left:3px solid rgba(255,255,255,.55); padding-left:10px;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:16px;}
+  .layout{display:grid; grid-template-columns:300px 1fr; gap:16px;}
+  @media (max-width:880px){ .layout{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--paper); border:1px solid var(--line);
+    border-radius:14px; box-shadow:var(--shadow); padding:14px;
+  }
+  .panel h2{margin:0 0 10px; font-size:1.05rem; color:var(--accent-dk);}
+  .sub{font-size:.82rem; color:var(--slate); margin:-4px 0 10px;}
+
+  .tnc-list{display:flex; flex-direction:column; gap:8px;}
+  .tnc-btn{
+    display:flex; align-items:center; gap:10px; width:100%;
+    text-align:left; background:var(--mist); border:1.5px solid var(--line);
+    border-radius:11px; padding:10px 12px; cursor:pointer; font-size:.95rem;
+    color:var(--ink); transition:transform .08s, border-color .15s, background .15s;
+  }
+  .tnc-btn:hover{background:#e3edf7;}
+  .tnc-btn:focus-visible{outline:3px solid var(--accent); outline-offset:2px;}
+  .tnc-btn[aria-pressed="true"]{
+    background:#fff; border-color:var(--accent); box-shadow:0 0 0 2px rgba(15,111,196,.18);
+    transform:translateX(2px);
+  }
+  .tnc-emoji{font-size:1.5rem; line-height:1;}
+  .tnc-name{font-weight:700;}
+  .tnc-sec{font-size:.76rem; color:var(--slate); display:block;}
+
+  .map-card{position:relative;}
+  .map-head{display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:8px;}
+  .map-head h2{margin:0;}
+  .legend{display:flex; flex-wrap:wrap; gap:10px; font-size:.78rem; margin-left:auto;}
+  .legend span{display:inline-flex; align-items:center; gap:5px;}
+  .dot{width:13px; height:13px; border-radius:50%; display:inline-block; border:2px solid rgba(0,0,0,.18);}
+  .dot.hq{background:var(--hq);} .dot.supply{background:var(--supply);}
+  .dot.factory{background:var(--factory);} .dot.market{background:var(--market);}
+
+  .map-frame{
+    background:#dcebf6; border:1px solid var(--line); border-radius:12px;
+    overflow:hidden;
+  }
+  svg.map{display:block; width:100%; height:auto; touch-action:manipulation;}
+  .land{fill:#cfe0cf; stroke:#a9c2a9; stroke-width:1;}
+  .ocean-label{fill:#7fa6c2; font-size:13px; font-style:italic;}
+
+  .flow{stroke-width:2.4; fill:none; stroke-linecap:round; opacity:0; transition:opacity .4s;}
+  .flow.show{opacity:.85;}
+  .flow.supply-flow{stroke:var(--supply); stroke-dasharray:7 6;}
+  .flow.market-flow{stroke:var(--market); stroke-dasharray:2 5;}
+
+  .node{cursor:pointer; opacity:0; transform-box:fill-box; transform-origin:center;}
+  .node.show{opacity:1;}
+  .node circle.halo{fill:rgba(15,111,196,.16);}
+  .node:focus-visible{outline:none;}
+  .node:focus-visible circle.core{stroke:#13233a; stroke-width:3.5;}
+  .node circle.core{stroke:#fff; stroke-width:2.4;}
+  .node.active circle.core{stroke:#13233a; stroke-width:3.2;}
+  .node .label{
+    font-size:11px; fill:var(--ink); font-weight:600;
+    paint-order:stroke; stroke:#fff; stroke-width:3px; stroke-linejoin:round;
+  }
+
+  .pulse{animation:pulse 1.4s ease-out infinite;}
+  @keyframes pulse{
+    0%{r:9; opacity:.5;} 100%{r:24; opacity:0;}
+  }
+
+  .readout{margin-top:14px;}
+  .card-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px;}
+  .tcard{
+    border:1px solid var(--line); border-radius:12px; padding:12px 13px;
+    background:var(--warm); position:relative;
+  }
+  .tcard h3{margin:0 0 6px; font-size:.98rem; display:flex; align-items:center; gap:7px;}
+  .tcard .badge{
+    font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
+    padding:2px 8px; border-radius:999px; color:#fff;
+  }
+  .badge.hq{background:var(--hq);} .badge.supply{background:var(--supply);}
+  .badge.factory{background:var(--factory);} .badge.market{background:var(--market);}
+  .tcard p{margin:4px 0; font-size:.86rem; color:var(--slate);}
+  .tradeoff{margin-top:8px; display:flex; flex-direction:column; gap:6px;}
+  .tradeoff .row{display:flex; gap:7px; font-size:.85rem; align-items:flex-start;}
+  .tradeoff .ic{flex:0 0 auto; font-weight:700;}
+  .tradeoff .pos .ic{color:var(--good);}
+  .tradeoff .neg .ic{color:var(--bad);}
+
+  .empty{
+    color:var(--slate); font-size:.92rem; text-align:center; padding:18px;
+    background:var(--mist); border-radius:12px; border:1px dashed var(--line);
+  }
+
+  /* Challenge */
+  .challenge{margin-top:16px;}
+  .q{font-weight:700; margin:0 0 10px; font-size:1rem;}
+  .opts{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:9px;}
+  .opt{
+    text-align:left; background:#fff; border:1.5px solid var(--line); border-radius:10px;
+    padding:10px 12px; cursor:pointer; font-size:.9rem; color:var(--ink);
+    transition:border-color .12s, background .12s;
+  }
+  .opt:hover{border-color:var(--accent);}
+  .opt:focus-visible{outline:3px solid var(--accent); outline-offset:2px;}
+  .opt[data-state="correct"]{background:#e6f5ec; border-color:var(--good);}
+  .opt[data-state="wrong"]{background:#fdece8; border-color:var(--bad);}
+  .opt[disabled]{cursor:default;}
+  .fb{
+    margin-top:11px; font-size:.9rem; padding:11px 13px; border-radius:10px;
+    background:var(--mist); border-left:4px solid var(--slate); min-height:1px;
+  }
+  .fb.ok{background:#e6f5ec; border-left-color:var(--good);}
+  .fb.no{background:#fdece8; border-left-color:var(--bad);}
+  .fb b{color:var(--ink);}
+
+  .toolbar{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
+  .btn{
+    background:var(--accent); color:#fff; border:none; border-radius:9px;
+    padding:9px 14px; font-size:.88rem; cursor:pointer; font-weight:600;
+  }
+  .btn:hover{background:var(--accent-dk);}
+  .btn.ghost{background:#fff; color:var(--accent-dk); border:1.5px solid var(--line);}
+  .btn:focus-visible{outline:3px solid var(--accent); outline-offset:2px;}
+
+  .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0;}
+  footer.note{font-size:.78rem; color:var(--slate); text-align:center; padding:14px;}
+  .count{font-size:.78rem; color:var(--slate); margin-left:6px;}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="app">
+  <h1>Globalisation Web &#x1F310;</h1>
+  <p class="aim">Teacher aim: pupils explore how transnational companies (TNCs) connect distant places. Click a company to light up its supply chain, factories and markets across the world, then weigh the trade-offs of a globalised economy.</p>
+</header>
+
+<div class="wrap">
+  <div class="layout">
+
+    <!-- LEFT: company chooser -->
+    <aside class="panel" aria-label="Choose a transnational company">
+      <h2>Pick a company</h2>
+      <p class="sub">Each is a fictional transnational company (TNC). Select one to trace its global web.</p>
+      <div class="tnc-list" id="tncList" role="group" aria-label="Transnational companies"></div>
+    </aside>
+
+    <!-- RIGHT: map + readout -->
+    <main>
+      <section class="panel map-card">
+        <div class="map-head">
+          <h2 id="mapTitle">World map</h2>
+          <div class="legend" aria-hidden="true">
+            <span><i class="dot hq"></i>Head office</span>
+            <span><i class="dot supply"></i>Raw materials</span>
+            <span><i class="dot factory"></i>Factory</span>
+            <span><i class="dot market"></i>Market</span>
+          </div>
+        </div>
+        <p class="sub" id="mapHint">Choose a company on the left. Dashed orange lines show raw materials and parts flowing to the factory; dotted green lines show finished goods reaching markets.</p>
+
+        <div class="map-frame">
+          <!-- viewBox 0..1000 wide, 0..500 tall. Equirectangular-style world. -->
+          <svg class="map" id="worldMap" viewBox="0 0 1000 500" role="application"
+               aria-roledescription="interactive world map"
+               aria-label="World map of company locations. Use Tab to move between locations and Enter to read its trade-off card.">
+            <!-- Simplified continents (stylised blocks, not to scale) -->
+            <g aria-hidden="true">
+              <!-- North America -->
+              <path class="land" d="M70,90 L250,80 L270,150 L230,230 L180,250 L150,200 L120,170 L80,150 Z"/>
+              <!-- South America -->
+              <path class="land" d="M240,270 L300,260 L310,340 L270,430 L240,400 L235,330 Z"/>
+              <!-- Europe -->
+              <path class="land" d="M470,110 L560,100 L575,150 L520,180 L480,160 Z"/>
+              <!-- Africa -->
+              <path class="land" d="M480,200 L600,195 L610,300 L555,400 L510,360 L495,280 Z"/>
+              <!-- Asia -->
+              <path class="land" d="M600,90 L860,95 L880,180 L800,250 L700,230 L620,180 L600,140 Z"/>
+              <!-- South / SE Asia -->
+              <path class="land" d="M690,235 L780,240 L800,300 L740,330 L700,290 Z"/>
+              <!-- Australia -->
+              <path class="land" d="M810,330 L910,335 L920,400 L840,420 L805,380 Z"/>
+            </g>
+            <text class="ocean-label" x="120" y="320" aria-hidden="true">Pacific</text>
+            <text class="ocean-label" x="400" y="430" aria-hidden="true">Atlantic</text>
+            <text class="ocean-label" x="660" y="420" aria-hidden="true">Indian Ocean</text>
+
+            <g id="flows" aria-hidden="true"></g>
+            <g id="nodes"></g>
+          </svg>
+        </div>
+      </section>
+
+      <!-- Trade-off readout -->
+      <section class="panel readout" aria-live="polite" aria-label="Location details and trade-offs">
+        <h2 id="readTitle">Trade-off cards <span class="count" id="readCount"></span></h2>
+        <div id="readBody">
+          <div class="empty">No company selected yet. Pick one from the list to reveal its global locations and the trade-offs each place faces.</div>
+        </div>
+      </section>
+
+      <!-- Challenge -->
+      <section class="panel challenge" aria-label="Quick challenge">
+        <h2>Quick challenge &#x1F9E0;</h2>
+        <p class="sub" id="chPrompt">Select a company first, then answer a question about its global web.</p>
+        <p class="q" id="chQ" hidden></p>
+        <div class="opts" id="chOpts"></div>
+        <div class="fb" id="chFb" role="status" aria-live="polite"></div>
+        <div class="toolbar">
+          <button class="btn ghost" id="nextQ" hidden type="button">Next question</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="note">Globalisation Web. Fictional companies and places used for teaching only. National Curriculum KS3 Geography: human geography (economic activity, development and globalisation).</footer>
+</div>
+
+<div class="sr-only" id="liveStatus" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ----- Data: fictional TNCs. Coordinates in SVG space (0..1000, 0..500) -----
+  // Place anchors roughly on the stylised continents.
+  var PLACES = {
+    // North America
+    usWest:   {x:150, y:170, region:"California, USA"},
+    usEast:   {x:240, y:150, region:"New York, USA"},
+    canada:   {x:170, y:110, region:"Ontario, Canada"},
+    // South America
+    brazil:   {x:275, y:330, region:"Brazil"},
+    chile:    {x:255, y:400, region:"Chile"},
+    // Europe
+    uk:       {x:485, y:130, region:"United Kingdom"},
+    germany:  {x:530, y:140, region:"Germany"},
+    // Africa
+    ghana:    {x:505, y:255, region:"Ghana"},
+    drc:      {x:560, y:290, region:"DR Congo"},
+    safrica:  {x:555, y:370, region:"South Africa"},
+    // Asia
+    china:    {x:760, y:175, region:"China"},
+    india:    {x:700, y:255, region:"India"},
+    bangla:   {x:730, y:250, region:"Bangladesh"},
+    vietnam:  {x:780, y:280, region:"Vietnam"},
+    japan:    {x:860, y:165, region:"Japan"},
+    // Oceania
+    australia:{x:860, y:380, region:"Australia"}
+  };
+
+  var COMPANIES = [
+    {
+      id:"swiftwear", name:"SwiftWear", sector:"Fast fashion clothing", emoji:"\u{1F455}",
+      hq:"uk",
+      nodes:[
+        {place:"uk", role:"hq", title:"Head office, United Kingdom",
+          desc:"Designers and managers set the styles and decide where to make and sell each garment.",
+          pos:["Skilled design and marketing jobs stay in the UK."],
+          neg:["Profits flow back to UK shareholders, not always to producing countries."]},
+        {place:"india", role:"supply", title:"Cotton farms, India",
+          desc:"Raw cotton is grown and harvested, then shipped to be spun and woven.",
+          pos:["Income for farming families and rural communities."],
+          neg:["Cotton uses huge amounts of water; harvests vary with the climate."]},
+        {place:"bangla", role:"factory", title:"Garment factory, Bangladesh",
+          desc:"Cloth is cut and sewn into clothes by thousands of machinists.",
+          pos:["Many jobs created, especially for women entering paid work."],
+          neg:["Wages are low and working hours can be long; safety has been a concern."]},
+        {place:"germany", role:"market", title:"Market, Germany",
+          desc:"Finished clothes are sold quickly online and in city stores.",
+          pos:["Shoppers get cheap, fashionable clothing all year round."],
+          neg:["Throwaway fashion creates textile waste and high transport emissions."]},
+        {place:"usEast", role:"market", title:"Market, USA",
+          desc:"A large online market buys new ranges every few weeks.",
+          pos:["Wide choice and low prices for consumers."],
+          neg:["Goods travel thousands of miles, adding to the carbon footprint."]}
+      ],
+      quiz:{
+        q:"In SwiftWear's web, where is most of the manual sewing work done?",
+        opts:[
+          {t:"Bangladesh, in a garment factory", ok:true,
+            fb:"Correct. TNCs often place labour-intensive factory work in lower-wage countries to cut costs."},
+          {t:"The United Kingdom, at head office", ok:false,
+            fb:"Not quite. The UK office handles design and management; sewing happens in the Bangladesh factory."},
+          {t:"Germany, near the main market", ok:false,
+            fb:"No. Germany is a market where clothes are sold, not where they are sewn."}
+        ]
+      }
+    },
+    {
+      id:"voltcell", name:"VoltCell", sector:"Electric car batteries", emoji:"\u{1F50B}",
+      hq:"japan",
+      nodes:[
+        {place:"japan", role:"hq", title:"Head office, Japan",
+          desc:"Engineers design the battery and decide the global plan for sourcing and selling.",
+          pos:["High-value research and engineering jobs."],
+          neg:["Key decisions are made far from the places mining the raw materials."]},
+        {place:"drc", role:"supply", title:"Cobalt mine, DR Congo",
+          desc:"Cobalt, a vital battery metal, is dug from the ground and exported.",
+          pos:["Mining brings income and exports to the country."],
+          neg:["Mining can damage land and water; some sites raise serious labour concerns."]},
+        {place:"australia", role:"supply", title:"Lithium mine, Australia",
+          desc:"Lithium ore is mined and processed for use in battery cells.",
+          pos:["Well-paid mining jobs and tax revenue."],
+          neg:["Open-pit mining uses land and water and disturbs ecosystems."]},
+        {place:"china", role:"factory", title:"Battery factory, China",
+          desc:"Metals are turned into finished battery cells on huge production lines.",
+          pos:["Jobs and a strong manufacturing industry cluster."],
+          neg:["Factories use large amounts of energy and create local air pollution."]},
+        {place:"germany", role:"market", title:"Market, Germany",
+          desc:"Car makers fit the batteries into new electric vehicles.",
+          pos:["Supports cleaner transport and green industry growth."],
+          neg:["Demand for metals keeps rising, putting pressure on mining regions."]},
+        {place:"usWest", role:"market", title:"Market, USA",
+          desc:"Electric vehicles using these cells are sold across the country.",
+          pos:["Cuts tailpipe emissions in cities."],
+          neg:["Long supply chains mean problems abroad can stop production."]}
+      ],
+      quiz:{
+        q:"Why does VoltCell rely on places like DR Congo and Australia?",
+        opts:[
+          {t:"They supply raw metals such as cobalt and lithium", ok:true,
+            fb:"Correct. Battery TNCs depend on specific raw materials found in particular countries."},
+          {t:"They are the biggest markets for electric cars", ok:false,
+            fb:"Not quite. Those countries supply raw materials; Germany and the USA are the main markets here."},
+          {t:"They design the batteries", ok:false,
+            fb:"No. Design happens at the Japan head office; DR Congo and Australia provide the metals."}
+        ]
+      }
+    },
+    {
+      id:"beanly", name:"Beanly", sector:"Coffee and cafes", emoji:"\u{2615}",
+      hq:"usEast",
+      nodes:[
+        {place:"usEast", role:"hq", title:"Head office, USA",
+          desc:"The company sets prices, brands the coffee and runs its worldwide chain of cafes.",
+          pos:["Marketing and management jobs at the head office."],
+          neg:["A large share of each cup's price stays with the company, not the growers."]},
+        {place:"ghana", role:"supply", title:"Coffee farms, Ghana",
+          desc:"Farmers grow and pick coffee cherries, then dry the beans for export.",
+          pos:["Cash income for smallholder farming families."],
+          neg:["Growers earn only a tiny fraction of the final price; weather can ruin a crop."]},
+        {place:"brazil", role:"supply", title:"Coffee estates, Brazil",
+          desc:"Large estates harvest beans at scale to supply global demand.",
+          pos:["Exports and rural employment."],
+          neg:["Clearing land for plantations can reduce forest and biodiversity."]},
+        {place:"germany", role:"factory", title:"Roasting plant, Germany",
+          desc:"Green beans are roasted, ground and packed ready for cafes and shops.",
+          pos:["Adds value and skilled processing jobs in Europe."],
+          neg:["Most value is added far from where the beans were grown."]},
+        {place:"uk", role:"market", title:"Market, United Kingdom",
+          desc:"Customers buy coffee in busy high-street cafes.",
+          pos:["Convenient, popular product and local cafe jobs."],
+          neg:["Disposable cups and global shipping add to waste and emissions."]},
+        {place:"japan", role:"market", title:"Market, Japan",
+          desc:"City cafes sell branded coffee to commuters.",
+          pos:["Strong demand supports the whole supply chain."],
+          neg:["Price changes in distant markets affect what farmers are paid."]}
+      ],
+      quiz:{
+        q:"Beanly grows beans in Ghana and Brazil but roasts them in Germany. What does this show?",
+        opts:[
+          {t:"Most value is added in richer countries, not where the crop is grown", ok:true,
+            fb:"Correct. Processing and branding add the most value, and these often happen far from the farms."},
+          {t:"Germany grows the most coffee in the world", ok:false,
+            fb:"No. Germany roasts and packs the beans; the coffee is grown in Ghana and Brazil."},
+          {t:"Farmers in Ghana keep most of the profit", ok:false,
+            fb:"Not quite. Growers usually receive only a small share of the final price."}
+        ]
+      }
+    }
+  ];
+
+  // ----- DOM refs -----
+  var tncList  = document.getElementById('tncList');
+  var flowsG   = document.getElementById('flows');
+  var nodesG   = document.getElementById('nodes');
+  var mapTitle = document.getElementById('mapTitle');
+  var readTitle= document.getElementById('readTitle');
+  var readCount= document.getElementById('readCount');
+  var readBody = document.getElementById('readBody');
+  var live     = document.getElementById('liveStatus');
+  var chPrompt = document.getElementById('chPrompt');
+  var chQ      = document.getElementById('chQ');
+  var chOpts   = document.getElementById('chOpts');
+  var chFb     = document.getElementById('chFb');
+  var nextQ    = document.getElementById('nextQ');
+
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var current = null;
+
+  var ROLE_LABEL = {hq:"Head office", supply:"Raw materials", factory:"Factory", market:"Market"};
+  var ROLE_EMOJI = {hq:"\u{1F3E2}", supply:"\u{1F33E}", factory:"\u{1F3ED}", market:"\u{1F6D2}"};
+  var ROLE_COLOUR= {hq:"#6c2bd9", supply:"#e07b00", factory:"#c0392b", market:"#2e8b57"};
+
+  function announce(msg){ live.textContent = ""; setTimeout(function(){ live.textContent = msg; }, 30); }
+
+  // ----- Build company buttons -----
+  COMPANIES.forEach(function(c){
+    var b = document.createElement('button');
+    b.className = 'tnc-btn';
+    b.type = 'button';
+    b.setAttribute('aria-pressed','false');
+    b.dataset.id = c.id;
+    b.innerHTML = '<span class="tnc-emoji" aria-hidden="true">'+c.emoji+'</span>'+
+      '<span><span class="tnc-name">'+c.name+'</span>'+
+      '<span class="tnc-sec">'+c.sector+'</span></span>';
+    b.addEventListener('click', function(){ selectCompany(c.id); });
+    tncList.appendChild(b);
+  });
+
+  // ----- Geometry helper: curved path between two points -----
+  function curve(a, b){
+    var mx = (a.x + b.x)/2, my = (a.y + b.y)/2;
+    // bow the curve upward a little so multiple lines separate
+    var dx = b.x - a.x, dy = b.y - a.y;
+    var off = Math.min(60, Math.sqrt(dx*dx+dy*dy)*0.18);
+    var cx = mx - dy*0.0008*off*8;
+    var cy = my - Math.abs(dx)*0.001*off*4 - off*0.6;
+    return "M"+a.x+","+a.y+" Q"+cx.toFixed(1)+","+cy.toFixed(1)+" "+b.x+","+b.y;
+  }
+
+  // ----- Select a company: light up the web -----
+  function selectCompany(id){
+    var c = COMPANIES.find(function(x){ return x.id===id; });
+    if(!c) return;
+    current = c;
+
+    // toggle buttons
+    Array.prototype.forEach.call(tncList.querySelectorAll('.tnc-btn'), function(btn){
+      var on = btn.dataset.id === id;
+      btn.setAttribute('aria-pressed', on ? 'true':'false');
+    });
+
+    mapTitle.textContent = c.name + " global web";
+
+    drawFlows(c);
+    drawNodes(c);
+    drawReadout(c);
+    buildQuiz(c);
+
+    announce(c.name + " selected. " + c.nodes.length + " locations shown on the map: " +
+      c.nodes.map(function(n){ return ROLE_LABEL[n.role] + " in " + PLACES[n.place].region; }).join("; ") + ".");
+  }
+
+  function drawFlows(c){
+    flowsG.innerHTML = "";
+    var hqNode = c.nodes.find(function(n){ return n.role==='hq'; });
+    var factory = c.nodes.find(function(n){ return n.role==='factory'; });
+    var anchor = factory || hqNode;
+    var anchorPt = PLACES[anchor.place];
+
+    c.nodes.forEach(function(n, i){
+      if(n === anchor) return;
+      var pt = PLACES[n.place];
+      var isMarket = (n.role === 'market');
+      // supply -> factory ; factory -> market
+      var from, to, cls;
+      if(isMarket){ from = anchorPt; to = pt; cls = 'market-flow'; }
+      else { from = pt; to = anchorPt; cls = 'supply-flow'; }
+      var p = document.createElementNS(SVGNS,'path');
+      p.setAttribute('class','flow '+cls);
+      p.setAttribute('d', curve(from, to));
+      flowsG.appendChild(p);
+      // staggered reveal
+      (function(el, delay){ setTimeout(function(){ el.classList.add('show'); }, delay); })(p, 120 + i*90);
+    });
+  }
+
+  function drawNodes(c){
+    nodesG.innerHTML = "";
+    c.nodes.forEach(function(n, i){
+      var pt = PLACES[n.place];
+      var g = document.createElementNS(SVGNS,'g');
+      g.setAttribute('class','node');
+      g.setAttribute('tabindex','0');
+      g.setAttribute('role','button');
+      g.setAttribute('data-idx', i);
+      g.setAttribute('aria-label',
+        ROLE_LABEL[n.role] + ", " + PLACES[n.place].region + ". " + n.desc +
+        " Benefit: " + n.pos[0] + " Drawback: " + n.neg[0]);
+
+      var halo = document.createElementNS(SVGNS,'circle');
+      halo.setAttribute('class','halo');
+      halo.setAttribute('cx', pt.x); halo.setAttribute('cy', pt.y);
+      halo.setAttribute('r', n.role==='hq' ? 17 : 14);
+
+      var core = document.createElementNS(SVGNS,'circle');
+      core.setAttribute('class','core');
+      core.setAttribute('cx', pt.x); core.setAttribute('cy', pt.y);
+      core.setAttribute('r', n.role==='hq' ? 10 : 8);
+      core.setAttribute('fill', ROLE_COLOUR[n.role]);
+
+      var label = document.createElementNS(SVGNS,'text');
+      label.setAttribute('class','label');
+      label.setAttribute('x', pt.x);
+      label.setAttribute('y', pt.y - (n.role==='hq'?20:17));
+      label.setAttribute('text-anchor','middle');
+      label.textContent = PLACES[n.place].region;
+
+      g.appendChild(halo); g.appendChild(core); g.appendChild(label);
+      nodesG.appendChild(g);
+
+      g.addEventListener('click', function(){ focusCard(i); });
+      g.addEventListener('keydown', function(e){
+        if(e.key==='Enter' || e.key===' '){ e.preventDefault(); focusCard(i); }
+      });
+
+      (function(el, delay){ setTimeout(function(){ el.classList.add('show'); }, delay); })(g, 150 + i*90);
+    });
+  }
+
+  function drawReadout(c){
+    readTitle.firstChild.textContent = c.name + " trade-off cards ";
+    readCount.textContent = "(" + c.nodes.length + ")";
+    readBody.innerHTML = "";
+    var grid = document.createElement('div');
+    grid.className = 'card-grid';
+    c.nodes.forEach(function(n, i){
+      var card = document.createElement('article');
+      card.className = 'tcard';
+      card.id = 'card-' + i;
+      card.innerHTML =
+        '<h3><span class="badge '+n.role+'">'+ROLE_LABEL[n.role]+'</span> '+
+          '<span aria-hidden="true">'+ROLE_EMOJI[n.role]+'</span></h3>'+
+        '<p><b>'+n.title+'</b></p>'+
+        '<p>'+n.desc+'</p>'+
+        '<div class="tradeoff">'+
+          '<div class="row pos"><span class="ic" aria-hidden="true">&#x2714;</span><span><b>Benefit:</b> '+n.pos[0]+'</span></div>'+
+          '<div class="row neg"><span class="ic" aria-hidden="true">&#x2716;</span><span><b>Drawback:</b> '+n.neg[0]+'</span></div>'+
+        '</div>';
+      grid.appendChild(card);
+    });
+    readBody.appendChild(grid);
+  }
+
+  // highlight a node + scroll its card into view
+  function focusCard(idx){
+    Array.prototype.forEach.call(nodesG.querySelectorAll('.node'), function(g){
+      g.classList.toggle('active', g.getAttribute('data-idx')===String(idx));
+    });
+    var card = document.getElementById('card-'+idx);
+    if(card){
+      Array.prototype.forEach.call(readBody.querySelectorAll('.tcard'), function(el){
+        el.style.boxShadow = "";
+      });
+      card.style.boxShadow = "0 0 0 3px rgba(15,111,196,.45)";
+      card.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+    if(current){
+      var n = current.nodes[idx];
+      announce(ROLE_LABEL[n.role] + " in " + PLACES[n.place].region + ". " +
+        n.desc + " Benefit: " + n.pos[0] + " Drawback: " + n.neg[0]);
+    }
+  }
+
+  // ----- Quiz -----
+  function buildQuiz(c){
+    chPrompt.hidden = true;
+    chQ.hidden = false;
+    chQ.textContent = c.quiz.q;
+    chOpts.innerHTML = "";
+    chFb.className = "fb";
+    chFb.textContent = "";
+    nextQ.hidden = true;
+
+    // shuffle a copy of options but keep correctness
+    var opts = c.quiz.opts.slice();
+    for(var i=opts.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=opts[i]; opts[i]=opts[j]; opts[j]=t; }
+
+    opts.forEach(function(o){
+      var b = document.createElement('button');
+      b.className = 'opt';
+      b.type = 'button';
+      b.textContent = o.t;
+      b.addEventListener('click', function(){ answer(b, o, c); });
+      chOpts.appendChild(b);
+    });
+  }
+
+  function answer(btn, opt, c){
+    // lock all
+    Array.prototype.forEach.call(chOpts.querySelectorAll('.opt'), function(b){ b.disabled = true; });
+    if(opt.ok){
+      btn.dataset.state = 'correct';
+      chFb.className = 'fb ok';
+      chFb.innerHTML = '<b>Correct.</b> ' + opt.fb;
+      announce("Correct. " + opt.fb);
+    } else {
+      btn.dataset.state = 'wrong';
+      // reveal the correct one
+      var correctText = c.quiz.opts.find(function(o){ return o.ok; }).t;
+      Array.prototype.forEach.call(chOpts.querySelectorAll('.opt'), function(b){
+        if(b.textContent === correctText){ b.dataset.state = 'correct'; }
+      });
+      chFb.className = 'fb no';
+      chFb.innerHTML = '<b>Not quite.</b> ' + opt.fb;
+      announce("Not quite. " + opt.fb);
+    }
+    nextQ.hidden = false;
+  }
+
+  nextQ.addEventListener('click', function(){ if(current) buildQuiz(current); });
+
+  // Start with the first company so the board is never blank for long
+  // (teacher can immediately demo). Comment out if you prefer empty start.
+  selectCompany(COMPANIES[0].id);
+
+})();
+</script>
+</body>
+</html>

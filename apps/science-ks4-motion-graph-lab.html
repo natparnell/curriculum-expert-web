@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motion Graph Lab</title>
+<style>
+  :root{
+    --ink:#16202b;
+    --muted:#5a6b7b;
+    --line:#d7dee6;
+    --paper:#f4f7fa;
+    --card:#ffffff;
+    --accent:#0b6e99;
+    --accent-2:#c2410c;
+    --green:#15803d;
+    --amber:#b45309;
+    --red:#b91c1c;
+    --dt:#0b6e99;
+    --vt:#c2410c;
+    --focus:#1d4ed8;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 16px 60px;}
+  header.app{margin-bottom:14px;}
+  .eyebrow{
+    font-size:.72rem;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin:0 0 4px;
+  }
+  h1{font-size:clamp(1.5rem,3.4vw,2.1rem);margin:0 0 4px;line-height:1.1;}
+  .aim{
+    font-size:.95rem;color:var(--muted);margin:0;max-width:70ch;
+    border-left:3px solid var(--accent);padding-left:10px;
+  }
+  .aim strong{color:var(--ink);}
+  .grid{display:grid;gap:16px;grid-template-columns:1fr;}
+  @media(min-width:880px){
+    .grid.two{grid-template-columns:1.05fr 1fr;align-items:start;}
+  }
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:16px;box-shadow:0 1px 2px rgba(20,32,43,.04);
+  }
+  .card h2{font-size:1.05rem;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+  .card h2 .tag{
+    font-size:.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    background:#eaf3f7;color:var(--accent);padding:2px 7px;border-radius:20px;
+  }
+  .road-stage{
+    position:relative;background:#243140;border-radius:12px;overflow:hidden;
+    height:120px;margin-bottom:14px;border:1px solid #1a232e;
+  }
+  .road-sky{position:absolute;inset:0 0 56% 0;background:linear-gradient(#3a536b,#5a7790);}
+  .road-surface{position:absolute;inset:44% 0 0 0;background:#37434f;}
+  .lane{
+    position:absolute;left:0;right:0;top:72%;height:4px;
+    background:repeating-linear-gradient(90deg,#e8c34a 0 26px,transparent 26px 52px);
+    opacity:.85;
+  }
+  .car{
+    position:absolute;bottom:18px;left:0;width:64px;height:34px;
+    transition:none;will-change:left;
+  }
+  .marker{
+    position:absolute;bottom:6px;width:2px;height:46px;background:rgba(255,255,255,.35);
+  }
+  .marker span{
+    position:absolute;bottom:-2px;left:4px;font-size:.6rem;color:rgba(255,255,255,.8);
+    white-space:nowrap;
+  }
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:8px;}
+  button{
+    font:inherit;font-weight:600;cursor:pointer;border-radius:9px;border:1px solid var(--line);
+    background:#fff;color:var(--ink);padding:9px 14px;transition:background .12s,border-color .12s;
+  }
+  button:hover{background:#f0f4f8;}
+  button:focus-visible{outline:3px solid var(--focus);outline-offset:2px;}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  button.primary:hover{background:#095877;}
+  button.warn{background:var(--accent-2);border-color:var(--accent-2);color:#fff;}
+  button.warn:hover{background:#a23509;}
+  button:disabled{opacity:.45;cursor:not-allowed;}
+  .field{margin:10px 0;}
+  .field label{display:flex;justify-content:space-between;font-size:.85rem;font-weight:600;margin-bottom:4px;}
+  .field label .val{color:var(--accent);font-variant-numeric:tabular-nums;}
+  input[type=range]{width:100%;accent-color:var(--accent);height:26px;}
+  input[type=range]:focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:6px;}
+  .readout{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;
+  }
+  .readout .ro{
+    background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:8px 10px;text-align:center;
+  }
+  .readout .ro .lab{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);}
+  .readout .ro .num{font-size:1.15rem;font-weight:700;font-variant-numeric:tabular-nums;}
+  .readout .ro .unit{font-size:.7rem;color:var(--muted);}
+  .graphs{display:grid;gap:14px;}
+  figure{margin:0;}
+  figure figcaption{font-size:.82rem;color:var(--muted);margin:6px 2px 0;}
+  canvas{
+    width:100%;height:auto;display:block;background:#fff;border:1px solid var(--line);border-radius:10px;
+    touch-action:none;
+  }
+  .graph-toggle{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;}
+  .seg button{border:none;border-radius:0;padding:7px 12px;font-size:.82rem;background:#fff;}
+  .seg button[aria-pressed=true]{background:var(--accent);color:#fff;}
+  .seg button:focus-visible{outline-offset:-3px;}
+  .hint{
+    font-size:.84rem;color:var(--muted);background:#f7fafc;border:1px dashed var(--line);
+    border-radius:10px;padding:10px 12px;margin-top:10px;
+  }
+  .feedback{
+    margin-top:12px;border-radius:11px;padding:12px 14px;font-size:.92rem;
+    border:1px solid var(--line);background:var(--paper);min-height:24px;
+  }
+  .feedback.good{background:#ecfdf3;border-color:#abe9c2;color:#0d5a2c;}
+  .feedback.warnfb{background:#fff7ed;border-color:#f5cf9e;color:#8a4a05;}
+  .feedback.bad{background:#fef2f2;border-color:#f3b6b6;color:#8a1717;}
+  .feedback strong{display:block;margin-bottom:2px;}
+  .challenge{
+    background:linear-gradient(135deg,#0b6e99,#0a5577);color:#fff;border:none;
+  }
+  .challenge h2{color:#fff;}
+  .challenge h2 .tag{background:rgba(255,255,255,.18);color:#fff;}
+  .challenge p{margin:0 0 8px;font-size:.92rem;color:#e6f2f8;}
+  .challenge .qbox{
+    background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);
+    border-radius:11px;padding:12px;margin-top:8px;
+  }
+  .challenge .qbox .qtext{font-weight:600;margin-bottom:8px;}
+  .answer-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .answer-row input[type=number]{
+    font:inherit;width:110px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.4);
+    background:rgba(255,255,255,.95);color:var(--ink);
+  }
+  .answer-row input[type=number]:focus-visible{outline:3px solid #fff;outline-offset:2px;}
+  .answer-row .unitlab{color:#dceaf2;font-size:.85rem;}
+  .challenge button.check{background:#fff;color:var(--accent);border-color:#fff;}
+  .challenge .cfb{margin-top:10px;font-size:.9rem;min-height:20px;}
+  .challenge .cfb.ok{color:#bff5d2;font-weight:600;}
+  .challenge .cfb.no{color:#ffd9c9;font-weight:600;}
+  .score{font-size:.82rem;color:#cfe6f1;margin-top:6px;}
+  .stoptab{width:100%;border-collapse:collapse;margin-top:8px;font-size:.85rem;}
+  .stoptab th,.stoptab td{border:1px solid var(--line);padding:6px 8px;text-align:left;}
+  .stoptab th{background:var(--paper);font-weight:700;}
+  .bar{height:14px;border-radius:4px;}
+  .bar.think{background:#f59e0b;}
+  .bar.brake{background:#dc2626;}
+  .sr-only{
+    position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0,0,0,0);white-space:nowrap;border:0;
+  }
+  .footnote{font-size:.78rem;color:var(--muted);margin-top:18px;text-align:center;}
+  details.teacher{margin-top:14px;}
+  details.teacher summary{
+    cursor:pointer;font-weight:700;color:var(--accent);padding:8px 0;
+  }
+  details.teacher summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:4px;}
+  details.teacher ul{margin:6px 0 0;padding-left:20px;font-size:.88rem;color:var(--muted);}
+  details.teacher li{margin-bottom:4px;}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <p class="eyebrow">Science &middot; KS4 Physics &middot; Forces and Motion</p>
+    <h1>Motion Graph Lab</h1>
+    <p class="aim"><strong>Teacher aim:</strong> drive a car, watch its distance-time and velocity-time graphs build live, then read off speed, acceleration, distance from the area under the graph, momentum and stopping distance. Covers GCSE motion graphs, Newton's laws, momentum and stopping distance.</p>
+  </header>
+
+  <div class="grid two">
+
+    <!-- LEFT: simulator -->
+    <section class="card" aria-labelledby="sim-h">
+      <h2 id="sim-h">Drive the car <span class="tag">Live</span></h2>
+
+      <div class="road-stage" aria-hidden="true">
+        <div class="road-sky"></div>
+        <div class="road-surface"></div>
+        <div class="lane"></div>
+        <div class="marker" style="left:50%"><span>50 m</span></div>
+        <div class="car" id="car">
+          <svg viewBox="0 0 64 34" width="64" height="34" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="14" width="60" height="12" rx="4" fill="#d6453a"/>
+            <path d="M14 14 L22 5 L44 5 L52 14 Z" fill="#e86a60"/>
+            <rect x="24" y="7" width="16" height="7" rx="2" fill="#bfe2f2"/>
+            <circle cx="17" cy="27" r="6" fill="#222"/><circle cx="17" cy="27" r="2.4" fill="#888"/>
+            <circle cx="47" cy="27" r="6" fill="#222"/><circle cx="47" cy="27" r="2.4" fill="#888"/>
+            <rect x="58" y="17" width="5" height="4" rx="1.5" fill="#ffd24a"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="primary" id="btnGo" type="button">Accelerate &#x25B6;</button>
+        <button id="btnCruise" type="button">Hold speed</button>
+        <button class="warn" id="btnBrake" type="button">Brake &#x1F6D1;</button>
+        <button id="btnReset" type="button">Reset</button>
+      </div>
+
+      <div class="field">
+        <label for="driverForce">Driving force on the car
+          <span class="val"><span id="forceVal">3000</span> N</span>
+        </label>
+        <input type="range" id="driverForce" min="500" max="6000" step="100" value="3000"
+               aria-describedby="forceHelp">
+        <span id="forceHelp" class="sr-only">Higher driving force gives greater acceleration. Newton's second law, F equals m a.</span>
+      </div>
+
+      <div class="field">
+        <label for="carMass">Mass of the car
+          <span class="val"><span id="massVal">1200</span> kg</span>
+        </label>
+        <input type="range" id="carMass" min="600" max="2400" step="50" value="1200">
+      </div>
+
+      <div class="readout" aria-live="off">
+        <div class="ro"><div class="lab">Time</div><div class="num" id="roTime">0.0</div><div class="unit">seconds</div></div>
+        <div class="ro"><div class="lab">Velocity</div><div class="num" id="roVel">0.0</div><div class="unit">m/s</div></div>
+        <div class="ro"><div class="lab">Distance</div><div class="num" id="roDist">0.0</div><div class="unit">metres</div></div>
+        <div class="ro"><div class="lab">Acceleration</div><div class="num" id="roAcc">0.0</div><div class="unit">m/s&sup2;</div></div>
+        <div class="ro"><div class="lab">Momentum</div><div class="num" id="roMom">0</div><div class="unit">kg&middot;m/s</div></div>
+        <div class="ro"><div class="lab">Stopping dist.</div><div class="num" id="roStop">0.0</div><div class="unit">metres (now)</div></div>
+      </div>
+
+      <p class="hint">Newton's 2nd law: <strong>a = F &divide; m</strong>. A bigger driving force or a lighter car gives more acceleration. Resistive forces (air and friction, set near 600 N here) grow with speed, so the car eventually reaches a steady top speed where forces balance (Newton's 1st law). Momentum <strong>p = m v</strong>.</p>
+
+      <details class="teacher">
+        <summary>Stopping distance breakdown (thinking + braking)</summary>
+        <table class="stoptab" id="stopTable">
+          <thead><tr><th>Phase</th><th>Distance</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>Thinking</td><td id="thinkD">0.0 m</td><td>speed &times; reaction time (0.7 s)</td></tr>
+            <tr><td>Braking</td><td id="brakeD">0.0 m</td><td>v&sup2; &divide; (2 &times; braking decel.)</td></tr>
+            <tr><td><strong>Total</strong></td><td id="totD"><strong>0.0 m</strong></td><td>thinking + braking</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:8px;">
+          <div style="display:flex;height:14px;border-radius:4px;overflow:hidden;border:1px solid var(--line)" aria-hidden="true">
+            <div class="bar think" id="barThink" style="width:30%"></div>
+            <div class="bar brake" id="barBrake" style="width:70%"></div>
+          </div>
+          <div style="font-size:.74rem;color:var(--muted);margin-top:4px;">Amber = thinking distance, red = braking distance. Brake while moving to see the car halt over this total.</div>
+        </div>
+      </details>
+    </section>
+
+    <!-- RIGHT: graphs -->
+    <section class="card" aria-labelledby="graph-h">
+      <h2 id="graph-h">Live motion graphs <span class="tag">Read off</span></h2>
+
+      <div class="graph-toggle">
+        <div class="seg" role="group" aria-label="Choose which graph to read off">
+          <button id="segBoth" type="button" aria-pressed="true">Both</button>
+          <button id="segDT" type="button" aria-pressed="false">Distance-time</button>
+          <button id="segVT" type="button" aria-pressed="false">Velocity-time</button>
+        </div>
+      </div>
+
+      <div class="graphs">
+        <figure id="figDT">
+          <canvas id="dtCanvas" width="520" height="240"
+            role="img" tabindex="0"
+            aria-label="Distance-time graph. The gradient at any point is the speed.">
+          </canvas>
+          <figcaption><strong>Distance-time.</strong> Gradient = speed. A steeper line means going faster; a straight slope means steady speed; flat means stopped.</figcaption>
+        </figure>
+        <figure id="figVT">
+          <canvas id="vtCanvas" width="520" height="240"
+            role="img" tabindex="0"
+            aria-label="Velocity-time graph. The gradient is the acceleration and the shaded area under the line is the distance travelled.">
+          </canvas>
+          <figcaption><strong>Velocity-time.</strong> Gradient = acceleration. Shaded area under the line = distance travelled (currently <span id="areaDist">0.0</span> m).</figcaption>
+        </figure>
+      </div>
+
+      <div class="feedback" id="feedback" role="status" aria-live="polite">
+        Press <strong>Accelerate</strong> to set off, then watch both graphs build. Try a heavy lorry-like mass against a light car.
+      </div>
+    </section>
+  </div>
+
+  <!-- CHALLENGE -->
+  <section class="card challenge" aria-labelledby="ch-h" style="margin-top:16px;">
+    <h2 id="ch-h">Read the graph challenge <span class="tag">5 questions</span></h2>
+    <p>Drive for a few seconds, then <strong>pause the question</strong> reads off your current graph. Type your answer and check it. You are reading the same quantities a GCSE exam asks for.</p>
+
+    <div class="qbox">
+      <div class="qtext" id="qText">Loading question.</div>
+      <div class="answer-row">
+        <input type="number" id="answerBox" step="any" aria-label="Your answer" placeholder="answer">
+        <span class="unitlab" id="answerUnit">units</span>
+        <button class="check" id="btnCheck" type="button">Check answer</button>
+        <button id="btnNext" type="button">New question</button>
+      </div>
+      <div class="cfb" id="challengeFb" role="status" aria-live="polite"></div>
+      <div class="score" id="scoreLine">Score: 0 correct.</div>
+    </div>
+  </section>
+
+  <p class="footnote">Motion Graph Lab &middot; WeST teaching demo. Figures use simplified GCSE models (constant 0.7 s reaction time, fixed braking deceleration). Demonstration only.</p>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Physics model ----------
+  var RESIST_BASE = 200;     // N constant rolling resistance
+  var RESIST_K = 6.5;        // air-resistance coefficient (N per (m/s))
+  var BRAKE_DECEL = 6.5;     // m/s^2 braking deceleration (dry road model)
+  var REACTION = 0.7;        // s thinking time
+  var DT = 1/60;             // physics step
+
+  var state = {
+    t: 0, x: 0, v: 0, a: 0,
+    mode: "idle",            // idle | accel | cruise | brake
+    cruiseTarget: 0,
+    running: false,
+    history: []              // {t, x, v}
+  };
+
+  function force(){ return parseFloat(document.getElementById("driverForce").value); }
+  function mass(){ return parseFloat(document.getElementById("carMass").value); }
+
+  // resistive force magnitude at speed v
+  function resistance(v){ return RESIST_BASE + RESIST_K * v; }
+
+  // ---------- DOM ----------
+  var $ = function(id){ return document.getElementById(id); };
+  var car = $("car"), road = car.parentElement;
+  var feedback = $("feedback");
+  var roTime=$("roTime"),roVel=$("roVel"),roDist=$("roDist"),roAcc=$("roAcc"),roMom=$("roMom"),roStop=$("roStop");
+  var areaDist=$("areaDist");
+
+  // ---------- Simulation loop ----------
+  var raf=null, lastFb="";
+  function physicsStep(){
+    var m = mass(), v = state.v;
+    var net;
+    if(state.mode === "accel"){
+      net = force() - resistance(v);
+    } else if(state.mode === "cruise"){
+      // aim to keep current speed: net force ~ 0, just overcome resistance
+      net = resistance(v) - resistance(v); // balanced
+      // gentle correction toward target
+      net = (state.cruiseTarget - v) * m * 1.5;
+    } else if(state.mode === "brake"){
+      net = -(BRAKE_DECEL * m) - resistance(v);
+      if(v <= 0){ net = 0; }
+    } else {
+      // idle but moving: coast, resistance slows it
+      net = (v>0) ? -resistance(v) : 0;
+    }
+    var a = net / m;
+    var nv = v + a*DT;
+    if(nv < 0) nv = 0;
+    var nx = state.x + ((v+nv)/2)*DT;
+    state.a = (nv - v)/DT;
+    state.v = nv;
+    state.x = nx;
+    state.t += DT;
+    if(state.v === 0 && (state.mode==="brake" || state.mode==="idle")){
+      // record a final point then stop the loop
+      record();
+      if(state.mode==="brake"){ state.mode="idle"; }
+      if(state.running){ stopLoop(); }
+    }
+    record();
+  }
+
+  function record(){
+    var h = state.history;
+    if(h.length===0 || (state.t - h[h.length-1].t) >= 0.05){
+      h.push({t:state.t, x:state.x, v:state.v});
+      if(h.length>4000) h.shift();
+    }
+  }
+
+  function loop(){
+    physicsStep();
+    updateUI();
+    drawAll();
+    if(state.running){ raf = requestAnimationFrame(loop); }
+  }
+  function startLoop(){
+    if(!state.running){ state.running=true; raf=requestAnimationFrame(loop); }
+  }
+  function stopLoop(){
+    state.running=false;
+    if(raf){ cancelAnimationFrame(raf); raf=null; }
+  }
+
+  // ---------- UI numbers ----------
+  function stoppingDistance(v){
+    var think = v * REACTION;
+    var brake = (v*v) / (2*BRAKE_DECEL);
+    return {think:think, brake:brake, total:think+brake};
+  }
+
+  function updateUI(){
+    roTime.textContent = state.t.toFixed(1);
+    roVel.textContent = state.v.toFixed(1);
+    roDist.textContent = state.x.toFixed(1);
+    roAcc.textContent = state.a.toFixed(2);
+    roMom.textContent = Math.round(mass()*state.v).toLocaleString("en-GB");
+    var sd = stoppingDistance(state.v);
+    roStop.textContent = sd.total.toFixed(1);
+    areaDist.textContent = state.x.toFixed(1);
+
+    $("thinkD").textContent = sd.think.toFixed(1)+" m";
+    $("brakeD").textContent = sd.brake.toFixed(1)+" m";
+    $("totD").innerHTML = "<strong>"+sd.total.toFixed(1)+" m</strong>";
+    var tot = sd.total||1;
+    $("barThink").style.width = Math.max(2,(sd.think/tot)*100)+"%";
+    $("barBrake").style.width = Math.max(2,(sd.brake/tot)*100)+"%";
+
+    // move the car: road is 50 m across to the marker; wrap visually
+    var roadW = road.clientWidth - 70;
+    var px = (state.x % 100)/100 * (roadW*2);
+    if(px > roadW) px = roadW; // park at far side beyond 50 m for readability
+    car.style.left = Math.min(roadW, (state.x/100)*roadW*1 % roadW) + "px";
+    // simpler continuous mapping capped to road width, looping every 100m
+    var frac = (state.x % 100)/100;
+    car.style.left = (frac * roadW) + "px";
+
+    contextFeedback();
+  }
+
+  function contextFeedback(){
+    var v=state.v, a=state.a, msg="", cls="";
+    if(state.mode==="accel"){
+      msg = "<strong>Accelerating.</strong> The distance-time line is curving upward (gradient increasing) and the velocity-time line slopes up. Acceleration = "+a.toFixed(2)+" m/s&sup2;, which equals F &divide; m = "+force()+" &divide; "+mass()+" minus resistance.";
+      cls="warnfb";
+    } else if(state.mode==="cruise"){
+      msg = "<strong>Steady speed.</strong> Forces are balanced (Newton's 1st law). Distance-time is a straight slope; velocity-time is flat. Gradient of the d-t line equals the speed, "+v.toFixed(1)+" m/s.";
+      cls="good";
+    } else if(state.mode==="brake"){
+      msg = "<strong>Braking.</strong> Velocity-time slopes downward, so acceleration is negative ("+a.toFixed(2)+" m/s&sup2;). Watch the area under the v-t line stop growing as the car halts.";
+      cls="bad";
+    } else if(v>0){
+      msg = "<strong>Coasting.</strong> No driving force, so resistance gradually slows the car. The v-t line drifts down slowly.";
+      cls="warnfb";
+    } else if(state.t>0){
+      msg = "<strong>Stopped.</strong> Total distance travelled = "+state.x.toFixed(1)+" m, which is the whole area under your velocity-time graph.";
+      cls="good";
+    } else {
+      return;
+    }
+    if(msg!==lastFb){
+      feedback.className = "feedback "+cls;
+      feedback.innerHTML = msg;
+      lastFb = msg;
+    }
+  }
+
+  // ---------- Graph drawing ----------
+  function setupCanvas(cv){
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = cv.clientWidth || 520;
+    var cssH = 240;
+    if(cv.width !== Math.round(cssW*dpr)){
+      cv.width = Math.round(cssW*dpr);
+      cv.height = Math.round(cssH*dpr);
+    }
+    var ctx = cv.getContext("2d");
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return {ctx:ctx, w:cssW, h:cssH};
+  }
+
+  function niceMax(v, floor){
+    v = Math.max(v, floor);
+    var pow = Math.pow(10, Math.floor(Math.log10(v)));
+    var n = v/pow;
+    var step = n<=1?1:n<=2?2:n<=5?5:10;
+    return step*pow;
+  }
+
+  function drawGraph(cv, key, opts){
+    var c = setupCanvas(cv), ctx=c.ctx, W=c.w, H=c.h;
+    var padL=46, padR=14, padT=14, padB=30;
+    var gw = W-padL-padR, gh=H-padT-padB;
+    ctx.clearRect(0,0,W,H);
+
+    var h = state.history;
+    var tMax = Math.max(state.t, 4);
+    tMax = niceMax(tMax, 4);
+    var yMax;
+    if(key==="x"){ yMax = niceMax(Math.max(state.x, 20), 20); }
+    else { yMax = niceMax(Math.max(state.v, 5), 5); }
+
+    function X(t){ return padL + (t/tMax)*gw; }
+    function Y(val){ return padT + gh - (val/yMax)*gh; }
+
+    // grid
+    ctx.strokeStyle="#eef2f6"; ctx.lineWidth=1;
+    ctx.fillStyle="#7a8794"; ctx.font="11px -apple-system,Segoe UI,Arial";
+    ctx.textAlign="right"; ctx.textBaseline="middle";
+    for(var i=0;i<=4;i++){
+      var yy=padT+gh-(i/4)*gh;
+      ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();
+      ctx.fillText(((i/4)*yMax).toFixed(key==="x"?0:0), padL-6, yy);
+    }
+    ctx.textAlign="center";ctx.textBaseline="top";
+    for(var j=0;j<=4;j++){
+      var xx=padL+(j/4)*gw;
+      ctx.beginPath();ctx.moveTo(xx,padT);ctx.lineTo(xx,padT+gh);ctx.strokeStyle="#f2f5f8";ctx.stroke();
+      ctx.fillText(((j/4)*tMax).toFixed(0), xx, padT+gh+6);
+    }
+    // axes
+    ctx.strokeStyle="#9aa6b2";ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(padL,padT);ctx.lineTo(padL,padT+gh);ctx.lineTo(W-padR,padT+gh);ctx.stroke();
+
+    // axis titles
+    ctx.fillStyle="#46535f";ctx.font="11px -apple-system,Segoe UI,Arial";
+    ctx.textAlign="center";ctx.textBaseline="bottom";
+    ctx.fillText("time (s)", padL+gw/2, H-2);
+    ctx.save();
+    ctx.translate(12, padT+gh/2);ctx.rotate(-Math.PI/2);ctx.textBaseline="top";
+    ctx.fillText(key==="x"?"distance (m)":"velocity (m/s)",0,0);
+    ctx.restore();
+
+    if(h.length<2) return;
+
+    // area under v-t (shaded) = distance
+    if(key==="v"){
+      ctx.beginPath();
+      ctx.moveTo(X(h[0].t), Y(0));
+      for(var k=0;k<h.length;k++){ ctx.lineTo(X(h[k].t), Y(h[k].v)); }
+      ctx.lineTo(X(h[h.length-1].t), Y(0));
+      ctx.closePath();
+      ctx.fillStyle="rgba(194,65,12,.14)";
+      ctx.fill();
+    }
+
+    // the curve
+    ctx.beginPath();
+    for(var p=0;p<h.length;p++){
+      var vx=X(h[p].t), vy=Y(key==="x"?h[p].x:h[p].v);
+      if(p===0) ctx.moveTo(vx,vy); else ctx.lineTo(vx,vy);
+    }
+    ctx.strokeStyle = key==="x" ? "#0b6e99" : "#c2410c";
+    ctx.lineWidth=2.6;ctx.lineJoin="round";
+    ctx.stroke();
+
+    // current point dot
+    var last=h[h.length-1];
+    ctx.beginPath();
+    ctx.arc(X(last.t), Y(key==="x"?last.x:last.v), 4.5, 0, Math.PI*2);
+    ctx.fillStyle = key==="x" ? "#0b6e99" : "#c2410c";
+    ctx.fill();
+    ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();
+  }
+
+  function drawAll(){
+    var show = currentGraph;
+    if(show==="both" || show==="dt") drawGraph($("dtCanvas"), "x");
+    if(show==="both" || show==="vt") drawGraph($("vtCanvas"), "v");
+  }
+
+  // ---------- Graph toggle ----------
+  var currentGraph="both";
+  function setGraph(which){
+    currentGraph=which;
+    $("segBoth").setAttribute("aria-pressed", which==="both");
+    $("segDT").setAttribute("aria-pressed", which==="dt");
+    $("segVT").setAttribute("aria-pressed", which==="vt");
+    $("figDT").style.display = (which==="vt") ? "none" : "";
+    $("figVT").style.display = (which==="dt") ? "none" : "";
+    requestAnimationFrame(drawAll);
+  }
+  $("segBoth").addEventListener("click",function(){setGraph("both");});
+  $("segDT").addEventListener("click",function(){setGraph("dt");});
+  $("segVT").addEventListener("click",function(){setGraph("vt");});
+
+  // ---------- Controls ----------
+  $("btnGo").addEventListener("click", function(){
+    state.mode="accel"; startLoop();
+  });
+  $("btnCruise").addEventListener("click", function(){
+    state.mode="cruise"; state.cruiseTarget=state.v; startLoop();
+  });
+  $("btnBrake").addEventListener("click", function(){
+    state.mode="brake"; startLoop();
+  });
+  $("btnReset").addEventListener("click", function(){
+    stopLoop();
+    state.t=0;state.x=0;state.v=0;state.a=0;state.mode="idle";state.history=[];
+    lastFb="";
+    feedback.className="feedback";
+    feedback.innerHTML="Reset. Press <strong>Accelerate</strong> to set off again.";
+    updateUI();
+    drawAll();
+  });
+
+  ["driverForce","carMass"].forEach(function(id){
+    $(id).addEventListener("input", function(){
+      $(id==="driverForce"?"forceVal":"massVal").textContent = $(id).value;
+      updateUI();
+    });
+  });
+
+  // keyboard support on canvases: announce current readings
+  ["dtCanvas","vtCanvas"].forEach(function(id){
+    $(id).addEventListener("keydown", function(e){
+      if(e.key==="Enter" || e.key===" "){
+        e.preventDefault();
+        var msg = id==="dtCanvas"
+          ? "Distance-time. Distance "+state.x.toFixed(1)+" metres at "+state.t.toFixed(1)+" seconds. Gradient, the speed, is "+state.v.toFixed(1)+" metres per second."
+          : "Velocity-time. Velocity "+state.v.toFixed(1)+" metres per second. Gradient, the acceleration, is "+state.a.toFixed(2)+" metres per second squared. Area under the line, the distance, is "+state.x.toFixed(1)+" metres.";
+        feedback.className="feedback";
+        feedback.textContent = msg;
+      }
+    });
+  });
+
+  // ---------- Challenge ----------
+  var score=0, currentQ=null;
+  var questions=[
+    {
+      build:function(){
+        return {
+          text:"Read off the velocity-time graph: what is the car's current velocity, to 1 decimal place?",
+          unit:"m/s",
+          answer:state.v,
+          tol:0.6,
+          hintWrong:"Read the height of the v-t curve at the right-hand end. The Velocity readout shows it.",
+          hintRight:"the height of the v-t line is the velocity."
+        };
+      }
+    },
+    {
+      build:function(){
+        return {
+          text:"Use the velocity-time graph: the distance travelled equals the area under the line. What total distance has the car covered, to the nearest metre?",
+          unit:"m",
+          answer:state.x,
+          tol:Math.max(2, state.x*0.06),
+          hintWrong:"Distance is the area under the v-t graph. For a triangle it is half base times height; the Distance readout confirms it.",
+          hintRight:"area under a v-t graph gives distance."
+        };
+      }
+    },
+    {
+      build:function(){
+        return {
+          text:"Find the acceleration from the velocity-time graph right now (its gradient), to 1 decimal place. (Negative if braking.)",
+          unit:"m/s²",
+          answer:state.a,
+          tol:0.8,
+          hintWrong:"Gradient of a v-t line is acceleration: change in velocity over change in time. Try while accelerating or braking for a clear value.",
+          hintRight:"gradient of the v-t line is acceleration."
+        };
+      }
+    },
+    {
+      build:function(){
+        return {
+          text:"Calculate the car's momentum now, p = m v, using the mass slider and the current velocity. To the nearest 100 kg·m/s.",
+          unit:"kg·m/s",
+          answer:mass()*state.v,
+          tol:Math.max(150, mass()*state.v*0.06),
+          hintWrong:"Momentum p = mass times velocity. Mass is "+mass()+" kg.",
+          hintRight:"momentum p = m v."
+        };
+      }
+    },
+    {
+      build:function(){
+        var sd=stoppingDistance(state.v);
+        return {
+          text:"At this speed, what is the total stopping distance (thinking + braking)? To the nearest metre.",
+          unit:"m",
+          answer:sd.total,
+          tol:Math.max(2, sd.total*0.08),
+          hintWrong:"Thinking distance = speed times 0.7 s. Braking distance = v squared over (2 times 6.5). Add them.",
+          hintRight:"stopping distance = thinking + braking."
+        };
+      }
+    }
+  ];
+
+  function newQuestion(){
+    var pool=questions.slice();
+    var idx=Math.floor(Math.random()*pool.length);
+    currentQ = pool[idx].build();
+    $("qText").innerHTML = currentQ.text;
+    $("answerUnit").innerHTML = currentQ.unit;
+    $("answerBox").value="";
+    $("challengeFb").textContent="";
+    $("challengeFb").className="cfb";
+    $("answerBox").focus();
+  }
+
+  function checkAnswer(){
+    if(!currentQ) return;
+    var raw=$("answerBox").value;
+    if(raw===""){
+      $("challengeFb").className="cfb no";
+      $("challengeFb").textContent="Type a number first, then check.";
+      return;
+    }
+    var val=parseFloat(raw);
+    var fb=$("challengeFb");
+    if(Math.abs(val - currentQ.answer) <= currentQ.tol){
+      score++;
+      fb.className="cfb ok";
+      fb.innerHTML="&#x2713; Correct. The exact value is "+currentQ.answer.toFixed(1)+" "+currentQ.unit+": "+currentQ.hintRight;
+      $("scoreLine").textContent="Score: "+score+" correct.";
+    } else {
+      fb.className="cfb no";
+      var dir = val<currentQ.answer ? "a bit low" : "a bit high";
+      fb.innerHTML="&#x2715; Not quite, you were "+dir+". The value is about "+currentQ.answer.toFixed(1)+" "+currentQ.unit+". "+currentQ.hintWrong;
+    }
+  }
+
+  $("btnCheck").addEventListener("click", checkAnswer);
+  $("btnNext").addEventListener("click", newQuestion);
+  $("answerBox").addEventListener("keydown", function(e){
+    if(e.key==="Enter"){ e.preventDefault(); checkAnswer(); }
+  });
+
+  // ---------- init ----------
+  function redrawOnResize(){ drawAll(); }
+  window.addEventListener("resize", redrawOnResize);
+
+  updateUI();
+  drawAll();
+  newQuestion();
+})();
+</script>
+</body>
+</html>

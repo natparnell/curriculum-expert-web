@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sequence Builder | KS2 Gymnastics</title>
+<style>
+  :root {
+    --ink: #1c2530;
+    --muted: #5a6a7a;
+    --line: #d9e0e8;
+    --bg: #f4f7fb;
+    --card: #ffffff;
+    --accent: #2563a8;
+    --accent-dark: #1b4a82;
+    --shape: #2e7d6b;
+    --roll: #b85c38;
+    --jump: #7048a8;
+    --balance: #c79a1e;
+    --good: #1f7a4d;
+    --warn: #b8860b;
+    --bad: #b3402f;
+    --shadow: 0 2px 10px rgba(28,37,48,.08);
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", Helvetica, Arial, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 56px; }
+  header.app { margin-bottom: 14px; }
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 0 0 4px;
+  }
+  h1 { font-size: clamp(1.5rem, 4vw, 2.1rem); margin: 0 0 6px; line-height: 1.1; }
+  .aim {
+    background: #eaf1fa;
+    border-left: 4px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: .95rem;
+    color: var(--ink);
+    margin: 8px 0 0;
+  }
+  .aim strong { color: var(--accent-dark); }
+  .layout { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 18px; }
+  @media (min-width: 860px) {
+    .layout { grid-template-columns: 280px 1fr; align-items: start; }
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 1.02rem;
+    margin: 0 0 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel .sub { font-size: .82rem; color: var(--muted); margin: 0 0 12px; }
+
+  /* Move palette */
+  .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .legend span {
+    font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; color: #fff;
+  }
+  .lg-shape { background: var(--shape); }
+  .lg-roll { background: var(--roll); }
+  .lg-jump { background: var(--jump); }
+  .lg-balance { background: var(--balance); }
+
+  .palette { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (min-width: 860px) { .palette { grid-template-columns: 1fr; } }
+
+  .move {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 9px 10px;
+    background: #fff;
+    cursor: grab;
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: .88rem;
+    font-weight: 600;
+    user-select: none;
+    transition: box-shadow .12s, transform .08s, border-color .12s;
+  }
+  .move:hover { box-shadow: 0 2px 8px rgba(28,37,48,.12); }
+  .move:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .move.dragging { opacity: .45; }
+  .move.kb-selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,168,.25); }
+  .move .glyph {
+    width: 30px; height: 30px; flex: 0 0 30px;
+    border-radius: 7px; display: grid; place-items: center;
+    font-size: 1.05rem; color: #fff;
+  }
+  .move[data-cat="shape"] .glyph { background: var(--shape); }
+  .move[data-cat="roll"] .glyph { background: var(--roll); }
+  .move[data-cat="jump"] .glyph { background: var(--jump); }
+  .move[data-cat="balance"] .glyph { background: var(--balance); }
+  .move .meta { display: flex; flex-direction: column; line-height: 1.15; }
+  .move .meta small { font-weight: 500; color: var(--muted); font-size: .72rem; }
+
+  /* Timeline */
+  .timeline-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+  .count-pill {
+    font-size: .76rem; font-weight: 700; background: #eef3f9; color: var(--accent-dark);
+    border-radius: 999px; padding: 3px 10px;
+  }
+  .timeline {
+    list-style: none; margin: 12px 0 0; padding: 0;
+    display: flex; flex-direction: column; gap: 8px;
+    min-height: 120px;
+  }
+  .timeline.empty-state {
+    border: 2px dashed var(--line);
+    border-radius: 10px;
+    align-items: center; justify-content: center;
+    color: var(--muted); font-size: .9rem; text-align: center; padding: 26px 16px;
+  }
+  .timeline.drop-active { background: #eef6ff; border-radius: 10px; outline: 2px dashed var(--accent); outline-offset: 3px; }
+
+  .slot {
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: #fff; padding: 8px 10px; position: relative;
+  }
+  .slot .num {
+    flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: .8rem;
+    display: grid; place-items: center;
+  }
+  .slot .glyph {
+    width: 32px; height: 32px; flex: 0 0 32px; border-radius: 8px;
+    display: grid; place-items: center; font-size: 1.15rem; color: #fff;
+  }
+  .slot[data-cat="shape"] .glyph { background: var(--shape); }
+  .slot[data-cat="roll"] .glyph { background: var(--roll); }
+  .slot[data-cat="jump"] .glyph { background: var(--jump); }
+  .slot[data-cat="balance"] .glyph { background: var(--balance); }
+  .slot .name { flex: 1 1 auto; font-weight: 600; font-size: .9rem; }
+  .slot .name small { display: block; font-weight: 500; color: var(--muted); font-size: .74rem; }
+  .slot .controls { display: flex; gap: 4px; }
+  .slot button.ctrl {
+    border: 1px solid var(--line); background: #f7fafd; border-radius: 7px;
+    width: 30px; height: 30px; cursor: pointer; font-size: .95rem; color: var(--ink);
+    display: grid; place-items: center; line-height: 1;
+  }
+  .slot button.ctrl:hover { background: #e9f1fa; border-color: var(--accent); }
+  .slot button.ctrl:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+  .slot button.ctrl[disabled] { opacity: .35; cursor: default; }
+  .slot.dragging { opacity: .4; }
+  .slot.drag-over-top { border-top: 3px solid var(--accent); }
+  .slot.drag-over-bottom { border-bottom: 3px solid var(--accent); }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  button.action {
+    border: none; border-radius: 9px; padding: 9px 16px; font-size: .88rem; font-weight: 700;
+    cursor: pointer; color: #fff; background: var(--accent);
+  }
+  button.action.ghost { background: #fff; color: var(--accent-dark); border: 1px solid var(--line); }
+  button.action:hover { filter: brightness(1.05); }
+  button.action:focus-visible { outline: 3px solid var(--accent-dark); outline-offset: 2px; }
+
+  /* Feedback */
+  .feedback { margin-top: 16px; }
+  .scorebar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  .gauge {
+    flex: 1 1 150px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fff;
+  }
+  .gauge .lbl { font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .gauge .val { font-size: 1.4rem; font-weight: 800; line-height: 1.1; }
+  .gauge .bar { height: 8px; border-radius: 999px; background: #eef2f6; margin-top: 7px; overflow: hidden; }
+  .gauge .bar i { display: block; height: 100%; border-radius: 999px; transition: width .35s ease; }
+
+  .notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .notes li {
+    display: flex; gap: 10px; align-items: flex-start;
+    border-radius: 9px; padding: 9px 12px; font-size: .9rem; border: 1px solid transparent;
+  }
+  .notes li .ico { flex: 0 0 auto; font-size: 1.05rem; line-height: 1.3; }
+  .notes li.good { background: #e9f6ee; border-color: #bfe3cd; color: #14502f; }
+  .notes li.warn { background: #fdf4e0; border-color: #f0dca5; color: #7a5803; }
+  .notes li.bad { background: #fcecea; border-color: #f1c9c2; color: #7d2a1d; }
+  .notes li.info { background: #eef3f9; border-color: #d2e0ef; color: #1b4a82; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .hint { font-size: .8rem; color: var(--muted); margin-top: 10px; }
+  footer.app { margin-top: 26px; font-size: .78rem; color: var(--muted); text-align: center; }
+  kbd {
+    background: #fff; border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 6px; font-size: .78rem; font-family: inherit;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <p class="eyebrow">KS2 Physical Education &middot; Gymnastics</p>
+    <h1>Sequence Builder</h1>
+    <p class="aim"><strong>Teacher aim:</strong> Pupils compose a balanced gymnastic sequence by ordering shapes, rolls, jumps and balances, then refine it for variety and flow using the live feedback. Covers the KS2 strand "develop flexibility, strength, technique, control and balance" through gymnastics.</p>
+  </header>
+
+  <div class="layout">
+    <!-- Move palette -->
+    <section class="panel" aria-labelledby="palette-h">
+      <h2 id="palette-h">Move bank</h2>
+      <p class="sub">Drag a move onto the routine, or select it and press <kbd>Enter</kbd> to add.</p>
+      <div class="legend" aria-hidden="true">
+        <span class="lg-shape">Shape</span>
+        <span class="lg-roll">Roll</span>
+        <span class="lg-jump">Jump</span>
+        <span class="lg-balance">Balance</span>
+      </div>
+      <div class="palette" id="palette" role="list" aria-label="Available gymnastic moves"></div>
+    </section>
+
+    <!-- Routine + feedback -->
+    <div>
+      <section class="panel" aria-labelledby="timeline-h">
+        <div class="timeline-head">
+          <div>
+            <h2 id="timeline-h">My routine</h2>
+            <p class="sub">A good KS2 sequence has a clear start and finish and uses a range of move types.</p>
+          </div>
+          <span class="count-pill" id="countPill">0 moves</span>
+        </div>
+
+        <ol class="timeline empty-state" id="timeline" aria-label="Your gymnastic routine, in order"
+            aria-describedby="dropHelp">
+          <span id="emptyMsg">Your routine is empty. Add 4 to 8 moves to build a sequence.</span>
+        </ol>
+        <p id="dropHelp" class="sr-only">Drop moves here to add them to the routine. Within the routine, use the up and down buttons or arrow keys to reorder, and the remove button to delete a move.</p>
+
+        <div class="toolbar">
+          <button class="action ghost" id="loadDemo" type="button">Load example routine</button>
+          <button class="action ghost" id="clearAll" type="button">Clear routine</button>
+        </div>
+        <p class="hint">Tip: balance a sequence across all four move types and avoid repeating the same type back to back.</p>
+      </section>
+
+      <section class="panel feedback" aria-labelledby="fb-h">
+        <h2 id="fb-h">Live feedback</h2>
+        <p class="sub">Updates instantly as you build. Aim for green on both meters.</p>
+        <div class="scorebar">
+          <div class="gauge">
+            <div class="lbl">Variety</div>
+            <div class="val"><span id="varietyVal">0</span>%</div>
+            <div class="bar"><i id="varietyBar" style="width:0%;background:var(--bad)"></i></div>
+          </div>
+          <div class="gauge">
+            <div class="lbl">Flow</div>
+            <div class="val"><span id="flowVal">0</span>%</div>
+            <div class="bar"><i id="flowBar" style="width:0%;background:var(--bad)"></i></div>
+          </div>
+        </div>
+        <ul class="notes" id="notes" aria-live="polite" aria-atomic="true"></ul>
+      </section>
+    </div>
+  </div>
+
+  <footer class="app">
+    Demonstration tool for KS2 gymnastics planning. Example routines use fictional pupils.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Move catalogue: category, name, brief technique cue, emoji glyph
+  var MOVES = [
+    { id: "tuck",     cat: "shape",   name: "Tuck shape",      cue: "Knees to chest, tight ball",        glyph: "\u{1F535}" },
+    { id: "straddle", cat: "shape",   name: "Straddle shape",  cue: "Wide legs, straight back",          glyph: "\u{1F4D0}" },
+    { id: "pike",     cat: "shape",   name: "Pike shape",      cue: "Legs straight, fold at hips",       glyph: "\u{1F4CF}" },
+    { id: "forward",  cat: "roll",    name: "Forward roll",    cue: "Chin tucked, push and curl",        glyph: "\u{1F504}" },
+    { id: "backward", cat: "roll",    name: "Backward roll",   cue: "Push with hands, stay rounded",     glyph: "\u{21A9}" },
+    { id: "log",      cat: "roll",    name: "Log roll",        cue: "Long and stretched, roll sideways", glyph: "\u{1FAB5}" },
+    { id: "straight", cat: "jump",    name: "Straight jump",   cue: "Tall body, point the toes",         glyph: "⬆" },
+    { id: "star",     cat: "jump",    name: "Star jump",       cue: "Arms and legs wide in the air",     glyph: "⭐" },
+    { id: "halfturn", cat: "jump",    name: "Half-turn jump",  cue: "Spin halfway, land softly",         glyph: "\u{1F300}" },
+    { id: "arabesque",cat: "balance", name: "Arabesque",       cue: "One leg back, arms out, hold",      glyph: "\u{1F9A9}" },
+    { id: "front",    cat: "balance", name: "Front support",   cue: "Strong plank on hands and feet",    glyph: "\u{1F4AA}" },
+    { id: "tip",      cat: "balance", name: "Tip-toe balance", cue: "Up on toes, perfectly still",       glyph: "\u{1F9B6}" }
+  ];
+
+  var CAT_LABEL = { shape: "Shape", roll: "Roll", jump: "Jump", balance: "Balance" };
+  var ALL_CATS = ["shape", "roll", "jump", "balance"];
+
+  // Fictional example routine for the demo button
+  var DEMO = ["tuck", "forward", "straight", "arabesque", "log", "star", "pike", "tip"];
+
+  var routine = []; // array of {uid, id}
+  var uidSeq = 1;
+  var kbSelectedMoveId = null;
+
+  var paletteEl = document.getElementById("palette");
+  var timelineEl = document.getElementById("timeline");
+  var countPill = document.getElementById("countPill");
+  var notesEl = document.getElementById("notes");
+
+  function moveById(id) {
+    for (var i = 0; i < MOVES.length; i++) { if (MOVES[i].id === id) return MOVES[i]; }
+    return null;
+  }
+
+  /* ---------- Build palette ---------- */
+  function buildPalette() {
+    MOVES.forEach(function (m) {
+      var el = document.createElement("div");
+      el.className = "move";
+      el.setAttribute("role", "listitem");
+      el.setAttribute("tabindex", "0");
+      el.setAttribute("data-cat", m.cat);
+      el.setAttribute("data-id", m.id);
+      el.setAttribute("aria-label", m.name + ", " + CAT_LABEL[m.cat] + ". " + m.cue + ". Press Enter to add to routine.");
+      el.innerHTML =
+        '<span class="glyph" aria-hidden="true">' + m.glyph + '</span>' +
+        '<span class="meta"><span>' + m.name + '</span><small>' + CAT_LABEL[m.cat] + '</small></span>';
+
+      // Pointer drag
+      attachPaletteDrag(el, m.id);
+
+      // Keyboard add
+      el.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          addMove(m.id);
+          announce(m.name + " added. Routine now has " + routine.length + " moves.");
+        }
+      });
+      el.addEventListener("click", function () {
+        // single click toggles keyboard-style selection cue (helpful on whiteboard)
+        clearKbSelection();
+      });
+
+      paletteEl.appendChild(el);
+    });
+  }
+
+  function clearKbSelection() {
+    var sel = paletteEl.querySelector(".kb-selected");
+    if (sel) sel.classList.remove("kb-selected");
+    kbSelectedMoveId = null;
+  }
+
+  /* ---------- Pointer-based drag from palette ---------- */
+  var ghost = null;
+  function attachPaletteDrag(el, moveId) {
+    var dragging = false;
+    var startX = 0, startY = 0;
+
+    el.addEventListener("pointerdown", function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      startX = e.clientX; startY = e.clientY;
+      dragging = false;
+      el.setPointerCapture(e.pointerId);
+
+      function onMove(ev) {
+        var dx = Math.abs(ev.clientX - startX);
+        var dy = Math.abs(ev.clientY - startY);
+        if (!dragging && (dx > 6 || dy > 6)) {
+          dragging = true;
+          el.classList.add("dragging");
+          timelineEl.classList.add("drop-active");
+          createGhost(moveId);
+        }
+        if (dragging) {
+          moveGhost(ev.clientX, ev.clientY);
+          highlightInsertPoint(ev.clientY);
+        }
+      }
+      function onUp(ev) {
+        el.releasePointerCapture(e.pointerId);
+        el.removeEventListener("pointermove", onMove);
+        el.removeEventListener("pointerup", onUp);
+        el.removeEventListener("pointercancel", onUp);
+        if (dragging) {
+          var idx = computeInsertIndex(ev.clientY);
+          addMove(moveId, idx);
+          announce(moveById(moveId).name + " dropped into routine.");
+        }
+        cleanupDrag();
+        el.classList.remove("dragging");
+      }
+      el.addEventListener("pointermove", onMove);
+      el.addEventListener("pointerup", onUp);
+      el.addEventListener("pointercancel", onUp);
+    });
+  }
+
+  function createGhost(moveId) {
+    var m = moveById(moveId);
+    ghost = document.createElement("div");
+    ghost.style.cssText =
+      "position:fixed;z-index:9999;pointer-events:none;background:#fff;border:1px solid #2563a8;" +
+      "border-radius:9px;padding:7px 11px;font-weight:700;font-size:.85rem;box-shadow:0 6px 18px rgba(0,0,0,.2);" +
+      "display:flex;align-items:center;gap:8px;";
+    ghost.innerHTML = '<span aria-hidden="true">' + m.glyph + '</span>' + m.name;
+    document.body.appendChild(ghost);
+  }
+  function moveGhost(x, y) {
+    if (ghost) { ghost.style.left = (x + 12) + "px"; ghost.style.top = (y + 12) + "px"; }
+  }
+  function cleanupDrag() {
+    if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+    ghost = null;
+    timelineEl.classList.remove("drop-active");
+    clearInsertHighlights();
+  }
+
+  function getSlots() { return Array.prototype.slice.call(timelineEl.querySelectorAll(".slot")); }
+
+  function highlightInsertPoint(clientY) {
+    clearInsertHighlights();
+    var slots = getSlots();
+    if (!slots.length) return;
+    var idx = computeInsertIndex(clientY);
+    if (idx >= slots.length) {
+      slots[slots.length - 1].classList.add("drag-over-bottom");
+    } else {
+      slots[idx].classList.add("drag-over-top");
+    }
+  }
+  function clearInsertHighlights() {
+    getSlots().forEach(function (s) {
+      s.classList.remove("drag-over-top", "drag-over-bottom");
+    });
+  }
+  function computeInsertIndex(clientY) {
+    var slots = getSlots();
+    for (var i = 0; i < slots.length; i++) {
+      var r = slots[i].getBoundingClientRect();
+      if (clientY < r.top + r.height / 2) return i;
+    }
+    return slots.length;
+  }
+
+  /* ---------- Reordering existing slots via pointer ---------- */
+  function attachSlotDrag(slotEl, uid) {
+    var handle = slotEl.querySelector(".glyph");
+    handle.style.cursor = "grab";
+    handle.style.touchAction = "none";
+    handle.setAttribute("aria-hidden", "true");
+
+    var dragging = false, startY = 0;
+    handle.addEventListener("pointerdown", function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      startY = e.clientY; dragging = false;
+      handle.setPointerCapture(e.pointerId);
+
+      function onMove(ev) {
+        if (!dragging && Math.abs(ev.clientY - startY) > 6) {
+          dragging = true;
+          slotEl.classList.add("dragging");
+          timelineEl.classList.add("drop-active");
+        }
+        if (dragging) highlightInsertPoint(ev.clientY);
+      }
+      function onUp(ev) {
+        handle.releasePointerCapture(e.pointerId);
+        handle.removeEventListener("pointermove", onMove);
+        handle.removeEventListener("pointerup", onUp);
+        handle.removeEventListener("pointercancel", onUp);
+        if (dragging) {
+          var to = computeInsertIndex(ev.clientY);
+          reorderByUid(uid, to);
+        }
+        slotEl.classList.remove("dragging");
+        cleanupDrag();
+      }
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", onUp);
+      handle.addEventListener("pointercancel", onUp);
+    });
+  }
+
+  function reorderByUid(uid, toIndex) {
+    var from = routine.findIndex(function (r) { return r.uid === uid; });
+    if (from < 0) return;
+    var item = routine.splice(from, 1)[0];
+    if (toIndex > from) toIndex--; // account for removal shift
+    if (toIndex < 0) toIndex = 0;
+    if (toIndex > routine.length) toIndex = routine.length;
+    routine.splice(toIndex, 0, item);
+    render();
+  }
+
+  /* ---------- Routine mutations ---------- */
+  function addMove(id, atIndex) {
+    var entry = { uid: uidSeq++, id: id };
+    if (typeof atIndex === "number" && atIndex >= 0 && atIndex <= routine.length) {
+      routine.splice(atIndex, 0, entry);
+    } else {
+      routine.push(entry);
+    }
+    render();
+  }
+  function removeByUid(uid) {
+    routine = routine.filter(function (r) { return r.uid !== uid; });
+    render();
+  }
+  function moveStep(uid, dir) {
+    var i = routine.findIndex(function (r) { return r.uid === uid; });
+    if (i < 0) return;
+    var j = i + dir;
+    if (j < 0 || j >= routine.length) return;
+    var tmp = routine[i]; routine[i] = routine[j]; routine[j] = tmp;
+    render();
+    // keep focus on the moved control
+    requestAnimationFrame(function () {
+      var sel = '.slot[data-uid="' + uid + '"] .ctrl-' + (dir < 0 ? "up" : "down");
+      var btn = timelineEl.querySelector(sel);
+      if (btn && !btn.disabled) btn.focus();
+      else {
+        var alt = timelineEl.querySelector('.slot[data-uid="' + uid + '"] .ctrl-remove');
+        if (alt) alt.focus();
+      }
+    });
+  }
+
+  /* ---------- Render ---------- */
+  function render() {
+    // timeline
+    timelineEl.innerHTML = "";
+    if (routine.length === 0) {
+      timelineEl.classList.add("empty-state");
+      var span = document.createElement("span");
+      span.id = "emptyMsg";
+      span.textContent = "Your routine is empty. Add 4 to 8 moves to build a sequence.";
+      timelineEl.appendChild(span);
+    } else {
+      timelineEl.classList.remove("empty-state");
+      routine.forEach(function (entry, idx) {
+        var m = moveById(entry.id);
+        var li = document.createElement("li");
+        li.className = "slot";
+        li.setAttribute("data-cat", m.cat);
+        li.setAttribute("data-uid", entry.uid);
+        li.setAttribute("aria-label", "Position " + (idx + 1) + ": " + m.name + ", " + CAT_LABEL[m.cat]);
+        li.innerHTML =
+          '<span class="num" aria-hidden="true">' + (idx + 1) + '</span>' +
+          '<span class="glyph" title="Drag to reorder">' + m.glyph + '</span>' +
+          '<span class="name">' + m.name + '<small>' + CAT_LABEL[m.cat] + ' &middot; ' + m.cue + '</small></span>' +
+          '<span class="controls">' +
+            '<button class="ctrl ctrl-up" type="button" aria-label="Move ' + m.name + ' earlier"' + (idx === 0 ? ' disabled' : '') + '>&#x2191;</button>' +
+            '<button class="ctrl ctrl-down" type="button" aria-label="Move ' + m.name + ' later"' + (idx === routine.length - 1 ? ' disabled' : '') + '>&#x2193;</button>' +
+            '<button class="ctrl ctrl-remove" type="button" aria-label="Remove ' + m.name + ' from routine">&#x2715;</button>' +
+          '</span>';
+
+        li.querySelector(".ctrl-up").addEventListener("click", function () { moveStep(entry.uid, -1); });
+        li.querySelector(".ctrl-down").addEventListener("click", function () { moveStep(entry.uid, 1); });
+        li.querySelector(".ctrl-remove").addEventListener("click", function () {
+          removeByUid(entry.uid);
+          announce(m.name + " removed. Routine now has " + routine.length + " moves.");
+        });
+
+        // keyboard reordering on the slot
+        li.setAttribute("tabindex", "-1");
+        li.addEventListener("keydown", function (e) {
+          if (e.key === "ArrowUp") { e.preventDefault(); moveStep(entry.uid, -1); }
+          else if (e.key === "ArrowDown") { e.preventDefault(); moveStep(entry.uid, 1); }
+          else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); removeByUid(entry.uid); }
+        });
+
+        attachSlotDrag(li, entry.uid);
+        timelineEl.appendChild(li);
+      });
+    }
+
+    countPill.textContent = routine.length + (routine.length === 1 ? " move" : " moves");
+    evaluate();
+  }
+
+  /* ---------- Feedback engine ---------- */
+  function evaluate() {
+    var n = routine.length;
+    var cats = routine.map(function (r) { return moveById(r.id).cat; });
+    var ids = routine.map(function (r) { return r.id; });
+
+    // Variety score: how many distinct categories used (out of 4), scaled
+    var distinctCats = {};
+    cats.forEach(function (c) { distinctCats[c] = true; });
+    var distinctCount = Object.keys(distinctCats).length;
+    var variety = n === 0 ? 0 : Math.round((distinctCount / 4) * 100);
+
+    // Flow score: penalise same category back-to-back and exact repeated moves
+    var flow = 100;
+    var adjRepeatCats = 0, repeatMoves = 0;
+    for (var i = 1; i < n; i++) {
+      if (cats[i] === cats[i - 1]) adjRepeatCats++;
+      if (ids[i] === ids[i - 1]) repeatMoves++;
+    }
+    if (n <= 1) flow = 0;
+    else {
+      var gaps = n - 1;
+      flow = Math.round(((gaps - adjRepeatCats) / gaps) * 100);
+      flow -= repeatMoves * 15;
+      if (flow < 0) flow = 0;
+    }
+
+    setGauge("variety", variety);
+    setGauge("flow", flow);
+
+    // Build targeted notes
+    var notes = [];
+
+    if (n === 0) {
+      notes.push(note("info", "&#x1F44B;", "Drag moves from the bank to start your sequence. A balanced KS2 routine usually has 4 to 8 moves."));
+      paintNotes(notes);
+      return;
+    }
+
+    // Length guidance
+    if (n < 4) {
+      notes.push(note("warn", "&#x2795;", "Your sequence is short (" + n + " " + (n === 1 ? "move" : "moves") + "). Add more to reach at least 4 moves."));
+    } else if (n > 8) {
+      notes.push(note("warn", "&#x270B;", "That is a long routine (" + n + " moves). KS2 sequences are usually 4 to 8 moves so they can be performed smoothly."));
+    } else {
+      notes.push(note("good", "&#x2705;", "Good length: " + n + " moves is right for a KS2 sequence."));
+    }
+
+    // Variety: which categories are missing
+    var missing = ALL_CATS.filter(function (c) { return !distinctCats[c]; });
+    if (missing.length === 0) {
+      notes.push(note("good", "&#x1F31F;", "Excellent variety: you have used a shape, a roll, a jump and a balance."));
+    } else if (missing.length <= 2) {
+      notes.push(note("warn", "&#x1F501;", "Add variety by including a " + listCats(missing) + " to use more types of movement."));
+    } else {
+      notes.push(note("bad", "&#x26A0;", "Your routine relies on too few types. Try adding a " + listCats(missing) + "."));
+    }
+
+    // Repeated moves
+    if (repeatMoves > 0) {
+      notes.push(note("bad", "&#x1F6AB;", "You repeat the same move twice in a row. Swap one for a different move to keep the audience interested."));
+    }
+
+    // Adjacent same-category
+    if (adjRepeatCats > 0 && repeatMoves === 0) {
+      notes.push(note("warn", "&#x1F500;", "Two moves of the same type are next to each other. Alternating types (for example shape, then roll) improves your flow."));
+    } else if (adjRepeatCats === 0 && n >= 2) {
+      notes.push(note("good", "&#x1F30A;", "Smooth flow: no two moves of the same type sit side by side."));
+    }
+
+    // Start and finish advice
+    var firstCat = cats[0];
+    var lastCat = cats[n - 1];
+    if (lastCat !== "balance" && lastCat !== "shape") {
+      notes.push(note("info", "&#x1F3C1;", "Strong finishes often hold a balance or a clear shape so the judge knows you have ended. Yours ends on a " + CAT_LABEL[lastCat].toLowerCase() + "."));
+    } else {
+      notes.push(note("good", "&#x1F947;", "Clear ending: finishing on a " + CAT_LABEL[lastCat].toLowerCase() + " shows control."));
+    }
+
+    // Overall verdict
+    if (variety === 100 && flow >= 85 && n >= 4 && n <= 8) {
+      notes.unshift(note("good", "&#x1F3C5;", "Performance ready: balanced variety and smooth flow. Now practise the transitions between each move."));
+    }
+
+    paintNotes(notes);
+    announceSummary(variety, flow);
+  }
+
+  function listCats(arr) {
+    var names = arr.map(function (c) { return CAT_LABEL[c].toLowerCase(); });
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return names[0] + " and " + names[1];
+    return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+  }
+
+  function note(kind, ico, text) {
+    return { kind: kind, ico: ico, text: text };
+  }
+  function paintNotes(notes) {
+    notesEl.innerHTML = "";
+    notes.forEach(function (nt) {
+      var li = document.createElement("li");
+      li.className = nt.kind;
+      li.innerHTML = '<span class="ico" aria-hidden="true">' + nt.ico + '</span><span>' + nt.text + '</span>';
+      notesEl.appendChild(li);
+    });
+  }
+
+  function setGauge(which, pct) {
+    var valEl = document.getElementById(which + "Val");
+    var barEl = document.getElementById(which + "Bar");
+    valEl.textContent = pct;
+    barEl.style.width = pct + "%";
+    var col = pct >= 75 ? "var(--good)" : (pct >= 45 ? "var(--warn)" : "var(--bad)");
+    barEl.style.background = col;
+  }
+
+  /* ---------- Announcements (separate live region not used for notes spam) ---------- */
+  var liveEl = document.createElement("div");
+  liveEl.className = "sr-only";
+  liveEl.setAttribute("aria-live", "assertive");
+  document.body.appendChild(liveEl);
+  function announce(msg) { liveEl.textContent = msg; }
+  function announceSummary(v, f) {
+    // gentle, only via the polite notes region already; keep assertive for actions
+  }
+
+  /* ---------- Toolbar ---------- */
+  document.getElementById("loadDemo").addEventListener("click", function () {
+    routine = DEMO.map(function (id) { return { uid: uidSeq++, id: id }; });
+    render();
+    announce("Example routine loaded with " + routine.length + " moves.");
+  });
+  document.getElementById("clearAll").addEventListener("click", function () {
+    routine = [];
+    render();
+    announce("Routine cleared.");
+  });
+
+  /* ---------- Init ---------- */
+  buildPalette();
+  render();
+})();
+</script>
+</body>
+</html>

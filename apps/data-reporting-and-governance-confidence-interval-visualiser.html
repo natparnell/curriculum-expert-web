@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confidence Interval Visualiser</title>
+<style>
+  :root {
+    --ink: #1c2433;
+    --muted: #5a6678;
+    --line: #d8dee9;
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --accent: #2563a8;
+    --accent-soft: #e3edf8;
+    --green: #1f8a4c;
+    --green-soft: #e2f3e9;
+    --amber: #b07900;
+    --amber-soft: #fbf1d9;
+    --red: #c0392b;
+    --red-soft: #fbe6e3;
+    --band: #bcd4ee;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 20px 16px 56px;
+  }
+  header.app {
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+  }
+  .eyebrow {
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+  h1 {
+    font-size: 1.65rem;
+    margin: 0 0 6px;
+    line-height: 1.15;
+  }
+  .aim {
+    background: var(--accent-soft);
+    border-left: 4px solid var(--accent);
+    padding: 8px 12px;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.93rem;
+    color: var(--ink);
+    margin: 10px 0 0;
+  }
+  .aim strong { color: var(--accent); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px 18px 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 3px rgba(20,30,50,0.05);
+  }
+  h2 {
+    font-size: 1.12rem;
+    margin: 0 0 4px;
+  }
+  .sub {
+    font-size: 0.88rem;
+    color: var(--muted);
+    margin: 0 0 14px;
+  }
+  /* Controls */
+  .control-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px 28px;
+    align-items: flex-end;
+  }
+  .control {
+    flex: 1 1 240px;
+    min-width: 220px;
+  }
+  .control label {
+    display: block;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 6px;
+  }
+  .control .valbig {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  input[type="range"] {
+    width: 100%;
+    height: 30px;
+    accent-color: var(--accent);
+    touch-action: none;
+  }
+  .ticks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .p8-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .p8-buttons button {
+    flex: 1 1 0;
+    min-width: 60px;
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 8px;
+    padding: 7px 4px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+    font-variant-numeric: tabular-nums;
+  }
+  .p8-buttons button[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .p8-buttons button:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  /* Chart */
+  .chart-shell {
+    margin-top: 18px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px;
+    background: #fbfcfe;
+  }
+  svg { width: 100%; height: auto; display: block; touch-action: none; }
+  .axis-label { font-size: 12px; fill: var(--muted); }
+  .tick-label { font-size: 11px; fill: var(--muted); }
+  /* Readout */
+  .readout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .stat {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+    background: #fff;
+  }
+  .stat .k {
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+  .stat .v {
+    font-size: 1.35rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .verdict {
+    margin-top: 16px;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 0.95rem;
+    border: 1px solid;
+  }
+  .verdict.sig-pos { background: var(--green-soft); border-color: #bfe3cd; }
+  .verdict.sig-neg { background: var(--red-soft); border-color: #f3c6c0; }
+  .verdict.notsig { background: var(--amber-soft); border-color: #ecdaa6; }
+  .verdict .tag {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-bottom: 6px;
+  }
+  .verdict.sig-pos .tag { background: var(--green); color: #fff; }
+  .verdict.sig-neg .tag { background: var(--red); color: #fff; }
+  .verdict.notsig .tag { background: var(--amber); color: #fff; }
+  .verdict p { margin: 4px 0 0; }
+  /* Challenge */
+  .challenge {
+    background: var(--accent-soft);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-top: 4px;
+  }
+  .challenge h3 { margin: 0 0 6px; font-size: 1rem; }
+  .challenge .q { font-weight: 600; margin: 0 0 10px; }
+  .choices { display: flex; flex-direction: column; gap: 8px; }
+  .choices button {
+    text-align: left;
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .choices button:hover { border-color: var(--accent); }
+  .choices button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .choices button.correct { background: var(--green-soft); border-color: var(--green); }
+  .choices button.wrong { background: var(--red-soft); border-color: var(--red); }
+  .challenge-fb {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    min-height: 1.2em;
+  }
+  .challenge-fb.ok { color: var(--green); }
+  .challenge-fb.no { color: var(--red); }
+  .nextq {
+    margin-top: 10px;
+    border: 1px solid var(--accent);
+    background: #fff;
+    color: var(--accent);
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  .notes {
+    font-size: 0.86rem;
+    color: var(--muted);
+  }
+  .notes ul { margin: 6px 0 0; padding-left: 20px; }
+  .notes li { margin-bottom: 4px; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .sig-line { stroke: #8a96a8; stroke-width: 1.5; stroke-dasharray: 5 4; }
+  footer.app {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  @media (max-width: 520px) {
+    h1 { font-size: 1.35rem; }
+    .stat .v { font-size: 1.15rem; }
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <p class="eyebrow">Data &amp; Analytics &middot; Reporting and Governance</p>
+    <h1>Confidence Interval Visualiser</h1>
+    <p class="aim"><strong>Teaching aim:</strong> show governors and leaders why a small cohort produces a wide confidence interval around Progress 8, and how to judge when a result is genuinely above or below the national average rather than just noise.</p>
+  </header>
+
+  <section class="card" aria-labelledby="explore-h">
+    <h2 id="explore-h">1. Explore the interval</h2>
+    <p class="sub">Set a headline Progress 8 score, then slide the cohort size. Watch the confidence interval widen as the cohort shrinks.</p>
+
+    <div class="control-row">
+      <div class="control">
+        <label id="cohort-label" for="cohort">Cohort size (pupils in the year group): <span class="valbig" id="cohort-val">120</span></label>
+        <input type="range" id="cohort" min="5" max="250" step="1" value="120"
+               aria-describedby="cohort-help"
+               aria-valuetext="120 pupils">
+        <div class="ticks"><span>5</span><span>60</span><span>120</span><span>180</span><span>250</span></div>
+        <span class="sr-only" id="cohort-help">Slide to change how many pupils sit in the cohort. Smaller cohorts give wider confidence intervals.</span>
+      </div>
+
+      <div class="control">
+        <label id="p8-label">Headline Progress 8 score</label>
+        <div class="p8-buttons" role="group" aria-labelledby="p8-label">
+          <button type="button" data-p8="-0.50">-0.50</button>
+          <button type="button" data-p8="-0.25">-0.25</button>
+          <button type="button" data-p8="0.10" aria-pressed="true">+0.10</button>
+          <button type="button" data-p8="0.30">+0.30</button>
+          <button type="button" data-p8="0.55">+0.55</button>
+        </div>
+        <span class="sr-only">Choose the school's average Progress 8 score. The national average is zero.</span>
+      </div>
+    </div>
+
+    <div class="chart-shell">
+      <svg id="chart" viewBox="0 0 720 220" role="img" aria-labelledby="chart-title chart-desc">
+        <title id="chart-title">Confidence interval for Progress 8</title>
+        <desc id="chart-desc" aria-live="polite"></desc>
+        <!-- drawn by JS -->
+      </svg>
+    </div>
+
+    <div class="readout" aria-live="polite">
+      <div class="stat">
+        <p class="k">Progress 8</p>
+        <p class="v" id="stat-p8">+0.10</p>
+      </div>
+      <div class="stat">
+        <p class="k">Confidence interval (95%)</p>
+        <p class="v" id="stat-ci">-0.08 to +0.28</p>
+      </div>
+      <div class="stat">
+        <p class="k">Interval width</p>
+        <p class="v" id="stat-width">0.36</p>
+      </div>
+    </div>
+
+    <div class="verdict notsig" id="verdict" role="status" aria-live="polite">
+      <span class="tag" id="verdict-tag">Not significant</span>
+      <p id="verdict-text">The interval crosses zero, so this result is not statistically different from the national average.</p>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="challenge-h">
+    <h2 id="challenge-h">2. Test your judgement</h2>
+    <p class="sub">Answer using the chart above. Change the sliders to check your thinking, then choose.</p>
+    <div class="challenge">
+      <h3>Quick question</h3>
+      <p class="q" id="ch-q">Loading question.</p>
+      <div class="choices" id="ch-choices"></div>
+      <p class="challenge-fb" id="ch-fb" aria-live="polite"></p>
+      <button type="button" class="nextq" id="ch-next" hidden>Next question</button>
+    </div>
+  </section>
+
+  <section class="card notes" aria-labelledby="notes-h">
+    <h2 id="notes-h">Teacher and governor notes</h2>
+    <ul>
+      <li><strong>The point score is one estimate, not the truth.</strong> Each cohort is a sample of how pupils could have performed; the confidence interval shows the plausible range for the school's underlying performance.</li>
+      <li><strong>Small cohorts swing harder.</strong> One or two pupils with very different outcomes move a small school's average far more than a large school's, so the interval is wider. The width scales roughly with one over the square root of the cohort size.</li>
+      <li><strong>Statistically significant</strong> here means the 95% interval sits entirely above zero (significantly above average) or entirely below zero (significantly below). If it crosses zero, treat the headline as broadly in line with average.</li>
+      <li>Figures are illustrative for teaching. They mirror how the DfE publishes Progress 8 with confidence intervals, but use a simplified model. All names and cohorts are fictional.</li>
+    </ul>
+  </section>
+
+  <footer class="app">Confidence Interval Visualiser &middot; demonstration tool for WeST data, reporting and governance training.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ----- Model -----------------------------------------------------------
+  // Simplified DfE-style confidence interval for Progress 8.
+  // Half-width = k / sqrt(n). k chosen so a cohort of 120 gives a half-width
+  // of about 0.18 (a realistic, secondary-sized interval), widening sharply
+  // for tiny cohorts. This is an illustrative teaching model, not the exact
+  // DfE formula.
+  var K = 0.18 * Math.sqrt(120); // approx 1.972
+
+  var state = { n: 120, p8: 0.10 };
+
+  function halfWidth(n) { return K / Math.sqrt(n); }
+
+  function fmt(x) {
+    var s = (x >= 0 ? "+" : "") + x.toFixed(2);
+    return s === "+0.00" || s === "-0.00" ? "0.00" : s;
+  }
+  function fmtPlain(x) { return x.toFixed(2); }
+
+  // ----- Chart geometry --------------------------------------------------
+  var svg = document.getElementById("chart");
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var W = 720, H = 220;
+  var padL = 40, padR = 30, axisY = 130, top = 30;
+  var domainMin = -1.0, domainMax = 1.0;
+
+  function xFor(v) {
+    var t = (v - domainMin) / (domainMax - domainMin);
+    return padL + t * (W - padL - padR);
+  }
+
+  function el(name, attrs) {
+    var n = document.createElementNS(SVGNS, name);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+
+  function drawStatic() {
+    // axis line
+    svg.appendChild(el("line", { x1: padL, y1: axisY, x2: W - padR, y2: axisY,
+      stroke: "#aeb8c8", "stroke-width": 1 }));
+    // gridline ticks
+    var ticks = [-1.0, -0.5, 0, 0.5, 1.0];
+    ticks.forEach(function (t) {
+      var x = xFor(t);
+      svg.appendChild(el("line", { x1: x, y1: axisY - 5, x2: x, y2: axisY + 5,
+        stroke: "#aeb8c8", "stroke-width": 1 }));
+      var lbl = el("text", { x: x, y: axisY + 22, "text-anchor": "middle", "class": "tick-label" });
+      lbl.textContent = (t > 0 ? "+" : "") + t.toFixed(1);
+      svg.appendChild(lbl);
+    });
+    // national average dashed line at zero
+    var zx = xFor(0);
+    svg.appendChild(el("line", { x1: zx, y1: top, x2: zx, y2: axisY + 8,
+      "class": "sig-line" }));
+    var zlab = el("text", { x: zx, y: top - 8, "text-anchor": "middle", "class": "axis-label" });
+    zlab.textContent = "National average (0)";
+    svg.appendChild(zlab);
+    // x axis caption
+    var cap = el("text", { x: (padL + W - padR) / 2, y: axisY + 44, "text-anchor": "middle", "class": "axis-label" });
+    cap.textContent = "Progress 8 score";
+    svg.appendChild(cap);
+  }
+
+  // dynamic group
+  var dyn = el("g", {});
+  svg.appendChild(dyn);
+  drawStatic();
+  svg.appendChild(dyn); // keep dynamic on top
+
+  function classify(p8, hw) {
+    var lo = p8 - hw, hi = p8 + hw;
+    if (lo > 0) return "pos";
+    if (hi < 0) return "neg";
+    return "none";
+  }
+
+  function colourFor(cls) {
+    if (cls === "pos") return { band: "#bfe3cd", dot: "#1f8a4c" };
+    if (cls === "neg") return { band: "#f3c6c0", dot: "#c0392b" };
+    return { band: "#bcd4ee", dot: "#2563a8" };
+  }
+
+  function clampX(x) { return Math.max(padL, Math.min(W - padR, x)); }
+
+  function render() {
+    var n = state.n, p8 = state.p8;
+    var hw = halfWidth(n);
+    var lo = p8 - hw, hi = p8 + hw;
+    var cls = classify(p8, hw);
+    var col = colourFor(cls);
+
+    // clear dynamic
+    while (dyn.firstChild) dyn.removeChild(dyn.firstChild);
+
+    var yMid = axisY - 55;
+    var xLo = clampX(xFor(lo));
+    var xHi = clampX(xFor(hi));
+    var xP8 = clampX(xFor(p8));
+
+    // band rectangle
+    dyn.appendChild(el("rect", {
+      x: xLo, y: yMid - 18, width: Math.max(2, xHi - xLo), height: 36,
+      rx: 8, fill: col.band, stroke: col.dot, "stroke-width": 1.5, "fill-opacity": "0.7"
+    }));
+    // whisker caps
+    dyn.appendChild(el("line", { x1: xLo, y1: yMid - 22, x2: xLo, y2: yMid + 22, stroke: col.dot, "stroke-width": 2 }));
+    dyn.appendChild(el("line", { x1: xHi, y1: yMid - 22, x2: xHi, y2: yMid + 22, stroke: col.dot, "stroke-width": 2 }));
+    // connector to axis
+    dyn.appendChild(el("line", { x1: xP8, y1: yMid + 22, x2: xP8, y2: axisY, stroke: col.dot, "stroke-width": 1, "stroke-dasharray": "3 3" }));
+    // point estimate
+    dyn.appendChild(el("circle", { cx: xP8, cy: yMid, r: 7, fill: col.dot, stroke: "#fff", "stroke-width": 2 }));
+
+    // end labels
+    var loLab = el("text", { x: xLo, y: yMid - 28, "text-anchor": "middle", "class": "tick-label" });
+    loLab.textContent = fmt(lo);
+    dyn.appendChild(loLab);
+    var hiLab = el("text", { x: xHi, y: yMid - 28, "text-anchor": "middle", "class": "tick-label" });
+    hiLab.textContent = fmt(hi);
+    dyn.appendChild(hiLab);
+
+    // ----- readouts -----
+    document.getElementById("stat-p8").textContent = fmt(p8);
+    document.getElementById("stat-ci").textContent = fmt(lo) + " to " + fmt(hi);
+    document.getElementById("stat-width").textContent = (hw * 2).toFixed(2);
+
+    document.getElementById("cohort-val").textContent = n;
+    var slider = document.getElementById("cohort");
+    slider.setAttribute("aria-valuetext", n + " pupils");
+
+    // ----- verdict -----
+    var v = document.getElementById("verdict");
+    var tag = document.getElementById("verdict-tag");
+    var txt = document.getElementById("verdict-text");
+    v.classList.remove("sig-pos", "sig-neg", "notsig");
+    if (cls === "pos") {
+      v.classList.add("sig-pos");
+      tag.textContent = "Significantly above average";
+      txt.textContent = "The whole interval (" + fmt(lo) + " to " + fmt(hi) +
+        ") sits above zero, so with a cohort of " + n +
+        " this result is statistically above the national average. You can report it with confidence.";
+    } else if (cls === "neg") {
+      v.classList.add("sig-neg");
+      tag.textContent = "Significantly below average";
+      txt.textContent = "The whole interval (" + fmt(lo) + " to " + fmt(hi) +
+        ") sits below zero, so with a cohort of " + n +
+        " this result is statistically below the national average. It warrants scrutiny, not just acknowledgement.";
+    } else {
+      v.classList.add("notsig");
+      tag.textContent = "Not statistically significant";
+      txt.textContent = "The interval (" + fmt(lo) + " to " + fmt(hi) +
+        ") crosses zero, so with a cohort of " + n +
+        " you cannot say the school is genuinely above or below average. The headline of " + fmt(p8) +
+        " could be down to a small number of pupils.";
+    }
+
+    // ----- accessible description -----
+    var desc = document.getElementById("chart-desc");
+    var clsWord = cls === "pos" ? "entirely above zero" : (cls === "neg" ? "entirely below zero" : "crossing zero");
+    desc.textContent = "Cohort of " + n + " pupils. Progress 8 point estimate " + fmt(p8) +
+      ". Ninety five percent confidence interval from " + fmt(lo) + " to " + fmt(hi) +
+      ", a width of " + (hw * 2).toFixed(2) + ", " + clsWord + ".";
+  }
+
+  // ----- Controls --------------------------------------------------------
+  var cohort = document.getElementById("cohort");
+  cohort.addEventListener("input", function () {
+    state.n = parseInt(cohort.value, 10);
+    render();
+  });
+
+  var p8btns = Array.prototype.slice.call(document.querySelectorAll(".p8-buttons button"));
+  p8btns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      p8btns.forEach(function (o) { o.setAttribute("aria-pressed", "false"); });
+      b.setAttribute("aria-pressed", "true");
+      state.p8 = parseFloat(b.getAttribute("data-p8"));
+      render();
+    });
+  });
+
+  // ----- Challenge -------------------------------------------------------
+  // Each question is generated to be answerable from the live chart logic.
+  var chQ = document.getElementById("ch-q");
+  var chChoices = document.getElementById("ch-choices");
+  var chFb = document.getElementById("ch-fb");
+  var chNext = document.getElementById("ch-next");
+
+  var bank = [
+    {
+      q: "Greendale Academy posts Progress 8 of +0.30. Which cohort is most likely to make this a statistically significant result?",
+      opts: [
+        { t: "A cohort of 20 pupils", ok: false },
+        { t: "A cohort of 200 pupils", ok: true },
+        { t: "Cohort size makes no difference", ok: false }
+      ],
+      why: "Right. A larger cohort narrows the interval, so the same +0.30 is more likely to clear zero and count as significant. Try +0.30 with the slider at 20 then 200 to see it."
+    },
+    {
+      q: "A school's 95% confidence interval is -0.10 to +0.40. What should a governor conclude?",
+      opts: [
+        { t: "The school is significantly above average", ok: false },
+        { t: "The result is not statistically different from average", ok: true },
+        { t: "The school is significantly below average", ok: false }
+      ],
+      why: "Correct. Because the interval crosses zero, you cannot claim the school is genuinely above or below the national average, even though the point score is positive."
+    },
+    {
+      q: "Two schools both score +0.25. Oakhill has 40 pupils, Riverbank has 180. Whose interval is wider?",
+      opts: [
+        { t: "Oakhill (40 pupils)", ok: true },
+        { t: "Riverbank (180 pupils)", ok: false },
+        { t: "They are identical", ok: false }
+      ],
+      why: "Yes. The smaller cohort at Oakhill produces a wider interval, so its +0.25 is more fragile and more likely to cross zero."
+    },
+    {
+      q: "Why does a tiny sixth-form-style cohort of 8 pupils give an unstable Progress 8 measure?",
+      opts: [
+        { t: "Small samples have very wide confidence intervals, so one pupil swings the average a long way", ok: true },
+        { t: "Small schools always teach less effectively", ok: false },
+        { t: "The DfE rounds small cohorts to zero", ok: false }
+      ],
+      why: "Exactly. With so few pupils, the plausible range is very wide, so the headline number is dominated by a handful of individual results and should be read with great caution."
+    }
+  ];
+
+  var order = [], qIdx = 0;
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+
+  function loadQuestion() {
+    if (qIdx >= order.length) { order = shuffle(bank.map(function (_, i) { return i; })); qIdx = 0; }
+    var item = bank[order[qIdx]];
+    chQ.textContent = item.q;
+    chFb.textContent = "";
+    chFb.className = "challenge-fb";
+    chNext.hidden = true;
+    chChoices.innerHTML = "";
+    var opts = item.opts.map(function (o, i) { return { o: o, i: i }; });
+    shuffle(opts);
+    opts.forEach(function (entry) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = entry.o.t;
+      btn.addEventListener("click", function () {
+        Array.prototype.forEach.call(chChoices.children, function (c) { c.disabled = true; });
+        if (entry.o.ok) {
+          btn.classList.add("correct");
+          chFb.textContent = item.why;
+          chFb.className = "challenge-fb ok";
+        } else {
+          btn.classList.add("wrong");
+          // highlight correct
+          Array.prototype.forEach.call(chChoices.children, function (c, idx) {
+            if (opts[idx].o.ok) c.classList.add("correct");
+          });
+          chFb.textContent = "Not quite. " + item.why;
+          chFb.className = "challenge-fb no";
+        }
+        chNext.hidden = false;
+        chNext.focus();
+      });
+      chChoices.appendChild(btn);
+    });
+  }
+  chNext.addEventListener("click", function () { qIdx++; loadQuestion(); });
+
+  order = shuffle(bank.map(function (_, i) { return i; }));
+  loadQuestion();
+
+  // ----- init ------------------------------------------------------------
+  render();
+})();
+</script>
+</body>
+</html>

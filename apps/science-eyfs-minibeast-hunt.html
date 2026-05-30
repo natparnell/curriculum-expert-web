@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minibeast Hunt</title>
+<style>
+  :root {
+    --sky: #bfe6ff;
+    --grass: #7bc043;
+    --grass-dark: #5a9e2e;
+    --soil: #8a5a3a;
+    --soil-dark: #6b4329;
+    --ink: #243b2a;
+    --card: #ffffff;
+    --accent: #2e7d32;
+    --legs: #2f7fd1;
+    --legs-bg: #e3f0fb;
+    --wings: #b8408f;
+    --wings-bg: #fbe6f4;
+    --under: #8a5a3a;
+    --under-bg: #f3e7dc;
+    --good: #2e7d32;
+    --bad: #c0392b;
+    --shadow: 0 6px 16px rgba(0,0,0,0.12);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: "Trebuchet MS", "Segoe UI", Verdana, sans-serif;
+    color: var(--ink);
+    background: #eef7e8;
+    -webkit-text-size-adjust: 100%;
+  }
+  header.app-head {
+    background: linear-gradient(180deg, #2e7d32, #256429);
+    color: #fff;
+    padding: 14px 18px;
+    text-align: center;
+  }
+  header.app-head h1 {
+    margin: 0;
+    font-size: clamp(1.4rem, 4vw, 2.1rem);
+    letter-spacing: 0.5px;
+  }
+  header.app-head .aim {
+    margin: 6px auto 0;
+    max-width: 760px;
+    font-size: clamp(0.85rem, 2.4vw, 1rem);
+    line-height: 1.4;
+    opacity: 0.95;
+  }
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 14px;
+  }
+  .panel {
+    background: var(--card);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    margin: 0 0 8px;
+    font-size: clamp(1.05rem, 3vw, 1.3rem);
+    color: var(--accent);
+  }
+  .step-note {
+    font-size: 0.95rem;
+    line-height: 1.45;
+    margin: 0 0 10px;
+  }
+
+  /* Garden scene */
+  .scene-frame {
+    position: relative;
+    width: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 4px solid #fff;
+    box-shadow: var(--shadow);
+  }
+  svg.scene { display: block; width: 100%; height: auto; touch-action: manipulation; }
+  .creature-hot {
+    cursor: pointer;
+    outline: none;
+  }
+  .creature-hot:focus-visible rect.focus-ring,
+  .creature-hot:focus rect.focus-ring {
+    stroke: #ffcc00;
+    stroke-width: 4;
+    opacity: 1;
+  }
+  .creature-hot rect.focus-ring { fill: transparent; stroke: transparent; rx: 12; }
+  .hint-pulse {
+    animation: pulse 1.6s ease-in-out infinite;
+    transform-origin: center;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.18); }
+  }
+
+  .found-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 12px;
+  }
+  .found-bar .label { font-weight: bold; }
+  .found-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #eef7e8;
+    border: 2px solid var(--grass-dark);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 1rem;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    box-shadow: var(--shadow);
+  }
+  .found-chip:focus-visible { outline: 3px solid #ffcc00; outline-offset: 2px; }
+  .found-chip[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: default;
+    border-color: #aaa;
+  }
+  .found-chip .emoji { font-size: 1.4rem; }
+  .found-chip.dragging { opacity: 0.4; }
+
+  .drag-ghost {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    font-size: 2.6rem;
+    transform: translate(-50%, -50%);
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+  }
+
+  /* Baskets */
+  .baskets {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 4px;
+  }
+  @media (max-width: 720px) {
+    .baskets { grid-template-columns: 1fr; }
+  }
+  .basket {
+    border-radius: 16px;
+    padding: 12px;
+    min-height: 150px;
+    border: 3px dashed transparent;
+    transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+  }
+  .basket.legs { background: var(--legs-bg); border-color: var(--legs); }
+  .basket.wings { background: var(--wings-bg); border-color: var(--wings); }
+  .basket.under { background: var(--under-bg); border-color: var(--under); }
+  .basket.over { transform: scale(1.03); box-shadow: 0 0 0 4px #ffcc00; }
+  .basket h3 {
+    margin: 0 0 4px;
+    font-size: 1.05rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .basket .b-sub { font-size: 0.8rem; opacity: 0.8; margin: 0 0 8px; }
+  .basket .drop-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 44px;
+  }
+  .placed {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #fff;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 0.95rem;
+    box-shadow: var(--shadow);
+    animation: pop 0.25s ease;
+  }
+  .placed .emoji { font-size: 1.25rem; }
+  @keyframes pop {
+    0% { transform: scale(0.4); }
+    70% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+
+  /* Feedback */
+  .feedback {
+    margin-top: 12px;
+    min-height: 26px;
+    font-size: 1.05rem;
+    font-weight: bold;
+    text-align: center;
+    padding: 8px 10px;
+    border-radius: 12px;
+    transition: background 0.2s;
+  }
+  .feedback.good { background: #e4f6e0; color: var(--good); }
+  .feedback.bad { background: #fdeceb; color: var(--bad); }
+  .feedback.neutral { background: #f1f4ef; color: var(--ink); }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 14px;
+  }
+  button.btn {
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: bold;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    color: #fff;
+    background: var(--accent);
+  }
+  button.btn.secondary { background: #5b6b7a; }
+  button.btn.sound { background: #7b4fa8; }
+  button.btn:focus-visible { outline: 3px solid #ffcc00; outline-offset: 2px; }
+  button.btn:active { transform: translateY(1px); }
+
+  .progress {
+    text-align: center;
+    font-size: 1.05rem;
+    margin-top: 8px;
+    font-weight: bold;
+  }
+  .stars { font-size: 1.4rem; letter-spacing: 3px; }
+
+  /* keyboard chooser */
+  .kb-chooser {
+    margin-top: 10px;
+    background: #fff8e1;
+    border: 2px solid #f0c419;
+    border-radius: 12px;
+    padding: 10px;
+    display: none;
+  }
+  .kb-chooser.show { display: block; }
+  .kb-chooser p { margin: 0 0 8px; font-weight: bold; }
+  .kb-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  .kb-buttons button { flex: 1 1 30%; }
+
+  .learn {
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+  .learn ul { padding-left: 20px; margin: 6px 0; }
+  .footnote {
+    text-align: center;
+    font-size: 0.8rem;
+    opacity: 0.7;
+    margin: 6px 0 20px;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0);
+    border: 0;
+  }
+  .win-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20,40,20,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 5000;
+    padding: 16px;
+  }
+  .win-overlay.show { display: flex; }
+  .win-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 24px;
+    max-width: 420px;
+    text-align: center;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+  }
+  .win-card h2 { color: var(--accent); margin-top: 0; }
+  .win-card .big-stars { font-size: 2.4rem; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<header class="app-head">
+  <h1>&#x1F41B; Minibeast Hunt</h1>
+  <p class="aim"><strong>Teacher aim:</strong> children explore the natural world by finding living things in the garden, then sort each minibeast by what its body has or where it lives (legs, wings, lives underground). Supports the EYFS Understanding the World: The Natural World goal.</p>
+</header>
+
+<div class="wrap">
+
+  <!-- STEP 1: HUNT -->
+  <section class="panel" aria-labelledby="hunt-h">
+    <h2 id="hunt-h">Step 1: Hunt for minibeasts</h2>
+    <p class="step-note">Tap a leaf, a flower or the soil to see if a little creature is hiding there. Find all <strong id="total-count">8</strong> minibeasts! Use the <strong>Read aloud</strong> button if you want to hear the words.</p>
+
+    <div class="scene-frame">
+      <svg class="scene" viewBox="0 0 800 480" role="group" aria-label="A garden scene. Tap the bushes, flowers and soil to find hidden minibeasts." preserveAspectRatio="xMidYMid meet">
+        <!-- sky -->
+        <rect x="0" y="0" width="800" height="300" fill="#bfe6ff"/>
+        <circle cx="700" cy="70" r="48" fill="#ffe066"/>
+        <!-- clouds -->
+        <ellipse cx="150" cy="70" rx="55" ry="26" fill="#ffffff" opacity="0.9"/>
+        <ellipse cx="195" cy="70" rx="40" ry="22" fill="#ffffff" opacity="0.9"/>
+        <!-- grass band -->
+        <rect x="0" y="290" width="800" height="120" fill="#7bc043"/>
+        <!-- soil band -->
+        <rect x="0" y="410" width="800" height="70" fill="#8a5a3a"/>
+        <rect x="0" y="410" width="800" height="10" fill="#6b4329"/>
+        <!-- decorative plants -->
+        <g stroke="#5a9e2e" stroke-width="6" fill="none">
+          <path d="M120 290 q-12 -50 4 -90"/>
+          <path d="M126 290 q12 -40 30 -64"/>
+          <path d="M660 290 q-10 -44 2 -80"/>
+        </g>
+        <!-- flowers -->
+        <g>
+          <line x1="300" y1="290" x2="300" y2="210" stroke="#3f7d24" stroke-width="6"/>
+          <circle cx="300" cy="200" r="22" fill="#ff7eb3"/>
+          <circle cx="300" cy="200" r="8" fill="#ffe066"/>
+          <line x1="470" y1="290" x2="470" y2="225" stroke="#3f7d24" stroke-width="6"/>
+          <circle cx="470" cy="215" r="20" fill="#c77dff"/>
+          <circle cx="470" cy="215" r="7" fill="#ffe066"/>
+        </g>
+        <!-- bush -->
+        <g>
+          <ellipse cx="560" cy="320" rx="70" ry="44" fill="#5a9e2e"/>
+          <ellipse cx="600" cy="305" rx="46" ry="34" fill="#6cb83a"/>
+        </g>
+
+        <!-- HOTSPOTS / CREATURES injected by script go here -->
+        <g id="creature-layer"></g>
+      </svg>
+    </div>
+
+    <div class="progress" aria-hidden="true">
+      Found: <span id="found-num">0</span> of <span id="found-total">8</span>
+      <span class="stars" id="hunt-stars"></span>
+    </div>
+
+    <div class="found-bar" id="found-bar" aria-label="Minibeasts you have found, ready to sort">
+      <span class="label">Found minibeasts (drag them to a basket):</span>
+    </div>
+    <p class="step-note" style="margin-top:8px;font-size:0.85rem;opacity:0.85;">Tip for whiteboards and keyboards: tap a found minibeast, or press Enter on it, to choose a basket without dragging.</p>
+  </section>
+
+  <!-- STEP 2: SORT -->
+  <section class="panel" aria-labelledby="sort-h">
+    <h2 id="sort-h">Step 2: Sort by features</h2>
+    <p class="step-note">Drag each minibeast to the right basket. Think: <strong>Does it have legs you can count? Does it have wings to fly? Does it live underground in the soil?</strong> Some clever minibeasts could fit more than one, so pick the best home.</p>
+
+    <div class="baskets">
+      <div class="basket legs" data-cat="legs" role="group" aria-label="Basket: has legs">
+        <h3><span aria-hidden="true">&#x1F9B5;</span> Has legs</h3>
+        <p class="b-sub">Lots of little legs to walk with</p>
+        <div class="drop-list" id="drop-legs"></div>
+      </div>
+      <div class="basket wings" data-cat="wings" role="group" aria-label="Basket: has wings">
+        <h3><span aria-hidden="true">&#x1F98B;</span> Has wings</h3>
+        <p class="b-sub">Wings to fly in the air</p>
+        <div class="drop-list" id="drop-wings"></div>
+      </div>
+      <div class="basket under" data-cat="under" role="group" aria-label="Basket: lives underground">
+        <h3><span aria-hidden="true">&#x1FAB1;</span> Lives underground</h3>
+        <p class="b-sub">Home is down in the dark soil</p>
+        <div class="drop-list" id="drop-under"></div>
+      </div>
+    </div>
+
+    <div class="kb-chooser" id="kb-chooser" role="dialog" aria-label="Choose a basket">
+      <p id="kb-chooser-label">Where should this minibeast go?</p>
+      <div class="kb-buttons">
+        <button type="button" class="btn" data-pick="legs">Has legs</button>
+        <button type="button" class="btn wings-pick" data-pick="wings" style="background:#b8408f">Has wings</button>
+        <button type="button" class="btn" data-pick="under" style="background:#8a5a3a">Lives underground</button>
+        <button type="button" class="btn secondary" data-pick="cancel">Cancel</button>
+      </div>
+    </div>
+
+    <div class="feedback neutral" id="feedback" role="status" aria-live="polite">Find some minibeasts first, then sort them. Good luck, scientists!</div>
+
+    <div class="controls">
+      <button type="button" class="btn sound" id="btn-sound" aria-pressed="false">&#x1F50A; Read aloud: off</button>
+      <button type="button" class="btn secondary" id="btn-reset">&#x1F501; Start again</button>
+    </div>
+  </section>
+
+  <!-- LEARN MORE -->
+  <section class="panel learn" aria-labelledby="learn-h">
+    <h2 id="learn-h">What did we learn?</h2>
+    <p>Minibeasts are small living things, also called invertebrates because they have no bones inside. Scientists look closely and sort living things by their <strong>features</strong>, the parts of the body you can see.</p>
+    <ul>
+      <li><strong>Legs:</strong> a ladybird and an ant have six legs; a spider has eight legs; a woodlouse and a centipede have many more.</li>
+      <li><strong>Wings:</strong> a butterfly, a bee and a ladybird can open wings and fly.</li>
+      <li><strong>Underground:</strong> worms and many minibeasts live in the soil, which also helps plants grow.</li>
+    </ul>
+    <p><strong>Living things need care:</strong> just like a plant needs water, light and warmth to grow, minibeasts need a safe home in the garden. We look gently and put them back where we found them.</p>
+  </section>
+
+  <p class="footnote">Demonstration teaching activity. All creatures are friendly cartoon helpers. Investigate real minibeasts outdoors with an adult.</p>
+</div>
+
+<div class="win-overlay" id="win-overlay" role="dialog" aria-label="Well done" aria-modal="true">
+  <div class="win-card">
+    <div class="big-stars" aria-hidden="true">&#x2B50;&#x2B50;&#x2B50;</div>
+    <h2>Brilliant sorting!</h2>
+    <p id="win-text">You found and sorted every minibeast by its features. You are a real nature scientist!</p>
+    <button type="button" class="btn" id="btn-win-again">&#x1F501; Play again</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Data: 8 minibeasts ----------
+     Each creature has an emoji, a name, a body-shape drawn in the scene,
+     a position, and a correct category. Categories: legs, wings, under.
+     A few accept more than one category but have a "best" one with a fact. */
+  var CREATURES = [
+    { id: "ladybird", name: "ladybird", emoji: "\u{1F41E}", cat: "wings",
+      fact: "A ladybird has wings hidden under its spotty shell, so it goes in Has wings.",
+      hide: "flower", x: 300, y: 188 },
+    { id: "ant", name: "ant", emoji: "\u{1F41C}", cat: "legs",
+      fact: "An ant has six little legs and no wings, so it goes in Has legs.",
+      hide: "soil", x: 180, y: 440 },
+    { id: "spider", name: "spider", emoji: "\u{1F577}", cat: "legs",
+      fact: "A spider has eight legs, more than any insect. It goes in Has legs.",
+      hide: "bush", x: 575, y: 312 },
+    { id: "butterfly", name: "butterfly", emoji: "\u{1F98B}", cat: "wings",
+      fact: "A butterfly has big colourful wings to fly, so it goes in Has wings.",
+      hide: "flower", x: 470, y: 200 },
+    { id: "bee", name: "bee", emoji: "\u{1F41D}", cat: "wings",
+      fact: "A bee buzzes on tiny wings from flower to flower. It goes in Has wings.",
+      hide: "grass", x: 120, y: 230 },
+    { id: "worm", name: "worm", emoji: "\u{1FAB1}", cat: "under",
+      fact: "A worm has no legs and no wings. It lives underground in the soil.",
+      hide: "soil", x: 430, y: 445 },
+    { id: "snail", name: "snail", emoji: "\u{1F40C}", cat: "under",
+      fact: "A snail has no legs to count and no wings. It hides in cool, dark soil.",
+      hide: "grass", x: 250, y: 330 },
+    { id: "caterpillar", name: "caterpillar", emoji: "\u{1F41B}", cat: "legs",
+      fact: "A caterpillar has many tiny legs to grip the leaf, so it goes in Has legs.",
+      hide: "bush", x: 605, y: 300 }
+  ];
+
+  var CAT_LABEL = { legs: "Has legs", wings: "Has wings", under: "Lives underground" };
+
+  var state = {
+    found: [],          // ids found
+    placed: {},         // id -> cat placed
+    soundOn: false,
+    pendingKb: null     // id awaiting keyboard basket choice
+  };
+
+  /* ---------- Element refs ---------- */
+  var creatureLayer = document.getElementById("creature-layer");
+  var foundBar = document.getElementById("found-bar");
+  var foundNum = document.getElementById("found-num");
+  var foundTotalEls = [document.getElementById("found-total"), document.getElementById("total-count")];
+  var huntStars = document.getElementById("hunt-stars");
+  var feedback = document.getElementById("feedback");
+  var btnSound = document.getElementById("btn-sound");
+  var btnReset = document.getElementById("btn-reset");
+  var kbChooser = document.getElementById("kb-chooser");
+  var kbLabel = document.getElementById("kb-chooser-label");
+  var winOverlay = document.getElementById("win-overlay");
+  var winText = document.getElementById("win-text");
+  var btnWinAgain = document.getElementById("btn-win-again");
+
+  foundTotalEls.forEach(function (el) { if (el) el.textContent = CREATURES.length; });
+
+  /* ---------- Speech ---------- */
+  function say(text) {
+    if (!state.soundOn) return;
+    if (window.westTTS && window.westTTS.ready()) {
+      window.westTTS.speak(text, { lang: "en-GB", rate: 0.85, pitch: 1.1 });
+    }
+  }
+
+  /* ---------- Feedback helper ---------- */
+  function setFeedback(text, kind) {
+    feedback.textContent = text;
+    feedback.className = "feedback " + (kind || "neutral");
+  }
+
+  /* ---------- Build the hidden creatures in the SVG ---------- */
+  function buildScene() {
+    creatureLayer.innerHTML = "";
+    CREATURES.forEach(function (c) {
+      var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("class", "creature-hot");
+      g.setAttribute("tabindex", "0");
+      g.setAttribute("role", "button");
+      g.setAttribute("data-id", c.id);
+      g.setAttribute("aria-label", "Tap to look for a hidden minibeast here, spot " + (CREATURES.indexOf(c) + 1));
+
+      // focus ring
+      var ring = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      ring.setAttribute("class", "focus-ring");
+      ring.setAttribute("x", c.x - 30);
+      ring.setAttribute("y", c.y - 30);
+      ring.setAttribute("width", 60);
+      ring.setAttribute("height", 60);
+      g.appendChild(ring);
+
+      // a soft "look here" marker circle while not found
+      var marker = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      marker.setAttribute("cx", c.x);
+      marker.setAttribute("cy", c.y);
+      marker.setAttribute("r", 22);
+      marker.setAttribute("fill", "rgba(255,255,255,0.55)");
+      marker.setAttribute("stroke", "#3a6b2a");
+      marker.setAttribute("stroke-width", "3");
+      marker.setAttribute("stroke-dasharray", "6 5");
+      marker.setAttribute("class", "marker hint-pulse");
+      g.appendChild(marker);
+
+      // a tiny question mark
+      var q = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      q.setAttribute("x", c.x);
+      q.setAttribute("y", c.y + 8);
+      q.setAttribute("text-anchor", "middle");
+      q.setAttribute("font-size", "26");
+      q.setAttribute("font-weight", "bold");
+      q.setAttribute("fill", "#2e7d32");
+      q.setAttribute("class", "qmark");
+      q.textContent = "?";
+      g.appendChild(q);
+
+      // the creature emoji (hidden until found)
+      var emo = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      emo.setAttribute("x", c.x);
+      emo.setAttribute("y", c.y + 12);
+      emo.setAttribute("text-anchor", "middle");
+      emo.setAttribute("font-size", "36");
+      emo.setAttribute("class", "emo");
+      emo.setAttribute("opacity", "0");
+      emo.textContent = c.emoji;
+      g.appendChild(emo);
+
+      g.addEventListener("click", function () { revealCreature(c.id); });
+      g.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          revealCreature(c.id);
+        }
+      });
+
+      creatureLayer.appendChild(g);
+    });
+  }
+
+  /* ---------- Reveal a creature when its hotspot is tapped ---------- */
+  function revealCreature(id) {
+    if (state.found.indexOf(id) !== -1) return;
+    var c = getCreature(id);
+    state.found.push(id);
+
+    // update SVG node
+    var node = creatureLayer.querySelector('[data-id="' + id + '"]');
+    if (node) {
+      var marker = node.querySelector(".marker");
+      var q = node.querySelector(".qmark");
+      var emo = node.querySelector(".emo");
+      if (marker) { marker.setAttribute("fill", "rgba(255,236,153,0.85)"); marker.setAttribute("class", "marker"); marker.setAttribute("stroke-dasharray", ""); }
+      if (q) q.setAttribute("opacity", "0");
+      if (emo) emo.setAttribute("opacity", "1");
+      node.setAttribute("aria-label", "Found a " + c.name + ". Now sort it into a basket below.");
+      node.setAttribute("tabindex", "-1");
+    }
+
+    setFeedback("You found a " + c.name + "! Now drag it to a basket.", "good");
+    say("You found a " + c.name + "!");
+    addFoundChip(c);
+    updateProgress();
+  }
+
+  /* ---------- Found-minibeast chips (draggable) ---------- */
+  function addFoundChip(c) {
+    var chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "found-chip";
+    chip.setAttribute("data-id", c.id);
+    chip.setAttribute("draggable", "false");
+    chip.setAttribute("aria-label", c.name + ". Drag to a basket, or press Enter to choose a basket.");
+    chip.innerHTML = '<span class="emoji" aria-hidden="true">' + c.emoji + '</span><span>' + c.name + '</span>';
+    foundBar.appendChild(chip);
+
+    attachDrag(chip, c.id);
+
+    // keyboard / tap-to-choose
+    chip.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        openKbChooser(c.id);
+      }
+    });
+  }
+
+  /* ---------- Pointer-based drag (works on touch, mouse, pen) ---------- */
+  var ghost = null;
+  function attachDrag(chip, id) {
+    var dragging = false;
+    var moved = false;
+    var startX = 0, startY = 0;
+
+    chip.addEventListener("pointerdown", function (ev) {
+      if (chip.getAttribute("aria-disabled") === "true") return;
+      dragging = true;
+      moved = false;
+      startX = ev.clientX;
+      startY = ev.clientY;
+      try { chip.setPointerCapture(ev.pointerId); } catch (e) {}
+    });
+
+    chip.addEventListener("pointermove", function (ev) {
+      if (!dragging) return;
+      var dx = ev.clientX - startX;
+      var dy = ev.clientY - startY;
+      if (!moved && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+        moved = true;
+        chip.classList.add("dragging");
+        makeGhost(getCreature(id).emoji);
+      }
+      if (moved) {
+        moveGhost(ev.clientX, ev.clientY);
+        highlightBasketUnder(ev.clientX, ev.clientY);
+      }
+    });
+
+    chip.addEventListener("pointerup", function (ev) {
+      if (!dragging) return;
+      dragging = false;
+      try { chip.releasePointerCapture(ev.pointerId); } catch (e) {}
+      chip.classList.remove("dragging");
+      removeGhost();
+      clearBasketHighlight();
+      if (moved) {
+        var basket = basketUnderPoint(ev.clientX, ev.clientY);
+        if (basket) {
+          dropCreature(id, basket.getAttribute("data-cat"));
+        } else {
+          setFeedback("Drop the minibeast onto a basket to sort it.", "neutral");
+        }
+      } else {
+        // treated as a tap: open chooser (good for whiteboards)
+        openKbChooser(id);
+      }
+    });
+
+    chip.addEventListener("pointercancel", function () {
+      dragging = false;
+      chip.classList.remove("dragging");
+      removeGhost();
+      clearBasketHighlight();
+    });
+  }
+
+  function makeGhost(emoji) {
+    removeGhost();
+    ghost = document.createElement("div");
+    ghost.className = "drag-ghost";
+    ghost.textContent = emoji;
+    document.body.appendChild(ghost);
+  }
+  function moveGhost(x, y) {
+    if (ghost) { ghost.style.left = x + "px"; ghost.style.top = y + "px"; }
+  }
+  function removeGhost() {
+    if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+    ghost = null;
+  }
+
+  function basketUnderPoint(x, y) {
+    var els = document.elementsFromPoint(x, y) || [];
+    for (var i = 0; i < els.length; i++) {
+      var b = els[i].closest ? els[i].closest(".basket") : null;
+      if (b) return b;
+    }
+    return null;
+  }
+  function highlightBasketUnder(x, y) {
+    clearBasketHighlight();
+    var b = basketUnderPoint(x, y);
+    if (b) b.classList.add("over");
+  }
+  function clearBasketHighlight() {
+    Array.prototype.forEach.call(document.querySelectorAll(".basket.over"), function (b) {
+      b.classList.remove("over");
+    });
+  }
+
+  /* ---------- Keyboard / tap basket chooser ---------- */
+  function openKbChooser(id) {
+    state.pendingKb = id;
+    var c = getCreature(id);
+    kbLabel.textContent = "Where should the " + c.name + " go?";
+    kbChooser.classList.add("show");
+    var first = kbChooser.querySelector("button");
+    if (first) first.focus();
+    say("Where should the " + c.name + " go? Has legs, has wings, or lives underground?");
+  }
+  function closeKbChooser() {
+    kbChooser.classList.remove("show");
+    state.pendingKb = null;
+  }
+  kbChooser.addEventListener("click", function (ev) {
+    var b = ev.target.closest("button");
+    if (!b) return;
+    var pick = b.getAttribute("data-pick");
+    var id = state.pendingKb;
+    closeKbChooser();
+    if (pick === "cancel" || !id) return;
+    dropCreature(id, pick);
+  });
+
+  /* ---------- Placing a creature into a basket ---------- */
+  function dropCreature(id, cat) {
+    var c = getCreature(id);
+    if (state.placed[id]) return; // already placed
+
+    if (cat === c.cat) {
+      // correct
+      state.placed[id] = cat;
+      placeChipInBasket(c, cat);
+      disableFoundChip(id);
+      setFeedback("Yes! " + cap(c.name) + ": " + c.fact, "good");
+      say("Well done! " + c.fact);
+      updateProgress();
+      checkWin();
+    } else {
+      // wrong: targeted feedback that teaches the feature
+      var why = wrongHint(c, cat);
+      setFeedback("Not quite. " + why, "bad");
+      say(why);
+      // wobble the relevant basket
+      var basketEl = document.querySelector('.basket[data-cat="' + cat + '"]');
+      if (basketEl) {
+        basketEl.style.transition = "transform 0.1s";
+        basketEl.style.transform = "translateX(-6px)";
+        setTimeout(function () { basketEl.style.transform = "translateX(6px)"; }, 90);
+        setTimeout(function () { basketEl.style.transform = ""; }, 180);
+      }
+    }
+  }
+
+  function wrongHint(c, chosen) {
+    var right = CAT_LABEL[c.cat].toLowerCase();
+    if (c.cat === "wings") {
+      return "Look again at the " + c.name + ". It has wings to fly, so it belongs in " + CAT_LABEL.wings + ".";
+    }
+    if (c.cat === "legs") {
+      return "Look at the " + c.name + ". Can you count its legs? It belongs in " + CAT_LABEL.legs + ".";
+    }
+    return "The " + c.name + " has no legs and no wings. It belongs in " + CAT_LABEL.under + ".";
+  }
+
+  function placeChipInBasket(c, cat) {
+    var list = document.getElementById("drop-" + cat);
+    var pill = document.createElement("span");
+    pill.className = "placed";
+    pill.innerHTML = '<span class="emoji" aria-hidden="true">' + c.emoji + '</span><span>' + c.name + '</span>';
+    list.appendChild(pill);
+  }
+
+  function disableFoundChip(id) {
+    var chip = foundBar.querySelector('.found-chip[data-id="' + id + '"]');
+    if (chip) {
+      chip.setAttribute("aria-disabled", "true");
+      chip.setAttribute("tabindex", "-1");
+      chip.setAttribute("aria-label", getCreature(id).name + ", already sorted.");
+    }
+  }
+
+  /* ---------- Progress + win ---------- */
+  function updateProgress() {
+    foundNum.textContent = state.found.length;
+    var sortedStars = Object.keys(state.placed).length;
+    var s = "";
+    var earned = Math.min(3, Math.floor(sortedStars / Math.ceil(CREATURES.length / 3)));
+    for (var i = 0; i < 3; i++) s += (i < earned) ? "⭐" : "☆";
+    huntStars.textContent = s;
+  }
+
+  function checkWin() {
+    if (Object.keys(state.placed).length === CREATURES.length) {
+      setFeedback("Amazing! Every minibeast is sorted by its features.", "good");
+      winText.textContent = "You found and sorted all " + CREATURES.length + " minibeasts by legs, wings and where they live. You are a real nature scientist!";
+      winOverlay.classList.add("show");
+      btnWinAgain.focus();
+      say("Amazing! You sorted every minibeast. You are a real nature scientist!");
+    }
+  }
+
+  /* ---------- Helpers ---------- */
+  function getCreature(id) {
+    for (var i = 0; i < CREATURES.length; i++) if (CREATURES[i].id === id) return CREATURES[i];
+    return null;
+  }
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  /* ---------- Sound toggle ---------- */
+  btnSound.addEventListener("click", function () {
+    state.soundOn = !state.soundOn;
+    btnSound.setAttribute("aria-pressed", state.soundOn ? "true" : "false");
+    btnSound.innerHTML = state.soundOn ? "\u{1F50A} Read aloud: on" : "\u{1F50A} Read aloud: off";
+    if (state.soundOn) say("Read aloud is on. Tap a hiding place to find a minibeast.");
+    else if (window.westTTS) window.westTTS.cancel();
+  });
+
+  /* ---------- Reset ---------- */
+  function resetAll() {
+    state.found = [];
+    state.placed = {};
+    state.pendingKb = null;
+    closeKbChooser();
+    winOverlay.classList.remove("show");
+    // clear found bar (keep label)
+    Array.prototype.forEach.call(foundBar.querySelectorAll(".found-chip"), function (ch) { ch.remove(); });
+    // clear baskets
+    ["legs", "wings", "under"].forEach(function (cat) {
+      document.getElementById("drop-" + cat).innerHTML = "";
+    });
+    buildScene();
+    updateProgress();
+    setFeedback("New garden ready. Tap the hiding places to find minibeasts.", "neutral");
+    say("Let us start again. Tap a hiding place to find a minibeast.");
+  }
+  btnReset.addEventListener("click", resetAll);
+  btnWinAgain.addEventListener("click", resetAll);
+
+  // Escape closes chooser
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && kbChooser.classList.contains("show")) closeKbChooser();
+  });
+
+  /* ---------- Init ---------- */
+  buildScene();
+  updateProgress();
+})();
+</script>
+</body>
+</html>

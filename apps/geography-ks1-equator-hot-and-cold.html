@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Equator Hot and Cold</title>
+<style>
+  :root{
+    --ink:#1f2933;
+    --muted:#586573;
+    --paper:#f5f8fb;
+    --card:#ffffff;
+    --line:#d8e0e8;
+    --hot:#e8552d;
+    --hot-soft:#ffe2d6;
+    --temp:#2e9b57;
+    --temp-soft:#d8f0df;
+    --cold:#2f7fc8;
+    --cold-soft:#d8ebfb;
+    --accent:#5a3fc0;
+    --focus:#ffb300;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.5;
+    padding:16px;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+  header.app-head{
+    background:linear-gradient(120deg,#5a3fc0,#2f7fc8);
+    color:#fff;
+    border-radius:18px;
+    padding:20px 24px;
+    box-shadow:0 6px 18px rgba(47,127,200,.25);
+  }
+  header.app-head h1{
+    margin:0 0 4px;
+    font-size:clamp(1.4rem,3.4vw,2.1rem);
+    letter-spacing:.5px;
+  }
+  .aim{
+    margin:6px 0 0;
+    font-size:.95rem;
+    background:rgba(255,255,255,.16);
+    border-radius:10px;
+    padding:8px 12px;
+    display:inline-block;
+  }
+  .aim strong{font-weight:700;}
+  .layout{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:18px;
+    margin-top:18px;
+  }
+  @media(min-width:860px){
+    .layout{grid-template-columns:minmax(320px,1.1fr) minmax(280px,.9fr);}
+  }
+  .panel{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:16px;
+    box-shadow:0 2px 8px rgba(31,41,51,.05);
+  }
+  .panel h2{
+    margin:0 0 10px;
+    font-size:1.05rem;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .stage{
+    position:relative;
+    width:100%;
+    max-width:460px;
+    margin:0 auto;
+    touch-action:none;
+  }
+  svg.globe{
+    width:100%;
+    height:auto;
+    display:block;
+    border-radius:50%;
+    background:radial-gradient(circle at 38% 32%, #bfe3ff, #6db4ec 55%, #2f7fc8 100%);
+    box-shadow:inset -16px -14px 36px rgba(0,0,0,.22), 0 8px 20px rgba(0,0,0,.18);
+    cursor:grab;
+  }
+  svg.globe:active{cursor:grabbing;}
+  .controls-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    justify-content:center;
+    margin-top:12px;
+  }
+  button{
+    font:inherit;
+    border:2px solid transparent;
+    border-radius:10px;
+    padding:9px 14px;
+    cursor:pointer;
+    background:#eef1f6;
+    color:var(--ink);
+    font-weight:600;
+    transition:transform .08s, background .15s;
+  }
+  button:hover{background:#e2e7ef;}
+  button:active{transform:translateY(1px);}
+  button.primary{background:var(--accent);color:#fff;}
+  button.primary:hover{background:#4a32a6;}
+  button:focus-visible, .thermo:focus-visible, .hotspot:focus-visible{
+    outline:3px solid var(--focus);
+    outline-offset:2px;
+  }
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:12px;
+    font-size:.85rem;
+  }
+  .legend span{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    background:#f2f5f9;
+    border-radius:20px;
+    padding:4px 10px;
+  }
+  .dot{width:12px;height:12px;border-radius:50%;display:inline-block;}
+  .dot.hot{background:var(--hot);}
+  .dot.temp{background:var(--temp);}
+  .dot.cold{background:var(--cold);}
+  .dot.line{background:#ffd23f;}
+
+  /* Thermometer reading */
+  .reading{
+    border-radius:14px;
+    padding:16px;
+    border:2px solid var(--line);
+    background:#fbfcfe;
+    transition:background .2s, border-color .2s;
+    min-height:150px;
+  }
+  .reading.hot{background:var(--hot-soft);border-color:var(--hot);}
+  .reading.temp{background:var(--temp-soft);border-color:var(--temp);}
+  .reading.cold{background:var(--cold-soft);border-color:var(--cold);}
+  .reading .zone-name{
+    font-size:1.5rem;
+    font-weight:800;
+    margin:0 0 4px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .reading .zone-name .badge{font-size:1.8rem;}
+  .reading.hot .zone-name{color:var(--hot);}
+  .reading.temp .zone-name{color:var(--temp);}
+  .reading.cold .zone-name{color:var(--cold);}
+  .reading .place{font-weight:700;font-size:1.05rem;margin:0 0 6px;}
+  .reading .desc{margin:0 0 8px;font-size:.98rem;}
+  .scenery{
+    font-size:2.2rem;
+    letter-spacing:4px;
+    line-height:1;
+    margin:6px 0;
+  }
+  .word-bank{
+    display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;
+  }
+  .word-bank b{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:3px 9px;
+    font-size:.85rem;
+    font-weight:700;
+  }
+  .speak-btn{margin-top:10px;}
+  .hint{
+    color:var(--muted);
+    font-size:.9rem;
+    margin-top:10px;
+  }
+  .quiz{
+    margin-top:14px;
+    border-top:1px dashed var(--line);
+    padding-top:12px;
+  }
+  .quiz h3{margin:0 0 8px;font-size:1rem;}
+  .quiz-q{font-weight:700;margin:0 0 8px;}
+  .quiz-opts{display:flex;flex-direction:column;gap:8px;}
+  .quiz-opts button{text-align:left;}
+  .quiz-opts button.correct{background:var(--temp);color:#fff;border-color:var(--temp);}
+  .quiz-opts button.wrong{background:var(--hot-soft);border-color:var(--hot);}
+  .quiz-feedback{margin-top:10px;font-weight:700;min-height:1.4em;}
+  .score-line{font-size:.9rem;color:var(--muted);margin-top:6px;}
+  .visually-hidden{
+    position:absolute !important;width:1px;height:1px;
+    padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);
+    white-space:nowrap;border:0;
+  }
+  footer.note{
+    margin-top:18px;text-align:center;color:var(--muted);font-size:.82rem;
+  }
+  .key-help{
+    font-size:.82rem;color:var(--muted);margin-top:8px;text-align:center;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <h1>&#x1F30D; Equator Hot and Cold</h1>
+    <p class="aim"><strong>Teaching aim:</strong> Pupils explore why places near the Equator are hot, the Poles are cold, and the middle is in between. KS1 Geography: weather patterns and hot and cold areas of the world.</p>
+  </header>
+
+  <div class="layout">
+    <!-- GLOBE PANEL -->
+    <section class="panel" aria-labelledby="globe-h">
+      <h2 id="globe-h">&#x1F310; Spin the globe and drop the thermometer</h2>
+      <div class="stage" id="stage">
+        <svg class="globe" id="globe" viewBox="0 0 400 400" role="application"
+             aria-label="A globe. The Equator glows in the middle. The North Pole is at the top and the South Pole is at the bottom. Drag the thermometer to a place to check if it is hot, temperate or cold."
+             tabindex="0">
+          <defs>
+            <clipPath id="globeClip"><circle cx="200" cy="200" r="195"/></clipPath>
+          </defs>
+          <g clip-path="url(#globeClip)" id="spinGroup">
+            <!-- Simple cartoon land masses, redrawn as the globe spins -->
+            <g id="land"></g>
+            <!-- Latitude bands (visual guide) -->
+            <ellipse cx="200" cy="60"  rx="200" ry="20" fill="#cfe8ff" opacity=".55"/>
+            <ellipse cx="200" cy="340" rx="200" ry="20" fill="#cfe8ff" opacity=".55"/>
+          </g>
+          <!-- Poles glow -->
+          <circle cx="200" cy="10" r="34" fill="#bfe6ff" opacity=".8"/>
+          <text x="200" y="26" text-anchor="middle" font-size="20" font-weight="700" fill="#1c4e80">North Pole</text>
+          <circle cx="200" cy="390" r="34" fill="#bfe6ff" opacity=".8"/>
+          <text x="200" y="384" text-anchor="middle" font-size="20" font-weight="700" fill="#1c4e80">South Pole</text>
+          <!-- Equator line, lit up -->
+          <line x1="0" y1="200" x2="400" y2="200" stroke="#ffd23f" stroke-width="6" stroke-dasharray="2 0"/>
+          <line x1="0" y1="200" x2="400" y2="200" stroke="#ff8c1a" stroke-width="2" stroke-dasharray="10 8"/>
+          <text x="200" y="192" text-anchor="middle" font-size="18" font-weight="800" fill="#b34700">EQUATOR</text>
+          <!-- Marker showing where the thermometer last landed -->
+          <circle id="dropMarker" cx="200" cy="200" r="0" fill="#fff" stroke="#5a3fc0" stroke-width="4" opacity="0"/>
+        </svg>
+
+        <!-- Draggable thermometer overlay -->
+        <svg id="thermoLayer" viewBox="0 0 400 400" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;">
+          <g id="thermo" class="thermo" style="pointer-events:auto;cursor:grab;touch-action:none;"
+             role="slider" tabindex="0"
+             aria-label="Thermometer. Drag onto the globe to take a temperature reading. Use arrow keys to move it, then press Enter to read."
+             aria-valuemin="0" aria-valuemax="2" aria-valuenow="1" aria-valuetext="Temperate, on the Equator line">
+            <!-- the group is positioned by transform in JS -->
+            <g transform="translate(-14,-44)">
+              <rect x="6" y="0" width="16" height="48" rx="8" fill="#fff" stroke="#444" stroke-width="2"/>
+              <rect id="thermoFill" x="9" y="20" width="10" height="28" rx="5" fill="#e8552d"/>
+              <circle cx="14" cy="52" r="12" fill="#e8552d" stroke="#444" stroke-width="2"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <div class="legend" aria-hidden="true">
+        <span><i class="dot line"></i> Equator (hottest)</span>
+        <span><i class="dot hot"></i> Hot zone</span>
+        <span><i class="dot temp"></i> Temperate zone</span>
+        <span><i class="dot cold"></i> Cold zone (Poles)</span>
+      </div>
+
+      <div class="controls-row">
+        <button id="spinBtn" class="primary" type="button">&#x1F504; Spin the globe</button>
+        <button id="resetBtn" type="button">&#x21BA; Reset thermometer</button>
+      </div>
+      <p class="key-help">Tip: tap or click the globe, or drag the thermometer. Keyboard: focus the thermometer, use Up and Down arrows, then press Enter to read.</p>
+    </section>
+
+    <!-- READING PANEL -->
+    <section class="panel" aria-labelledby="read-h">
+      <h2 id="read-h">&#x1F321;&#xFE0F; Thermometer reading</h2>
+      <div class="reading temp" id="reading" aria-live="polite">
+        <p class="zone-name"><span class="badge" id="zoneBadge">&#x1F31E;</span><span id="zoneTitle">Drop the thermometer</span></p>
+        <p class="place" id="placeName">Drag the thermometer onto the globe, or tap a spot.</p>
+        <div class="scenery" id="scenery" aria-hidden="true">&#x1F30D;</div>
+        <p class="desc" id="zoneDesc">Places in the middle of the globe sit on the Equator. The Sun is strongest there, so it is the hottest part of the world.</p>
+        <div class="word-bank" id="wordBank"></div>
+      </div>
+      <button class="primary speak-btn" id="speakBtn" type="button">&#x1F50A; Read it to me</button>
+      <p class="hint" id="hint">You have not explored a cold place yet. Try dropping the thermometer near the top or bottom of the globe.</p>
+
+      <!-- QUIZ -->
+      <div class="quiz" aria-labelledby="quiz-h">
+        <h3 id="quiz-h">&#x1F9E0; Quick check</h3>
+        <p class="quiz-q" id="quizQ"></p>
+        <div class="quiz-opts" id="quizOpts"></div>
+        <p class="quiz-feedback" id="quizFeedback" aria-live="assertive"></p>
+        <p class="score-line" id="scoreLine">Score: 0 right</p>
+        <button id="newQBtn" type="button">&#x2728; New question</button>
+      </div>
+    </section>
+  </div>
+
+  <footer class="note">
+    Equator Hot and Cold &middot; KS1 Geography &middot; Demonstration activity. Example explorers (Priya, Tom, Femi) are fictional.
+  </footer>
+</div>
+
+<!-- live region for globe/thermometer changes -->
+<p class="visually-hidden" id="liveStatus" aria-live="polite"></p>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- Zone model ----------
+     y on the 0..400 viewBox: 200 = Equator. Distance from Equator decides zone.
+     |dy| 0..70   -> hot
+     |dy| 70..145 -> temperate
+     |dy| 145+    -> cold
+  */
+  var ZONES = {
+    hot: {
+      cls:"hot", badge:"\u{1F525}", title:"HOT",
+      scenery:"\u{1F334}\u{1F3DD}\u{FE0F}\u{1F40A}\u{2600}\u{FE0F}",
+      desc:"This place is near the Equator, the middle of the globe. The Sun is very strong here, so it is hot all year. You might find rainforests, deserts and sandy beaches.",
+      words:["hot","Equator","sunny","rainforest","desert"]
+    },
+    temp: {
+      cls:"temp", badge:"\u{1F324}\u{FE0F}", title:"TEMPERATE",
+      scenery:"\u{1F333}\u{1F33B}\u{1F327}\u{FE0F}\u{1F324}\u{FE0F}",
+      desc:"This place is between the Equator and the Poles. It is not too hot and not too cold. It has four seasons: spring, summer, autumn and winter. England is a temperate place.",
+      words:["temperate","mild","seasons","grass","rain"]
+    },
+    cold: {
+      cls:"cold", badge:"\u{2744}\u{FE0F}", title:"COLD",
+      scenery:"\u{1F9CA}\u{1F427}\u{2603}\u{FE0F}\u{1F43B}\u{200D}\u{2744}\u{FE0F}",
+      desc:"This place is near a Pole, the very top or bottom of the globe. The Sun is weak here, so it is cold with lots of ice and snow. Animals like penguins and polar bears live in cold places.",
+      words:["cold","Pole","ice","snow","freezing"]
+    }
+  };
+
+  /* Example fictional place labels by zone (clearly illustrative, not a map quiz) */
+  var PLACES = {
+    hot:["a hot place on the Equator","a steamy rainforest","a sandy desert"],
+    temp:["a temperate place like England","a green grassy land","a place with four seasons"],
+    cold:["a frozen place near the Pole","an icy land of snow","the cold polar region"]
+  };
+
+  function zoneFor(y){
+    var dy = Math.abs(y - 200);
+    if(dy <= 70) return "hot";
+    if(dy <= 145) return "temp";
+    return "cold";
+  }
+
+  /* ---------- Element refs ---------- */
+  var globe = document.getElementById("globe");
+  var stage = document.getElementById("stage");
+  var thermoLayer = document.getElementById("thermoLayer");
+  var thermo = document.getElementById("thermo");
+  var thermoFill = document.getElementById("thermoFill");
+  var dropMarker = document.getElementById("dropMarker");
+  var landG = document.getElementById("land");
+
+  var reading = document.getElementById("reading");
+  var zoneBadge = document.getElementById("zoneBadge");
+  var zoneTitle = document.getElementById("zoneTitle");
+  var placeName = document.getElementById("placeName");
+  var scenery = document.getElementById("scenery");
+  var zoneDesc = document.getElementById("zoneDesc");
+  var wordBank = document.getElementById("wordBank");
+  var hint = document.getElementById("hint");
+  var liveStatus = document.getElementById("liveStatus");
+
+  var speakBtn = document.getElementById("speakBtn");
+  var spinBtn = document.getElementById("spinBtn");
+  var resetBtn = document.getElementById("resetBtn");
+
+  /* ---------- Globe land drawing (decorative, redrawn on spin) ---------- */
+  var spinAngle = 0;
+  function drawLand(){
+    // a few wobbly "continents" whose x shifts with spinAngle to feel like rotation
+    var blobs = [
+      {cx:120, cy:130, r:46, c:"#7cc47c"},
+      {cx:250, cy:170, r:38, c:"#8ad08a"},
+      {cx:170, cy:250, r:50, c:"#76bf76"},
+      {cx:300, cy:280, r:30, c:"#8ad08a"},
+      {cx:90,  cy:300, r:28, c:"#7cc47c"}
+    ];
+    var html = "";
+    blobs.forEach(function(b){
+      var x = ((b.cx + spinAngle) % 460) - 30; // wrap horizontally
+      html += '<circle cx="'+x.toFixed(0)+'" cy="'+b.cy+'" r="'+b.r+'" fill="'+b.c+'" opacity="0.92"/>';
+    });
+    landG.innerHTML = html;
+  }
+  drawLand();
+
+  function spin(){
+    var start = spinAngle;
+    var target = start + 200 + Math.floor(Math.random()*120);
+    var t0 = null;
+    function step(ts){
+      if(!t0) t0 = ts;
+      var p = Math.min(1, (ts - t0)/700);
+      var eased = 1 - Math.pow(1-p, 3);
+      spinAngle = start + (target-start)*eased;
+      drawLand();
+      if(p < 1) requestAnimationFrame(step);
+      else { spinAngle = ((target%460)+460)%460; drawLand(); say("The globe spun round. Find a new place to check."); }
+    }
+    requestAnimationFrame(step);
+  }
+  spinBtn.addEventListener("click", spin);
+
+  /* ---------- Coordinate helpers ---------- */
+  function clientToViewBox(clientX, clientY){
+    var rect = globe.getBoundingClientRect();
+    var x = (clientX - rect.left) / rect.width * 400;
+    var y = (clientY - rect.top) / rect.height * 400;
+    return {x:x, y:y};
+  }
+
+  /* current thermometer position in viewBox coords */
+  var pos = {x:200, y:200};
+
+  function setThermoVisual(x,y){
+    thermo.setAttribute("transform","translate("+x+","+y+")");
+    // fill colour by zone
+    var z = zoneFor(y);
+    var col = z==="hot" ? "#e8552d" : z==="temp" ? "#2e9b57" : "#2f7fc8";
+    thermoFill.setAttribute("fill", col);
+    // fill height: more liquid = hotter
+    var dy = Math.abs(y-200);
+    var heat = Math.max(0, Math.min(1, 1 - dy/200)); // 1 hot .. 0 cold
+    var h = 8 + heat*28;
+    thermoFill.setAttribute("y", (48 - h).toFixed(1));
+    thermoFill.setAttribute("height", h.toFixed(1));
+  }
+
+  /* ---------- Reveal a reading ---------- */
+  var explored = {hot:false, temp:false, cold:false};
+  var placeIdx = {hot:0, temp:0, cold:0};
+
+  function takeReading(x, y, spoken){
+    // clamp inside globe circle a touch so it always reads sensibly
+    pos.x = Math.max(8, Math.min(392, x));
+    pos.y = Math.max(8, Math.min(392, y));
+    setThermoVisual(pos.x, pos.y);
+
+    var key = zoneFor(pos.y);
+    var z = ZONES[key];
+    var place = PLACES[key][placeIdx[key] % PLACES[key].length];
+    placeIdx[key]++;
+
+    // marker on globe
+    dropMarker.setAttribute("cx", pos.x);
+    dropMarker.setAttribute("cy", pos.y);
+    dropMarker.setAttribute("r", 14);
+    dropMarker.setAttribute("opacity", 1);
+
+    // reading card
+    reading.className = "reading " + z.cls;
+    zoneBadge.innerHTML = "";
+    zoneBadge.appendChild(document.createTextNode(z.badge));
+    zoneTitle.textContent = z.title + " zone";
+    placeName.textContent = "You landed on " + place + ".";
+    scenery.textContent = z.scenery;
+    zoneDesc.textContent = z.desc;
+
+    wordBank.innerHTML = "";
+    z.words.forEach(function(w){
+      var b = document.createElement("b");
+      b.textContent = w;
+      wordBank.appendChild(b);
+    });
+
+    // thermometer ARIA
+    var valNow = key==="hot"?2:key==="temp"?1:0;
+    thermo.setAttribute("aria-valuenow", String(valNow));
+    thermo.setAttribute("aria-valuetext", z.title + ", " + place);
+
+    explored[key] = true;
+    updateHint();
+
+    var msg = z.title + " zone. " + place + ". " + z.desc;
+    say(z.title + " zone. " + place + ".");
+    if(spoken) speakReading();
+    lastReadingText = z.title + " zone. You landed on " + place + ". " + z.desc;
+  }
+
+  var lastReadingText = "Places in the middle of the globe sit on the Equator. The Sun is strongest there, so it is the hottest part of the world.";
+
+  function updateHint(){
+    var missing = [];
+    if(!explored.hot) missing.push("a hot place near the Equator");
+    if(!explored.temp) missing.push("a temperate place in the middle");
+    if(!explored.cold) missing.push("a cold place near a Pole");
+    if(missing.length===0){
+      hint.textContent = "Well done. You have explored hot, temperate and cold places. Try the Quick check.";
+    } else {
+      hint.textContent = "Still to find: " + missing.join("; ") + ".";
+    }
+  }
+  updateHint();
+
+  /* ---------- Speech ---------- */
+  function speakReading(){
+    if(window.westTTS && window.westTTS.ready()){
+      window.westTTS.speak(lastReadingText, {lang:"en-GB", rate:0.85, pitch:1.1});
+    }
+  }
+  speakBtn.addEventListener("click", speakReading);
+
+  function say(t){ liveStatus.textContent = t; }
+
+  /* ---------- Pointer dragging of the thermometer ---------- */
+  var dragging = false;
+
+  function startDrag(e){
+    dragging = true;
+    thermo.style.cursor = "grabbing";
+    try{ thermo.setPointerCapture(e.pointerId); }catch(err){}
+    moveDrag(e);
+    e.preventDefault();
+  }
+  function moveDrag(e){
+    if(!dragging) return;
+    var p = clientToViewBox(e.clientX, e.clientY);
+    pos.x = Math.max(8, Math.min(392, p.x));
+    pos.y = Math.max(8, Math.min(392, p.y));
+    setThermoVisual(pos.x, pos.y);
+    e.preventDefault();
+  }
+  function endDrag(e){
+    if(!dragging) return;
+    dragging = false;
+    thermo.style.cursor = "grab";
+    try{ thermo.releasePointerCapture(e.pointerId); }catch(err){}
+    takeReading(pos.x, pos.y, false);
+  }
+  thermo.addEventListener("pointerdown", startDrag);
+  thermo.addEventListener("pointermove", moveDrag);
+  thermo.addEventListener("pointerup", endDrag);
+  thermo.addEventListener("pointercancel", endDrag);
+
+  /* Tap / click anywhere on the globe to take a reading there */
+  globe.addEventListener("pointerdown", function(e){
+    // ignore if the press began on the thermometer (handled above)
+    var p = clientToViewBox(e.clientX, e.clientY);
+    takeReading(p.x, p.y, false);
+    e.preventDefault();
+  });
+
+  /* ---------- Keyboard for the thermometer ---------- */
+  thermo.addEventListener("keydown", function(e){
+    var step = 18;
+    var handled = true;
+    switch(e.key){
+      case "ArrowUp":    pos.y = Math.max(8, pos.y - step); break;
+      case "ArrowDown":  pos.y = Math.min(392, pos.y + step); break;
+      case "ArrowLeft":  pos.x = Math.max(8, pos.x - step); break;
+      case "ArrowRight": pos.x = Math.min(392, pos.x + step); break;
+      case "Enter":
+      case " ":
+        takeReading(pos.x, pos.y, false);
+        return;
+      default: handled = false;
+    }
+    if(handled){
+      setThermoVisual(pos.x, pos.y);
+      var z = ZONES[zoneFor(pos.y)];
+      say("Thermometer moved. This spot is in the " + z.title + " zone. Press Enter to read it.");
+      e.preventDefault();
+    }
+  });
+
+  /* Keyboard on globe: Enter reads centre */
+  globe.addEventListener("keydown", function(e){
+    if(e.key==="Enter" || e.key===" "){
+      takeReading(pos.x, pos.y, false);
+      e.preventDefault();
+    }
+  });
+
+  /* ---------- Reset ---------- */
+  resetBtn.addEventListener("click", function(){
+    pos = {x:200, y:200};
+    setThermoVisual(pos.x, pos.y);
+    dropMarker.setAttribute("opacity", 0);
+    dropMarker.setAttribute("r", 0);
+    reading.className = "reading temp";
+    zoneBadge.textContent = "\u{1F30D}";
+    zoneTitle.textContent = "Drop the thermometer";
+    placeName.textContent = "Drag the thermometer onto the globe, or tap a spot.";
+    scenery.textContent = "\u{1F30D}";
+    zoneDesc.textContent = "Places in the middle of the globe sit on the Equator. The Sun is strongest there, so it is the hottest part of the world.";
+    wordBank.innerHTML = "";
+    say("Thermometer reset to the Equator.");
+  });
+
+  /* set initial thermo position */
+  setThermoVisual(pos.x, pos.y);
+
+  /* =========================================================
+     QUICK CHECK QUIZ
+  ========================================================= */
+  var qIndex = 0, score = 0, answered = false;
+  var QUESTIONS = [
+    {
+      q:"Where on the globe is it usually the hottest?",
+      opts:[
+        {t:"At the Equator, in the middle", ok:true},
+        {t:"At the North Pole, at the top", ok:false},
+        {t:"At the South Pole, at the bottom", ok:false}
+      ],
+      why:"Yes. The Equator is in the middle of the globe. The Sun is strongest there, so it is the hottest."
+    },
+    {
+      q:"Priya finds penguins, ice and snow. Which zone is she in?",
+      opts:[
+        {t:"The cold zone, near a Pole", ok:true},
+        {t:"The hot zone, on the Equator", ok:false},
+        {t:"The temperate zone", ok:false}
+      ],
+      why:"Correct. Ice, snow and penguins are found in cold places near the Poles."
+    },
+    {
+      q:"England has four seasons and is not too hot or too cold. Which zone is it?",
+      opts:[
+        {t:"The temperate zone", ok:true},
+        {t:"The hot zone", ok:false},
+        {t:"The cold zone", ok:false}
+      ],
+      why:"That's right. England is temperate: mild, with spring, summer, autumn and winter."
+    },
+    {
+      q:"Tom is in a hot rainforest with palm trees and strong sunshine. Where is he?",
+      opts:[
+        {t:"Near the Equator", ok:true},
+        {t:"Near the North Pole", ok:false},
+        {t:"Near the South Pole", ok:false}
+      ],
+      why:"Yes. Hot rainforests grow near the Equator where it is warm and wet all year."
+    },
+    {
+      q:"As you travel from the Equator to a Pole, the weather gets:",
+      opts:[
+        {t:"Colder", ok:true},
+        {t:"Hotter", ok:false},
+        {t:"Exactly the same", ok:false}
+      ],
+      why:"Correct. The further you go from the Equator towards a Pole, the colder it gets."
+    },
+    {
+      q:"Femi packs a thick coat, gloves and a woolly hat. Which place is he visiting?",
+      opts:[
+        {t:"A cold place near a Pole", ok:true},
+        {t:"A hot place on the Equator", ok:false},
+        {t:"A sandy beach in the hot zone", ok:false}
+      ],
+      why:"Yes. You need warm clothes for cold places near the Poles."
+    }
+  ];
+
+  var quizQ = document.getElementById("quizQ");
+  var quizOpts = document.getElementById("quizOpts");
+  var quizFeedback = document.getElementById("quizFeedback");
+  var scoreLine = document.getElementById("scoreLine");
+  var newQBtn = document.getElementById("newQBtn");
+
+  function loadQuestion(i){
+    answered = false;
+    var item = QUESTIONS[i];
+    quizQ.textContent = item.q;
+    quizFeedback.textContent = "";
+    quizFeedback.style.color = "";
+    quizOpts.innerHTML = "";
+    // shuffle option order
+    var order = item.opts.map(function(o,idx){return idx;});
+    for(var k=order.length-1;k>0;k--){ var j=Math.floor(Math.random()*(k+1)); var tmp=order[k];order[k]=order[j];order[j]=tmp; }
+    order.forEach(function(idx){
+      var o = item.opts[idx];
+      var btn = document.createElement("button");
+      btn.type="button";
+      btn.textContent = o.t;
+      btn.addEventListener("click", function(){ answer(btn, o, item); });
+      quizOpts.appendChild(btn);
+    });
+  }
+
+  function answer(btn, o, item){
+    if(answered) return;
+    answered = true;
+    var all = quizOpts.querySelectorAll("button");
+    all.forEach(function(b){ b.disabled = true; });
+    if(o.ok){
+      btn.classList.add("correct");
+      score++;
+      quizFeedback.style.color = "#1d7a44";
+      quizFeedback.textContent = "\u{2705} " + item.why;
+      if(window.westTTS && window.westTTS.ready()) window.westTTS.speak("Well done. " + item.why, {lang:"en-GB", rate:0.85, pitch:1.1});
+    } else {
+      btn.classList.add("wrong");
+      // highlight the correct one
+      all.forEach(function(b){
+        item.opts.forEach(function(op){
+          if(op.ok && b.textContent===op.t) b.classList.add("correct");
+        });
+      });
+      quizFeedback.style.color = "#b3401f";
+      quizFeedback.textContent = "\u{1F4A1} Not quite. " + item.why;
+      if(window.westTTS && window.westTTS.ready()) window.westTTS.speak("Not quite. " + item.why, {lang:"en-GB", rate:0.85, pitch:1.1});
+    }
+    scoreLine.textContent = "Score: " + score + " right";
+  }
+
+  newQBtn.addEventListener("click", function(){
+    qIndex = (qIndex + 1) % QUESTIONS.length;
+    loadQuestion(qIndex);
+  });
+
+  loadQuestion(0);
+
+})();
+</script>
+</body>
+</html>

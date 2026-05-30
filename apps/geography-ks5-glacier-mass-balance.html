@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glacier Mass Balance | KS5 Geography</title>
+<style>
+  :root {
+    --ink: #1d2733;
+    --muted: #586573;
+    --line: #dfe6ee;
+    --panel: #ffffff;
+    --bg: #eef3f7;
+    --ice: #cfe6f5;
+    --ice-deep: #6fb3da;
+    --rock: #8b8276;
+    --accum: #2f7dc7;
+    --abl: #d8743a;
+    --good: #2f8f57;
+    --bad: #c4452f;
+    --warn: #c98a16;
+    --accent: #16466e;
+    --shadow: 0 2px 10px rgba(26,52,77,.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app { margin-bottom: 14px; }
+  .eyebrow {
+    font-size: .72rem; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700;
+  }
+  h1 { font-size: clamp(1.45rem, 3.4vw, 2.05rem); margin: 4px 0 6px; line-height: 1.12; }
+  .aim {
+    background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--accent);
+    border-radius: 8px; padding: 10px 14px; font-size: .92rem; color: var(--muted);
+    box-shadow: var(--shadow);
+  }
+  .aim b { color: var(--ink); }
+  .grid { display: grid; gap: 16px; grid-template-columns: 1fr; margin-top: 16px; }
+  @media (min-width: 920px) {
+    .grid { grid-template-columns: 1.25fr 1fr; align-items: start; }
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px; box-shadow: var(--shadow);
+  }
+  .card h2 {
+    font-size: .82rem; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 12px; font-weight: 700;
+  }
+  /* Visualisation */
+  .vis-wrap { position: relative; }
+  svg.glacier { width: 100%; height: auto; display: block; border-radius: 10px; background: linear-gradient(#dcecf8, #eaf4fb); border: 1px solid var(--line); background: linear-gradient(#d4e9f7, #f2f9fd); }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-size: .8rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,.12); }
+  /* Controls */
+  .ctrl { margin-bottom: 16px; }
+  .ctrl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .ctrl-head label { font-weight: 600; font-size: .92rem; }
+  .ctrl-val { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); font-size: .95rem; }
+  input[type=range] {
+    width: 100%; margin: 8px 0 2px; height: 26px; -webkit-appearance: none; appearance: none; background: transparent;
+  }
+  input[type=range]:focus { outline: none; }
+  input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(22,70,110,.35); }
+  input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px rgba(22,70,110,.35); }
+  input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 4px; background: var(--line); }
+  input[type=range]::-moz-range-track { height: 6px; border-radius: 4px; background: var(--line); }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3); margin-top: -8px; cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: pointer;
+  }
+  #accumRange::-webkit-slider-thumb { background: var(--accum); }
+  #accumRange::-moz-range-thumb { background: var(--accum); }
+  #ablRange::-webkit-slider-thumb { background: var(--abl); }
+  #ablRange::-moz-range-thumb { background: var(--abl); }
+  .ctrl-sub { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+  /* Net balance readout */
+  .readout { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 6px 0 4px; }
+  .stat { background: #f6f9fc; border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; }
+  .stat .k { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .stat .v { font-size: 1.18rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .stat.full { grid-column: 1 / -1; }
+  .pos { color: var(--good); }
+  .neg { color: var(--bad); }
+  .neutral { color: var(--accent); }
+  /* Feedback */
+  .feedback {
+    border-radius: 10px; padding: 12px 14px; font-size: .92rem; margin-top: 6px;
+    border: 1px solid var(--line); background: #f6f9fc;
+  }
+  .feedback.state-advance { border-color: #bcdcc8; background: #ecf7f0; }
+  .feedback.state-retreat { border-color: #eccabb; background: #fbeee7; }
+  .feedback.state-steady { border-color: #c7dcef; background: #eaf3fb; }
+  .feedback strong { display: block; margin-bottom: 3px; }
+  /* Buttons */
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  button.btn {
+    font: inherit; font-weight: 600; font-size: .86rem; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    border-radius: 8px; padding: 9px 14px;
+  }
+  button.btn.ghost { background: #fff; color: var(--accent); }
+  button.btn:focus-visible { outline: 3px solid rgba(22,70,110,.4); outline-offset: 2px; }
+  button.btn:hover { filter: brightness(1.06); }
+  /* Year strip */
+  .years { display: flex; gap: 4px; margin-top: 12px; align-items: flex-end; height: 64px; }
+  .ybar { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; position: relative; }
+  .ybar .fill { width: 100%; border-radius: 3px 3px 0 0; transition: height .25s ease, background .2s; }
+  .ybar .yr { font-size: .6rem; text-align: center; color: var(--muted); margin-top: 3px; }
+  .years-mid { border-top: 1px dashed var(--line); position: relative; }
+  /* Challenge */
+  .challenge { margin-top: 16px; }
+  .chip {
+    display: inline-block; font-size: .74rem; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+    background: #eef3f8; color: var(--accent); border: 1px solid var(--line); margin-bottom: 8px;
+  }
+  .target-card { background: #fbfdff; border: 1px dashed var(--ice-deep); border-radius: 9px; padding: 11px 13px; font-size: .9rem; }
+  .target-card .goal { font-weight: 700; color: var(--ink); }
+  .verdict { margin-top: 10px; font-weight: 700; font-size: .92rem; min-height: 1.2em; }
+  .verdict.win { color: var(--good); }
+  .verdict.miss { color: var(--warn); }
+  /* Concept notes */
+  details.note { margin-top: 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+  details.note summary {
+    cursor: pointer; font-weight: 700; font-size: .9rem; padding: 11px 14px; color: var(--accent);
+    list-style: none;
+  }
+  details.note summary::-webkit-details-marker { display: none; }
+  details.note summary::after { content: '\002B'; float: right; font-weight: 700; }
+  details.note[open] summary::after { content: '\2212'; }
+  details.note .body { padding: 0 14px 14px; font-size: .9rem; color: var(--muted); }
+  details.note .body p { margin: 8px 0; }
+  details.note .body code { background: #eef3f8; padding: 1px 6px; border-radius: 5px; color: var(--ink); font-size: .86rem; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  footer.note-foot { margin-top: 22px; font-size: .78rem; color: var(--muted); text-align: center; }
+  .ela-label { font-size: .8rem; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <div class="eyebrow">KS5 Geography &middot; Glaciated landscapes &middot; Systems</div>
+    <h1>Glacier Mass Balance Modeller</h1>
+    <div class="aim">
+      <b>Teaching aim:</b> model a glacier as an open system. Adjust winter accumulation and summer ablation across a run of years, then read how the <b>net mass balance</b> drives advance or retreat and shifts the <b>equilibrium line altitude (ELA)</b>.
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <!-- LEFT: visualisation -->
+    <section class="card vis-wrap" aria-labelledby="vis-h">
+      <h2 id="vis-h">Glacier long profile</h2>
+      <svg class="glacier" id="glacierSvg" viewBox="0 0 600 360" role="img"
+           aria-labelledby="svgTitle svgDesc">
+        <title id="svgTitle">Cross section of a valley glacier on a mountainside</title>
+        <desc id="svgDesc" aria-live="polite">Glacier profile updating with model state.</desc>
+        <!-- altitude axis -->
+        <g id="axis"></g>
+        <!-- bedrock -->
+        <path id="bedrock" fill="var(--rock)" stroke="#6f675c" stroke-width="1.5"></path>
+        <!-- glacier ice -->
+        <path id="iceBody" fill="var(--ice-deep)" fill-opacity="0.92" stroke="#3f87b3" stroke-width="1.5"></path>
+        <path id="iceShade" fill="#ffffff" fill-opacity="0.18"></path>
+        <!-- accumulation / ablation zone tint -->
+        <rect id="accumZone" x="0" y="0" width="600" height="0" fill="var(--accum)" fill-opacity="0.10"></rect>
+        <!-- ELA line -->
+        <line id="elaLine" x1="0" x2="600" stroke="var(--accent)" stroke-width="2" stroke-dasharray="7 5"></line>
+        <text id="elaText" x="8" y="0" class="ela-label" fill="var(--accent)" font-weight="700">ELA</text>
+        <!-- snout marker -->
+        <circle id="snout" r="6" fill="#fff" stroke="var(--bad)" stroke-width="3"></circle>
+        <text id="snoutLabel" class="ela-label" fill="var(--bad)" font-weight="700" text-anchor="end">snout</text>
+      </svg>
+      <div class="legend" aria-hidden="true">
+        <span><i class="swatch" style="background:var(--ice-deep)"></i> Glacier ice</span>
+        <span><i class="swatch" style="background:var(--accum); opacity:.4"></i> Accumulation zone</span>
+        <span><i class="swatch" style="background:var(--abl)"></i> Ablation zone (below ELA)</span>
+        <span><i class="swatch" style="background:var(--accent)"></i> Equilibrium line altitude</span>
+      </div>
+
+      <div class="years" id="yearStrip" aria-hidden="true"></div>
+      <p class="ctrl-sub" id="yearCaption" aria-hidden="true" style="margin-top:6px">Net balance each modelled year (green = gain, orange = loss).</p>
+
+      <details class="note">
+        <summary>The maths behind this model</summary>
+        <div class="body">
+          <p><b>Net mass balance</b> <code>B<sub>n</sub> = accumulation &minus; ablation</code> (metres water equivalent per year). Positive means the glacier gains mass; negative means it loses mass.</p>
+          <p><b>ELA</b> is the altitude where annual accumulation exactly balances annual ablation. Warmer, lower-accumulation years push the ELA <em>up</em> the valley; colder, snowier years pull it <em>down</em>.</p>
+          <p><b>Lag, not instant response.</b> The snout reacts to the cumulative balance of the recent years (a smoothed response time), so a single good year does not immediately reverse a retreating glacier. That delay is why glacier snouts are used as a long-term climate signal.</p>
+          <p>Figures here are illustrative and rounded for teaching. They are realistic in scale for an Alpine-type valley glacier but are not measurements of any specific glacier.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- RIGHT: controls + feedback -->
+    <section class="card" aria-labelledby="ctrl-h">
+      <h2 id="ctrl-h">Set the climate inputs</h2>
+
+      <div class="ctrl">
+        <div class="ctrl-head">
+          <label for="accumRange">Winter accumulation</label>
+          <span class="ctrl-val"><span id="accumOut">1.6</span> m w.e.</span>
+        </div>
+        <input type="range" id="accumRange" min="0.2" max="3.4" step="0.1" value="1.6"
+               aria-describedby="accumHelp" />
+        <div class="ctrl-sub" id="accumHelp">Snowfall stored as ice each year (metres water equivalent).</div>
+      </div>
+
+      <div class="ctrl">
+        <div class="ctrl-head">
+          <label for="ablRange">Summer ablation</label>
+          <span class="ctrl-val"><span id="ablOut">1.6</span> m w.e.</span>
+        </div>
+        <input type="range" id="ablRange" min="0.2" max="3.4" step="0.1" value="1.6"
+               aria-describedby="ablHelp" />
+        <div class="ctrl-sub" id="ablHelp">Melt and loss each year (rises with summer temperature).</div>
+      </div>
+
+      <div class="readout">
+        <div class="stat">
+          <div class="k">Net balance B<sub>n</sub></div>
+          <div class="v" id="netOut">0.0</div>
+        </div>
+        <div class="stat">
+          <div class="k">ELA</div>
+          <div class="v neutral" id="elaOut">2700 m</div>
+        </div>
+        <div class="stat full">
+          <div class="k">Cumulative balance over modelled years</div>
+          <div class="v" id="cumOut">0.0 m w.e.</div>
+        </div>
+      </div>
+
+      <div class="feedback state-steady" id="feedback" role="status" aria-live="polite">
+        <strong id="fbTitle">Glacier in balance</strong>
+        <span id="fbBody">Accumulation equals ablation, so this glacier is close to a steady state.</span>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="advanceBtn" type="button">Advance one year &#x25B6;</button>
+        <button class="btn ghost" id="run5Btn" type="button">Run 5 years</button>
+        <button class="btn ghost" id="resetBtn" type="button">Reset</button>
+      </div>
+
+      <!-- Challenge -->
+      <div class="challenge" aria-labelledby="ch-h">
+        <span class="chip" id="ch-h">Challenge</span>
+        <div class="target-card">
+          <div class="goal" id="challengeGoal">Loading challenge...</div>
+          <div class="ctrl-sub" id="challengeHint" style="margin-top:6px"></div>
+        </div>
+        <div class="verdict" id="verdict" role="status" aria-live="polite"></div>
+        <div class="btn-row">
+          <button class="btn ghost" id="newChallengeBtn" type="button">New challenge</button>
+        </div>
+      </div>
+
+      <p class="sr-only" id="liveSummary" role="status" aria-live="polite"></p>
+    </section>
+  </div>
+
+  <footer class="note-foot">
+    Demonstration model for KS5 teaching. Values are illustrative of an Alpine-type valley glacier, not measurements of a real named glacier.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ----- Model constants -----
+  var BASE_ELA = 2700;          // metres, when net balance is zero
+  var ELA_PER_NET = -230;       // ELA shift (m) per +1 m w.e. net balance (more snow lowers ELA)
+  var RESPONSE = 0.34;          // fraction of imbalance the snout closes per year (lag)
+  var BASE_SNOUT = 1900;        // metres, equilibrium snout altitude reference
+  var SNOUT_PER_CUM = 26;       // metres of snout altitude change per unit cumulative balance
+
+  // ----- State -----
+  var accum = 1.6, abl = 1.6;
+  var snoutAlt = BASE_SNOUT;    // smoothed/lagged snout altitude (m)
+  var cumulative = 0;           // cumulative net balance (m w.e.)
+  var history = [];             // array of net balances per modelled year
+  var year = 0;
+
+  // ----- Elements -----
+  var accumRange = document.getElementById('accumRange');
+  var ablRange = document.getElementById('ablRange');
+  var accumOut = document.getElementById('accumOut');
+  var ablOut = document.getElementById('ablOut');
+  var netOut = document.getElementById('netOut');
+  var elaOut = document.getElementById('elaOut');
+  var cumOut = document.getElementById('cumOut');
+  var fb = document.getElementById('feedback');
+  var fbTitle = document.getElementById('fbTitle');
+  var fbBody = document.getElementById('fbBody');
+  var yearStrip = document.getElementById('yearStrip');
+  var liveSummary = document.getElementById('liveSummary');
+  var verdict = document.getElementById('verdict');
+  var challengeGoal = document.getElementById('challengeGoal');
+  var challengeHint = document.getElementById('challengeHint');
+
+  // SVG elements
+  var bedrock = document.getElementById('bedrock');
+  var iceBody = document.getElementById('iceBody');
+  var iceShade = document.getElementById('iceShade');
+  var accumZone = document.getElementById('accumZone');
+  var elaLine = document.getElementById('elaLine');
+  var elaText = document.getElementById('elaText');
+  var snout = document.getElementById('snout');
+  var snoutLabel = document.getElementById('snoutLabel');
+  var axis = document.getElementById('axis');
+  var svgDesc = document.getElementById('svgDesc');
+
+  // ----- Geometry: altitude <-> svg-y -----
+  // Top of view = 3300 m, bottom = 1500 m
+  var ALT_TOP = 3300, ALT_BOTTOM = 1500;
+  var Y_TOP = 18, Y_BOTTOM = 318;
+  function altToY(a) {
+    var t = (ALT_TOP - a) / (ALT_TOP - ALT_BOTTOM);
+    return Y_TOP + t * (Y_BOTTOM - Y_TOP);
+  }
+  // Bedrock x->altitude: steep at top (x small) to valley floor (x large)
+  function bedAltAtX(x) {
+    var f = x / 600;                       // 0..1 left->right (high->low)
+    // smooth descending curve
+    var a = ALT_TOP - (ALT_TOP - 1620) * Math.pow(f, 0.78);
+    return a;
+  }
+
+  function buildAxis() {
+    var marks = [3300, 3000, 2700, 2400, 2100, 1800, 1500];
+    var frag = '';
+    for (var i = 0; i < marks.length; i++) {
+      var y = altToY(marks[i]);
+      frag += '<line x1="0" x2="600" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) +
+              '" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1"/>';
+      frag += '<text x="596" y="' + (y - 3).toFixed(1) + '" text-anchor="end" font-size="10" fill="#3a5a72" opacity="0.8">' +
+              marks[i] + ' m</text>';
+    }
+    axis.innerHTML = frag;
+  }
+
+  // ----- Core update of derived values -----
+  function computeNet() { return +(accum - abl).toFixed(2); }
+
+  function computeELA(net) {
+    return Math.round(BASE_ELA + ELA_PER_NET * net);
+  }
+
+  // ----- Drawing -----
+  function draw() {
+    var net = computeNet();
+    var ela = computeELA(net);
+
+    // bedrock path
+    var bp = 'M0,' + altToY(bedAltAtX(0)).toFixed(1);
+    for (var x = 0; x <= 600; x += 20) {
+      bp += ' L' + x + ',' + altToY(bedAltAtX(x)).toFixed(1);
+    }
+    bp += ' L600,360 L0,360 Z';
+    bedrock.setAttribute('d', bp);
+
+    // Glacier ice: sits on bedrock from the cirque (x~40) down to the snout.
+    // Snout x is derived from snoutAlt by inverting bedAltAtX.
+    var snoutX = snoutXFromAlt(snoutAlt);
+    var headX = 36;
+    // ice surface a little above bedrock, thickest mid-glacier
+    var top = 'M' + headX + ',' + altToY(bedAltAtX(headX) + 30).toFixed(1);
+    var pts = [];
+    for (var sx = headX; sx <= snoutX; sx += 12) {
+      var prog = (sx - headX) / Math.max(1, (snoutX - headX)); // 0..1
+      var thick = 90 * Math.sin(Math.PI * Math.min(1, prog * 0.92 + 0.05)); // bulge
+      thick = Math.max(8, thick);
+      var surfAlt = bedAltAtX(sx) + thick;
+      pts.push([sx, altToY(surfAlt)]);
+    }
+    var surfacePath = 'M' + pts[0][0] + ',' + pts[0][1].toFixed(1);
+    for (var p = 1; p < pts.length; p++) surfacePath += ' L' + pts[p][0] + ',' + pts[p][1].toFixed(1);
+    // down the snout then back along bedrock
+    var bedReturn = '';
+    for (var bx = snoutX; bx >= headX; bx -= 12) {
+      bedReturn += ' L' + bx + ',' + altToY(bedAltAtX(bx)).toFixed(1);
+    }
+    iceBody.setAttribute('d', surfacePath + ' L' + snoutX + ',' + altToY(bedAltAtX(snoutX)).toFixed(1) + bedReturn + ' Z');
+    // shading band (upper portion)
+    iceShade.setAttribute('d', surfacePath + ' L' + snoutX + ',' + (pts[pts.length-1][1]+10).toFixed(1) + ' L' + headX + ',' + (pts[0][1]+10).toFixed(1) + ' Z');
+
+    // ELA line
+    var elaY = altToY(ela);
+    elaLine.setAttribute('y1', elaY.toFixed(1));
+    elaLine.setAttribute('y2', elaY.toFixed(1));
+    elaText.setAttribute('y', (elaY - 5).toFixed(1));
+    elaText.textContent = 'ELA ' + ela + ' m';
+
+    // accumulation zone tint (above ELA)
+    accumZone.setAttribute('height', Math.max(0, elaY - Y_TOP).toFixed(1));
+    accumZone.setAttribute('y', Y_TOP);
+
+    // snout marker
+    var snY = altToY(bedAltAtX(snoutX));
+    snout.setAttribute('cx', snoutX);
+    snout.setAttribute('cy', snY.toFixed(1));
+    snoutLabel.setAttribute('x', Math.max(60, snoutX - 10).toFixed(1));
+    snoutLabel.setAttribute('y', (snY + 18).toFixed(1));
+    snoutLabel.textContent = 'snout ' + Math.round(snoutAlt) + ' m';
+
+    svgDesc.textContent = 'Glacier snout at about ' + Math.round(snoutAlt) +
+      ' metres altitude. Equilibrium line altitude at ' + ela +
+      ' metres. Net mass balance ' + (net >= 0 ? 'plus ' : 'minus ') + Math.abs(net).toFixed(1) + ' metres water equivalent.';
+  }
+
+  function snoutXFromAlt(alt) {
+    // invert bedAltAtX numerically (monotonic), clamp to a sensible band
+    var lo = 36, hi = 560, best = 300;
+    for (var i = 0; i < 28; i++) {
+      var mid = (lo + hi) / 2;
+      if (bedAltAtX(mid) > alt) lo = mid; else hi = mid;
+      best = mid;
+    }
+    return Math.max(120, Math.min(560, best));
+  }
+
+  // ----- Year strip -----
+  function drawYearStrip() {
+    yearStrip.innerHTML = '';
+    var maxYears = 16;
+    var slice = history.slice(-maxYears);
+    var maxAbs = 1.0;
+    for (var i = 0; i < slice.length; i++) maxAbs = Math.max(maxAbs, Math.abs(slice[i].net));
+    for (var j = 0; j < slice.length; j++) {
+      var d = slice[j];
+      var bar = document.createElement('div');
+      bar.className = 'ybar';
+      var fill = document.createElement('div');
+      fill.className = 'fill';
+      var h = Math.round((Math.abs(d.net) / maxAbs) * 48) + 4;
+      fill.style.height = h + 'px';
+      fill.style.background = d.net >= 0 ? 'var(--accum)' : 'var(--abl)';
+      if (d.net >= 0) bar.style.justifyContent = 'flex-end';
+      var yr = document.createElement('div');
+      yr.className = 'yr';
+      yr.textContent = 'Y' + d.year;
+      bar.appendChild(fill);
+      bar.appendChild(yr);
+      yearStrip.appendChild(bar);
+    }
+  }
+
+  // ----- Feedback text -----
+  function updateFeedback() {
+    var net = computeNet();
+    var ela = computeELA(net);
+    var state, title, body, fbClass;
+
+    if (net > 0.25) {
+      state = 'advance'; fbClass = 'state-advance';
+      title = 'Positive balance: glacier tends to advance';
+      body = 'Accumulation exceeds ablation by ' + net.toFixed(1) +
+        ' m w.e. each year. The ELA drops to ' + ela + ' m, so the accumulation zone enlarges. ' +
+        'Run several years and watch the snout grow down-valley (with a lag).';
+    } else if (net < -0.25) {
+      state = 'retreat'; fbClass = 'state-retreat';
+      title = 'Negative balance: glacier tends to retreat';
+      body = 'Ablation exceeds accumulation by ' + Math.abs(net).toFixed(1) +
+        ' m w.e. each year. The ELA rises to ' + ela + ' m, shrinking the accumulation zone. ' +
+        'The snout will pull back up-valley over the next few years.';
+    } else {
+      state = 'steady'; fbClass = 'state-steady';
+      title = 'Near balance: glacier close to steady state';
+      body = 'Accumulation and ablation roughly match (net ' + net.toFixed(1) +
+        ' m w.e.). The ELA holds around ' + ela + ' m and the snout barely moves.';
+    }
+
+    fb.className = 'feedback ' + fbClass;
+    fbTitle.textContent = title;
+    fbBody.textContent = body;
+    fb.setAttribute('data-state', state);
+  }
+
+  // ----- Readouts -----
+  function updateReadouts() {
+    var net = computeNet();
+    accumOut.textContent = accum.toFixed(1);
+    ablOut.textContent = abl.toFixed(1);
+    netOut.textContent = (net >= 0 ? '+' : '−') + Math.abs(net).toFixed(1) + ' m';
+    netOut.className = 'v ' + (net > 0.25 ? 'pos' : net < -0.25 ? 'neg' : 'neutral');
+    elaOut.textContent = computeELA(net) + ' m';
+    cumOut.textContent = (cumulative >= 0 ? '+' : '−') + Math.abs(cumulative).toFixed(1) + ' m w.e.';
+    cumOut.className = 'v ' + (cumulative > 0.5 ? 'pos' : cumulative < -0.5 ? 'neg' : 'neutral');
+  }
+
+  function refreshLive() {
+    var net = computeNet();
+    liveSummary.textContent = 'Net balance ' + (net >= 0 ? 'positive ' : 'negative ') +
+      Math.abs(net).toFixed(1) + ' metres. ELA ' + computeELA(net) + ' metres. Snout ' +
+      Math.round(snoutAlt) + ' metres. Year ' + year + '.';
+  }
+
+  function fullRefresh() {
+    updateReadouts();
+    updateFeedback();
+    draw();
+    drawYearStrip();
+    refreshLive();
+    checkChallenge();
+  }
+
+  // ----- Advance the model by one year -----
+  function advanceYear() {
+    var net = computeNet();
+    year += 1;
+    cumulative = +(cumulative + net).toFixed(2);
+    // snout lags toward an equilibrium implied by cumulative balance
+    var targetSnout = BASE_SNOUT - SNOUT_PER_CUM * cumulative; // gain => lower snout
+    targetSnout = Math.max(1640, Math.min(2150, targetSnout));
+    snoutAlt = snoutAlt + RESPONSE * (targetSnout - snoutAlt);
+    history.push({ year: year, net: net });
+    if (history.length > 40) history.shift();
+    fullRefresh();
+  }
+
+  function runYears(n) {
+    var i = 0;
+    function step() {
+      advanceYear();
+      i++;
+      if (i < n) setTimeout(step, 220);
+    }
+    step();
+  }
+
+  function reset() {
+    snoutAlt = BASE_SNOUT;
+    cumulative = 0;
+    history = [];
+    year = 0;
+    fullRefresh();
+  }
+
+  // ----- Challenges -----
+  var challenges = [
+    {
+      goal: 'Make this glacier ADVANCE strongly: drive the snout below 1800 m within 6 years.',
+      hint: 'A clearly positive net balance lowers the ELA and pushes the snout down-valley. Remember the lag, so run several years.',
+      test: function () { return snoutAlt < 1800; },
+      win: 'Sustained positive balance enlarged the accumulation zone and the snout advanced down-valley. This is what a colder, snowier climate phase looks like.'
+    },
+    {
+      goal: 'Force a RETREAT: lift the ELA to 2900 m or higher.',
+      hint: 'The ELA rises when ablation outstrips accumulation. You can hit this on the inputs alone, no need to run years.',
+      test: function () { return computeELA(computeNet()) >= 2900; },
+      win: 'A strongly negative balance pushed the ELA up the valley, shrinking the accumulation zone: the classic signature of a warming climate.'
+    },
+    {
+      goal: 'Reach a near-steady glacier: keep the ELA between 2640 m and 2760 m AND net balance within 0.2 m w.e.',
+      hint: 'Balance accumulation against ablation. The closer the two inputs, the smaller the net balance and the more stable the ELA.',
+      test: function () {
+        var ela = computeELA(computeNet());
+        return Math.abs(computeNet()) <= 0.2 && ela >= 2640 && ela <= 2760;
+      },
+      win: 'Inputs balanced: accumulation and ablation cancel, so the ELA sits near its base value and the snout is stable. A glacier in equilibrium.'
+    },
+    {
+      goal: 'Build a positive cumulative balance of +4 m w.e. or more, then read the snout altitude.',
+      hint: 'Set a positive net balance and use Run 5 years (more than once if needed). Watch the cumulative total climb.',
+      test: function () { return cumulative >= 4; },
+      win: 'A run of positive years stacked up mass. The lagged snout has crept down-valley, showing why glacier fronts respond to climate over years, not days.'
+    }
+  ];
+  var currentChallenge = 0;
+  var challengeSolved = false;
+
+  function loadChallenge(idx) {
+    currentChallenge = idx;
+    challengeSolved = false;
+    challengeGoal.textContent = challenges[idx].goal;
+    challengeHint.textContent = challenges[idx].hint;
+    verdict.textContent = '';
+    verdict.className = 'verdict';
+  }
+
+  function checkChallenge() {
+    var c = challenges[currentChallenge];
+    if (c.test()) {
+      if (!challengeSolved) {
+        challengeSolved = true;
+        verdict.textContent = '✓ Done. ' + c.win;
+        verdict.className = 'verdict win';
+      }
+    } else {
+      if (!challengeSolved) {
+        verdict.textContent = 'Not yet, keep adjusting.';
+        verdict.className = 'verdict miss';
+      }
+    }
+  }
+
+  function newChallenge() {
+    var next = (currentChallenge + 1) % challenges.length;
+    loadChallenge(next);
+    fullRefresh();
+  }
+
+  // ----- Wiring -----
+  accumRange.setAttribute('aria-valuetext', accum.toFixed(1) + ' metres water equivalent');
+  ablRange.setAttribute('aria-valuetext', abl.toFixed(1) + ' metres water equivalent');
+
+  accumRange.addEventListener('input', function () {
+    accum = parseFloat(accumRange.value);
+    accumRange.setAttribute('aria-valuetext', accum.toFixed(1) + ' metres water equivalent');
+    fullRefresh();
+  });
+  ablRange.addEventListener('input', function () {
+    abl = parseFloat(ablRange.value);
+    ablRange.setAttribute('aria-valuetext', abl.toFixed(1) + ' metres water equivalent');
+    fullRefresh();
+  });
+
+  document.getElementById('advanceBtn').addEventListener('click', function () { advanceYear(); });
+  document.getElementById('run5Btn').addEventListener('click', function () { runYears(5); });
+  document.getElementById('resetBtn').addEventListener('click', function () { reset(); });
+  document.getElementById('newChallengeBtn').addEventListener('click', function () { newChallenge(); });
+
+  // ----- Init -----
+  buildAxis();
+  loadChallenge(0);
+  fullRefresh();
+})();
+</script>
+</body>
+</html>

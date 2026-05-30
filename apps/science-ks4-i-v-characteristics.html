@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>I-V Characteristics</title>
+<style>
+  :root{
+    --ink:#16202b;
+    --muted:#5a6b7b;
+    --line:#d8e0e8;
+    --bg:#f4f7fa;
+    --card:#ffffff;
+    --accent:#0e6ba8;
+    --accent-d:#0a4f7c;
+    --ohmic:#0e6ba8;
+    --lamp:#d97706;
+    --diode:#15803d;
+    --warn:#b91c1c;
+    --good:#15803d;
+    --shadow:0 2px 10px rgba(20,40,60,.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  header.app{
+    background:linear-gradient(120deg,var(--accent-d),var(--accent));
+    color:#fff;
+    padding:18px 20px 16px;
+  }
+  header.app h1{
+    margin:0;
+    font-size:1.55rem;
+    letter-spacing:.2px;
+  }
+  header.app .aim{
+    margin:6px 0 0;
+    font-size:.95rem;
+    opacity:.95;
+    max-width:60ch;
+  }
+  .wrap{
+    max-width:1080px;
+    margin:0 auto;
+    padding:16px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:16px;
+  }
+  @media(min-width:880px){
+    .grid{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);}
+  }
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    box-shadow:var(--shadow);
+    padding:16px;
+  }
+  .card h2{
+    margin:0 0 10px;
+    font-size:1.05rem;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .swatch{width:14px;height:14px;border-radius:3px;display:inline-block;flex:none;}
+
+  /* Component selector */
+  .components{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+  }
+  .comp-btn{
+    flex:1 1 150px;
+    border:2px solid var(--line);
+    background:#fff;
+    border-radius:10px;
+    padding:10px 12px;
+    cursor:pointer;
+    text-align:left;
+    font:inherit;
+    color:var(--ink);
+    transition:border-color .15s,box-shadow .15s,background .15s;
+    min-height:64px;
+  }
+  .comp-btn .ct{font-weight:700;font-size:.98rem;display:flex;align-items:center;gap:7px;}
+  .comp-btn .cd{font-size:.78rem;color:var(--muted);margin-top:3px;}
+  .comp-btn[aria-pressed="true"]{
+    border-color:var(--accent);
+    background:#eef6fc;
+    box-shadow:0 0 0 1px var(--accent);
+  }
+  .comp-btn:focus-visible{outline:3px solid #ffb703;outline-offset:2px;}
+
+  /* Slider */
+  .control-row{margin:14px 0 6px;}
+  .control-row label{font-weight:600;font-size:.9rem;display:block;margin-bottom:6px;}
+  .vread{
+    font-variant-numeric:tabular-nums;
+    font-weight:700;
+    color:var(--accent-d);
+  }
+  input[type=range]{width:100%;height:34px;accent-color:var(--accent);touch-action:none;}
+  .slider-help{font-size:.78rem;color:var(--muted);margin-top:2px;}
+
+  .readouts{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:8px;
+    margin-top:12px;
+  }
+  .ro{
+    background:#f0f5f9;
+    border:1px solid var(--line);
+    border-radius:9px;
+    padding:8px 6px;
+    text-align:center;
+  }
+  .ro .k{font-size:.7rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);}
+  .ro .v{font-size:1.18rem;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px;}
+  .ro .u{font-size:.72rem;color:var(--muted);}
+
+  /* Circuit */
+  .circuit-wrap{margin-top:6px;}
+  svg.circuit{width:100%;height:auto;display:block;}
+
+  /* Graph */
+  .graph-wrap{position:relative;}
+  svg.graph{width:100%;height:auto;display:block;touch-action:none;}
+  .graph-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center;}
+  .toggle{
+    display:inline-flex;align-items:center;gap:6px;
+    border:1px solid var(--line);border-radius:20px;padding:4px 10px;font-size:.8rem;cursor:pointer;background:#fff;
+  }
+  .toggle input{margin:0;}
+  button.btn{
+    border:1px solid var(--accent);background:var(--accent);color:#fff;
+    border-radius:8px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer;
+  }
+  button.btn.ghost{background:#fff;color:var(--accent-d);}
+  button.btn:focus-visible,.toggle:focus-within{outline:3px solid #ffb703;outline-offset:2px;}
+
+  /* Feedback / coaching */
+  .coach{
+    margin-top:14px;
+    border-left:4px solid var(--accent);
+    background:#eef6fc;
+    border-radius:0 8px 8px 0;
+    padding:11px 13px;
+    font-size:.92rem;
+    min-height:54px;
+  }
+  .coach.warn{border-left-color:var(--warn);background:#fdecec;}
+  .coach.good{border-left-color:var(--good);background:#eafaf0;}
+  .coach strong{display:block;margin-bottom:2px;}
+
+  /* Predict-then-check challenge */
+  .challenge{margin-top:4px;}
+  .challenge h3{margin:2px 0 8px;font-size:1rem;}
+  .qtext{font-weight:600;margin-bottom:10px;}
+  .opts{display:grid;gap:8px;}
+  .opt{
+    text-align:left;border:2px solid var(--line);background:#fff;border-radius:10px;
+    padding:10px 12px;font:inherit;cursor:pointer;color:var(--ink);
+  }
+  .opt:hover{border-color:var(--accent);}
+  .opt:focus-visible{outline:3px solid #ffb703;outline-offset:2px;}
+  .opt.correct{border-color:var(--good);background:#eafaf0;}
+  .opt.wrong{border-color:var(--warn);background:#fdecec;}
+  .opt[disabled]{cursor:default;opacity:.85;}
+  .explain{margin-top:10px;font-size:.9rem;background:#f0f5f9;border:1px solid var(--line);border-radius:9px;padding:10px;display:none;}
+  .explain.show{display:block;}
+  .scoreline{font-size:.82rem;color:var(--muted);margin-top:8px;}
+  .nextq{margin-top:10px;}
+
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem;margin-top:8px;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);border:0;}
+
+  footer.note{font-size:.78rem;color:var(--muted);text-align:center;padding:18px 16px 30px;}
+  .tag{display:inline-block;font-size:.7rem;background:#dbeafe;color:#1e3a8a;border-radius:5px;padding:2px 7px;margin-left:6px;vertical-align:middle;}
+  details.theory{margin-top:14px;}
+  details.theory summary{cursor:pointer;font-weight:600;color:var(--accent-d);}
+  details.theory p{font-size:.88rem;margin:8px 0;}
+  details.theory table{border-collapse:collapse;width:100%;font-size:.82rem;margin-top:6px;}
+  details.theory th,details.theory td{border:1px solid var(--line);padding:5px 7px;text-align:left;}
+  details.theory th{background:#f0f5f9;}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="app">
+  <h1>I-V Characteristics <span class="tag">Science &middot; KS4 Physics</span></h1>
+  <p class="aim">Teacher aim: vary the potential difference across three components and watch the current respond. Read off the live I-V curves to compare an ohmic resistor, a filament lamp and a diode, then explain why each shape looks the way it does.</p>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+
+    <!-- LEFT: lab bench -->
+    <section class="card" aria-labelledby="bench-h">
+      <h2 id="bench-h"><span class="swatch" id="active-swatch" style="background:var(--ohmic)"></span> Test bench</h2>
+
+      <div class="components" role="group" aria-label="Choose a component to test">
+        <button class="comp-btn" id="btn-ohmic" data-comp="ohmic" aria-pressed="true">
+          <span class="ct"><span class="swatch" style="background:var(--ohmic)"></span> Fixed resistor</span>
+          <span class="cd">Ohmic conductor at constant temperature</span>
+        </button>
+        <button class="comp-btn" id="btn-lamp" data-comp="lamp" aria-pressed="false">
+          <span class="ct"><span class="swatch" style="background:var(--lamp)"></span> Filament lamp</span>
+          <span class="cd">Metal filament that heats up</span>
+        </button>
+        <button class="comp-btn" id="btn-diode" data-comp="diode" aria-pressed="false">
+          <span class="ct"><span class="swatch" style="background:var(--diode)"></span> Diode</span>
+          <span class="cd">One-way component (semiconductor)</span>
+        </button>
+      </div>
+
+      <div class="circuit-wrap" aria-hidden="false">
+        <svg class="circuit" viewBox="0 0 360 150" role="img" aria-label="Series circuit with a cell, a variable supply, an ammeter and the component under test">
+          <!-- wires -->
+          <rect x="0" y="0" width="360" height="150" fill="none"/>
+          <path d="M30 110 H30 V40 H110" fill="none" stroke="#7a8a99" stroke-width="3"/>
+          <path d="M150 40 H210" fill="none" stroke="#7a8a99" stroke-width="3"/>
+          <path d="M250 40 H330 V110 H30" fill="none" stroke="#7a8a99" stroke-width="3"/>
+          <!-- cell / supply -->
+          <line x1="22" y1="78" x2="38" y2="78" stroke="#16202b" stroke-width="3"/>
+          <line x1="26" y1="86" x2="34" y2="86" stroke="#16202b" stroke-width="6"/>
+          <text x="6" y="74" font-size="11" fill="#5a6b7b">+</text>
+          <text x="6" y="100" font-size="11" fill="#5a6b7b">&minus;</text>
+          <text x="44" y="70" font-size="10" fill="#5a6b7b">variable supply</text>
+          <!-- ammeter -->
+          <circle cx="130" cy="40" r="20" fill="#fff" stroke="#16202b" stroke-width="2.5"/>
+          <text x="130" y="45" font-size="15" text-anchor="middle" font-weight="700" fill="#16202b">A</text>
+          <text x="130" y="78" font-size="10" text-anchor="middle" fill="#5a6b7b" id="amm-label">0.00 A</text>
+          <!-- component box -->
+          <g id="comp-glyph">
+            <rect x="210" y="25" width="40" height="30" rx="3" fill="#fff" stroke="#16202b" stroke-width="2.5" id="comp-box"/>
+          </g>
+          <text x="230" y="78" font-size="10" text-anchor="middle" fill="#5a6b7b" id="vlabel-svg">0.0 V</text>
+          <!-- glow for lamp -->
+          <circle id="lamp-glow" cx="230" cy="40" r="0" fill="#fde68a" opacity="0"/>
+        </svg>
+      </div>
+
+      <div class="control-row">
+        <label for="voltage">Potential difference across component:
+          <span class="vread" id="vread">0.0 V</span></label>
+        <input type="range" id="voltage" min="-6" max="6" step="0.1" value="0"
+               aria-valuetext="0.0 volts"
+               aria-describedby="slider-help">
+        <div class="slider-help" id="slider-help">Drag, or use the arrow keys. Range &minus;6 V to +6 V. Reversing the supply reverses the p.d.</div>
+      </div>
+
+      <div class="readouts" aria-live="off">
+        <div class="ro"><div class="k">p.d. (V)</div><div class="v" id="ro-v">0.0</div><div class="u">volts</div></div>
+        <div class="ro"><div class="k">Current (I)</div><div class="v" id="ro-i">0.00</div><div class="u" id="ro-i-u">amps</div></div>
+        <div class="ro"><div class="k">Resistance</div><div class="v" id="ro-r">&mdash;</div><div class="u">ohms (V&divide;I)</div></div>
+      </div>
+
+      <div class="coach" id="coach" role="status" aria-live="polite">
+        <strong>Pick a component and move the slider.</strong>
+        Watch how the current changes as the potential difference changes.
+      </div>
+
+      <details class="theory">
+        <summary>Physics behind the shapes</summary>
+        <p><b>Ohmic conductor (fixed resistor):</b> at constant temperature, current is directly proportional to potential difference (V = IR with R constant). The I-V graph is a straight line through the origin.</p>
+        <p><b>Filament lamp:</b> as current increases the metal filament heats up, the metal ions vibrate more, electrons collide more often, so resistance rises. The line curves and flattens (an S-shape through the origin).</p>
+        <p><b>Diode:</b> conducts in one direction only. Almost no current until forward p.d. passes about 0.7 V, then current rises steeply. In reverse the current stays near zero.</p>
+        <table>
+          <tr><th>Component</th><th>I-V shape</th><th>Resistance</th></tr>
+          <tr><td>Fixed resistor</td><td>Straight line through origin</td><td>Constant</td></tr>
+          <tr><td>Filament lamp</td><td>S-curve, flattens at ends</td><td>Rises as it heats</td></tr>
+          <tr><td>Diode</td><td>Flat then sharp rise (forward only)</td><td>Very high in reverse</td></tr>
+        </table>
+      </details>
+    </section>
+
+    <!-- RIGHT: live graph + challenge -->
+    <section class="card" aria-labelledby="graph-h">
+      <h2 id="graph-h">Live I-V graph</h2>
+      <div class="graph-wrap">
+        <svg class="graph" id="graph" viewBox="0 0 420 360" role="img"
+             aria-label="Current against potential difference graph"
+             tabindex="0" aria-describedby="graph-desc">
+          <!-- axes drawn by JS -->
+        </svg>
+        <p class="sr-only" id="graph-desc" aria-live="polite">Graph of current in amps on the vertical axis against potential difference in volts on the horizontal axis.</p>
+      </div>
+
+      <div class="legend" aria-hidden="true">
+        <span><span class="swatch" style="background:var(--ohmic)"></span>Resistor</span>
+        <span><span class="swatch" style="background:var(--lamp)"></span>Lamp</span>
+        <span><span class="swatch" style="background:var(--diode)"></span>Diode</span>
+      </div>
+
+      <div class="graph-controls">
+        <label class="toggle"><input type="checkbox" id="show-ohmic" checked> Resistor</label>
+        <label class="toggle"><input type="checkbox" id="show-lamp" checked> Lamp</label>
+        <label class="toggle"><input type="checkbox" id="show-diode" checked> Diode</label>
+        <button class="btn ghost" id="clear-marks" type="button">Clear my plotted points</button>
+      </div>
+      <p class="slider-help">Your live operating point shows as a hollow ring. Press <b>P</b> (or the button below) to pin a point you have measured.</p>
+      <button class="btn" id="pin-point" type="button" style="margin-top:6px">Plot this point on the graph</button>
+
+      <div class="challenge card" style="margin-top:16px;box-shadow:none;background:#fbfdff" aria-labelledby="ch-h">
+        <h3 id="ch-h">Predict, then check</h3>
+        <p class="qtext" id="q-text">Loading question...</p>
+        <div class="opts" id="q-opts" role="group" aria-label="Answer options"></div>
+        <div class="explain" id="q-explain" role="status" aria-live="polite"></div>
+        <div class="nextq" style="display:none" id="nextq-wrap">
+          <button class="btn" id="next-q" type="button">Next question</button>
+        </div>
+        <p class="scoreline" id="scoreline">Score: 0 of 0</p>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<footer class="note">
+  I-V Characteristics. Demonstration tool for KS4 Physics (energy, electricity and the particle model). All values are modelled illustrations.
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- Component physics models ---------- */
+  // Each returns current (A) for a given p.d. (V). Models are illustrative but
+  // qualitatively correct for the GCSE required practical.
+  var RES_OHMS = 30;            // fixed resistor 30 ohm
+  function iOhmic(v){ return v / RES_OHMS; }              // straight line
+
+  // Filament lamp: resistance rises with heating (proportional to I^2 power).
+  // Solve implicitly using a smooth, monotonic, odd, S-shaped model.
+  function iLamp(v){
+    // Saturating tanh-like curve, odd-symmetric, flattens at extremes.
+    var Imax = 0.30;            // saturation current
+    var k = 0.55;               // steepness near origin
+    return Imax * Math.tanh(k * v);
+  }
+
+  // Diode: near-zero in reverse, sharp turn-on near +0.7 V forward.
+  function iDiode(v){
+    var Vt = 0.045, Is = 1.2e-7, Imax = 0.40;
+    var i = Is * (Math.exp(v / Vt) - 1);
+    if(i > Imax) i = Imax;       // clamp forward
+    if(i < -1e-4) i = -1e-4;     // tiny reverse leakage
+    return i;
+  }
+
+  var MODELS = {
+    ohmic:{ fn:iOhmic, colour:getCss('--ohmic'), name:'Fixed resistor', shortI:false },
+    lamp:{  fn:iLamp,  colour:getCss('--lamp'),  name:'Filament lamp', shortI:false },
+    diode:{ fn:iDiode, colour:getCss('--diode'), name:'Diode', shortI:false }
+  };
+
+  function getCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+  /* ---------- State ---------- */
+  var active = 'ohmic';
+  var voltage = 0;
+  var pinned = { ohmic:[], lamp:[], diode:[] };
+
+  /* ---------- Graph geometry ---------- */
+  var G = { w:420, h:360, ml:54, mr:14, mt:14, mb:42 };
+  var V_MIN=-6, V_MAX=6, I_MIN=-0.42, I_MAX=0.42;
+  var graph = document.getElementById('graph');
+
+  function gx(v){ return G.ml + (v - V_MIN)/(V_MAX - V_MIN) * (G.w - G.ml - G.mr); }
+  function gy(i){ return G.mt + (I_MAX - i)/(I_MAX - I_MIN) * (G.h - G.mt - G.mb); }
+
+  function svgEl(tag, attrs){
+    var e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for(var k in attrs){ e.setAttribute(k, attrs[k]); }
+    return e;
+  }
+
+  function drawAxes(){
+    while(graph.firstChild) graph.removeChild(graph.firstChild);
+    // grid
+    var i;
+    for(i=V_MIN;i<=V_MAX;i+=2){
+      var x=gx(i);
+      graph.appendChild(svgEl('line',{x1:x,y1:G.mt,x2:x,y2:G.h-G.mb,stroke:'#eef2f6','stroke-width':1}));
+    }
+    for(i=-0.4;i<=0.4;i+=0.2){
+      var y=gy(i);
+      graph.appendChild(svgEl('line',{x1:G.ml,y1:y,x2:G.w-G.mr,y2:y,stroke:'#eef2f6','stroke-width':1}));
+    }
+    // axes through origin
+    var yx=gx(0), yy=gy(0);
+    graph.appendChild(svgEl('line',{x1:yx,y1:G.mt,x2:yx,y2:G.h-G.mb,stroke:'#9aa8b5','stroke-width':1.6}));
+    graph.appendChild(svgEl('line',{x1:G.ml,y1:yy,x2:G.w-G.mr,y2:yy,stroke:'#9aa8b5','stroke-width':1.6}));
+    // axis labels
+    var tx;
+    for(i=V_MIN;i<=V_MAX;i+=2){
+      tx=svgEl('text',{x:gx(i),y:gy(0)+15,'font-size':10,'text-anchor':'middle',fill:'#5a6b7b'});
+      tx.textContent=i;
+      graph.appendChild(tx);
+    }
+    for(i=-0.4;i<=0.4;i+=0.2){
+      if(Math.abs(i)<0.001) continue;
+      tx=svgEl('text',{x:gx(0)-6,y:gy(i)+3,'font-size':10,'text-anchor':'end',fill:'#5a6b7b'});
+      tx.textContent=i.toFixed(1);
+      graph.appendChild(tx);
+    }
+    // axis titles
+    var xt=svgEl('text',{x:(G.w+G.ml-G.mr)/2,y:G.h-6,'font-size':12,'text-anchor':'middle',fill:'#16202b','font-weight':'600'});
+    xt.textContent='Potential difference / V';
+    graph.appendChild(xt);
+    var yt=svgEl('text',{x:14,y:(G.h-G.mb+G.mt)/2,'font-size':12,'text-anchor':'middle',fill:'#16202b','font-weight':'600',transform:'rotate(-90 14 '+((G.h-G.mb+G.mt)/2)+')'});
+    yt.textContent='Current / A';
+    graph.appendChild(yt);
+  }
+
+  function curvePath(fn){
+    var d='', started=false;
+    for(var v=V_MIN; v<=V_MAX+0.001; v+=0.06){
+      var i=fn(v);
+      if(i>I_MAX) i=I_MAX; if(i<I_MIN) i=I_MIN;
+      var x=gx(v), y=gy(i);
+      d += (started?' L':'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+      started=true;
+    }
+    return d;
+  }
+
+  function drawCurves(){
+    // remove old curve/point layers
+    var old=graph.querySelectorAll('[data-layer]');
+    old.forEach(function(n){ n.remove(); });
+
+    ['ohmic','lamp','diode'].forEach(function(key){
+      var cb=document.getElementById('show-'+key);
+      if(!cb.checked) return;
+      var m=MODELS[key];
+      var faded = (key!==active);
+      var p=svgEl('path',{d:curvePath(m.fn),fill:'none',stroke:m.colour,
+        'stroke-width': faded?2:3.4,'stroke-linejoin':'round','stroke-linecap':'round',
+        opacity: faded?0.32:1,'data-layer':'curve'});
+      graph.appendChild(p);
+    });
+
+    // pinned points for active component
+    pinned[active].forEach(function(pt){
+      var c=svgEl('circle',{cx:gx(pt.v),cy:gy(pt.i),r:4.4,fill:MODELS[active].colour,
+        stroke:'#fff','stroke-width':1.5,'data-layer':'pin'});
+      graph.appendChild(c);
+    });
+
+    // live operating point
+    var i=clampI(MODELS[active].fn(voltage));
+    var ring=svgEl('circle',{cx:gx(voltage),cy:gy(i),r:7,fill:'none',
+      stroke:MODELS[active].colour,'stroke-width':3,'data-layer':'live'});
+    graph.appendChild(ring);
+    var dot=svgEl('circle',{cx:gx(voltage),cy:gy(i),r:2.6,fill:MODELS[active].colour,'data-layer':'live'});
+    graph.appendChild(dot);
+  }
+
+  function clampI(i){ if(i>I_MAX) return I_MAX; if(i<I_MIN) return I_MIN; return i; }
+
+  /* ---------- Readouts + circuit ---------- */
+  var coach=document.getElementById('coach');
+  var roV=document.getElementById('ro-v'), roI=document.getElementById('ro-i'),
+      roR=document.getElementById('ro-r'), roIU=document.getElementById('ro-i-u');
+  var ammLabel=document.getElementById('amm-label'), vlabelSvg=document.getElementById('vlabel-svg'),
+      vread=document.getElementById('vread'), lampGlow=document.getElementById('lamp-glow');
+  var slider=document.getElementById('voltage');
+
+  function fmtCurrent(i){
+    var a=Math.abs(i);
+    if(a < 0.001 && a>0){ return {val:(i*1000).toFixed(1), unit:'milliamps'}; }
+    if(a < 0.01){ return {val:(i*1000).toFixed(0), unit:'milliamps'}; }
+    return {val:i.toFixed(3), unit:'amps'};
+  }
+
+  function update(){
+    var m=MODELS[active];
+    var i=m.fn(voltage);
+    var ci=clampI(i);
+
+    vread.textContent=voltage.toFixed(1)+' V';
+    roV.textContent=voltage.toFixed(1);
+
+    var f=fmtCurrent(i);
+    // Show in amps consistently in main readout for comparability, mA only if tiny
+    if(Math.abs(i) < 0.01){
+      roI.textContent=(i*1000).toFixed( Math.abs(i)<0.001 ? 2 : 1 );
+      roIU.textContent='milliamps (mA)';
+    } else {
+      roI.textContent=i.toFixed(3);
+      roIU.textContent='amps (A)';
+    }
+
+    // Resistance V/I
+    if(Math.abs(i) < 1e-5){
+      roR.innerHTML='&mdash;';
+    } else {
+      var r=voltage / i;
+      roR.textContent = Math.abs(r)>=1000 ? (r/1000).toFixed(1)+'k' : r.toFixed(0);
+    }
+
+    // circuit glyph
+    ammLabel.textContent = (Math.abs(i)<0.01? (i*1000).toFixed(0)+' mA' : i.toFixed(2)+' A');
+    vlabelSvg.textContent = voltage.toFixed(1)+' V';
+
+    // lamp glow proportional to power dissipated
+    if(active==='lamp'){
+      var p=Math.abs(voltage*i);          // power in W
+      var glow=Math.min(1, p/0.9);
+      lampGlow.setAttribute('opacity', (glow*0.9).toFixed(2));
+      lampGlow.setAttribute('r', (4 + glow*14).toFixed(1));
+    } else {
+      lampGlow.setAttribute('opacity','0');
+      lampGlow.setAttribute('r','0');
+    }
+
+    slider.setAttribute('aria-valuetext', voltage.toFixed(1)+' volts, current '+f.val+' '+f.unit);
+
+    coachMessage(i);
+    drawCurves();
+  }
+
+  /* ---------- Targeted coaching ---------- */
+  function coachMessage(i){
+    coach.className='coach';
+    var v=voltage, html='';
+    if(active==='ohmic'){
+      if(Math.abs(v)<0.05){
+        html='<strong>At 0 V there is no current.</strong> The line passes through the origin: no push, no flow.';
+      } else {
+        var r=(v/i);
+        html='<strong>Straight line, constant resistance.</strong> Here V&divide;I = '+v.toFixed(1)+' &divide; '+i.toFixed(3)+' = about '+Math.abs(r).toFixed(0)+' &ohm;. Double the p.d. and the current doubles: it is ohmic.';
+      }
+    } else if(active==='lamp'){
+      if(Math.abs(v)<0.05){
+        html='<strong>Lamp off, no current.</strong> Increase the p.d. and watch the filament glow.';
+      } else if(Math.abs(v)<2){
+        coach.className='coach';
+        html='<strong>Near the origin it is nearly straight.</strong> The filament is still cool, so resistance is low. Notice the bulb starting to glow.';
+      } else {
+        coach.className='coach good';
+        var pw=Math.abs(v*i);
+        html='<strong>The line is curving over.</strong> Power dissipated is about '+pw.toFixed(2)+' W, so the filament heats up, the metal ions vibrate more and resistance rises. That is why the current rises more slowly than the p.d.';
+      }
+    } else { // diode
+      if(v < -0.2){
+        coach.className='coach warn';
+        html='<strong>Reverse biased: blocked.</strong> The diode acts like a very high resistance, so almost no current flows however far you push it negative.';
+      } else if(v < 0.55){
+        html='<strong>Below turn-on.</strong> Forward p.d. is under about 0.7 V, so the diode barely conducts yet.';
+      } else {
+        coach.className='coach good';
+        html='<strong>Forward conducting.</strong> Past about 0.7 V the current rises very steeply. A tiny rise in p.d. gives a big rise in current: the diode is now switched on.';
+      }
+    }
+    coach.innerHTML=html;
+  }
+
+  /* ---------- Slider + keyboard ---------- */
+  function setVoltage(v){
+    v=Math.max(V_MIN, Math.min(V_MAX, v));
+    voltage=Math.round(v*10)/10;
+    if(parseFloat(slider.value)!==voltage) slider.value=voltage;
+    update();
+  }
+  slider.addEventListener('input', function(){ setVoltage(parseFloat(slider.value)); });
+
+  /* ---------- Component selection ---------- */
+  var compBtns=document.querySelectorAll('.comp-btn');
+  var activeSwatch=document.getElementById('active-swatch');
+  var compBox=document.getElementById('comp-box');
+  function selectComp(key){
+    active=key;
+    compBtns.forEach(function(b){ b.setAttribute('aria-pressed', b.dataset.comp===key ? 'true':'false'); });
+    activeSwatch.style.background=MODELS[key].colour;
+    compBox.setAttribute('stroke', MODELS[key].colour);
+    update();
+  }
+  compBtns.forEach(function(b){
+    b.addEventListener('click', function(){ selectComp(b.dataset.comp); });
+  });
+
+  /* ---------- Pin points ---------- */
+  function pinPoint(){
+    var i=clampI(MODELS[active].fn(voltage));
+    // avoid duplicates very close together
+    var exists=pinned[active].some(function(p){ return Math.abs(p.v-voltage)<0.05; });
+    if(!exists){ pinned[active].push({v:voltage,i:i}); drawCurves(); }
+  }
+  document.getElementById('pin-point').addEventListener('click', pinPoint);
+  document.getElementById('clear-marks').addEventListener('click', function(){
+    pinned[active]=[]; drawCurves();
+  });
+  document.addEventListener('keydown', function(e){
+    if((e.key==='p'||e.key==='P') && document.activeElement && document.activeElement.tagName!=='INPUT'){
+      pinPoint();
+    }
+  });
+
+  /* graph keyboard nudge */
+  graph.addEventListener('keydown', function(e){
+    if(e.key==='ArrowRight'){ setVoltage(voltage+0.2); e.preventDefault(); }
+    else if(e.key==='ArrowLeft'){ setVoltage(voltage-0.2); e.preventDefault(); }
+    else if(e.key==='p'||e.key==='P'){ pinPoint(); e.preventDefault(); }
+  });
+
+  /* toggles */
+  ['ohmic','lamp','diode'].forEach(function(k){
+    document.getElementById('show-'+k).addEventListener('change', drawCurves);
+  });
+
+  /* ---------- Predict, then check ---------- */
+  var QUESTIONS=[
+    {
+      q:'Which component gives a straight line through the origin on an I-V graph?',
+      opts:['Filament lamp','Fixed resistor','Diode'],
+      correct:1,
+      why:'A fixed resistor at constant temperature is ohmic: current is directly proportional to p.d., so V = IR with R constant gives a straight line through the origin.'
+    },
+    {
+      q:'On a filament lamp the I-V line curves and flattens as p.d. increases. Why?',
+      opts:[
+        'The lamp runs out of electrons to carry charge',
+        'The filament heats up so its resistance increases',
+        'The voltmeter stops reading correctly'
+      ],
+      correct:1,
+      why:'Larger current means more power dissipated, so the filament heats up. The metal ions vibrate more, electrons collide more often, resistance rises, and current increases more slowly than p.d.'
+    },
+    {
+      q:'A diode is connected in reverse (negative p.d.). What does the current do?',
+      opts:[
+        'It rises steeply, the same as in the forward direction',
+        'It stays almost zero because the diode blocks reverse current',
+        'It becomes negative and very large'
+      ],
+      correct:1,
+      why:'A diode only conducts one way. In reverse it has a very high resistance, so the current stays close to zero no matter how negative the p.d.'
+    },
+    {
+      q:'A 30 ohm resistor has 3.0 V across it. Using I = V / R, what is the current?',
+      opts:['0.10 A','10 A','0.30 A'],
+      correct:0,
+      why:'I = V / R = 3.0 / 30 = 0.10 A. Set the resistor slider to about 3.0 V and read the ammeter to check.'
+    },
+    {
+      q:'Roughly what forward p.d. does a typical diode need before it starts to conduct?',
+      opts:['About 0.7 V','About 5 V','Exactly 0 V'],
+      correct:0,
+      why:'A silicon diode needs roughly 0.7 V of forward p.d. before current rises steeply. Below that it barely conducts.'
+    },
+    {
+      q:'For an ohmic resistor, what happens to the current if you double the potential difference?',
+      opts:['The current halves','The current doubles','The current stays the same'],
+      correct:1,
+      why:'Current is directly proportional to p.d. for an ohmic conductor, so doubling V doubles I. That is why the graph is a straight line.'
+    }
+  ];
+
+  var qOrder=[], qIndex=0, score=0, answered=0;
+  function shuffle(a){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t; } return a; }
+  function startQuiz(){
+    qOrder=shuffle(QUESTIONS.map(function(_,i){return i;}));
+    qIndex=0; score=0; answered=0; renderQ();
+    updateScore();
+  }
+
+  var qText=document.getElementById('q-text'), qOpts=document.getElementById('q-opts'),
+      qExplain=document.getElementById('q-explain'), nextWrap=document.getElementById('nextq-wrap'),
+      scoreline=document.getElementById('scoreline');
+
+  function updateScore(){ scoreline.textContent='Score: '+score+' of '+answered; }
+
+  function renderQ(){
+    var Q=QUESTIONS[qOrder[qIndex]];
+    qText.textContent=Q.q;
+    qOpts.innerHTML='';
+    qExplain.className='explain'; qExplain.textContent='';
+    nextWrap.style.display='none';
+    Q.opts.forEach(function(text, idx){
+      var b=document.createElement('button');
+      b.className='opt'; b.type='button'; b.textContent=text;
+      b.addEventListener('click', function(){ answer(idx, b, Q); });
+      qOpts.appendChild(b);
+    });
+  }
+
+  function answer(idx, btn, Q){
+    var buttons=qOpts.querySelectorAll('.opt');
+    buttons.forEach(function(b){ b.disabled=true; });
+    answered++;
+    if(idx===Q.correct){
+      btn.classList.add('correct');
+      score++;
+      qExplain.textContent='Correct. '+Q.why;
+    } else {
+      btn.classList.add('wrong');
+      buttons[Q.correct].classList.add('correct');
+      qExplain.textContent='Not quite. '+Q.why;
+    }
+    qExplain.className='explain show';
+    updateScore();
+    if(qIndex < qOrder.length-1){ nextWrap.style.display='block'; }
+    else {
+      nextWrap.style.display='block';
+      document.getElementById('next-q').textContent='Restart questions';
+    }
+  }
+
+  document.getElementById('next-q').addEventListener('click', function(){
+    if(qIndex < qOrder.length-1){ qIndex++; renderQ(); }
+    else { startQuiz(); document.getElementById('next-q').textContent='Next question'; }
+  });
+
+  /* ---------- Init ---------- */
+  drawAxes();
+  selectComp('ohmic');
+  startQuiz();
+})();
+</script>
+</body>
+</html>

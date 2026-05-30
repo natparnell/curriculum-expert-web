@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lines on the Globe</title>
+<style>
+  :root {
+    --ink: #102a43;
+    --ink-soft: #334e68;
+    --paper: #f7fafc;
+    --card: #ffffff;
+    --line: #d9e2ec;
+    --sea: #2b6cb0;
+    --sea-deep: #1b3a5b;
+    --land: #6aa84f;
+    --equator: #e8590c;
+    --tropic: #c2185b;
+    --meridian: #6f42c1;
+    --accent: #0b7285;
+    --warn: #b54708;
+    --good: #2b8a3e;
+    --shadow: 0 6px 22px rgba(16,42,67,0.12);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  header.app {
+    background: linear-gradient(135deg, #1b3a5b, #2b6cb0);
+    color: #fff;
+    padding: 18px 20px 16px;
+  }
+  header.app h1 {
+    margin: 0;
+    font-size: clamp(1.35rem, 3.4vw, 2rem);
+    letter-spacing: 0.3px;
+  }
+  header.app .aim {
+    margin: 6px 0 0;
+    font-size: 0.95rem;
+    color: #dbeafe;
+    max-width: 70ch;
+  }
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 18px 16px 60px;
+  }
+  .layout {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 880px) {
+    .layout { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .card h2 {
+    margin: 0 0 10px;
+    font-size: 1.05rem;
+    color: var(--ink);
+  }
+  .globe-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  svg.globe {
+    width: 100%;
+    max-width: 460px;
+    height: auto;
+    touch-action: none;
+    cursor: grab;
+    display: block;
+  }
+  svg.globe:active { cursor: grabbing; }
+  .toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0 6px;
+    justify-content: center;
+  }
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 2px solid var(--line);
+    background: #fff;
+    color: var(--ink-soft);
+    border-radius: 999px;
+    padding: 7px 13px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .toggle .swatch {
+    width: 16px;
+    height: 4px;
+    border-radius: 2px;
+    background: currentColor;
+  }
+  .toggle[aria-pressed="true"] { color: #fff; border-color: transparent; }
+  .toggle.equator[aria-pressed="true"] { background: var(--equator); }
+  .toggle.tropics[aria-pressed="true"] { background: var(--tropic); }
+  .toggle.meridian[aria-pressed="true"] { background: var(--meridian); }
+  .toggle:focus-visible { outline: 3px solid #ffd43b; outline-offset: 2px; }
+  .rotate-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 460px;
+    margin-top: 6px;
+  }
+  .rotate-row label { font-size: 0.85rem; font-weight: 600; color: var(--ink-soft); white-space: nowrap; }
+  .rotate-row input[type="range"] { flex: 1; touch-action: none; }
+  .hemis {
+    margin-top: 8px;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    text-align: center;
+  }
+  .hemis b { color: var(--ink); }
+
+  /* Time panel */
+  .clock-wrap { text-align: center; }
+  .longitude-readout {
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+    margin: 0 0 12px;
+  }
+  .longitude-readout b { color: var(--accent); }
+  .clock-face {
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+    margin: 0 auto;
+    display: block;
+    touch-action: none;
+  }
+  .digital {
+    font-size: clamp(1.6rem, 6vw, 2.3rem);
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin: 10px 0 2px;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .digital .ampm { font-size: 0.55em; color: var(--ink-soft); }
+  .lon-slider-row {
+    margin: 14px 0 4px;
+  }
+  .lon-slider-row label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin-bottom: 4px;
+    text-align: left;
+  }
+  .lon-slider-row input[type="range"] { width: 100%; touch-action: none; }
+  .feedback {
+    margin-top: 12px;
+    border-radius: 10px;
+    padding: 11px 13px;
+    font-size: 0.92rem;
+    background: #e7f5ff;
+    border: 1px solid #a5d8ff;
+    color: var(--ink);
+    min-height: 2.6em;
+  }
+  .feedback.good { background: #ebfbee; border-color: #b2f2bb; }
+  .feedback strong { color: var(--accent); }
+
+  /* Challenge */
+  .challenge { margin-top: 18px; }
+  .challenge .q { font-weight: 600; margin: 0 0 8px; }
+  .challenge .target {
+    display: inline-block;
+    background: #fff4e6;
+    border: 1px solid #ffd8a8;
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-weight: 700;
+    color: var(--warn);
+  }
+  .btn {
+    border: none;
+    border-radius: 9px;
+    padding: 9px 16px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--accent);
+    color: #fff;
+    margin-top: 10px;
+  }
+  .btn:focus-visible { outline: 3px solid #ffd43b; outline-offset: 2px; }
+  .btn.secondary { background: #e2e8f0; color: var(--ink); }
+  .score-line { margin-top: 10px; font-size: 0.88rem; color: var(--ink-soft); }
+  .score-line b { color: var(--good); }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); border: 0;
+  }
+  .key-hint { font-size: 0.8rem; color: var(--ink-soft); margin-top: 8px; text-align: center; }
+  footer.note {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 16px 30px;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="app">
+  <h1>&#x1F30D; Lines on the Globe</h1>
+  <p class="aim"><strong>Teacher aim:</strong> pupils explore the imaginary lines that map the Earth (Equator, Tropics, Prime Meridian) and discover why the time changes as you travel east or west: the Earth turns 15 degrees of longitude every hour.</p>
+</header>
+
+<div class="wrap">
+  <div class="layout">
+
+    <!-- LEFT: globe -->
+    <section class="card globe-stage" aria-labelledby="globeHeading">
+      <h2 id="globeHeading">Spin the Earth and add the lines</h2>
+
+      <svg class="globe" viewBox="0 0 320 320" role="img"
+           aria-label="A globe you can rotate. Drag left or right to spin it, or use the rotate slider."
+           tabindex="0" id="globeSvg">
+        <defs>
+          <radialGradient id="seaGrad" cx="38%" cy="32%" r="75%">
+            <stop offset="0%" stop-color="#5b9bd5"/>
+            <stop offset="60%" stop-color="#2b6cb0"/>
+            <stop offset="100%" stop-color="#1b3a5b"/>
+          </radialGradient>
+          <clipPath id="globeClip"><circle cx="160" cy="160" r="140"/></clipPath>
+        </defs>
+        <circle cx="160" cy="160" r="140" fill="url(#seaGrad)" stroke="#0f2742" stroke-width="3"/>
+        <g clip-path="url(#globeClip)">
+          <g id="landLayer"></g>
+          <g id="gridLayer" stroke-width="1" stroke="rgba(255,255,255,0.18)" fill="none"></g>
+          <g id="lineLayer" fill="none" stroke-linecap="round"></g>
+          <g id="labelLayer"></g>
+        </g>
+        <circle cx="160" cy="160" r="140" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+      </svg>
+
+      <div class="toggles" role="group" aria-label="Show or hide the imaginary lines">
+        <button class="toggle equator" id="tEquator" aria-pressed="false">
+          <span class="swatch"></span> Equator
+        </button>
+        <button class="toggle tropics" id="tTropics" aria-pressed="false">
+          <span class="swatch"></span> Tropics
+        </button>
+        <button class="toggle meridian" id="tMeridian" aria-pressed="false">
+          <span class="swatch"></span> Prime Meridian
+        </button>
+      </div>
+
+      <div class="rotate-row">
+        <label for="rotate">Rotate</label>
+        <input type="range" id="rotate" min="-180" max="180" value="0" step="1"
+               aria-label="Rotate the globe east or west in degrees of longitude">
+      </div>
+      <p class="hemis" id="hemisLine" aria-live="polite">
+        Facing you: longitude <b id="centreLon">0&#xB0;</b> (the Prime Meridian).
+      </p>
+      <p class="key-hint">Tip: click the globe then use the left and right arrow keys to spin it.</p>
+    </section>
+
+    <!-- RIGHT: time machine -->
+    <section class="card" aria-labelledby="timeHeading">
+      <h2 id="timeHeading">&#x1F551; Drag the clock around the world</h2>
+      <p class="longitude-readout">
+        The clock is sitting at longitude <b id="clockLon">0&#xB0;</b>.
+        When it is <strong>12 noon</strong> on the Prime Meridian (0&#xB0;), every 15&#xB0; east adds one hour and every 15&#xB0; west takes one away.
+      </p>
+
+      <div class="clock-wrap">
+        <svg class="clock-face" viewBox="0 0 220 220" id="clockSvg"
+             role="application"
+             aria-label="A draggable analogue clock. Drag it east or west, or use the longitude slider, to change the local time."
+             tabindex="0">
+          <circle cx="110" cy="110" r="100" fill="#fff" stroke="#102a43" stroke-width="4"/>
+          <g id="clockTicks" stroke="#334e68" stroke-width="2"></g>
+          <g id="clockNumbers" fill="#102a43" font-size="14" font-weight="700"
+             text-anchor="middle" font-family="Segoe UI, sans-serif"></g>
+          <line id="hourHand" x1="110" y1="110" x2="110" y2="62" stroke="#102a43" stroke-width="6" stroke-linecap="round"/>
+          <line id="minHand" x1="110" y1="110" x2="110" y2="40" stroke="#0b7285" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="110" cy="110" r="6" fill="#102a43"/>
+        </svg>
+
+        <div class="digital" id="digital" aria-hidden="true">12:00 <span class="ampm">noon</span></div>
+
+        <div class="lon-slider-row">
+          <label for="lonSlider">Move the clock east (right) or west (left)</label>
+          <input type="range" id="lonSlider" min="-180" max="180" step="15" value="0"
+                 aria-label="Longitude of the clock in degrees. Positive is east, negative is west.">
+        </div>
+
+        <div class="feedback" id="feedback" aria-live="polite">
+          Drag the clock or move the slider. Watch the hands move as you travel around the globe.
+        </div>
+      </div>
+
+      <!-- Challenge -->
+      <div class="challenge" aria-labelledby="challengeHeading">
+        <h2 id="challengeHeading" style="margin-top:18px;">Time-zone challenge</h2>
+        <p class="q" id="challengeQ">Set the clock so it reads the target time.</p>
+        <div>Target time: <span class="target" id="challengeTarget">3 pm</span></div>
+        <button class="btn" id="checkBtn">Check my clock</button>
+        <button class="btn secondary" id="newBtn">New challenge</button>
+        <p class="score-line" aria-live="polite">Correct so far: <b id="score">0</b> out of <span id="attempts">0</span></p>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<footer class="note">
+  Lines on the Globe is a teaching demonstration for KS2 geography (Year 3 to Year 6). It uses a simplified model: the Earth turns 360&#xB0; in 24 hours, so 15&#xB0; of longitude equals one hour. Real time zones bend around country borders and use daylight saving, so this is a clean classroom model rather than an exact clock.
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- shared state ---------- */
+  var globeRot = 0;        // degrees the globe is rotated (centre longitude = -globeRot mapped below)
+  var clockLon = 0;        // longitude of the clock, -180..180 in 15 steps
+  var show = { equator: false, tropics: false, meridian: false };
+
+  /* ---------- GLOBE: simple orthographic projection ---------- */
+  var R = 140, CX = 160, CY = 160;
+
+  // Very rough continent blobs given as [lon, lat] polygons (decorative, not exam-precise).
+  var LANDMASSES = [
+    // Africa
+    [[15,35],[35,30],[40,12],[42,-5],[30,-30],[20,-34],[12,-20],[8,5],[0,15],[5,30]],
+    // Europe (small)
+    [[-8,43],[2,51],[15,55],[28,55],[30,45],[12,40],[0,43]],
+    // Asia (broad)
+    [[35,55],[60,60],[100,60],[135,55],[140,40],[120,25],[100,10],[78,8],[70,25],[45,30],[38,40]],
+    // North America
+    [[-130,55],[-95,55],[-75,48],[-80,30],[-100,20],[-115,30],[-125,40]],
+    // South America
+    [[-78,5],[-55,5],[-40,-10],[-58,-40],[-72,-50],[-80,-20],[-82,0]],
+    // Australia
+    [[115,-22],[140,-18],[150,-30],[138,-38],[120,-35],[114,-28]]
+  ];
+
+  var landLayer = document.getElementById("landLayer");
+  var gridLayer = document.getElementById("gridLayer");
+  var lineLayer = document.getElementById("lineLayer");
+  var labelLayer = document.getElementById("labelLayer");
+
+  function toRad(d) { return d * Math.PI / 180; }
+
+  // Project a (lon, lat) onto the globe given current rotation.
+  // Returns {x, y, visible}.
+  function project(lon, lat) {
+    var lonR = toRad(lon + globeRot);
+    var latR = toRad(lat);
+    var x = Math.cos(latR) * Math.sin(lonR);
+    var y = Math.sin(latR);
+    var z = Math.cos(latR) * Math.cos(lonR);
+    return { x: CX + R * x, y: CY - R * y, visible: z >= 0, z: z };
+  }
+
+  function buildPolyPath(poly) {
+    // Split into visible segments so back-of-globe parts don't draw across the face.
+    var d = "";
+    var pen = false;
+    for (var i = 0; i <= poly.length; i++) {
+      var p = poly[i % poly.length];
+      var pr = project(p[0], p[1]);
+      if (pr.visible) {
+        d += (pen ? "L" : "M") + pr.x.toFixed(1) + " " + pr.y.toFixed(1) + " ";
+        pen = true;
+      } else {
+        pen = false;
+      }
+    }
+    return d;
+  }
+
+  // Build a latitude circle (constant lat) as a path of visible points.
+  function latPath(lat) {
+    var d = "", pen = false;
+    for (var lon = -180; lon <= 180; lon += 4) {
+      var pr = project(lon, lat);
+      if (pr.visible) {
+        d += (pen ? "L" : "M") + pr.x.toFixed(1) + " " + pr.y.toFixed(1) + " ";
+        pen = true;
+      } else { pen = false; }
+    }
+    return d;
+  }
+  // Build a longitude meridian (constant lon).
+  function lonPath(lon) {
+    var d = "", pen = false;
+    for (var lat = -90; lat <= 90; lat += 3) {
+      var pr = project(lon, lat);
+      if (pr.visible) {
+        d += (pen ? "L" : "M") + pr.x.toFixed(1) + " " + pr.y.toFixed(1) + " ";
+        pen = true;
+      } else { pen = false; }
+    }
+    return d;
+  }
+
+  function svgEl(tag) { return document.createElementNS("http://www.w3.org/2000/svg", tag); }
+
+  function renderGlobe() {
+    // Land
+    landLayer.innerHTML = "";
+    LANDMASSES.forEach(function (poly) {
+      var path = svgEl("path");
+      path.setAttribute("d", buildPolyPath(poly));
+      path.setAttribute("fill", "#5a8a45");
+      path.setAttribute("stroke", "#3d6b2e");
+      path.setAttribute("stroke-width", "1");
+      path.setAttribute("opacity", "0.95");
+      landLayer.appendChild(path);
+    });
+
+    // Faint background grid every 30 degrees
+    gridLayer.innerHTML = "";
+    for (var la = -60; la <= 60; la += 30) {
+      var pl = svgEl("path"); pl.setAttribute("d", latPath(la)); gridLayer.appendChild(pl);
+    }
+    for (var lo = -150; lo <= 180; lo += 30) {
+      var pm = svgEl("path"); pm.setAttribute("d", lonPath(lo)); gridLayer.appendChild(pm);
+    }
+
+    // Highlighted teaching lines
+    lineLayer.innerHTML = "";
+    labelLayer.innerHTML = "";
+    if (show.equator) addLine(latPath(0), "#e8590c", 3.5, "Equator", 0, "lat");
+    if (show.tropics) {
+      addLine(latPath(23.5), "#c2185b", 3, "Tropic of Cancer", 23.5, "lat");
+      addLine(latPath(-23.5), "#c2185b", 3, "Tropic of Capricorn", -23.5, "lat");
+    }
+    if (show.meridian) addLine(lonPath(0), "#6f42c1", 3.5, "Prime Meridian", 0, "lon");
+
+    updateHemis();
+  }
+
+  function addLine(d, colour, w, name, value, type) {
+    var p = svgEl("path");
+    p.setAttribute("d", d);
+    p.setAttribute("stroke", colour);
+    p.setAttribute("stroke-width", w);
+    p.setAttribute("fill", "none");
+    lineLayer.appendChild(p);
+
+    // Place a small label near the centre-front if visible.
+    var pr = (type === "lat") ? project(globeRot * -1 + 0, value) : project(value, 5);
+    // Use a point near the front of the globe for the label.
+    var labelPt = (type === "lat") ? project(-globeRot, value) : project(value, 8);
+    if (labelPt.visible) {
+      var t = svgEl("text");
+      t.setAttribute("x", labelPt.x.toFixed(1));
+      t.setAttribute("y", (labelPt.y - 4).toFixed(1));
+      t.setAttribute("fill", "#fff");
+      t.setAttribute("font-size", "10");
+      t.setAttribute("font-weight", "700");
+      t.setAttribute("text-anchor", "middle");
+      t.setAttribute("paint-order", "stroke");
+      t.setAttribute("stroke", colour);
+      t.setAttribute("stroke-width", "3");
+      t.textContent = name;
+      labelLayer.appendChild(t);
+    }
+  }
+
+  // centre longitude that is facing the viewer
+  function centreLongitude() {
+    var c = -globeRot;
+    // normalise to -180..180
+    while (c > 180) c -= 360;
+    while (c < -180) c += 360;
+    return c;
+  }
+
+  function updateHemis() {
+    var c = centreLongitude();
+    document.getElementById("centreLon").textContent = formatLon(c);
+    var ew = c >= 0 ? "Eastern Hemisphere (east of the Prime Meridian)"
+                    : "Western Hemisphere (west of the Prime Meridian)";
+    if (Math.round(c) === 0) ew = "right on the Prime Meridian";
+    var hemisLine = document.getElementById("hemisLine");
+    hemisLine.innerHTML = "Facing you: longitude <b>" + formatLon(c) + "</b>, the " + ew + ".";
+  }
+
+  function formatLon(lon) {
+    var v = Math.round(lon);
+    if (v === 0) return "0&#xB0;";
+    if (v === 180 || v === -180) return "180&#xB0;";
+    return Math.abs(v) + "&#xB0; " + (v > 0 ? "E" : "W");
+  }
+
+  /* ---------- globe dragging (Pointer Events) ---------- */
+  var globeSvg = document.getElementById("globeSvg");
+  var rotateSlider = document.getElementById("rotate");
+  var draggingGlobe = false, lastX = 0;
+
+  globeSvg.addEventListener("pointerdown", function (e) {
+    draggingGlobe = true;
+    lastX = e.clientX;
+    globeSvg.setPointerCapture(e.pointerId);
+  });
+  globeSvg.addEventListener("pointermove", function (e) {
+    if (!draggingGlobe) return;
+    var dx = e.clientX - lastX;
+    lastX = e.clientX;
+    setGlobeRot(globeRot + dx * 0.6);
+  });
+  function endGlobeDrag(e) {
+    if (!draggingGlobe) return;
+    draggingGlobe = false;
+    try { globeSvg.releasePointerCapture(e.pointerId); } catch (err) {}
+  }
+  globeSvg.addEventListener("pointerup", endGlobeDrag);
+  globeSvg.addEventListener("pointercancel", endGlobeDrag);
+
+  globeSvg.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowLeft") { setGlobeRot(globeRot - 10); e.preventDefault(); }
+    else if (e.key === "ArrowRight") { setGlobeRot(globeRot + 10); e.preventDefault(); }
+  });
+
+  rotateSlider.addEventListener("input", function () {
+    // slider directly sets the centre longitude facing the user
+    var centre = parseFloat(rotateSlider.value);
+    setGlobeRot(-centre, true);
+  });
+
+  function setGlobeRot(val, fromSlider) {
+    globeRot = val;
+    // normalise
+    while (globeRot > 180) globeRot -= 360;
+    while (globeRot < -180) globeRot += 360;
+    if (!fromSlider) {
+      rotateSlider.value = Math.round(centreLongitude());
+    }
+    renderGlobe();
+  }
+
+  /* ---------- toggles ---------- */
+  function wireToggle(id, key) {
+    var btn = document.getElementById(id);
+    btn.addEventListener("click", function () {
+      show[key] = !show[key];
+      btn.setAttribute("aria-pressed", show[key] ? "true" : "false");
+      renderGlobe();
+    });
+  }
+  wireToggle("tEquator", "equator");
+  wireToggle("tTropics", "tropics");
+  wireToggle("tMeridian", "meridian");
+
+  /* ---------- CLOCK ---------- */
+  var clockSvg = document.getElementById("clockSvg");
+  var hourHand = document.getElementById("hourHand");
+  var minHand = document.getElementById("minHand");
+  var lonSlider = document.getElementById("lonSlider");
+  var feedback = document.getElementById("feedback");
+
+  // Build clock face numbers + ticks once.
+  (function buildClock() {
+    var ticks = document.getElementById("clockTicks");
+    var nums = document.getElementById("clockNumbers");
+    for (var h = 1; h <= 12; h++) {
+      var a = toRad(h * 30 - 90);
+      // tick
+      var x1 = 110 + Math.cos(a) * 92, y1 = 110 + Math.sin(a) * 92;
+      var x2 = 110 + Math.cos(a) * 84, y2 = 110 + Math.sin(a) * 84;
+      var ln = svgEl("line");
+      ln.setAttribute("x1", x1.toFixed(1)); ln.setAttribute("y1", y1.toFixed(1));
+      ln.setAttribute("x2", x2.toFixed(1)); ln.setAttribute("y2", y2.toFixed(1));
+      ticks.appendChild(ln);
+      // number
+      var nx = 110 + Math.cos(a) * 72, ny = 110 + Math.sin(a) * 72 + 5;
+      var t = svgEl("text");
+      t.setAttribute("x", nx.toFixed(1)); t.setAttribute("y", ny.toFixed(1));
+      t.textContent = h;
+      nums.appendChild(t);
+    }
+  })();
+
+  // Local time in hours (0..24) given longitude, anchored to 12:00 at 0 degrees.
+  function localHours(lon) {
+    var h = 12 + lon / 15;       // 15 deg per hour
+    h = ((h % 24) + 24) % 24;     // wrap 0..24
+    return h;
+  }
+
+  function setHands(hoursFloat) {
+    var h = Math.floor(hoursFloat) % 12;
+    var m = Math.round((hoursFloat - Math.floor(hoursFloat)) * 60);
+    if (m === 60) { m = 0; }
+    var minAngle = toRad(m * 6 - 90);
+    var hourAngle = toRad((h + m / 60) * 30 - 90);
+    minHand.setAttribute("x2", (110 + Math.cos(minAngle) * 70).toFixed(1));
+    minHand.setAttribute("y2", (110 + Math.sin(minAngle) * 70).toFixed(1));
+    hourHand.setAttribute("x2", (110 + Math.cos(hourAngle) * 48).toFixed(1));
+    hourHand.setAttribute("y2", (110 + Math.sin(hourAngle) * 48).toFixed(1));
+  }
+
+  function format12(hoursFloat) {
+    var total = Math.round(hoursFloat * 60);          // minutes since midnight
+    total = ((total % 1440) + 1440) % 1440;
+    var hh = Math.floor(total / 60), mm = total % 60;
+    var ampm = hh < 12 ? "am" : "pm";
+    var disp = hh % 12; if (disp === 0) disp = 12;
+    var mmStr = mm < 10 ? "0" + mm : "" + mm;
+    var word = "";
+    if (hh === 12 && mm === 0) word = "noon";
+    else if (hh === 0 && mm === 0) word = "midnight";
+    return { text: disp + ":" + mmStr, ampm: word || ampm };
+  }
+
+  function updateClock() {
+    var hf = localHours(clockLon);
+    setHands(hf);
+    var f = format12(hf);
+    var dig = document.getElementById("digital");
+    dig.innerHTML = f.text + ' <span class="ampm">' + f.ampm + "</span>";
+    document.getElementById("clockLon").innerHTML = formatLon(clockLon);
+
+    // targeted feedback
+    var hoursFrom0 = Math.round(clockLon / 15);
+    var dir = clockLon > 0 ? "east" : (clockLon < 0 ? "west" : "");
+    var msg;
+    if (clockLon === 0) {
+      msg = "You are on the <strong>Prime Meridian (0&#xB0;)</strong>. This is where the world's clocks are set from. It is " + f.text + " " + f.ampm + " here.";
+    } else {
+      var nh = Math.abs(hoursFrom0);
+      msg = "You are <strong>" + Math.abs(clockLon) + "&#xB0; " + (clockLon > 0 ? "east" : "west") +
+            "</strong> of the Prime Meridian. That is " + nh + " hour" + (nh === 1 ? "" : "s") +
+            " " + (clockLon > 0 ? "ahead of" : "behind") + " 12 noon, so the local time is <strong>" +
+            f.text + " " + f.ampm + "</strong>.";
+    }
+    feedback.className = "feedback";
+    feedback.innerHTML = msg;
+  }
+
+  function setClockLon(lon) {
+    // snap to 15 degree steps, clamp -180..180
+    lon = Math.round(lon / 15) * 15;
+    if (lon > 180) lon = 180;
+    if (lon < -180) lon = -180;
+    clockLon = lon;
+    lonSlider.value = lon;
+    updateClock();
+  }
+
+  lonSlider.addEventListener("input", function () {
+    setClockLon(parseFloat(lonSlider.value));
+  });
+
+  // Drag the clock left/right to change longitude (Pointer Events).
+  var draggingClock = false, clockStartX = 0, clockStartLon = 0;
+  clockSvg.addEventListener("pointerdown", function (e) {
+    draggingClock = true;
+    clockStartX = e.clientX;
+    clockStartLon = clockLon;
+    clockSvg.setPointerCapture(e.pointerId);
+  });
+  clockSvg.addEventListener("pointermove", function (e) {
+    if (!draggingClock) return;
+    var dx = e.clientX - clockStartX;
+    // 2.4 px per degree feels right on touch
+    setClockLon(clockStartLon + dx / 2.4);
+  });
+  function endClockDrag(e) {
+    if (!draggingClock) return;
+    draggingClock = false;
+    try { clockSvg.releasePointerCapture(e.pointerId); } catch (err) {}
+  }
+  clockSvg.addEventListener("pointerup", endClockDrag);
+  clockSvg.addEventListener("pointercancel", endClockDrag);
+
+  clockSvg.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowLeft") { setClockLon(clockLon - 15); e.preventDefault(); }
+    else if (e.key === "ArrowRight") { setClockLon(clockLon + 15); e.preventDefault(); }
+  });
+
+  /* ---------- CHALLENGE ---------- */
+  var targetLon = 45;
+  var score = 0, attempts = 0;
+
+  function targetTimeWord(lon) {
+    var hf = localHours(lon);
+    var f = format12(hf);
+    return f.text + " " + f.ampm;
+  }
+
+  function newChallenge() {
+    // pick a longitude that is a clean multiple of 15, not 0
+    var choices = [-180, -135, -120, -90, -75, -45, -30, 15, 30, 60, 75, 105, 120, 150, 180];
+    targetLon = choices[Math.floor(Math.random() * choices.length)];
+    var word = targetTimeWord(targetLon);
+    document.getElementById("challengeTarget").innerHTML = word;
+    document.getElementById("challengeQ").textContent =
+      "Move the clock so its local time matches the target. Hint: it is somewhere " +
+      (targetLon > 0 ? "east" : "west") + " of the Prime Meridian.";
+  }
+
+  document.getElementById("checkBtn").addEventListener("click", function () {
+    attempts++;
+    document.getElementById("attempts").textContent = attempts;
+    var want = targetTimeWord(targetLon);
+    var have = targetTimeWord(clockLon);
+    if (have === want) {
+      score++;
+      document.getElementById("score").textContent = score;
+      feedback.className = "feedback good";
+      feedback.innerHTML = "&#x2705; Spot on. " + Math.abs(clockLon) + "&#xB0; " +
+        (clockLon > 0 ? "east" : "west") + " gives " + have + ". That matches the target. Try a new challenge.";
+      setTimeout(newChallenge, 100);
+    } else {
+      feedback.className = "feedback";
+      var diff = Math.round((localHours(targetLon) - localHours(clockLon)));
+      var hint;
+      if (diff > 0) hint = "Your clock is too far behind. Move it further east (right) to add hours.";
+      else hint = "Your clock is too far ahead. Move it west (left) to take hours away.";
+      feedback.innerHTML = "Not yet. Your clock reads <strong>" + have + "</strong> but the target is <strong>" +
+        want + "</strong>. " + hint;
+    }
+  });
+
+  document.getElementById("newBtn").addEventListener("click", newChallenge);
+
+  /* ---------- init ---------- */
+  renderGlobe();
+  updateClock();
+  newChallenge();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tree Diagram Builder &middot; KS4 Probability</title>
+<style>
+  :root{
+    --ink:#16243a; --muted:#5a6b85; --line:#d6deea; --bg:#eef2f8;
+    --card:#ffffff; --accent:#1f6feb; --accent-dark:#1450b0;
+    --good:#0f8a4f; --good-bg:#e3f6ec; --bad:#c2382b; --bad-bg:#fbe6e3;
+    --warn:#9a6b00; --warn-bg:#fdf3da;
+    --branchA:#1f6feb; --branchB:#b5378e; --branchC:#0f8a4f;
+    --shadow:0 8px 24px rgba(22,36,58,.10);
+    --r:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg,#eef2f8,#e3e9f3 60%,#dde5f1);
+    color:var(--ink); line-height:1.5; padding:18px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+  header.app{
+    background:linear-gradient(120deg,#16243a,#21466f);
+    color:#fff;border-radius:var(--r);padding:20px 22px;box-shadow:var(--shadow);
+  }
+  header.app h1{margin:0 0 4px;font-size:clamp(1.3rem,3.4vw,1.85rem);letter-spacing:.2px;}
+  header.app .tag{font-size:.82rem;text-transform:uppercase;letter-spacing:1.4px;opacity:.85;font-weight:700;}
+  header.app .aim{margin:10px 0 0;font-size:.96rem;background:rgba(255,255,255,.10);
+    border-left:4px solid #7fb2ff;padding:8px 12px;border-radius:8px;}
+  header.app .aim b{color:#bcd6ff;}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--shadow);padding:18px;margin-top:18px;}
+  .panel h2{margin:0 0 4px;font-size:1.12rem;}
+  .panel .sub{color:var(--muted);font-size:.9rem;margin:0 0 12px;}
+
+  .scenario-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;}
+  .scen-btn{text-align:left;border:1.5px solid var(--line);background:#f8fafd;border-radius:12px;
+    padding:12px 14px;cursor:pointer;font:inherit;color:var(--ink);transition:.15s;}
+  .scen-btn:hover{border-color:var(--accent);background:#fff;}
+  .scen-btn.active{border-color:var(--accent);background:#eaf2ff;box-shadow:inset 0 0 0 1px var(--accent);}
+  .scen-btn .st{font-weight:700;display:block;margin-bottom:3px;}
+  .scen-btn .sd{font-size:.84rem;color:var(--muted);}
+
+  .controls{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-top:4px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:.82rem;font-weight:700;color:var(--muted);}
+  .field input[type=number]{width:90px;padding:8px 10px;border:1.5px solid var(--line);
+    border-radius:9px;font:inherit;font-variant-numeric:tabular-nums;}
+  .field input:focus{outline:3px solid #bcd6ff;border-color:var(--accent);}
+  .seg{display:inline-flex;border:1.5px solid var(--line);border-radius:9px;overflow:hidden;}
+  .seg button{font:inherit;border:0;background:#fff;padding:8px 12px;cursor:pointer;color:var(--muted);font-weight:600;}
+  .seg button[aria-pressed=true]{background:var(--accent);color:#fff;}
+  .seg button:not(:last-child){border-right:1.5px solid var(--line);}
+
+  .btn{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 16px;cursor:pointer;}
+  .btn.primary{background:var(--accent);color:#fff;}
+  .btn.primary:hover{background:var(--accent-dark);}
+  .btn.ghost{background:#eef3fb;color:var(--accent);border:1.5px solid var(--line);}
+  .btn.ghost:hover{background:#e2ecfb;}
+  .btn:focus-visible{outline:3px solid #bcd6ff;outline-offset:2px;}
+
+  .stage{margin-top:16px;border:1px solid var(--line);border-radius:12px;background:#fbfcfe;overflow:hidden;}
+  .stage-scroll{overflow-x:auto;padding:6px;}
+  svg.tree{display:block;width:100%;height:auto;min-width:560px;font-family:inherit;}
+  .b-label{font-weight:700;font-size:15px;}
+  .b-prob{font-size:13px;font-variant-numeric:tabular-nums;}
+  .b-prob.editing{cursor:pointer;}
+  .outcome-prob{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .outcome-lbl{font-size:13px;font-weight:600;}
+  .node-dot{fill:#16243a;}
+  .leaf-dot{fill:#7c8ba4;}
+
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:.85rem;color:var(--muted);}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .swatch{width:14px;height:4px;border-radius:2px;display:inline-block;}
+
+  .checkbox{font-size:.5rem;}
+  .replace-row{margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    background:#f3f7fd;border:1px solid var(--line);border-radius:10px;padding:10px 12px;}
+  .replace-row .lbl{font-weight:700;font-size:.9rem;}
+  .pill{display:inline-block;background:#eaf2ff;color:var(--accent-dark);border:1px solid #bcd6ff;
+    border-radius:999px;padding:3px 10px;font-size:.8rem;font-weight:700;}
+
+  .sumbar{margin-top:14px;padding:12px 14px;border-radius:10px;border:1px solid var(--line);
+    background:#f6f9fd;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .sumbar.ok{background:var(--good-bg);border-color:#bfe6cf;}
+  .sumbar.bad{background:var(--bad-bg);border-color:#f3c4bd;}
+  .sumbar .num{font-variant-numeric:tabular-nums;font-weight:800;font-size:1.05rem;}
+
+  /* Challenge */
+  .q-card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:#fbfcfe;}
+  .q-text{font-size:1.02rem;margin:0 0 10px;}
+  .q-text b{color:var(--accent-dark);}
+  .ans-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+  .frac{display:inline-flex;flex-direction:column;align-items:center;line-height:1.1;}
+  .frac input{width:74px;padding:7px;text-align:center;border:1.5px solid var(--line);border-radius:8px;font:inherit;}
+  .frac .bar{width:74px;height:2px;background:var(--ink);margin:3px 0;}
+  .or{color:var(--muted);font-weight:700;}
+  .feedback{margin-top:12px;border-radius:10px;padding:12px 14px;font-size:.95rem;display:none;}
+  .feedback.show{display:block;}
+  .feedback.good{background:var(--good-bg);border:1px solid #bfe6cf;color:#0c5e38;}
+  .feedback.bad{background:var(--bad-bg);border:1px solid #f3c4bd;color:#7d251b;}
+  .feedback.hint{background:var(--warn-bg);border:1px solid #ecd9a3;color:#6c4d00;}
+  .feedback b{display:block;margin-bottom:3px;}
+
+  .score{display:flex;gap:14px;flex-wrap:wrap;font-size:.9rem;color:var(--muted);margin-top:10px;}
+  .score .s{background:#eef3fb;border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-weight:700;}
+
+  details.venn{margin-top:18px;}
+  details.venn>summary{cursor:pointer;font-weight:700;font-size:1.05rem;padding:6px 0;list-style:none;}
+  details.venn>summary::before{content:'\25B8';display:inline-block;margin-right:8px;transition:.15s;color:var(--accent);}
+  details.venn[open]>summary::before{transform:rotate(90deg);}
+  .venn-grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:10px;}
+  @media(min-width:740px){.venn-grid{grid-template-columns:1.1fr .9fr;}}
+  .venn-svg-wrap{border:1px solid var(--line);border-radius:12px;background:#fbfcfe;padding:8px;}
+  .venn-region{cursor:pointer;transition:.12s;}
+  .venn-region:focus-visible{outline:3px solid #bcd6ff;}
+  .venn-readout .row{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);
+    padding:7px 2px;font-size:.92rem;}
+  .venn-readout .row b{font-variant-numeric:tabular-nums;}
+  .venn-readout .row.cond{background:#eaf2ff;border-radius:8px;padding:8px 8px;border-bottom:0;margin-top:6px;}
+
+  .note{font-size:.82rem;color:var(--muted);margin-top:10px;}
+  footer.foot{margin-top:22px;text-align:center;color:var(--muted);font-size:.82rem;padding-bottom:10px;}
+  .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
+  .help{font-size:.85rem;color:var(--muted);background:#f3f7fd;border:1px dashed var(--line);
+    border-radius:10px;padding:10px 12px;margin-top:12px;}
+  kbd{background:#16243a;color:#fff;border-radius:5px;padding:1px 6px;font-size:.78rem;}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app">
+    <div class="tag">Maths &middot; KS4 &middot; Probability</div>
+    <h1>Tree Diagram Builder</h1>
+    <p class="aim"><b>Teaching aim:</b> probabilities <b>multiply along</b> the branches and <b>add across</b> the outcomes. Adjust a branch and watch every outcome update, then compare <b>with</b> and <b>without replacement</b>.</p>
+  </header>
+
+  <!-- SCENARIO PICKER -->
+  <section class="panel" aria-labelledby="scen-h">
+    <h2 id="scen-h">1. Choose a two-stage experiment</h2>
+    <p class="sub">Each scenario draws two items in turn. Switch replacement on or off to see conditional probability change the second set of branches.</p>
+    <div class="scenario-grid" id="scenarioGrid" role="group" aria-label="Scenario picker"></div>
+  </section>
+
+  <!-- BUILDER -->
+  <section class="panel" aria-labelledby="build-h">
+    <h2 id="build-h">2. Build and read the tree</h2>
+    <p class="sub">Set how many of each item are in the bag, choose replacement, then read the auto-calculated probabilities. Click any blue branch fraction to edit a first-stage probability by hand.</p>
+
+    <div class="controls" id="controls"></div>
+
+    <div class="replace-row">
+      <span class="lbl">Replacement:</span>
+      <div class="seg" role="group" aria-label="Replacement mode">
+        <button id="withRep" type="button" aria-pressed="true">With replacement</button>
+        <button id="withoutRep" type="button" aria-pressed="false">Without replacement</button>
+      </div>
+      <span class="pill" id="repExplain">Independent: second draw matches the first.</span>
+    </div>
+
+    <div class="stage">
+      <div class="stage-scroll">
+        <svg class="tree" id="treeSvg" viewBox="0 0 720 360" role="img"
+             aria-labelledby="treeTitle treeDesc">
+          <title id="treeTitle">Two-stage probability tree diagram</title>
+          <desc id="treeDesc"></desc>
+        </svg>
+      </div>
+    </div>
+
+    <div class="legend" aria-hidden="true">
+      <span><i class="swatch" style="background:var(--branchA)"></i> First branch / first item</span>
+      <span><i class="swatch" style="background:var(--branchB)"></i> Second item</span>
+      <span><i class="swatch" style="background:var(--branchC)"></i> Outcome probability (multiply along)</span>
+    </div>
+
+    <div class="sumbar" id="sumbar" aria-live="polite">
+      <span>Sum of all four outcome probabilities:</span>
+      <span class="num" id="sumVal">1</span>
+    </div>
+
+    <div class="help">
+      <b>Keyboard:</b> use the number inputs above to change the bag. Press <kbd>Tab</kbd> to a blue branch fraction and <kbd>Enter</kbd> to edit a first-stage probability. The diagram description for screen readers updates live.
+    </div>
+  </section>
+
+  <!-- CHALLENGE -->
+  <section class="panel" aria-labelledby="chal-h">
+    <h2 id="chal-h">3. Read the tree, answer the question</h2>
+    <p class="sub">Use your tree. Type the probability as a fraction in its simplest form, or as a decimal. The app marks it and tells you exactly which branches to multiply or add.</p>
+
+    <div class="q-card">
+      <p class="q-text" id="qText" aria-live="polite"></p>
+      <div class="ans-row">
+        <div class="frac">
+          <input id="ansNum" type="text" inputmode="numeric" aria-label="Answer numerator or decimal" placeholder="num">
+          <span class="bar" id="fbar"></span>
+          <input id="ansDen" type="text" inputmode="numeric" aria-label="Answer denominator" placeholder="den">
+        </div>
+        <span class="or">or decimal in the top box</span>
+        <button class="btn primary" id="checkBtn" type="button">Check answer</button>
+        <button class="btn ghost" id="hintBtn" type="button">Hint</button>
+        <button class="btn ghost" id="newQBtn" type="button">New question</button>
+      </div>
+      <div class="feedback" id="qFeedback" role="status" aria-live="polite"></div>
+      <div class="score">
+        <span class="s" id="scoreRight">Correct: 0</span>
+        <span class="s" id="scoreTried">Attempts: 0</span>
+        <span class="s" id="scoreStreak">Streak: 0</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- VENN LAB -->
+  <section class="panel" aria-labelledby="venn-h">
+    <h2 id="venn-h">4. Conditional Venn Lab</h2>
+    <p class="sub">A class of 30 fictional pupils. Drag the slider counts, then click a region to highlight it. The lab shows how P(A and B), P(A or B) and the conditional P(A given B) are read from the same diagram.</p>
+
+    <details class="venn" open>
+      <summary>Open the Venn Lab</summary>
+      <div class="venn-grid">
+        <div class="venn-svg-wrap">
+          <svg id="vennSvg" viewBox="0 0 360 260" role="img" aria-labelledby="vennTitle vennDesc">
+            <title id="vennTitle">Two-set Venn diagram for two clubs</title>
+            <desc id="vennDesc"></desc>
+          </svg>
+        </div>
+        <div>
+          <div class="controls" style="margin-bottom:10px">
+            <div class="field">
+              <label for="onlyA">Only Drama (A)</label>
+              <input id="onlyA" type="number" min="0" max="30" step="1" value="9">
+            </div>
+            <div class="field">
+              <label for="both">Both clubs</label>
+              <input id="both" type="number" min="0" max="30" step="1" value="6">
+            </div>
+            <div class="field">
+              <label for="onlyB">Only Coding (B)</label>
+              <input id="onlyB" type="number" min="0" max="30" step="1" value="8">
+            </div>
+          </div>
+          <div class="venn-readout" id="vennReadout" aria-live="polite"></div>
+          <p class="note" id="vennNote"></p>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <footer class="foot">
+    Tree Diagram Builder &middot; WeST classroom demonstrator &middot; Demonstration data only; all names are fictional.
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- helpers ---------- */
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+function simplify(n,d){var g=gcd(n,d);return [n/g,d/g];}
+function fracStr(n,d){if(n===0)return "0";var s=simplify(n,d);if(s[1]===1)return ""+s[0];return s[0]+"/"+s[1];}
+function fmt(n,d){ // returns {frac, dec}
+  var s=simplify(n,d);
+  return {frac:fracStr(n,d), dec:(n/d)};
+}
+function nearlyEqual(a,b){return Math.abs(a-b)<1e-9;}
+
+/* ---------- scenarios ---------- */
+/* Each: two outcomes per stage. itemA = "success" outcome, itemB = "other".
+   counts give how many of each in the bag of (a+b). */
+var SCENARIOS = [
+  {
+    id:"counters",
+    title:"Bag of counters",
+    desc:"Red and blue counters drawn one after another.",
+    labelA:"Red", labelB:"Blue",
+    a:3, b:2, total:5,
+    unit:"counter",
+    contextA:"a red counter", contextB:"a blue counter"
+  },
+  {
+    id:"sweets",
+    title:"Tin of sweets",
+    desc:"Toffee and mint sweets, picked without looking.",
+    labelA:"Toffee", labelB:"Mint",
+    a:4, b:6, total:10,
+    unit:"sweet",
+    contextA:"a toffee", contextB:"a mint"
+  },
+  {
+    id:"cards",
+    title:"Picture cards",
+    desc:"Star and moon cards turned over in turn.",
+    labelA:"Star", labelB:"Moon",
+    a:5, b:3, total:8,
+    unit:"card",
+    contextA:"a star card", contextB:"a moon card"
+  }
+];
+
+/* ---------- state ---------- */
+var state = {
+  scen: SCENARIOS[0],
+  a: SCENARIOS[0].a,
+  b: SCENARIOS[0].b,
+  withReplacement: true,
+  // first-stage probabilities (as numerator/denominator) can be overridden by the user
+  manualP1: null   // {numA,den} override of first draw P(A); when set, b is derived
+};
+
+/* ---------- compute branch probabilities ---------- */
+function branchProbs(){
+  var a=state.a, b=state.b, tot=a+b;
+  // First stage
+  var p1A_n, p1A_d;
+  if(state.manualP1){ p1A_n=state.manualP1.n; p1A_d=state.manualP1.d; }
+  else { p1A_n=a; p1A_d=tot; }
+  var p1B_n=p1A_d-p1A_n, p1B_d=p1A_d;
+
+  // Second stage depends on replacement; only meaningful from the count model.
+  var s = {};
+  s.p1A=[p1A_n,p1A_d];
+  s.p1B=[p1B_n,p1B_d];
+
+  if(state.withReplacement){
+    // independent: same as first
+    s.p2A_givenA=[a,tot]; s.p2B_givenA=[b,tot];
+    s.p2A_givenB=[a,tot]; s.p2B_givenB=[b,tot];
+  } else {
+    // without replacement: condition on first draw
+    // after drawing A: a-1 of A, b of B, total tot-1
+    s.p2A_givenA=[Math.max(a-1,0), Math.max(tot-1,1)];
+    s.p2B_givenA=[b, Math.max(tot-1,1)];
+    // after drawing B: a of A, b-1 of B
+    s.p2A_givenB=[a, Math.max(tot-1,1)];
+    s.p2B_givenB=[Math.max(b-1,0), Math.max(tot-1,1)];
+  }
+  return s;
+}
+
+/* multiply two fractions, return decimal and {n,d} */
+function mul(f1,f2){return {n:f1[0]*f2[0], d:f1[1]*f2[1], dec:(f1[0]*f2[0])/(f1[1]*f2[1])};}
+
+function outcomes(){
+  var s=branchProbs();
+  var L=state.scen;
+  var o=[
+    {key:"AA", lbl:L.labelA+", "+L.labelA, f1:s.p1A, f2:s.p2A_givenA},
+    {key:"AB", lbl:L.labelA+", "+L.labelB, f1:s.p1A, f2:s.p2B_givenA},
+    {key:"BA", lbl:L.labelB+", "+L.labelA, f1:s.p1B, f2:s.p2A_givenB},
+    {key:"BB", lbl:L.labelB+", "+L.labelB, f1:s.p1B, f2:s.p2B_givenB}
+  ];
+  o.forEach(function(x){var m=mul(x.f1,x.f2);x.n=m.n;x.d=m.d;x.dec=m.dec;});
+  return {outcomes:o, branches:s};
+}
+
+/* ---------- SVG tree render ---------- */
+var SVGNS="http://www.w3.org/2000/svg";
+function el(name,attrs,text){
+  var e=document.createElementNS(SVGNS,name);
+  for(var k in attrs){e.setAttribute(k,attrs[k]);}
+  if(text!=null)e.textContent=text;
+  return e;
+}
+
+function renderTree(){
+  var svg=document.getElementById("treeSvg");
+  while(svg.firstChild)svg.removeChild(svg.firstChild);
+  // keep title/desc
+  var t=el("title",{id:"treeTitle"},"Two-stage probability tree diagram");
+  var d=el("desc",{id:"treeDesc"},"");
+  svg.appendChild(t);svg.appendChild(d);
+
+  var data=outcomes();
+  var br=data.branches, outs=data.outcomes, L=state.scen;
+
+  var W=720,H=360;
+  var x0=60, x1=300, x2=540, xLeaf=560, xProb=652;
+  var rootY=H/2;
+  // first-stage node y positions
+  var yA=H*0.28, yB=H*0.72;
+  // second-stage leaves
+  var ys=[H*0.13,H*0.40,H*0.60,H*0.87];
+
+  function line(x1,y1,x2,y2,col){
+    return el("line",{x1:x1,y1:y1,x2:x2,y2:y2,stroke:col,"stroke-width":2.4,"stroke-linecap":"round"});
+  }
+  function probTxt(x,y,txt,cls){
+    return el("text",{x:x,y:y,"class":cls,"text-anchor":"middle",fill:"#16243a"},txt);
+  }
+
+  var cA="var(--branchA)", cB="var(--branchB)", cC="var(--branchC)";
+
+  // Stage 1 branches
+  svg.appendChild(line(x0,rootY,x1,yA,cA));
+  svg.appendChild(line(x0,rootY,x1,yB,cA));
+  // Stage 2 branches
+  svg.appendChild(line(x1,yA,x2,ys[0],cB));
+  svg.appendChild(line(x1,yA,x2,ys[1],cB));
+  svg.appendChild(line(x1,yB,x2,ys[2],cB));
+  svg.appendChild(line(x1,yB,x2,ys[3],cB));
+
+  // nodes
+  svg.appendChild(el("circle",{cx:x0,cy:rootY,r:6,"class":"node-dot"}));
+  svg.appendChild(el("circle",{cx:x1,cy:yA,r:5,"class":"node-dot"}));
+  svg.appendChild(el("circle",{cx:x1,cy:yB,r:5,"class":"node-dot"}));
+
+  // stage-1 labels + editable probabilities
+  function midProb(xa,ya,xb,yb,frac,editable,which){
+    var mx=(xa+xb)/2, my=(ya+yb)/2 - 6;
+    var g=el("g",{});
+    var txt=fracStr(frac[0],frac[1]);
+    var label=el("text",{x:mx,y:my,"class":"b-prob"+(editable?" editing":""),"text-anchor":"middle",
+       fill: editable? "var(--accent-dark)":"#16243a"},txt);
+    if(editable){
+      g.setAttribute("tabindex","0");
+      g.setAttribute("role","button");
+      g.setAttribute("aria-label","First-stage probability for "+ (which==="A"?L.labelA:L.labelB)+", currently "+txt+". Activate to edit.");
+      // hit area
+      var hit=el("rect",{x:mx-34,y:my-16,width:68,height:24,fill:"transparent","style":"cursor:pointer"});
+      g.appendChild(hit);
+      g.addEventListener("click",function(){editFirstStage(which);});
+      g.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();editFirstStage(which);}});
+    }
+    g.appendChild(label);
+    return g;
+  }
+  svg.appendChild(midProb(x0,rootY,x1,yA,br.p1A,true,"A"));
+  svg.appendChild(midProb(x0,rootY,x1,yB,br.p1B,true,"B"));
+
+  // stage-1 outcome labels (item names at the node)
+  svg.appendChild(el("text",{x:x1+12,y:yA-12,"class":"b-label",fill:cA},L.labelA));
+  svg.appendChild(el("text",{x:x1+12,y:yB+22,"class":"b-label",fill:cA},L.labelB));
+
+  // stage-2 probabilities + labels + outcome
+  var s2=[br.p2A_givenA, br.p2B_givenA, br.p2A_givenB, br.p2B_givenB];
+  var s2lab=[L.labelA,L.labelB,L.labelA,L.labelB];
+  var node2Y=[yA,yA,yB,yB];
+  for(var i=0;i<4;i++){
+    var mx=(x1+x2)/2, my=(node2Y[i]+ys[i])/2 -4;
+    svg.appendChild(probTxt(mx,my,fracStr(s2[i][0],s2[i][1]),"b-prob"));
+    // leaf label
+    svg.appendChild(el("text",{x:x2+10,y:ys[i]+5,"class":"b-label",fill:cB},s2lab[i]));
+    svg.appendChild(el("circle",{cx:x2,cy:ys[i],r:4,"class":"leaf-dot"}));
+    // outcome probability
+    var o=outs[i];
+    var ot=fracStr(o.n,o.d);
+    svg.appendChild(el("text",{x:xProb,y:ys[i]+5,"class":"outcome-prob","text-anchor":"end",fill:cC}, ot));
+  }
+  // header for outcome column
+  svg.appendChild(el("text",{x:xProb,y:18,"class":"b-prob","text-anchor":"end",fill:"var(--muted)"},"P(outcome)"));
+
+  // sum readout
+  var sum=outs.reduce(function(acc,o){return acc+o.dec;},0);
+  var sumbar=document.getElementById("sumbar");
+  document.getElementById("sumVal").textContent = nearlyEqual(sum,1)? "1 ✓" : sum.toFixed(3);
+  sumbar.className="sumbar "+(nearlyEqual(sum,1)?"ok":"bad");
+
+  // accessible description
+  var dlist=outs.map(function(o){return "P("+o.lbl+") = "+fracStr(o.n,o.d)+" (about "+(o.dec*100).toFixed(1)+" percent)";});
+  d.textContent = "Two-stage tree for "+L.title+", "+(state.withReplacement?"with":"without")+" replacement. "+
+    "First draw: P("+L.labelA+") = "+fracStr(br.p1A[0],br.p1A[1])+", P("+L.labelB+") = "+fracStr(br.p1B[0],br.p1B[1])+". "+
+    "Outcomes: "+dlist.join("; ")+".";
+
+  drawVenn(); // keep venn in sync if visible (independent though)
+}
+
+/* ---------- edit first stage probability ---------- */
+function editFirstStage(which){
+  var br=branchProbs();
+  var cur = which==="A"? br.p1A : br.p1B;
+  var msg="Enter the first-stage probability for "+(which==="A"?state.scen.labelA:state.scen.labelB)+
+    " as a fraction like 3/5 or a decimal like 0.6.\nCurrently "+fracStr(cur[0],cur[1])+".";
+  var raw=window.prompt(msg, fracStr(cur[0],cur[1]));
+  if(raw==null)return;
+  raw=raw.trim();
+  var n,dn;
+  if(raw.indexOf("/")>=0){
+    var parts=raw.split("/");
+    n=parseFloat(parts[0]); dn=parseFloat(parts[1]);
+  } else {
+    var v=parseFloat(raw);
+    if(isNaN(v)){alert("Could not read that value.");return;}
+    // convert decimal to a fraction over a reasonable denominator
+    dn=1000; n=Math.round(v*1000);
+  }
+  if(isNaN(n)||isNaN(dn)||dn<=0||n<0||n>dn){
+    alert("That probability must be between 0 and 1.");return;
+  }
+  // store P(A); if user edited B, convert to P(A)=1-P(B)
+  if(which==="B"){ var nn=dn-n; n=nn; }
+  state.manualP1={n:n,d:dn};
+  // turn off replacement-count coupling note
+  flashRep("Manual first-stage probability set. Counts now describe the second stage only.");
+  renderTree();
+  refreshChallenge(); // probabilities changed
+}
+
+/* ---------- controls ---------- */
+function buildControls(){
+  var c=document.getElementById("controls");
+  c.innerHTML="";
+  var L=state.scen;
+  var fA=document.createElement("div");fA.className="field";
+  fA.innerHTML='<label for="countA">'+L.labelA+' in bag</label>';
+  var inA=document.createElement("input");inA.type="number";inA.min=0;inA.max=20;inA.step=1;inA.value=state.a;inA.id="countA";
+  fA.appendChild(inA);
+
+  var fB=document.createElement("div");fB.className="field";
+  fB.innerHTML='<label for="countB">'+L.labelB+' in bag</label>';
+  var inB=document.createElement("input");inB.type="number";inB.min=0;inB.max=20;inB.step=1;inB.value=state.b;inB.id="countB";
+  fB.appendChild(inB);
+
+  var fT=document.createElement("div");fT.className="field";
+  fT.innerHTML='<label>Total in bag</label><div class="pill" id="totPill" style="margin-top:4px">'+(state.a+state.b)+'</div>';
+
+  var reset=document.createElement("button");
+  reset.className="btn ghost";reset.type="button";reset.textContent="Reset scenario";
+  reset.style.marginLeft="auto";
+  reset.addEventListener("click",function(){selectScenario(state.scen.id,true);});
+
+  c.appendChild(fA);c.appendChild(fB);c.appendChild(fT);c.appendChild(reset);
+
+  function onChange(){
+    var av=parseInt(inA.value,10), bv=parseInt(inB.value,10);
+    if(isNaN(av)||av<0)av=0; if(isNaN(bv)||bv<0)bv=0;
+    if(av+bv<1){ av=1; inA.value=1; }
+    state.a=av; state.b=bv; state.manualP1=null; // changing counts resets manual override
+    document.getElementById("totPill").textContent=state.a+state.b;
+    renderTree(); refreshChallenge();
+  }
+  inA.addEventListener("input",onChange);
+  inB.addEventListener("input",onChange);
+}
+
+function flashRep(txt){
+  var p=document.getElementById("repExplain");
+  p.textContent=txt;
+}
+
+/* ---------- scenario picker ---------- */
+function buildScenarioGrid(){
+  var g=document.getElementById("scenarioGrid");
+  g.innerHTML="";
+  SCENARIOS.forEach(function(s){
+    var b=document.createElement("button");
+    b.className="scen-btn"+(s.id===state.scen.id?" active":"");
+    b.type="button";
+    b.setAttribute("aria-pressed", s.id===state.scen.id?"true":"false");
+    b.innerHTML='<span class="st">'+s.title+'</span><span class="sd">'+s.desc+'</span>';
+    b.addEventListener("click",function(){selectScenario(s.id);});
+    g.appendChild(b);
+  });
+}
+function selectScenario(id, keepReplace){
+  var s=SCENARIOS.filter(function(x){return x.id===id;})[0];
+  state.scen=s; state.a=s.a; state.b=s.b; state.manualP1=null;
+  if(!keepReplace){ /* keep current replacement choice */ }
+  buildScenarioGrid();
+  buildControls();
+  renderTree();
+  refreshChallenge();
+}
+
+/* ---------- replacement toggle ---------- */
+function setReplacement(withRep){
+  state.withReplacement=withRep;
+  document.getElementById("withRep").setAttribute("aria-pressed", withRep?"true":"false");
+  document.getElementById("withoutRep").setAttribute("aria-pressed", withRep?"false":"true");
+  flashRep(withRep
+    ? "Independent: second draw matches the first."
+    : "Conditional: the second branches change because one "+state.scen.unit+" has been removed.");
+  renderTree();
+  refreshChallenge();
+}
+
+/* ---------- CHALLENGE ---------- */
+var challenge=null;
+var scoreState={right:0,tried:0,streak:0};
+
+var QUESTION_TEMPLATES=[
+  {id:"both_same_A", build:function(o,L){
+     return {text:"both items are "+L.labelB+" (that is, "+L.labelB+" then "+L.labelB+")",
+             target:findOutcome(o,"BB"), how:"Multiply along the "+L.labelB+" then "+L.labelB+" path."};
+  }},
+  {id:"both_A", build:function(o,L){
+     return {text:"both items are "+L.labelA+"",
+             target:findOutcome(o,"AA"), how:"Multiply along the "+L.labelA+" then "+L.labelA+" path."};
+  }},
+  {id:"one_each", build:function(o,L){
+     var ab=findOutcome(o,"AB"), ba=findOutcome(o,"BA");
+     var n=ab.n*ba.d + ba.n*ab.d, dn=ab.d*ba.d;
+     return {text:"exactly one of each (one "+L.labelA+" and one "+L.labelB+", in any order)",
+             targetNum:n, targetDen:dn,
+             how:"Two paths give one of each: ("+L.labelA+", "+L.labelB+") and ("+L.labelB+", "+L.labelA+"). Multiply along each, then add the two outcomes."};
+  }},
+  {id:"at_least_one_A", build:function(o,L){
+     // P(at least one A) = 1 - P(BB)
+     var bb=findOutcome(o,"BB");
+     var n=bb.d-bb.n, dn=bb.d;
+     return {text:"at least one "+L.labelA,
+             targetNum:n, targetDen:dn,
+             how:"Easiest as 1 minus P(no "+L.labelA+"), and no "+L.labelA+" means "+L.labelB+" then "+L.labelB+"."};
+  }},
+  {id:"first_A_second_B", build:function(o,L){
+     return {text:"the first is "+L.labelA+" and the second is "+L.labelB,
+             target:findOutcome(o,"AB"),
+             how:"One single path: multiply P(first "+L.labelA+") by P(second "+L.labelB+")."};
+  }}
+];
+
+function findOutcome(o,key){return o.filter(function(x){return x.key===key;})[0];}
+
+function refreshChallenge(){ if(challenge) newQuestion(challenge.tplId); }
+
+function newQuestion(forceId){
+  var data=outcomes(); var o=data.outcomes; var L=state.scen;
+  var tplPool=QUESTION_TEMPLATES;
+  var tpl;
+  if(forceId){ tpl=tplPool.filter(function(t){return t.id===forceId;})[0]; }
+  if(!tpl){ tpl=tplPool[Math.floor(Math.random()*tplPool.length)]; }
+  var spec=tpl.build(o,L);
+  var num,den;
+  if(spec.target){ num=spec.target.n; den=spec.target.d; }
+  else { num=spec.targetNum; den=spec.targetDen; }
+  challenge={tplId:tpl.id, num:num, den:den, dec:num/den, how:spec.how, text:spec.text};
+  var rep=state.withReplacement?"with replacement":"without replacement";
+  document.getElementById("qText").innerHTML="Using the tree for <b>"+L.title+"</b> ("+rep+
+    "), what is the probability that "+spec.text+"?";
+  // clear inputs/feedback
+  document.getElementById("ansNum").value="";
+  document.getElementById("ansDen").value="";
+  var fb=document.getElementById("qFeedback");fb.className="feedback";fb.innerHTML="";
+}
+
+function parseAnswer(){
+  var nRaw=document.getElementById("ansNum").value.trim();
+  var dRaw=document.getElementById("ansDen").value.trim();
+  if(nRaw===""&&dRaw==="")return null;
+  if(dRaw===""){
+    // decimal mode (or a whole number in top box)
+    var v=parseFloat(nRaw);
+    if(isNaN(v))return {bad:true};
+    return {dec:v, isFraction:false};
+  }
+  var n=parseFloat(nRaw), d=parseFloat(dRaw);
+  if(isNaN(n)||isNaN(d)||d===0)return {bad:true};
+  return {dec:n/d, n:n, d:d, isFraction:true};
+}
+
+function checkAnswer(){
+  if(!challenge)return;
+  var ans=parseAnswer();
+  var fb=document.getElementById("qFeedback");
+  if(ans===null){ fb.className="feedback hint show"; fb.innerHTML="<b>Type something first.</b> Enter a fraction (top and bottom) or a decimal in the top box."; return; }
+  if(ans.bad){ fb.className="feedback bad show"; fb.innerHTML="<b>That is not a number.</b> Use digits only, for example 3 and 10, or 0.3."; return; }
+
+  scoreState.tried++;
+  var correct=nearlyEqual(ans.dec, challenge.dec);
+
+  if(correct){
+    scoreState.right++; scoreState.streak++;
+    var simp=simplify(challenge.num,challenge.den);
+    var note="";
+    if(ans.isFraction){
+      var givenSimp=simplify(ans.n,ans.d);
+      if(givenSimp[0]!==simp[0]||givenSimp[1]!==simp[1]){
+        note=" Tip: in simplest form that is <b>"+fracStr(challenge.num,challenge.den)+"</b>.";
+      }
+    }
+    fb.className="feedback good show";
+    fb.innerHTML="<b>Correct.</b> "+challenge.how+" That gives <b>"+fracStr(challenge.num,challenge.den)+
+      "</b> = "+(challenge.dec).toFixed(4).replace(/0+$/,"").replace(/\.$/,"")+"."+note;
+  } else {
+    scoreState.streak=0;
+    // targeted diagnostic
+    var msg=diagnose(ans.dec);
+    fb.className="feedback bad show";
+    fb.innerHTML="<b>Not quite.</b> "+msg+" "+challenge.how+
+      " The correct value is <b>"+fracStr(challenge.num,challenge.den)+"</b> ("+(challenge.dec).toFixed(4).replace(/0+$/,"").replace(/\.$/,"")+").";
+  }
+  updateScore();
+}
+
+/* compare a wrong answer to common slips and name them */
+function diagnose(given){
+  var data=outcomes(); var o=data.outcomes;
+  var L=state.scen;
+  // common slip: added instead of multiplied (along a single path)
+  if(challenge.tplId==="both_A"||challenge.tplId==="both_same_A"||challenge.tplId==="first_A_second_B"){
+    var key = challenge.tplId==="both_A"?"AA":(challenge.tplId==="both_same_A"?"BB":"AB");
+    var t=findOutcome(o,key);
+    var addDec=(t.f1[0]/t.f1[1])+(t.f2[0]/t.f2[1]);
+    if(nearlyEqual(given, addDec)){
+      return "It looks like you <b>added</b> the two branch probabilities. Along one path you must <b>multiply</b>.";
+    }
+  }
+  // common slip on without replacement: used 'with replacement' value
+  if(!state.withReplacement){
+    var was=state.withReplacement; state.withReplacement=true;
+    var alt=recomputeTargetDec();
+    state.withReplacement=was;
+    if(alt!=null && nearlyEqual(given, alt)){
+      return "That is the <b>with replacement</b> answer. Without replacement the second branches are smaller because one "+L.unit+" was removed.";
+    }
+  }
+  // forgot the second path on 'one each' or 'at least one'
+  if(challenge.tplId==="one_each"){
+    var ab=findOutcome(o,"AB");
+    if(nearlyEqual(given, ab.dec)){
+      return "You found only one order. <b>One of each</b> happens two ways, so add both paths.";
+    }
+  }
+  if(challenge.tplId==="at_least_one_A"){
+    var bb=findOutcome(o,"BB");
+    if(nearlyEqual(given, bb.dec)){
+      return "That is P(no "+L.labelA+"). <b>At least one</b> is 1 minus that.";
+    }
+  }
+  return "Read straight off the tree:";
+}
+
+function recomputeTargetDec(){
+  var data=outcomes(); var o=data.outcomes;
+  var tpl=QUESTION_TEMPLATES.filter(function(t){return t.id===challenge.tplId;})[0];
+  if(!tpl)return null;
+  var spec=tpl.build(o,state.scen);
+  if(spec.target)return spec.target.dec;
+  if(spec.targetNum!=null)return spec.targetNum/spec.targetDen;
+  return null;
+}
+
+function showHint(){
+  if(!challenge)return;
+  var fb=document.getElementById("qFeedback");
+  fb.className="feedback hint show";
+  fb.innerHTML="<b>Hint.</b> "+challenge.how+" Find those branches on the tree, then read the fractions.";
+}
+
+function updateScore(){
+  document.getElementById("scoreRight").textContent="Correct: "+scoreState.right;
+  document.getElementById("scoreTried").textContent="Attempts: "+scoreState.tried;
+  document.getElementById("scoreStreak").textContent="Streak: "+scoreState.streak;
+}
+
+/* ---------- VENN LAB ---------- */
+function vennCounts(){
+  var oa=Math.max(0,parseInt(document.getElementById("onlyA").value,10)||0);
+  var bo=Math.max(0,parseInt(document.getElementById("both").value,10)||0);
+  var ob=Math.max(0,parseInt(document.getElementById("onlyB").value,10)||0);
+  return {oa:oa,bo:bo,ob:ob};
+}
+var vennHighlight="none";
+
+function drawVenn(){
+  var svg=document.getElementById("vennSvg");
+  if(!svg)return;
+  while(svg.firstChild)svg.removeChild(svg.firstChild);
+  var t=el("title",{id:"vennTitle"},"Two-set Venn diagram for two clubs");
+  var d=el("desc",{id:"vennDesc"},"");
+  svg.appendChild(t);svg.appendChild(d);
+
+  var c=vennCounts();
+  var total=c.oa+c.bo+c.ob;
+  var outside= Math.max(0, 30-total); // class of 30
+  // rectangle (universal set)
+  svg.appendChild(el("rect",{x:6,y:6,width:348,height:248,rx:10,fill:"#fff",stroke:"#d6deea","stroke-width":2}));
+  svg.appendChild(el("text",{x:14,y:24,"font-size":12,fill:"#5a6b85","font-weight":700},"Class of 30"));
+  svg.appendChild(el("text",{x:330,y:246,"font-size":12,fill:"#5a6b85","text-anchor":"end"},"Neither: "+outside));
+
+  var cAx=140, cBx=220, cy=140, r=86;
+
+  function regionFill(name){return vennHighlight===name?0.55:0.18;}
+  // Circle A (drama)
+  var circA=el("circle",{cx:cAx,cy:cy,r:r,fill:"var(--branchA)","fill-opacity":0.16,stroke:"var(--branchA)","stroke-width":2.4});
+  var circB=el("circle",{cx:cBx,cy:cy,r:r,fill:"var(--branchB)","fill-opacity":0.16,stroke:"var(--branchB)","stroke-width":2.4});
+  svg.appendChild(circA);svg.appendChild(circB);
+
+  // clickable region overlays (transparent shapes carrying aria + click)
+  function regionBtn(cx,cy,label,name,countTxt){
+    var g=el("g",{tabindex:"0",role:"button","class":"venn-region","aria-label":label});
+    var hit=el("circle",{cx:cx,cy:cy,r:18,fill: vennHighlight===name? "var(--accent)":"transparent","fill-opacity":vennHighlight===name?0.22:0,"style":"cursor:pointer"});
+    g.appendChild(hit);
+    g.appendChild(el("text",{x:cx,y:cy+6,"font-size":20,"font-weight":800,"text-anchor":"middle",fill:"#16243a","style":"cursor:pointer"},countTxt));
+    function act(){vennHighlight=(vennHighlight===name?"none":name);drawVenn();}
+    g.addEventListener("click",act);
+    g.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();act();}});
+    return g;
+  }
+  svg.appendChild(regionBtn(cAx-34,cy,"Only Drama region, "+c.oa+" pupils. Activate to highlight.","onlyA",""+c.oa));
+  svg.appendChild(regionBtn((cAx+cBx)/2,cy,"Both clubs region, "+c.bo+" pupils. Activate to highlight.","both",""+c.bo));
+  svg.appendChild(regionBtn(cBx+34,cy,"Only Coding region, "+c.ob+" pupils. Activate to highlight.","onlyB",""+c.ob));
+
+  // labels
+  svg.appendChild(el("text",{x:cAx-46,y:cy-58,"font-size":13,"font-weight":700,fill:"var(--branchA)"},"Drama (A)"));
+  svg.appendChild(el("text",{x:cBx+8,y:cy-58,"font-size":13,"font-weight":700,fill:"var(--branchB)"},"Coding (B)"));
+
+  // readout
+  var ro=document.getElementById("vennReadout");
+  var nA=c.oa+c.bo, nB=c.ob+c.bo, nAandB=c.bo, nAorB=c.oa+c.bo+c.ob, N=30;
+  function p(n,dd){return n+"/"+dd+" = "+fracStr(n,dd)+(dd? " ("+((n/dd)*100).toFixed(0)+"%)":"");}
+  ro.innerHTML=
+    '<div class="row"><span>P(A) Drama</span><b>'+p(nA,N)+'</b></div>'+
+    '<div class="row"><span>P(B) Coding</span><b>'+p(nB,N)+'</b></div>'+
+    '<div class="row"><span>P(A and B)</span><b>'+p(nAandB,N)+'</b></div>'+
+    '<div class="row"><span>P(A or B)</span><b>'+p(nAorB,N)+'</b></div>'+
+    '<div class="row cond"><span>P(A given B) = both / B</span><b>'+ (nB>0? c.bo+'/'+nB+' = '+fracStr(c.bo,nB)+' ('+((c.bo/nB)*100).toFixed(0)+'%)':'n/a') +'</b></div>';
+
+  var note=document.getElementById("vennNote");
+  note.innerHTML="P(A or B) = P(A) + P(B) - P(A and B): "+fracStr(nA,N)+" + "+fracStr(nB,N)+" - "+fracStr(nAandB,N)+" = "+fracStr(nAorB,N)+
+    ". Conditional P(A given B) divides only by the pupils already in B ("+nB+"), not the whole class.";
+
+  d.textContent="Venn diagram. Only Drama "+c.oa+", both clubs "+c.bo+", only Coding "+c.ob+", neither "+outside+
+    ". P(A and B) is "+fracStr(nAandB,N)+", P(A or B) is "+fracStr(nAorB,N)+
+    ", P(A given B) is "+(nB>0?fracStr(c.bo,nB):"undefined")+".";
+}
+
+/* ---------- wiring ---------- */
+function init(){
+  buildScenarioGrid();
+  buildControls();
+  document.getElementById("withRep").addEventListener("click",function(){setReplacement(true);});
+  document.getElementById("withoutRep").addEventListener("click",function(){setReplacement(false);});
+  renderTree();
+
+  document.getElementById("checkBtn").addEventListener("click",checkAnswer);
+  document.getElementById("hintBtn").addEventListener("click",showHint);
+  document.getElementById("newQBtn").addEventListener("click",function(){newQuestion();});
+  document.getElementById("ansDen").addEventListener("keydown",function(e){if(e.key==="Enter")checkAnswer();});
+  document.getElementById("ansNum").addEventListener("keydown",function(e){if(e.key==="Enter")checkAnswer();});
+  newQuestion();
+
+  ["onlyA","both","onlyB"].forEach(function(id){
+    document.getElementById(id).addEventListener("input",drawVenn);
+  });
+  drawVenn();
+}
+document.addEventListener("DOMContentLoaded",init);
+</script>
+</body>
+</html>

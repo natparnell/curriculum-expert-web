@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Real or Fake Feed</title>
+<style>
+  :root {
+    --ink: #1d2433;
+    --muted: #5a6473;
+    --line: #e3e7ee;
+    --paper: #f4f6fb;
+    --card: #ffffff;
+    --brand: #2f5fd0;
+    --brand-dark: #1f3f93;
+    --true: #1c8a5b;
+    --true-bg: #e4f6ec;
+    --advert: #b3640f;
+    --advert-bg: #fdefdc;
+    --unsafe: #c23a4b;
+    --unsafe-bg: #fce6e9;
+    --shadow: 0 12px 34px rgba(31, 63, 147, 0.14);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap {
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 18px 16px 60px;
+  }
+  header.app-head {
+    background: linear-gradient(135deg, #2f5fd0, #5a3fb3);
+    color: #fff;
+    border-radius: 18px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  header.app-head h1 {
+    margin: 0 0 4px;
+    font-size: clamp(1.4rem, 4.4vw, 2rem);
+    letter-spacing: 0.2px;
+  }
+  header.app-head p.tag {
+    margin: 0;
+    font-size: 0.98rem;
+    opacity: 0.95;
+  }
+  .aim {
+    margin-top: 12px;
+    background: rgba(255,255,255,0.16);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 0.92rem;
+  }
+  .aim strong { font-weight: 700; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+    margin-top: 18px;
+  }
+  @media (min-width: 760px) {
+    .layout { grid-template-columns: 1.4fr 1fr; align-items: start; }
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .panel h2 {
+    margin: 0 0 10px;
+    font-size: 1.05rem;
+    color: var(--brand-dark);
+  }
+
+  /* Phone / feed */
+  .phone {
+    background: #0e1424;
+    border-radius: 24px;
+    padding: 12px;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.06);
+    position: relative;
+  }
+  .phone-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #c9d2e6;
+    font-size: 0.78rem;
+    padding: 2px 8px 8px;
+  }
+  .phone-bar .app-name { font-weight: 700; letter-spacing: 0.5px; }
+  .stage {
+    position: relative;
+    min-height: 360px;
+  }
+  .post {
+    background: var(--card);
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    padding: 14px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .post.dragging { transition: none; }
+  .post-card-live {
+    touch-action: none;
+    cursor: grab;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+    will-change: transform;
+  }
+  .post-card-live:active { cursor: grabbing; }
+  .post-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 1.2rem;
+    background: #eef2fb;
+    flex: 0 0 auto;
+  }
+  .post-user { font-weight: 700; font-size: 0.95rem; }
+  .post-handle { color: var(--muted); font-size: 0.82rem; }
+  .post-body { font-size: 1rem; margin: 4px 0 10px; }
+  .post-visual {
+    background: #eef2fb;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    font-size: 2.2rem;
+    margin-bottom: 10px;
+  }
+  .post-meta {
+    color: var(--muted);
+    font-size: 0.8rem;
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .swipe-hint {
+    position: absolute;
+    top: 14px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 0.82rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s linear;
+    border: 2px solid;
+  }
+  .swipe-hint.left { left: 14px; color: var(--true); border-color: var(--true); background: var(--true-bg); }
+  .swipe-hint.right { right: 14px; color: var(--unsafe); border-color: var(--unsafe); background: var(--unsafe-bg); }
+  .swipe-hint.up { left: 50%; transform: translateX(-50%); color: var(--advert); border-color: var(--advert); background: var(--advert-bg); }
+
+  /* Decision buttons */
+  .decide {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .decide button {
+    border: 2px solid var(--line);
+    background: #fff;
+    border-radius: 12px;
+    padding: 10px 6px;
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--ink);
+    transition: transform 0.1s ease, border-color 0.12s ease, background 0.12s ease;
+    line-height: 1.2;
+  }
+  .decide button .ico { display: block; font-size: 1.3rem; margin-bottom: 2px; }
+  .decide button:hover { transform: translateY(-2px); }
+  .decide button:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+  .decide button.k-true { border-color: var(--true); }
+  .decide button.k-true:hover { background: var(--true-bg); }
+  .decide button.k-advert { border-color: var(--advert); }
+  .decide button.k-advert:hover { background: var(--advert-bg); }
+  .decide button.k-unsafe { border-color: var(--unsafe); }
+  .decide button.k-unsafe:hover { background: var(--unsafe-bg); }
+  .decide button:disabled { opacity: 0.45; cursor: default; transform: none; }
+
+  .keymap {
+    margin-top: 8px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  kbd {
+    background: #eef2fb;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-size: 0.78rem;
+    font-family: inherit;
+  }
+
+  /* Feedback */
+  .feedback {
+    margin-top: 12px;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 0.92rem;
+    border: 1px solid var(--line);
+    background: #fafbfe;
+    min-height: 56px;
+  }
+  .feedback .head { font-weight: 800; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .feedback.correct { background: var(--true-bg); border-color: var(--true); }
+  .feedback.wrong { background: var(--unsafe-bg); border-color: var(--unsafe); }
+  .feedback .why { color: var(--ink); }
+  .feedback .tip { margin-top: 6px; font-size: 0.86rem; color: var(--muted); }
+
+  .next-btn {
+    margin-top: 12px;
+    width: 100%;
+    border: none;
+    background: var(--brand);
+    color: #fff;
+    font-weight: 800;
+    font-size: 1rem;
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+  }
+  .next-btn:hover { background: var(--brand-dark); }
+  .next-btn:focus-visible { outline: 3px solid #0e1424; outline-offset: 2px; }
+
+  /* Score side panel */
+  .score-big {
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .score-big .num {
+    font-size: 2.6rem;
+    font-weight: 800;
+    color: var(--brand-dark);
+    line-height: 1;
+  }
+  .score-big .lbl { color: var(--muted); font-size: 0.85rem; }
+  .meter {
+    height: 14px;
+    border-radius: 999px;
+    background: #eef2fb;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .meter > span {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #2f5fd0, #1c8a5b);
+    transition: width 0.4s ease;
+  }
+  .progress-line {
+    margin-top: 10px;
+    font-size: 0.82rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  .tally {
+    list-style: none;
+    margin: 14px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+  .tally li {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.86rem;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: #fafbfe;
+    border: 1px solid var(--line);
+  }
+  .tally li b { font-variant-numeric: tabular-nums; }
+
+  /* Screen-time balancer */
+  .balancer { margin-top: 14px; }
+  .balancer label { font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 6px; }
+  .balancer input[type=range] { width: 100%; }
+  .balance-read {
+    margin-top: 8px;
+    font-size: 0.86rem;
+    border-radius: 10px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    background: #fafbfe;
+  }
+  .balance-read.good { background: var(--true-bg); border-color: var(--true); }
+  .balance-read.warn { background: var(--advert-bg); border-color: var(--advert); }
+
+  /* Legend */
+  .legend { display: grid; gap: 8px; margin-top: 4px; }
+  .legend .row { display: flex; gap: 10px; align-items: flex-start; font-size: 0.85rem; }
+  .legend .chip {
+    flex: 0 0 auto;
+    font-weight: 800;
+    border-radius: 8px;
+    padding: 2px 8px;
+    font-size: 0.78rem;
+    border: 1px solid;
+  }
+  .chip.t { color: var(--true); background: var(--true-bg); border-color: var(--true); }
+  .chip.a { color: var(--advert); background: var(--advert-bg); border-color: var(--advert); }
+  .chip.u { color: var(--unsafe); background: var(--unsafe-bg); border-color: var(--unsafe); }
+
+  /* Finish screen */
+  .finish {
+    text-align: center;
+    padding: 8px 4px;
+  }
+  .finish h2 { color: var(--brand-dark); }
+  .badge {
+    display: inline-block;
+    font-size: 3rem;
+    margin: 6px 0;
+  }
+  .restart {
+    margin-top: 14px;
+    border: 2px solid var(--brand);
+    background: #fff;
+    color: var(--brand-dark);
+    font-weight: 800;
+    border-radius: 12px;
+    padding: 11px 18px;
+    cursor: pointer;
+    font-size: 0.95rem;
+  }
+  .restart:hover { background: var(--paper); }
+
+  .visually-hidden {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    overflow: hidden; clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  footer.note {
+    margin-top: 22px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  .sound-toggle {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .sound-toggle button {
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 999px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--ink);
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <h1>Real or Fake Feed &#x1F4F1;</h1>
+    <p class="tag">Behaviour &amp; Pastoral &middot; KS2 &middot; Being critical and safe online</p>
+    <div class="aim">
+      <strong>Teacher aim:</strong> Pupils swipe through a pretend social feed and decide if each post is
+      <em>true</em>, an <em>advert</em>, or <em>unsafe to share</em>. They build a critical thinking score and finish by
+      planning a healthy screen-time balance. All names and posts are made up.
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: the feed -->
+    <section class="panel" aria-label="Pretend social feed">
+      <h2>Swipe and decide</h2>
+      <div class="phone">
+        <div class="phone-bar">
+          <span class="app-name">CHATTERSNAP</span>
+          <span aria-hidden="true">&#x1F50B; &#x1F4F6;</span>
+        </div>
+        <div class="stage" id="stage">
+          <div class="swipe-hint left" id="hintLeft" aria-hidden="true">TRUE &#x2705;</div>
+          <div class="swipe-hint right" id="hintRight" aria-hidden="true">UNSAFE &#x1F6AB;</div>
+          <div class="swipe-hint up" id="hintUp" aria-hidden="true">ADVERT &#x1F4E2;</div>
+          <!-- card injected here -->
+        </div>
+      </div>
+
+      <div class="decide" role="group" aria-label="Choose what this post is">
+        <button class="k-true" id="btnTrue" data-choice="true">
+          <span class="ico" aria-hidden="true">&#x2705;</span>True
+        </button>
+        <button class="k-advert" id="btnAdvert" data-choice="advert">
+          <span class="ico" aria-hidden="true">&#x1F4E2;</span>Advert
+        </button>
+        <button class="k-unsafe" id="btnUnsafe" data-choice="unsafe">
+          <span class="ico" aria-hidden="true">&#x1F6AB;</span>Unsafe to share
+        </button>
+      </div>
+      <p class="keymap">Or use the keyboard: <kbd>&larr;</kbd> True, <kbd>&uarr;</kbd> Advert, <kbd>&rarr;</kbd> Unsafe. You can also drag the card.</p>
+
+      <div class="feedback" id="feedback" role="status" aria-live="polite">
+        <div class="why">Pick what you think this post is. The card will tell you why straight away.</div>
+      </div>
+      <button class="next-btn" id="nextBtn" hidden>Next post &#x2192;</button>
+
+      <div class="sound-toggle">
+        <span>Read feedback aloud?</span>
+        <button id="soundBtn" aria-pressed="false">Sound: off</button>
+      </div>
+    </section>
+
+    <!-- RIGHT: score + guide -->
+    <aside>
+      <section class="panel" aria-label="Your critical thinking score">
+        <h2>Critical thinking score</h2>
+        <div class="score-big">
+          <div class="num" id="scoreNum" aria-live="polite">0</div>
+          <div class="lbl">points so far</div>
+        </div>
+        <div class="meter" aria-hidden="true"><span id="meterFill"></span></div>
+        <div class="progress-line" id="progressLine">Post 1 of 8</div>
+        <ul class="tally" aria-label="Running tally">
+          <li><span>Spotted correctly &#x2705;</span><b id="tallyRight">0</b></li>
+          <li><span>Tricked &#x1F914;</span><b id="tallyWrong">0</b></li>
+          <li><span>Best streak &#x1F525;</span><b id="tallyStreak">0</b></li>
+        </ul>
+      </section>
+
+      <section class="panel" aria-label="How to judge a post" style="margin-top:18px;">
+        <h2>How to judge a post</h2>
+        <div class="legend">
+          <div class="row"><span class="chip t">True</span><span>Real information you could check on a trusted site or with an adult.</span></div>
+          <div class="row"><span class="chip a">Advert</span><span>It is trying to sell you something or get you to tap, even if it pretends to be a fact.</span></div>
+          <div class="row"><span class="chip u">Unsafe</span><span>It asks for private details, your location, or to share something risky. Tell a trusted adult.</span></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <footer class="note">
+    Demonstration activity. Every post, name and account here is invented for teaching. No real person is shown.
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   Real or Fake Feed  -  KS2 online safety
+   Categories: true | advert | unsafe
+   ============================================================ */
+
+var POSTS = [
+  {
+    user: "Dot the Dog Club", handle: "@pawsandplay", avatar: "\u{1F436}",
+    body: "Dogs can hear sounds that are far too high for human ears. That is why some whistles seem silent to us.",
+    visual: "\u{1F415}", meta: ["3 hours ago", "412 likes"],
+    answer: "true",
+    why: "This is a real, checkable fact about how dogs hear. Nothing is for sale and it does not ask for private details.",
+    tip: "Trusted facts can be checked on a reliable website or in a library book."
+  },
+  {
+    user: "GlowSweets", handle: "@glow.sweets", avatar: "\u{1F36C}",
+    body: "Tap NOW! Free mega sweet box for the first 100 children. Just send us your home address to claim yours!",
+    visual: "\u{1F381}", meta: ["1 hour ago", "Sponsored"],
+    answer: "unsafe",
+    why: "It asks for your home address. Never share where you live with strangers online. The word free and the rush are a trap.",
+    tip: "If a post wants your address, age, or where you go to school, stop and tell a trusted adult."
+  },
+  {
+    user: "ZoomKicks Trainers", handle: "@zoomkicks", avatar: "\u{1F45F}",
+    body: "New ZoomKicks light-up trainers are HERE! Be the coolest in school. Buy two pairs, get a wristband. Shop the link!",
+    visual: "\u{1F45F}", meta: ["5 hours ago", "Sponsored"],
+    answer: "advert",
+    why: "This is an advert. It is selling trainers and pushing you to buy and to tap a shopping link.",
+    tip: "Adverts often use words like buy, shop, offer, and link. They want your money, not to inform you."
+  },
+  {
+    user: "Captain Fact", handle: "@captainfact", avatar: "\u{1F30D}",
+    body: "The Earth is the third planet from the Sun. It takes about one year to travel all the way around it.",
+    visual: "\u{1FA90}", meta: ["yesterday", "1.2k likes"],
+    answer: "true",
+    why: "This is accurate science you can check in many trusted places. It is information, not a sale or a trick.",
+    tip: "When something sounds factual, ask: could I check this on a trusted site?"
+  },
+  {
+    user: "MysteryFriend99", handle: "@your_new_pal", avatar: "\u{1F47B}",
+    body: "Hi! I think we go to the same school. Send me a photo of you in your uniform so I know which one you are. Keep it secret!",
+    visual: "\u{1F4F8}", meta: ["12 minutes ago", "wants to chat"],
+    answer: "unsafe",
+    why: "A stranger asking for your photo and to keep a secret is a warning sign. Do not send it. Tell a trusted adult right away.",
+    tip: "Real friends do not ask you to keep secrets from your grown-ups."
+  },
+  {
+    user: "Star Snacks", handle: "@starsnacks", avatar: "\u{1F31F}",
+    body: "Doctors HATE this! Eat our Star Bars every day and you will run faster than everyone! Order a giant box today!",
+    visual: "\u{1F36B}", meta: ["2 hours ago", "Sponsored"],
+    answer: "advert",
+    why: "This is an advert with a silly, exaggerated claim to sell chocolate bars. Eating sweets does not make you run faster.",
+    tip: "Be careful of big promises. Adverts stretch the truth to get you to buy."
+  },
+  {
+    user: "Library Owls", handle: "@libraryowls", avatar: "\u{1F989}",
+    body: "Our school library is open every lunchtime this week. Come and borrow a new book and read in the cosy corner.",
+    visual: "\u{1F4DA}", meta: ["this morning", "88 likes"],
+    answer: "true",
+    why: "This is a helpful, true notice. It shares useful news, does not sell anything, and asks for nothing private.",
+    tip: "Not every post is a trick. Some are simply kind and useful information."
+  },
+  {
+    user: "WinBigBot", handle: "@winbigbot", avatar: "\u{1F916}",
+    body: "CONGRATULATIONS you won a phone! Type your full name, password and the code from your screen to collect it now!",
+    visual: "\u{1F4F1}", meta: ["just now", "URGENT"],
+    answer: "unsafe",
+    why: "Nobody really wins a prize by giving away a password. This is a scam trying to steal private information. Do not reply.",
+    tip: "Never type a password or secret code into a post. Show a trusted adult instead."
+  }
+];
+
+var SLOGANS = {
+  novice: "You are starting to spot the tricks. Keep practising.",
+  sharp: "Sharp eyes! You caught most of the tricky posts.",
+  star: "Online safety star! You read the feed like an expert."
+};
+
+/* ---- state ---- */
+var idx = 0, score = 0, right = 0, wrong = 0, streak = 0, bestStreak = 0;
+var locked = false, soundOn = false, finished = false;
+
+/* ---- elements ---- */
+var stage = document.getElementById("stage");
+var feedbackEl = document.getElementById("feedback");
+var nextBtn = document.getElementById("nextBtn");
+var scoreNum = document.getElementById("scoreNum");
+var meterFill = document.getElementById("meterFill");
+var progressLine = document.getElementById("progressLine");
+var tallyRight = document.getElementById("tallyRight");
+var tallyWrong = document.getElementById("tallyWrong");
+var tallyStreak = document.getElementById("tallyStreak");
+var decideButtons = Array.prototype.slice.call(document.querySelectorAll(".decide button"));
+var hintLeft = document.getElementById("hintLeft");
+var hintRight = document.getElementById("hintRight");
+var hintUp = document.getElementById("hintUp");
+var soundBtn = document.getElementById("soundBtn");
+
+var ICONS = { "true": "✅", advert: "\u{1F4E2}", unsafe: "\u{1F6AB}" };
+var LABELS = { "true": "True", advert: "Advert", unsafe: "Unsafe to share" };
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+/* ---- render a post card ---- */
+var card = null;
+function renderPost() {
+  var p = POSTS[idx];
+  if (card) card.remove();
+  card = document.createElement("article");
+  card.className = "post post-card-live";
+  card.setAttribute("tabindex", "0");
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label",
+    "Post " + (idx + 1) + " of " + POSTS.length + ", from " + p.user + ". " + p.body +
+    ". Decide if it is true, an advert, or unsafe to share.");
+  card.innerHTML =
+    '<div class="post-head">' +
+      '<div class="avatar" aria-hidden="true">' + p.avatar + '</div>' +
+      '<div><div class="post-user">' + escapeHtml(p.user) + '</div>' +
+      '<div class="post-handle">' + escapeHtml(p.handle) + '</div></div>' +
+    '</div>' +
+    '<div class="post-body">' + escapeHtml(p.body) + '</div>' +
+    '<div class="post-visual" aria-hidden="true">' + p.visual + '</div>' +
+    '<div class="post-meta">' + p.meta.map(function (m) { return '<span>' + escapeHtml(m) + '</span>'; }).join("") + '</div>';
+  stage.appendChild(card);
+  attachDrag(card);
+  card.focus();
+  updateProgress();
+}
+
+/* ---- progress / score UI ---- */
+function updateProgress() {
+  progressLine.textContent = "Post " + (idx + 1) + " of " + POSTS.length;
+  var pct = Math.round((idx) / POSTS.length * 100);
+  meterFill.style.width = pct + "%";
+}
+function updateScoreUI() {
+  scoreNum.textContent = score;
+  tallyRight.textContent = right;
+  tallyWrong.textContent = wrong;
+  tallyStreak.textContent = bestStreak;
+  var pct = Math.round(((idx + (locked ? 1 : 0)) / POSTS.length) * 100);
+  meterFill.style.width = Math.min(100, pct) + "%";
+}
+
+/* ---- judging ---- */
+function judge(choice) {
+  if (locked || finished) return;
+  var p = POSTS[idx];
+  locked = true;
+  decideButtons.forEach(function (b) { b.disabled = true; });
+  hideHints();
+
+  var correct = (choice === p.answer);
+  var msg, head, cls;
+  if (correct) {
+    var gain = 10 + Math.min(5, streak * 2); // streak bonus, max +5
+    score += gain;
+    right += 1;
+    streak += 1;
+    if (streak > bestStreak) bestStreak = streak;
+    cls = "correct";
+    head = ICONS[p.answer] + " Spot on! That post is " + LABELS[p.answer] + ".";
+    msg = p.why + (gain > 10 ? " Streak bonus, plus " + gain + " points." : " Plus " + gain + " points.");
+  } else {
+    wrong += 1;
+    streak = 0;
+    cls = "wrong";
+    head = ICONS[p.answer] + " Not quite. This post is " + LABELS[p.answer] + ", not " + LABELS[choice] + ".";
+    msg = p.why;
+  }
+
+  feedbackEl.className = "feedback " + cls;
+  feedbackEl.innerHTML =
+    '<div class="head">' + escapeHtml(head) + '</div>' +
+    '<div class="why">' + escapeHtml(msg) + '</div>' +
+    '<div class="tip">&#x1F4A1; ' + escapeHtml(p.tip) + '</div>';
+
+  flingCard(p.answer);
+  updateScoreUI();
+
+  if (soundOn && window.westTTS && window.westTTS.ready()) {
+    window.westTTS.speak(head + " " + msg + " Tip. " + p.tip, { lang: "en-GB", rate: 0.85, pitch: 1.1 });
+  }
+
+  nextBtn.hidden = false;
+  nextBtn.textContent = (idx + 1 >= POSTS.length) ? "See your results →" : "Next post →";
+  nextBtn.focus();
+}
+
+function flingCard(answer) {
+  if (!card) return;
+  var x = 0, y = 0, rot = 0;
+  if (answer === "true") { x = -window.innerWidth; rot = -18; }
+  else if (answer === "unsafe") { x = window.innerWidth; rot = 18; }
+  else { y = -window.innerHeight; }
+  card.style.transition = "transform 0.4s ease, opacity 0.4s ease";
+  card.style.transform = "translate(" + x + "px," + y + "px) rotate(" + rot + "deg)";
+  card.style.opacity = "0";
+}
+
+function nextPost() {
+  if (finished) return;
+  idx += 1;
+  locked = false;
+  feedbackEl.className = "feedback";
+  feedbackEl.innerHTML = '<div class="why">Pick what you think this post is. The card will tell you why straight away.</div>';
+  nextBtn.hidden = true;
+  decideButtons.forEach(function (b) { b.disabled = false; });
+  if (idx >= POSTS.length) { showFinish(); return; }
+  renderPost();
+}
+
+/* ---- finish screen + screen-time balancer ---- */
+function showFinish() {
+  finished = true;
+  if (card) card.remove();
+  var max = POSTS.length * 10;
+  var pct = Math.round(score / max * 100);
+  var badge, slogan;
+  if (right >= 7) { badge = "\u{1F31F}"; slogan = SLOGANS.star; }
+  else if (right >= 4) { badge = "\u{1F50D}"; slogan = SLOGANS.sharp; }
+  else { badge = "\u{1F331}"; slogan = SLOGANS.novice; }
+
+  meterFill.style.width = "100%";
+  progressLine.textContent = "All 8 posts done";
+
+  var left = document.querySelector('section[aria-label="Pretend social feed"]');
+  left.innerHTML =
+    '<div class="finish">' +
+      '<h2>Your feed report</h2>' +
+      '<div class="badge" aria-hidden="true">' + badge + '</div>' +
+      '<p style="font-weight:700;margin:2px 0;">' + escapeHtml(slogan) + '</p>' +
+      '<p style="margin:6px 0;">You scored <b>' + score + '</b> critical thinking points and spotted <b>' +
+        right + ' of ' + POSTS.length + '</b> posts correctly.</p>' +
+      '<div style="background:#fafbfe;border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:8px;text-align:left;">' +
+        '<b>Remember the three checks:</b>' +
+        '<ul style="margin:8px 0 0;padding-left:20px;font-size:0.9rem;">' +
+          '<li><b>True?</b> Could I check it on a trusted site?</li>' +
+          '<li><b>Advert?</b> Is it trying to sell me something?</li>' +
+          '<li><b>Unsafe?</b> Does it want private details or to keep a secret? Tell a trusted adult.</li>' +
+        '</ul>' +
+      '</div>' +
+
+      '<div class="balancer" aria-label="Screen-time balancer">' +
+        '<h2 style="margin-top:18px;">Now balance your day &#x23F0;</h2>' +
+        '<p style="font-size:0.88rem;color:var(--muted);margin:2px 0 10px;">Drag the slider to plan how much screen time feels healthy on a school day.</p>' +
+        '<label for="stRange" id="stLabel">Screen time today: 2 hours</label>' +
+        '<input type="range" id="stRange" min="0" max="6" step="0.5" value="2" ' +
+          'aria-describedby="stRead" aria-valuetext="2 hours">' +
+        '<div class="balance-read good" id="stRead" role="status" aria-live="polite"></div>' +
+      '</div>' +
+
+      '<button class="restart" id="restartBtn">Play again &#x1F501;</button>' +
+    '</div>';
+
+  document.getElementById("restartBtn").addEventListener("click", restart);
+  setupBalancer();
+
+  if (soundOn && window.westTTS && window.westTTS.ready()) {
+    window.westTTS.speak("Your feed report. " + slogan + " You scored " + score +
+      " points and spotted " + right + " of " + POSTS.length + " posts correctly.",
+      { lang: "en-GB", rate: 0.85, pitch: 1.1 });
+  }
+}
+
+function setupBalancer() {
+  var range = document.getElementById("stRange");
+  var label = document.getElementById("stLabel");
+  var read = document.getElementById("stRead");
+  function fmt(h) { return (h === 1) ? "1 hour" : (h % 1 === 0 ? h + " hours" : h + " hours"); }
+  function update() {
+    var h = parseFloat(range.value);
+    label.textContent = "Screen time today: " + fmt(h);
+    range.setAttribute("aria-valuetext", fmt(h));
+    var txt, cls;
+    if (h <= 2) {
+      cls = "good";
+      txt = "Nicely balanced. That leaves plenty of time for playing outside, reading, sleep and seeing friends in person.";
+    } else if (h <= 4) {
+      cls = "warn";
+      txt = "Getting full. Try to add a screen-free break, some fresh air, and a clear stop time before bed.";
+    } else {
+      cls = "warn";
+      txt = "That is a lot of screen time for a school day. Swap some of it for active play, talking to family, and good sleep.";
+    }
+    read.className = "balance-read " + cls;
+    read.textContent = txt;
+  }
+  range.addEventListener("input", update);
+  update();
+}
+
+function restart() {
+  idx = 0; score = 0; right = 0; wrong = 0; streak = 0; bestStreak = 0;
+  locked = false; finished = false;
+
+  var left = document.querySelector('section[aria-label="Pretend social feed"]') ||
+             document.querySelector(".finish") && document.querySelector(".finish").closest("section");
+  /* rebuild full left panel */
+  left.setAttribute("aria-label", "Pretend social feed");
+  left.innerHTML =
+    '<h2>Swipe and decide</h2>' +
+    '<div class="phone">' +
+      '<div class="phone-bar"><span class="app-name">CHATTERSNAP</span><span aria-hidden="true">&#x1F50B; &#x1F4F6;</span></div>' +
+      '<div class="stage" id="stage">' +
+        '<div class="swipe-hint left" id="hintLeft" aria-hidden="true">TRUE &#x2705;</div>' +
+        '<div class="swipe-hint right" id="hintRight" aria-hidden="true">UNSAFE &#x1F6AB;</div>' +
+        '<div class="swipe-hint up" id="hintUp" aria-hidden="true">ADVERT &#x1F4E2;</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="decide" role="group" aria-label="Choose what this post is">' +
+      '<button class="k-true" id="btnTrue" data-choice="true"><span class="ico" aria-hidden="true">&#x2705;</span>True</button>' +
+      '<button class="k-advert" id="btnAdvert" data-choice="advert"><span class="ico" aria-hidden="true">&#x1F4E2;</span>Advert</button>' +
+      '<button class="k-unsafe" id="btnUnsafe" data-choice="unsafe"><span class="ico" aria-hidden="true">&#x1F6AB;</span>Unsafe to share</button>' +
+    '</div>' +
+    '<p class="keymap">Or use the keyboard: <kbd>&larr;</kbd> True, <kbd>&uarr;</kbd> Advert, <kbd>&rarr;</kbd> Unsafe. You can also drag the card.</p>' +
+    '<div class="feedback" id="feedback" role="status" aria-live="polite"><div class="why">Pick what you think this post is. The card will tell you why straight away.</div></div>' +
+    '<button class="next-btn" id="nextBtn" hidden>Next post &#x2192;</button>' +
+    '<div class="sound-toggle"><span>Read feedback aloud?</span><button id="soundBtn" aria-pressed="' + soundOn + '">Sound: ' + (soundOn ? "on" : "off") + '</button></div>';
+
+  rebindElements();
+  card = null;
+  updateScoreUI();
+  renderPost();
+}
+
+/* re-grab references and re-bind after DOM rebuild */
+function rebindElements() {
+  stage = document.getElementById("stage");
+  feedbackEl = document.getElementById("feedback");
+  nextBtn = document.getElementById("nextBtn");
+  hintLeft = document.getElementById("hintLeft");
+  hintRight = document.getElementById("hintRight");
+  hintUp = document.getElementById("hintUp");
+  soundBtn = document.getElementById("soundBtn");
+  decideButtons = Array.prototype.slice.call(document.querySelectorAll(".decide button"));
+  decideButtons.forEach(function (b) {
+    b.addEventListener("click", function () { judge(b.getAttribute("data-choice")); });
+  });
+  nextBtn.addEventListener("click", nextPost);
+  soundBtn.addEventListener("click", toggleSound);
+}
+
+/* ---- hints ---- */
+function showHint(dir, strength) {
+  hideHints();
+  var el = dir === "left" ? hintLeft : dir === "right" ? hintRight : hintUp;
+  if (el) el.style.opacity = Math.min(1, strength).toFixed(2);
+}
+function hideHints() {
+  [hintLeft, hintRight, hintUp].forEach(function (el) { if (el) el.style.opacity = 0; });
+}
+
+/* ---- drag with Pointer Events ---- */
+function attachDrag(el) {
+  var startX = 0, startY = 0, dx = 0, dy = 0, active = false;
+  var THRESH = 90;
+
+  el.addEventListener("pointerdown", function (e) {
+    if (locked) return;
+    active = true;
+    startX = e.clientX; startY = e.clientY; dx = 0; dy = 0;
+    el.classList.add("dragging");
+    el.style.transition = "none";
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+
+  el.addEventListener("pointermove", function (e) {
+    if (!active) return;
+    dx = e.clientX - startX;
+    dy = e.clientY - startY;
+    var horiz = Math.abs(dx) > Math.abs(dy);
+    el.style.transform = "translate(" + dx + "px," + dy + "px) rotate(" + (dx / 18) + "deg)";
+    if (horiz) {
+      if (dx < 0) showHint("left", -dx / THRESH);
+      else showHint("right", dx / THRESH);
+    } else if (dy < 0) {
+      showHint("up", -dy / THRESH);
+    } else { hideHints(); }
+  });
+
+  function end() {
+    if (!active) return;
+    active = false;
+    el.classList.remove("dragging");
+    hideHints();
+    var horiz = Math.abs(dx) > Math.abs(dy);
+    if (horiz && dx < -THRESH) { judge("true"); return; }
+    if (horiz && dx > THRESH) { judge("unsafe"); return; }
+    if (!horiz && dy < -THRESH) { judge("advert"); return; }
+    // snap back
+    el.style.transition = "transform 0.2s ease";
+    el.style.transform = "translate(0,0) rotate(0deg)";
+  }
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+}
+
+/* ---- sound toggle ---- */
+function toggleSound() {
+  soundOn = !soundOn;
+  soundBtn.textContent = "Sound: " + (soundOn ? "on" : "off");
+  soundBtn.setAttribute("aria-pressed", soundOn ? "true" : "false");
+  if (!soundOn && window.westTTS) window.westTTS.cancel();
+  else if (soundOn && window.westTTS && window.westTTS.ready()) {
+    window.westTTS.speak("Sound on. I will read the feedback aloud.", { lang: "en-GB", rate: 0.85, pitch: 1.1 });
+  }
+}
+
+/* ---- keyboard ---- */
+document.addEventListener("keydown", function (e) {
+  if (finished || locked) {
+    if ((e.key === "Enter" || e.key === " ") && !nextBtn.hidden && document.activeElement === nextBtn) {
+      /* default button handles it */
+    }
+    return;
+  }
+  if (e.key === "ArrowLeft") { e.preventDefault(); judge("true"); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); judge("unsafe"); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); judge("advert"); }
+});
+
+/* ---- initial binding ---- */
+decideButtons.forEach(function (b) {
+  b.addEventListener("click", function () { judge(b.getAttribute("data-choice")); });
+});
+nextBtn.addEventListener("click", nextPost);
+soundBtn.addEventListener("click", toggleSound);
+
+/* go */
+updateScoreUI();
+renderPost();
+</script>
+</body>
+</html>

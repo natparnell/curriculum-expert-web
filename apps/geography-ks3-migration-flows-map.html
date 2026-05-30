@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Migration Flows Map</title>
+<style>
+  :root {
+    --ink: #1c2430;
+    --muted: #5a6676;
+    --line: #d7dee8;
+    --bg: #f3f6fb;
+    --card: #ffffff;
+    --push: #c0392b;
+    --push-soft: #fbe6e3;
+    --pull: #1f8a4c;
+    --pull-soft: #e2f3e8;
+    --accent: #2356b8;
+    --accent-soft: #e7eefb;
+    --source: #b5651d;
+    --dest: #2356b8;
+    --warn: #b46a00;
+    --shadow: 0 2px 10px rgba(20,40,80,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  header.app-head {
+    background: linear-gradient(135deg, #1c3a6e, #2356b8);
+    color: #fff;
+    padding: 18px 20px 16px;
+  }
+  header.app-head h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    letter-spacing: 0.2px;
+  }
+  .strand {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.85;
+    margin-bottom: 4px;
+  }
+  .aim {
+    margin: 8px 0 0;
+    font-size: 0.95rem;
+    background: rgba(255,255,255,0.12);
+    border-left: 3px solid #ffd36b;
+    padding: 8px 12px;
+    border-radius: 0 6px 6px 0;
+    max-width: 70ch;
+  }
+  .aim strong { color: #ffe39a; }
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  @media (min-width: 920px) {
+    .layout { grid-template-columns: 260px 1fr; align-items: start; }
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 14px;
+  }
+  .panel h2 {
+    margin: 0 0 4px;
+    font-size: 1.02rem;
+  }
+  .panel .hint {
+    margin: 0 0 10px;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  /* Factor tray */
+  .tray-group { margin-bottom: 14px; }
+  .tray-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 7px;
+  }
+  .tray-label.push { color: var(--push); }
+  .tray-label.pull { color: var(--pull); }
+  .factor {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    margin-bottom: 7px;
+    border-radius: 9px;
+    border: 1.5px solid var(--line);
+    background: #fff;
+    font-size: 0.86rem;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    position: relative;
+  }
+  .factor:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .factor.push { border-color: #e7b6af; background: var(--push-soft); }
+  .factor.pull { border-color: #aedcc0; background: var(--pull-soft); }
+  .factor .ic { font-size: 1.1rem; line-height: 1; }
+  .factor.dragging { opacity: 0.45; }
+  .factor.placed { opacity: 0.4; pointer-events: none; }
+  .factor .tag {
+    margin-left: auto;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 20px;
+    color: #fff;
+  }
+  .factor.push .tag { background: var(--push); }
+  .factor.pull .tag { background: var(--pull); }
+
+  /* Map */
+  .map-wrap { position: relative; }
+  .map-stage {
+    position: relative;
+    width: 100%;
+    background: #eaf1f9;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  svg.map-svg { display: block; width: 100%; height: auto; touch-action: none; }
+  .country-zone {
+    position: absolute;
+    border-radius: 14px;
+    border: 2.5px dashed transparent;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+    pointer-events: none;
+  }
+  .country-zone .zone-inner {
+    pointer-events: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .country-zone.source { }
+  .country-zone.dest { }
+  .country-zone.drop-ok {
+    border-color: var(--accent);
+    background: rgba(35,86,184,0.10);
+    box-shadow: 0 0 0 3px rgba(35,86,184,0.18) inset;
+  }
+  .country-zone.drop-bad {
+    border-color: var(--push);
+    background: rgba(192,57,43,0.10);
+  }
+  .zone-name {
+    font-weight: 800;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+  }
+  .zone-name.source { color: var(--source); }
+  .zone-name.dest { color: var(--dest); }
+  .zone-role {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .placed-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: auto;
+  }
+  .chip {
+    font-size: 0.72rem;
+    padding: 3px 8px 3px 6px;
+    border-radius: 20px;
+    background: #fff;
+    border: 1px solid var(--line);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .chip.push { border-color: var(--push); color: var(--push); }
+  .chip.pull { border-color: var(--pull); color: var(--pull); }
+  .chip button {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 0 0 2px;
+  }
+  .chip button:focus-visible { outline: 2px solid var(--accent); border-radius: 3px; }
+  .empty-note {
+    font-size: 0.74rem;
+    color: var(--muted);
+    font-style: italic;
+    margin-top: auto;
+  }
+
+  /* Drag ghost */
+  #ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 999;
+    padding: 7px 11px;
+    border-radius: 9px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.22);
+    display: none;
+    align-items: center;
+    gap: 6px;
+    transform: translate(-50%, -50%);
+  }
+  #ghost.push { background: var(--push-soft); border: 1.5px solid var(--push); color: var(--push); }
+  #ghost.pull { background: var(--pull-soft); border: 1.5px solid var(--pull); color: var(--pull); }
+
+  /* Feedback / impacts */
+  .readout { margin-top: 14px; }
+  .flow-bar-wrap {
+    margin: 4px 0 12px;
+  }
+  .flow-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    margin-bottom: 4px;
+  }
+  .flow-label b { color: var(--accent); }
+  .flow-track {
+    height: 16px;
+    background: #e4eaf3;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .flow-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 10px;
+    background: linear-gradient(90deg, #b5651d, #2356b8);
+    transition: width 0.5s ease;
+  }
+  .impacts {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  @media (min-width: 560px) {
+    .impacts { grid-template-columns: 1fr 1fr; }
+  }
+  .impact-card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fff;
+  }
+  .impact-card h3 {
+    margin: 0 0 6px;
+    font-size: 0.86rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .impact-card.source h3 { color: var(--source); }
+  .impact-card.dest h3 { color: var(--dest); }
+  .impact-card ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 0.82rem;
+  }
+  .impact-card li { margin-bottom: 4px; }
+  .impact-card .none {
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-style: italic;
+  }
+  .coach {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    border: 1px solid #c2d4f3;
+    font-size: 0.86rem;
+    min-height: 1em;
+  }
+  .coach.good { background: var(--pull-soft); border-color: #aedcc0; }
+  .coach.warn { background: #fdf1dd; border-color: #f0d49a; }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  button.btn {
+    font: inherit;
+    font-size: 0.85rem;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  button.btn:hover { background: #f1f5fb; }
+  button.btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+  button.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.btn.primary:hover { background: #1c478f; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .legend {
+    font-size: 0.74rem; color: var(--muted); margin-top: 10px;
+    display: flex; flex-wrap: wrap; gap: 12px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .swatch { width: 13px; height: 13px; border-radius: 4px; display: inline-block; }
+  .arrow-anim { animation: dash 1.1s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -22; } }
+  footer.note {
+    max-width: 1180px; margin: 4px auto 24px; padding: 0 16px;
+    font-size: 0.74rem; color: var(--muted);
+  }
+  .kbd-help {
+    font-size: 0.76rem; color: var(--muted); margin-top: 8px;
+    border-top: 1px dashed var(--line); padding-top: 8px;
+  }
+  .kbd-help kbd {
+    background: #eef2f8; border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 4px; padding: 0 5px; font-size: 0.72rem; font-family: inherit;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="app-head">
+  <div class="strand">Geography &middot; KS3 &middot; Human geography: population, migration and urbanisation</div>
+  <h1>&#x1F30D; Migration Flows Map</h1>
+  <p class="aim"><strong>Teacher aim:</strong> Pupils investigate how <em>push</em> and <em>pull</em> factors drive migration. Drag factors onto the source and destination countries, then read how the migration flow and the impacts on each country change.</p>
+</header>
+
+<main>
+  <div class="layout">
+
+    <!-- FACTOR TRAY -->
+    <section class="panel" aria-labelledby="tray-h">
+      <h2 id="tray-h">Factor tray</h2>
+      <p class="hint">Drag a card onto a country, or select it and press a number key. Push factors push people <em>away</em>; pull factors draw people <em>in</em>.</p>
+
+      <div class="tray-group">
+        <div class="tray-label push"><span aria-hidden="true">&#x2716;&#xFE0F;</span> Push factors</div>
+        <div id="push-tray"></div>
+      </div>
+
+      <div class="tray-group">
+        <div class="tray-label pull"><span aria-hidden="true">&#x2728;</span> Pull factors</div>
+        <div id="pull-tray"></div>
+      </div>
+
+      <div class="kbd-help">
+        <strong>Keyboard:</strong> <kbd>Tab</kbd> to a factor card, then press
+        <kbd>1</kbd> for Marisol's country (source) or <kbd>2</kbd> for Highvale (destination).
+        Press <kbd>Enter</kbd> on a placed chip's remove button to take it off.
+      </div>
+    </section>
+
+    <!-- MAP + READOUT -->
+    <section class="panel" aria-labelledby="map-h">
+      <h2 id="map-h">The map</h2>
+      <p class="hint">Two fictional countries. Build a story: load <b>Costera</b> with push factors and <b>Highvale</b> with pull factors and watch the flow grow.</p>
+
+      <div class="map-wrap">
+        <div class="map-stage" id="map-stage">
+          <svg class="map-svg" id="map-svg" viewBox="0 0 800 380" role="img"
+               aria-label="Map showing two countries, Costera on the left as a source and Highvale on the right as a destination, with an animated migration arrow between them.">
+            <!-- sea -->
+            <rect x="0" y="0" width="800" height="380" fill="#dce8f5"/>
+            <!-- Costera landmass (source) -->
+            <path d="M20 70 Q60 40 140 55 Q230 70 280 130 Q300 200 250 280 Q190 350 90 330 Q20 310 25 230 Q15 150 20 70 Z"
+                  fill="#f0e2cf" stroke="#c9a96a" stroke-width="2"/>
+            <!-- Highvale landmass (destination) -->
+            <path d="M520 60 Q600 35 700 60 Q780 90 778 190 Q780 290 690 330 Q590 360 530 300 Q500 230 520 150 Q515 100 520 60 Z"
+                  fill="#dbe7f5" stroke="#7fa3d6" stroke-width="2"/>
+            <!-- decorative cities -->
+            <circle cx="120" cy="160" r="5" fill="#b5651d"/>
+            <circle cx="180" cy="240" r="4" fill="#b5651d"/>
+            <circle cx="640" cy="150" r="6" fill="#2356b8"/>
+            <circle cx="690" cy="250" r="4" fill="#2356b8"/>
+            <!-- migration arrow group (updated by JS) -->
+            <g id="arrow-group">
+              <path id="flow-path" d="M300 200 C420 130 480 130 540 190"
+                    fill="none" stroke="#2356b8" stroke-width="3" stroke-dasharray="0"
+                    stroke-linecap="round" opacity="0.25"/>
+              <polygon id="flow-head" points="540,190 524,180 524,200" fill="#2356b8" opacity="0.25"/>
+            </g>
+            <text x="80" y="40" font-size="20" font-weight="700" fill="#8a5a17">Costera</text>
+            <text x="620" y="35" font-size="20" font-weight="700" fill="#1c478f">Highvale</text>
+          </svg>
+
+          <!-- drop zone: source (left) -->
+          <div class="country-zone source" id="zone-source" style="left:3%; top:16%; width:33%; height:74%;">
+            <div class="zone-inner" data-zone="source" role="group"
+                 aria-label="Costera, the source country. Drop push or pull factors here.">
+              <div class="zone-name source"><span aria-hidden="true">&#x1F3D6;&#xFE0F;</span> Costera</div>
+              <div class="zone-role">Source country &middot; Marisol lives here</div>
+              <div class="placed-list" id="placed-source"></div>
+              <div class="empty-note" id="empty-source">No factors yet. Try dropping a push factor here.</div>
+            </div>
+          </div>
+
+          <!-- drop zone: destination (right) -->
+          <div class="country-zone dest" id="zone-dest" style="right:3%; top:16%; width:33%; height:74%;">
+            <div class="zone-inner" data-zone="dest" role="group"
+                 aria-label="Highvale, the destination country. Drop push or pull factors here.">
+              <div class="zone-name dest"><span aria-hidden="true">&#x1F3D9;&#xFE0F;</span> Highvale</div>
+              <div class="zone-role">Destination country</div>
+              <div class="placed-list" id="placed-dest"></div>
+              <div class="empty-note" id="empty-dest">No factors yet. Try dropping a pull factor here.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="legend" aria-hidden="true">
+          <span><i class="swatch" style="background:var(--push)"></i> Push factor</span>
+          <span><i class="swatch" style="background:var(--pull)"></i> Pull factor</span>
+          <span><i class="swatch" style="background:#b5651d"></i> Source (Costera)</span>
+          <span><i class="swatch" style="background:#2356b8"></i> Destination (Highvale)</span>
+        </div>
+      </div>
+
+      <!-- READOUT -->
+      <div class="readout">
+        <div class="flow-bar-wrap">
+          <div class="flow-label">
+            <span>Strength of migration flow, Costera &rarr; Highvale</span>
+            <b id="flow-pct">0%</b>
+          </div>
+          <div class="flow-track"><div class="flow-fill" id="flow-fill"></div></div>
+        </div>
+
+        <div class="impacts">
+          <div class="impact-card source">
+            <h3><span aria-hidden="true">&#x1F4E4;</span> Impacts on Costera (source)</h3>
+            <ul id="impact-source"></ul>
+            <div class="none" id="impact-source-none">Add factors to see the effects on the country people leave.</div>
+          </div>
+          <div class="impact-card dest">
+            <h3><span aria-hidden="true">&#x1F4E5;</span> Impacts on Highvale (destination)</h3>
+            <ul id="impact-dest"></ul>
+            <div class="none" id="impact-dest-none">Add factors to see the effects on the country people move to.</div>
+          </div>
+        </div>
+
+        <div class="coach" id="coach" role="status" aria-live="polite">
+          Start by dragging <strong>"Jobs and higher wages"</strong> (a pull factor) onto Highvale, then add a push factor to Costera. Watch the arrow come alive.
+        </div>
+
+        <div class="toolbar">
+          <button class="btn primary" type="button" id="btn-scenario">Load worked example</button>
+          <button class="btn" type="button" id="btn-clear">Clear the map</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="note">
+  Demonstration tool for classroom teaching. Costera, Highvale and the named person are fictional. Figures are illustrative, not real statistics.
+</footer>
+
+<!-- floating drag ghost -->
+<div id="ghost" aria-hidden="true"></div>
+<div class="sr-only" aria-live="assertive" id="sr-announce"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Data: factors ---------- */
+  // sensible: true if this factor type belongs on this zone in a coherent model.
+  // push factors make most geographical sense in the SOURCE; pull in the DESTINATION.
+  var FACTORS = [
+    // PUSH
+    { id: "drought",  type: "push", icon: "\u{1F525}", label: "Drought and crop failure",
+      src: "Failing harvests leave families without food or income, so more people leave.",
+      dst: "Drought rarely draws migrants; few people move toward a place short of water." },
+    { id: "conflict", type: "push", icon: "\u{2694}\u{FE0F}", label: "War or conflict",
+      src: "Danger forces people to flee for safety, often quickly and in large numbers.",
+      dst: "Conflict deters arrivals; people avoid moving into a war zone." },
+    { id: "fewjobs", type: "push", icon: "\u{1F4C9}", label: "Few local jobs",
+      src: "Without work, young adults leave to find a living elsewhere.",
+      dst: "A lack of jobs would not attract migrants; it sends them away." },
+    { id: "flood",   type: "push", icon: "\u{1F30A}", label: "Flooding and disaster",
+      src: "Homes lost to flooding push families to seek safer ground.",
+      dst: "Disasters push people out, they do not pull people in." },
+    // PULL
+    { id: "jobs",    type: "pull", icon: "\u{1F3ED}", label: "Jobs and higher wages",
+      src: "Better-paid work is something people move toward, not away from.",
+      dst: "Plentiful, better-paid work is a powerful magnet for migrants." },
+    { id: "safety",  type: "pull", icon: "\u{1F6E1}\u{FE0F}", label: "Safety and stability",
+      src: "Safety is a reason to arrive, not a reason to leave.",
+      dst: "A safe, stable country attracts people fleeing danger." },
+    { id: "school",  type: "pull", icon: "\u{1F393}", label: "Good schools and healthcare",
+      src: "Good services attract people; they rarely drive people away.",
+      dst: "Strong schools and hospitals draw families seeking a better life." },
+    { id: "family",  type: "pull", icon: "\u{1F46A}", label: "Family already there",
+      src: "Family elsewhere is a pull, not a push, for the home country.",
+      dst: "People often join relatives who have already settled (chain migration)." }
+  ];
+
+  // weights drive the flow strength
+  function factorWeight(f, zone) {
+    // correct placement contributes strongly; mismatched placement weak/negative
+    var sensible = (f.type === "push" && zone === "source") || (f.type === "pull" && zone === "dest");
+    return sensible ? 24 : -6;
+  }
+
+  /* placement state: { factorId: zone } */
+  var placement = {};
+
+  var els = {
+    pushTray: document.getElementById("push-tray"),
+    pullTray: document.getElementById("pull-tray"),
+    placedSource: document.getElementById("placed-source"),
+    placedDest: document.getElementById("placed-dest"),
+    emptySource: document.getElementById("empty-source"),
+    emptyDest: document.getElementById("empty-dest"),
+    flowPct: document.getElementById("flow-pct"),
+    flowFill: document.getElementById("flow-fill"),
+    impactSource: document.getElementById("impact-source"),
+    impactDest: document.getElementById("impact-dest"),
+    impactSourceNone: document.getElementById("impact-source-none"),
+    impactDestNone: document.getElementById("impact-dest-none"),
+    coach: document.getElementById("coach"),
+    ghost: document.getElementById("ghost"),
+    sr: document.getElementById("sr-announce"),
+    zoneSource: document.getElementById("zone-source"),
+    zoneDest: document.getElementById("zone-dest"),
+    flowPath: document.getElementById("flow-path"),
+    flowHead: document.getElementById("flow-head")
+  };
+
+  function byId(id) { return FACTORS.filter(function (f) { return f.id === id; })[0]; }
+
+  /* ---------- Build tray ---------- */
+  function makeFactorCard(f) {
+    var div = document.createElement("div");
+    div.className = "factor " + f.type;
+    div.setAttribute("data-id", f.id);
+    div.setAttribute("tabindex", "0");
+    div.setAttribute("role", "button");
+    div.setAttribute("aria-label",
+      f.label + ", a " + f.type + " factor. Press 1 to place on Costera the source, or 2 to place on Highvale the destination.");
+    div.innerHTML =
+      '<span class="ic" aria-hidden="true">' + f.icon + '</span>' +
+      '<span class="txt">' + f.label + '</span>' +
+      '<span class="tag">' + (f.type === "push" ? "PUSH" : "PULL") + '</span>';
+    return div;
+  }
+
+  FACTORS.forEach(function (f) {
+    var card = makeFactorCard(f);
+    (f.type === "push" ? els.pushTray : els.pullTray).appendChild(card);
+    attachDrag(card, f);
+    card.addEventListener("keydown", function (e) {
+      if (e.key === "1") { e.preventDefault(); placeFactor(f.id, "source"); }
+      else if (e.key === "2") { e.preventDefault(); placeFactor(f.id, "dest"); }
+      else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        announce(f.label + " selected. Press 1 for Costera the source, or 2 for Highvale the destination.");
+      }
+    });
+  });
+
+  /* ---------- Pointer drag ---------- */
+  var drag = null;
+
+  function attachDrag(card, f) {
+    card.addEventListener("pointerdown", function (e) {
+      if (card.classList.contains("placed")) return;
+      if (e.button && e.button !== 0) return;
+      drag = { f: f, card: card };
+      card.setPointerCapture(e.pointerId);
+      card.classList.add("dragging");
+      showGhost(f, e.clientX, e.clientY);
+      e.preventDefault();
+    });
+    card.addEventListener("pointermove", function (e) {
+      if (!drag || drag.card !== card) return;
+      moveGhost(e.clientX, e.clientY);
+      highlightZone(e.clientX, e.clientY);
+    });
+    card.addEventListener("pointerup", function (e) {
+      if (!drag || drag.card !== card) return;
+      var zone = zoneAt(e.clientX, e.clientY);
+      hideGhost();
+      clearZoneHighlight();
+      card.classList.remove("dragging");
+      try { card.releasePointerCapture(e.pointerId); } catch (err) {}
+      if (zone) placeFactor(f.id, zone);
+      drag = null;
+    });
+    card.addEventListener("pointercancel", function () {
+      hideGhost(); clearZoneHighlight();
+      card.classList.remove("dragging");
+      drag = null;
+    });
+  }
+
+  function showGhost(f, x, y) {
+    els.ghost.className = f.type;
+    els.ghost.innerHTML = '<span aria-hidden="true">' + f.icon + '</span> ' + f.label;
+    els.ghost.style.display = "flex";
+    moveGhost(x, y);
+  }
+  function moveGhost(x, y) { els.ghost.style.left = x + "px"; els.ghost.style.top = y + "px"; }
+  function hideGhost() { els.ghost.style.display = "none"; }
+
+  function zoneAt(x, y) {
+    var s = els.zoneSource.getBoundingClientRect();
+    var d = els.zoneDest.getBoundingClientRect();
+    if (x >= s.left && x <= s.right && y >= s.top && y <= s.bottom) return "source";
+    if (x >= d.left && x <= d.right && y >= d.top && y <= d.bottom) return "dest";
+    return null;
+  }
+  function highlightZone(x, y) {
+    clearZoneHighlight();
+    var z = zoneAt(x, y);
+    if (!z || !drag) return;
+    var sensible = (drag.f.type === "push" && z === "source") || (drag.f.type === "pull" && z === "dest");
+    var el = z === "source" ? els.zoneSource : els.zoneDest;
+    el.classList.add(sensible ? "drop-ok" : "drop-bad");
+  }
+  function clearZoneHighlight() {
+    els.zoneSource.classList.remove("drop-ok", "drop-bad");
+    els.zoneDest.classList.remove("drop-ok", "drop-bad");
+  }
+
+  /* ---------- Place / remove ---------- */
+  function placeFactor(id, zone) {
+    placement[id] = zone;
+    var card = document.querySelector('.factor[data-id="' + id + '"]');
+    if (card) card.classList.add("placed");
+    render();
+    var f = byId(id);
+    var sensible = (f.type === "push" && zone === "source") || (f.type === "pull" && zone === "dest");
+    var where = zone === "source" ? "Costera" : "Highvale";
+    announce(f.label + " placed on " + where + ". " + (sensible ? "Good geographical fit." : "Check this: it does not fit well here."));
+  }
+
+  function removeFactor(id) {
+    delete placement[id];
+    var card = document.querySelector('.factor[data-id="' + id + '"]');
+    if (card) card.classList.remove("placed");
+    render();
+    announce(byId(id).label + " removed.");
+  }
+
+  /* ---------- Render ---------- */
+  function placedIn(zone) {
+    return Object.keys(placement).filter(function (id) { return placement[id] === zone; }).map(byId);
+  }
+
+  function chipFor(f, zone) {
+    var span = document.createElement("span");
+    span.className = "chip " + f.type;
+    span.innerHTML = '<span aria-hidden="true">' + f.icon + '</span> ' + f.label;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("aria-label", "Remove " + f.label + " from " + (zone === "source" ? "Costera" : "Highvale"));
+    btn.innerHTML = "×";
+    btn.addEventListener("click", function () { removeFactor(f.id); });
+    span.appendChild(btn);
+    return span;
+  }
+
+  function render() {
+    var src = placedIn("source"), dst = placedIn("dest");
+
+    els.placedSource.innerHTML = "";
+    src.forEach(function (f) { els.placedSource.appendChild(chipFor(f, "source")); });
+    els.emptySource.style.display = src.length ? "none" : "block";
+
+    els.placedDest.innerHTML = "";
+    dst.forEach(function (f) { els.placedDest.appendChild(chipFor(f, "dest")); });
+    els.emptyDest.style.display = dst.length ? "none" : "block";
+
+    // flow strength
+    var raw = 0;
+    src.forEach(function (f) { raw += factorWeight(f, "source"); });
+    dst.forEach(function (f) { raw += factorWeight(f, "dest"); });
+    var pct = Math.max(0, Math.min(100, raw));
+    els.flowPct.textContent = pct + "%";
+    els.flowFill.style.width = pct + "%";
+    updateArrow(pct);
+
+    renderImpacts(src, dst, pct);
+    coach(src, dst, pct);
+  }
+
+  function updateArrow(pct) {
+    var op = pct === 0 ? 0.22 : (0.3 + pct / 100 * 0.6);
+    var w = 2 + pct / 100 * 8;
+    els.flowPath.setAttribute("stroke-width", w.toFixed(1));
+    els.flowPath.setAttribute("opacity", op.toFixed(2));
+    els.flowHead.setAttribute("opacity", op.toFixed(2));
+    if (pct > 0) {
+      els.flowPath.setAttribute("stroke-dasharray", "10 6");
+      els.flowPath.classList.add("arrow-anim");
+      // pace animation with strength
+      var dur = (1.8 - pct / 100 * 1.3).toFixed(2);
+      els.flowPath.style.animationDuration = dur + "s";
+    } else {
+      els.flowPath.setAttribute("stroke-dasharray", "0");
+      els.flowPath.classList.remove("arrow-anim");
+    }
+  }
+
+  function renderImpacts(src, dst, pct) {
+    var sImp = [], dImp = [];
+    var pushInSrc = src.filter(function (f) { return f.type === "push"; }).length;
+    var pullInDst = dst.filter(function (f) { return f.type === "pull"; }).length;
+
+    if (pct > 0) {
+      // Source impacts (people leaving)
+      sImp.push("Population falls as working-age people leave.");
+      if (pushInSrc >= 1) sImp.push("Money sent home (remittances) can help families left behind.");
+      if (pct >= 50) sImp.push("Skills shortage: some jobs become hard to fill (a ‘brain drain’).");
+      if (pct >= 70) sImp.push("Villages may have more older people and fewer young workers.");
+
+      // Destination impacts (people arriving)
+      dImp.push("Population grows; the workforce gets bigger.");
+      if (pullInDst >= 1) dImp.push("Migrants fill jobs and add new skills and culture.");
+      if (pct >= 50) dImp.push("More pressure on housing, schools and transport.");
+      if (pct >= 70) dImp.push("Cities expand quickly (urbanisation) as arrivals settle.");
+    }
+
+    // mismatched placements: targeted nudge as an impact line
+    src.filter(function (f) { return f.type === "pull"; }).forEach(function (f) {
+      sImp.push("⚠️ " + f.label + " is a pull factor, so it does not really push people out of Costera.");
+    });
+    dst.filter(function (f) { return f.type === "push"; }).forEach(function (f) {
+      dImp.push("⚠️ " + f.label + " is a push factor, so it would not draw people into Highvale.");
+    });
+
+    fill(els.impactSource, els.impactSourceNone, sImp);
+    fill(els.impactDest, els.impactDestNone, dImp);
+  }
+
+  function fill(ul, none, items) {
+    ul.innerHTML = "";
+    if (!items.length) { none.style.display = "block"; return; }
+    none.style.display = "none";
+    items.forEach(function (t) {
+      var li = document.createElement("li");
+      li.textContent = t;
+      ul.appendChild(li);
+    });
+  }
+
+  function coach(src, dst, pct) {
+    var c = els.coach;
+    c.className = "coach";
+    var msg;
+
+    var mismatchSrc = src.some(function (f) { return f.type === "pull"; });
+    var mismatchDst = dst.some(function (f) { return f.type === "push"; });
+
+    if (src.length === 0 && dst.length === 0) {
+      msg = "Drag a push factor onto Costera and a pull factor onto Highvale. The arrow grows as your model gets stronger.";
+    } else if (mismatchSrc || mismatchDst) {
+      c.className = "coach warn";
+      if (mismatchSrc && mismatchDst) {
+        msg = "Two factors look misplaced. Push factors belong with the source (Costera); pull factors belong with the destination (Highvale). Try swapping them.";
+      } else if (mismatchSrc) {
+        msg = "A pull factor is sitting on Costera. Pull factors attract people, so they fit Highvale (the destination) better. Move it across to grow the flow.";
+      } else {
+        msg = "A push factor is sitting on Highvale. Push factors drive people away, so they fit Costera (the source). Move it across to grow the flow.";
+      }
+    } else if (pct >= 85) {
+      c.className = "coach good";
+      msg = "Strong model. With clear push factors in Costera and clear pull factors in Highvale, the flow is powerful. This is the classic push-pull pattern that drives real migration.";
+    } else if (pct >= 40) {
+      c.className = "coach good";
+      msg = "Good progress. The flow is building. Add one more matching factor to each country to make the migration pull even stronger.";
+    } else {
+      msg = "A flow has started. Add a matching factor to the other country to balance the model: a push in Costera and a pull in Highvale work together.";
+    }
+    c.innerHTML = msg;
+  }
+
+  function announce(t) { els.sr.textContent = ""; setTimeout(function () { els.sr.textContent = t; }, 30); }
+
+  /* ---------- Buttons ---------- */
+  document.getElementById("btn-clear").addEventListener("click", function () {
+    placement = {};
+    document.querySelectorAll(".factor.placed").forEach(function (c) { c.classList.remove("placed"); });
+    render();
+    announce("Map cleared.");
+    els.coach.innerHTML = "Map cleared. Build a new migration story by dragging factors onto the two countries.";
+  });
+
+  document.getElementById("btn-scenario").addEventListener("click", function () {
+    placement = {};
+    document.querySelectorAll(".factor.placed").forEach(function (c) { c.classList.remove("placed"); });
+    // worked example: push factors on source, pull factors on destination
+    placement = { drought: "source", fewjobs: "source", jobs: "dest", safety: "dest", family: "dest" };
+    document.querySelectorAll(".factor").forEach(function (c) {
+      if (placement[c.getAttribute("data-id")]) c.classList.add("placed");
+    });
+    render();
+    announce("Worked example loaded. Marisol leaves Costera because of drought and few jobs, drawn to Highvale by work, safety and family.");
+    els.coach.className = "coach good";
+    els.coach.innerHTML = "<strong>Worked example:</strong> Marisol leaves Costera (drought, few jobs) and moves to Highvale (jobs, safety, family already there). Read the impacts on each country, then clear the map and build your own.";
+  });
+
+  /* ---------- Init ---------- */
+  render();
+})();
+</script>
+</body>
+</html>

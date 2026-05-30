@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Le, La, Les Sorting Game</title>
+<style>
+  :root {
+    --ink: #1f2330;
+    --muted: #5b6172;
+    --paper: #f6f7fb;
+    --card: #ffffff;
+    --line: #e3e6ef;
+    --le: #2563c9;      /* blue : le (masculine) */
+    --le-soft: #e6efff;
+    --la: #c93571;      /* pink : la (feminine) */
+    --la-soft: #ffe6f1;
+    --les: #1f9d6b;     /* green : les (plural) */
+    --les-soft: #e2f6ec;
+    --good: #1f9d6b;
+    --bad: #d94545;
+    --warn: #b9821a;
+    --focus: #ff8a00;
+    --shadow: 0 6px 22px rgba(31,35,48,0.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 18px 16px 56px; }
+
+  header.app { text-align: center; margin-bottom: 12px; }
+  header.app h1 {
+    font-size: clamp(1.5rem, 4.4vw, 2.2rem);
+    margin: 4px 0 6px;
+    letter-spacing: 0.2px;
+  }
+  .chips { display: inline-flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  .chip {
+    background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 3px 12px; font-size: 0.8rem; color: var(--muted); font-weight: 600;
+  }
+  .aim {
+    background: #fffdf5; border: 1px solid #f0e4bf; border-radius: 12px;
+    padding: 10px 14px; margin: 12px 0 8px; font-size: 0.95rem; color: #6a5a23;
+  }
+  .aim strong { color: #4f4316; }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 10px 14px; box-shadow: var(--shadow); margin-bottom: 14px;
+  }
+  .stat-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .stat {
+    display: flex; flex-direction: column; align-items: center; min-width: 64px;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 4px 10px;
+  }
+  .stat .n { font-size: 1.25rem; font-weight: 800; line-height: 1; }
+  .stat .l { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  .level-badge { font-weight: 800; color: var(--le); }
+
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  button.btn {
+    font: inherit; font-weight: 700; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    border-radius: 10px; padding: 9px 14px; min-height: 44px;
+    transition: transform .08s ease, box-shadow .12s ease, background .12s ease;
+  }
+  button.btn:hover { box-shadow: var(--shadow); }
+  button.btn:active { transform: translateY(1px); }
+  button.btn.primary { background: var(--le); color: #fff; border-color: var(--le); }
+  button.btn.ghost { background: transparent; }
+  button.btn:focus-visible, .basket:focus-visible, .word-card:focus-visible {
+    outline: 3px solid var(--focus); outline-offset: 2px;
+  }
+
+  /* word to sort */
+  .stage { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .now-word {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    box-shadow: var(--shadow); padding: 16px; text-align: center;
+  }
+  .now-word .prompt { font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; }
+  .word-card {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: #fff; border: 2px solid var(--ink); border-radius: 14px;
+    padding: 14px 20px; font-size: clamp(1.4rem, 5vw, 2rem); font-weight: 800;
+    cursor: grab; touch-action: none; user-select: none;
+    box-shadow: 0 4px 0 rgba(31,35,48,0.18);
+  }
+  .word-card:active { cursor: grabbing; }
+  .word-card.dragging { opacity: 0.92; box-shadow: 0 12px 26px rgba(31,35,48,0.28); }
+  .word-card .emoji { font-size: 1.5em; }
+  .word-card .eng { font-size: 0.62em; color: var(--muted); font-weight: 600; }
+  .word-card.placed-good { border-color: var(--good); background: #f0fbf5; }
+  .word-card.placed-bad { animation: shake .4s ease; border-color: var(--bad); }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-7px); }
+    75% { transform: translateX(7px); }
+  }
+
+  .speak-btn {
+    border: 1px solid var(--line); background: var(--paper); border-radius: 10px;
+    width: 44px; height: 44px; cursor: pointer; font-size: 1.2rem; line-height: 1;
+  }
+  .speak-btn:hover { background: #eef0f7; }
+
+  /* baskets */
+  .baskets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 620px) { .baskets { grid-template-columns: 1fr; } }
+  .basket {
+    border-radius: 16px; border: 3px dashed; padding: 14px 12px; min-height: 150px;
+    background: var(--card); text-align: center; transition: transform .1s ease, background .12s ease;
+    display: flex; flex-direction: column;
+  }
+  .basket[data-art="le"]  { border-color: var(--le);  }
+  .basket[data-art="la"]  { border-color: var(--la);  }
+  .basket[data-art="les"] { border-color: var(--les); }
+  .basket .title { font-size: 1.7rem; font-weight: 900; line-height: 1; }
+  .basket[data-art="le"]  .title { color: var(--le);  }
+  .basket[data-art="la"]  .title { color: var(--la);  }
+  .basket[data-art="les"] .title { color: var(--les); }
+  .basket .sub { font-size: 0.78rem; color: var(--muted); margin: 2px 0 8px; }
+  .basket.over { transform: scale(1.03); }
+  .basket[data-art="le"].over  { background: var(--le-soft); }
+  .basket[data-art="la"].over  { background: var(--la-soft); }
+  .basket[data-art="les"].over { background: var(--les-soft); }
+  .basket .caught { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: auto; }
+  .caught .tok {
+    font-size: 0.8rem; background: var(--paper); border: 1px solid var(--line);
+    border-radius: 999px; padding: 2px 9px; font-weight: 700;
+  }
+  .basket .hintkey { font-size: 0.72rem; color: var(--muted); margin-top: 6px; min-height: 1.1em; }
+
+  /* feedback */
+  .feedback {
+    border-radius: 14px; padding: 12px 14px; margin-top: 4px; font-size: 0.98rem;
+    border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow);
+    min-height: 56px;
+  }
+  .feedback.good { border-color: var(--good); background: #f0fbf5; }
+  .feedback.bad  { border-color: var(--bad);  background: #fdf1f1; }
+  .feedback.tip  { border-color: var(--warn); background: #fffaf0; }
+  .feedback b.tag { display: inline-block; margin-right: 6px; }
+
+  .actions-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+
+  .progress-track { height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; margin: 6px 0 2px; }
+  .progress-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--le), var(--les)); transition: width .3s ease; }
+
+  /* round-complete card */
+  .done-card { text-align: center; padding: 22px 16px; }
+  .done-card h2 { margin: 6px 0; }
+  .star-row { font-size: 2rem; letter-spacing: 4px; }
+
+  details.notes {
+    margin-top: 22px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 6px 14px;
+  }
+  details.notes summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
+  details.notes ul { margin: 4px 0 12px; padding-left: 20px; color: var(--muted); }
+  details.notes li { margin: 4px 0; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  footer.note { text-align: center; color: var(--muted); font-size: 0.78rem; margin-top: 20px; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <h1>Le, La, Les Sorting Game</h1>
+    <div class="chips">
+      <span class="chip">Modern Foreign Languages</span>
+      <span class="chip">Key Stage 2</span>
+      <span class="chip">French gender &amp; articles</span>
+    </div>
+  </header>
+
+  <p class="aim"><strong>Teaching aim:</strong> pupils learn that every French noun is masculine (<em>le</em>), feminine (<em>la</em>) or plural (<em>les</em>). They drag each noun into the right basket, use a hint to spot the ending pattern, and try a short verb step. Difficulty grows as the class succeeds.</p>
+
+  <div class="toolbar">
+    <div class="stat-row" aria-hidden="false">
+      <div class="stat"><span class="n" id="statScore">0</span><span class="l">Score</span></div>
+      <div class="stat"><span class="n" id="statStreak">0</span><span class="l">Streak</span></div>
+      <div class="stat"><span class="n level-badge" id="statLevel">1</span><span class="l">Level</span></div>
+    </div>
+    <div class="controls">
+      <button class="btn ghost" id="hintBtn" type="button">&#x1F4A1; Hint</button>
+      <button class="btn ghost" id="restartBtn" type="button">&#x21BB; Restart round</button>
+    </div>
+  </div>
+
+  <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progFill"></div></div>
+
+  <main class="stage" id="stage">
+    <section class="now-word" id="nowWordWrap" aria-label="Noun to sort">
+      <div class="prompt" id="promptLine">Drag this French noun into the correct basket, or use the keyboard buttons under each basket.</div>
+      <div id="wordHost"></div>
+    </section>
+
+    <div class="baskets" id="baskets">
+      <!-- baskets injected -->
+    </div>
+
+    <div class="feedback tip" id="feedback" role="status" aria-live="polite">
+      <b class="tag">&#x1F44B; Bonjour!</b> Drop the noun, or press the button under a basket to choose. Watch the colour: blue is <b>le</b>, pink is <b>la</b>, green is <b>les</b>.
+    </div>
+
+    <div class="actions-row">
+      <button class="btn primary" id="nextBtn" type="button" style="display:none;">Next noun &#x2192;</button>
+    </div>
+  </main>
+
+  <p class="sr-only" id="srLive" role="status" aria-live="assertive"></p>
+
+  <details class="notes">
+    <summary>Teacher notes and the grammar behind the game</summary>
+    <ul>
+      <li><b>le</b> goes before masculine singular nouns (le chat, le chien, le livre).</li>
+      <li><b>la</b> goes before feminine singular nouns (la table, la maison, la pomme).</li>
+      <li><b>les</b> goes before all plural nouns, masculine or feminine (les chats, les pommes).</li>
+      <li>Many feminine nouns end in <b>-e</b> (la table, la chaise), but this is a helpful clue, not a hard rule. The game teaches noticing patterns, then knowing exceptions (le livre is masculine even though it ends in -e).</li>
+      <li>Level 3 adds a gentle verb step using <b>j'aime</b> (I like): "J'aime le chien" means "I like the dog". This introduces high-frequency verb use alongside the article.</li>
+      <li>Difficulty scales automatically: a strong streak unlocks plurals and the verb step; mistakes ease it back so no pupil is left behind.</li>
+      <li>All nouns and names here are demonstration content only.</li>
+    </ul>
+  </details>
+
+  <footer class="note">Westcountry Schools Trust. Classroom demonstration app. Works offline on tablets and whiteboards.</footer>
+</div>
+
+<script>
+"use strict";
+(function () {
+  /* ---------------- Data : French nouns with gender + ending clue ----------------
+     ending: the clue the hint reveals. 'e' = ends in -e (often feminine),
+             'cons' = ends in a consonant or non-e vowel (often masculine),
+             'plural' = ends in -s (plural). */
+  var NOUNS = [
+    // masculine (le)
+    { fr: "chat",   en: "cat",     emoji: "\u{1F408}", art: "le", clue: "cons" },
+    { fr: "chien",  en: "dog",     emoji: "\u{1F415}", art: "le", clue: "cons" },
+    { fr: "ballon", en: "ball",    emoji: "\u{26BD}",  art: "le", clue: "cons" },
+    { fr: "livre",  en: "book",    emoji: "\u{1F4D6}", art: "le", clue: "e-exc" },
+    { fr: "garcon", en: "boy",     emoji: "\u{1F466}", art: "le", clue: "cons" },
+    { fr: "stylo",  en: "pen",     emoji: "\u{1F58A}", art: "le", clue: "cons" },
+    // feminine (la)
+    { fr: "table",  en: "table",   emoji: "\u{1FA91}", art: "la", clue: "e" },
+    { fr: "pomme",  en: "apple",   emoji: "\u{1F34E}", art: "la", clue: "e" },
+    { fr: "maison", en: "house",   emoji: "\u{1F3E0}", art: "la", clue: "cons-f" },
+    { fr: "chaise", en: "chair",   emoji: "\u{1FA91}", art: "la", clue: "e" },
+    { fr: "fille",  en: "girl",    emoji: "\u{1F467}", art: "la", clue: "e" },
+    { fr: "porte",  en: "door",    emoji: "\u{1F6AA}", art: "la", clue: "e" }
+  ];
+  // plural forms (les) are built from singular nouns at level 3
+  var PLURALS = [
+    { fr: "chats",   en: "cats",    emoji: "\u{1F408}", art: "les", clue: "plural" },
+    { fr: "chiens",  en: "dogs",    emoji: "\u{1F415}", art: "les", clue: "plural" },
+    { fr: "pommes",  en: "apples",  emoji: "\u{1F34E}", art: "les", clue: "plural" },
+    { fr: "livres",  en: "books",   emoji: "\u{1F4D6}", art: "les", clue: "plural" },
+    { fr: "tables",  en: "tables",  emoji: "\u{1FA91}", art: "les", clue: "plural" },
+    { fr: "stylos",  en: "pens",    emoji: "\u{1F58A}", art: "les", clue: "plural" }
+  ];
+
+  var BASKET_DEFS = [
+    { art: "le",  sub: "masculine" },
+    { art: "la",  sub: "feminine" },
+    { art: "les", sub: "plural" }
+  ];
+
+  var HINTS = {
+    "e":      "This noun ends in <b>-e</b>. That is often a clue it is feminine, so it usually takes <b>la</b>.",
+    "e-exc":  "This noun ends in <b>-e</b>, but it is one to remember: it is actually masculine, so it takes <b>le</b>.",
+    "cons":   "This noun ends in a consonant and is masculine here, so it takes <b>le</b>.",
+    "cons-f": "This noun ends in a consonant but is feminine, so it takes <b>la</b>. A clue to learn by heart.",
+    "plural": "This noun ends in <b>-s</b>. An <b>-s</b> ending usually means plural, so it takes <b>les</b>."
+  };
+
+  var ROUND_LEN = 6;        // nouns per round
+  var STREAK_UP = 3;        // streak to raise level
+  var MAX_LEVEL = 3;
+
+  /* ---------------- State ---------------- */
+  var state = {
+    level: 1,
+    score: 0,
+    streak: 0,
+    answered: 0,        // in this round
+    correctThisRound: 0,
+    queue: [],
+    current: null,
+    settled: false,
+    hintUsed: false
+  };
+
+  /* ---------------- Elements ---------------- */
+  var elScore = document.getElementById("statScore");
+  var elStreak = document.getElementById("statStreak");
+  var elLevel = document.getElementById("statLevel");
+  var elBaskets = document.getElementById("baskets");
+  var elWordHost = document.getElementById("wordHost");
+  var elFeedback = document.getElementById("feedback");
+  var elNext = document.getElementById("nextBtn");
+  var elHint = document.getElementById("hintBtn");
+  var elRestart = document.getElementById("restartBtn");
+  var elProg = document.getElementById("progFill");
+  var elLive = document.getElementById("srLive");
+  var elPrompt = document.getElementById("promptLine");
+
+  /* ---------------- Helpers ---------------- */
+  function shuffle(a) {
+    a = a.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  function caught(key) { return state[key]; }
+
+  function buildQueue() {
+    var pool;
+    if (state.level === 1) {
+      // le vs la only, easier consonant/-e cases
+      pool = NOUNS.slice();
+    } else if (state.level === 2) {
+      pool = NOUNS.slice(); // includes the trickier exceptions
+    } else {
+      pool = NOUNS.concat(PLURALS); // adds plurals
+    }
+    state.queue = shuffle(pool).slice(0, ROUND_LEN);
+    state.answered = 0;
+    state.correctThisRound = 0;
+  }
+
+  function speakNoun(n) {
+    if (!window.westTTS || !window.westTTS.ready()) return;
+    window.westTTS.speak(n.art + " " + n.fr, { lang: "fr-FR", rate: 0.8, pitch: 1.1 });
+  }
+
+  /* ---------------- Render baskets ---------------- */
+  function renderBaskets() {
+    elBaskets.innerHTML = "";
+    BASKET_DEFS.forEach(function (b) {
+      if (state.level < 3 && b.art === "les") return; // hide plural basket until level 3
+      var div = document.createElement("div");
+      div.className = "basket";
+      div.setAttribute("data-art", b.art);
+      div.setAttribute("role", "button");
+      div.setAttribute("tabindex", "0");
+      div.setAttribute("aria-label", "Put noun in the " + b.art + " basket, for " + b.sub + " nouns");
+      div.innerHTML =
+        '<div class="title">' + b.art + '</div>' +
+        '<div class="sub">' + b.sub + '</div>' +
+        '<div class="hintkey" data-hint="' + b.art + '"></div>' +
+        '<div class="caught" data-caught="' + b.art + '"></div>';
+      // keyboard / tap selection
+      div.addEventListener("click", function () { attempt(b.art, div); });
+      div.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); attempt(b.art, div); }
+      });
+      elBaskets.appendChild(div);
+    });
+  }
+
+  /* ---------------- Render current word ---------------- */
+  function renderWord() {
+    elWordHost.innerHTML = "";
+    var n = state.current;
+    if (!n) return;
+    var card = document.createElement("div");
+    card.className = "word-card";
+    card.id = "wordCard";
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("role", "img");
+    card.setAttribute("aria-label", "French noun " + n.fr + ", meaning " + n.en + ". Drag it to a basket, or choose a basket with its button.");
+    card.innerHTML =
+      '<span class="emoji" aria-hidden="true">' + n.emoji + '</span>' +
+      '<span>' + n.fr + '</span>' +
+      '<span class="eng">(' + n.en + ')</span>' +
+      '<button class="speak-btn" type="button" id="speakBtn" aria-label="Hear the noun spoken in French">&#x1F50A;</button>';
+    elWordHost.appendChild(card);
+
+    document.getElementById("speakBtn").addEventListener("click", function (e) {
+      e.stopPropagation();
+      speakNoun(n);
+    });
+
+    enableDrag(card);
+    card.focus();
+  }
+
+  /* ---------------- Drag with Pointer Events ---------------- */
+  function enableDrag(card) {
+    var dragging = false, startX = 0, startY = 0, ox = 0, oy = 0, lastOver = null;
+
+    card.addEventListener("pointerdown", function (e) {
+      if (e.target.closest(".speak-btn")) return;
+      if (state.settled) return;
+      dragging = true;
+      card.classList.add("dragging");
+      var r = card.getBoundingClientRect();
+      ox = e.clientX - r.left;
+      oy = e.clientY - r.top;
+      startX = r.left; startY = r.top;
+      card.style.position = "fixed";
+      card.style.left = r.left + "px";
+      card.style.top = r.top + "px";
+      card.style.width = r.width + "px";
+      card.style.zIndex = "50";
+      try { card.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    card.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      e.preventDefault();
+      card.style.left = (e.clientX - ox) + "px";
+      card.style.top = (e.clientY - oy) + "px";
+      var over = basketUnder(e.clientX, e.clientY);
+      if (over !== lastOver) {
+        if (lastOver) lastOver.classList.remove("over");
+        if (over) over.classList.add("over");
+        lastOver = over;
+      }
+    });
+
+    function endDrag(e) {
+      if (!dragging) return;
+      dragging = false;
+      card.classList.remove("dragging");
+      try { card.releasePointerCapture(e.pointerId); } catch (err) {}
+      var over = basketUnder(e.clientX, e.clientY);
+      if (lastOver) { lastOver.classList.remove("over"); lastOver = null; }
+      // reset visual position
+      card.style.position = "";
+      card.style.left = card.style.top = card.style.width = card.style.zIndex = "";
+      if (over && !state.settled) {
+        attempt(over.getAttribute("data-art"), over);
+      }
+    }
+    card.addEventListener("pointerup", endDrag);
+    card.addEventListener("pointercancel", endDrag);
+  }
+
+  function basketUnder(x, y) {
+    var els = document.elementsFromPoint(x, y);
+    for (var i = 0; i < els.length; i++) {
+      var b = els[i].closest ? els[i].closest(".basket") : null;
+      if (b) return b;
+    }
+    return null;
+  }
+
+  /* ---------------- Attempt ---------------- */
+  function attempt(chosenArt, basketEl) {
+    if (state.settled || !state.current) return;
+    var n = state.current;
+    var card = document.getElementById("wordCard");
+    state.settled = true;
+
+    if (chosenArt === n.art) {
+      // correct
+      state.score += state.hintUsed ? 1 : 2;
+      state.streak += 1;
+      state.correctThisRound += 1;
+      if (card) card.classList.add("placed-good");
+      addToken(basketEl, n.art + " " + n.fr);
+      var praise = ["Bravo!", "Super!", "Tres bien!", "Genial!", "Parfait!"][Math.floor(Math.random() * 5)];
+      setFeedback("good", "&#x2705; " + praise,
+        "<b>" + n.art + " " + n.fr + "</b> means \"the " + n.en + "\". " +
+        (n.art === "le" ? "It is masculine, so it takes <b>le</b>." :
+         n.art === "la" ? "It is feminine, so it takes <b>la</b>." :
+         "It is plural, so it takes <b>les</b>.") +
+        (state.hintUsed ? " (1 point with a hint.)" : " (2 points, no hint used.)"));
+      announce("Correct. " + n.art + " " + n.fr + ". " + praise);
+      maybeLevelUp();
+    } else {
+      // wrong
+      state.score = Math.max(0, state.score - 0);
+      state.streak = 0;
+      if (card) {
+        card.classList.add("placed-bad");
+        setTimeout(function () { card && card.classList.remove("placed-bad"); }, 450);
+      }
+      setFeedback("bad", "&#x274C; Not quite.",
+        "You chose <b>" + chosenArt + "</b>, but <b>" + n.fr + "</b> takes <b>" + n.art + "</b>. " +
+        HINTS[n.clue] + " The streak resets, but you can keep going.");
+      announce("Not quite. " + n.fr + " takes " + n.art + ".");
+      // do not advance level on a miss; ease difficulty if struggling
+      maybeLevelDown();
+    }
+    updateStats();
+    showNext();
+  }
+
+  function addToken(basketEl, label) {
+    if (!basketEl) return;
+    var host = basketEl.querySelector(".caught");
+    if (!host) return;
+    var t = document.createElement("span");
+    t.className = "tok";
+    t.textContent = label;
+    host.appendChild(t);
+  }
+
+  /* ---------------- Level scaling ---------------- */
+  function maybeLevelUp() {
+    if (state.level < MAX_LEVEL && state.streak > 0 && state.streak % STREAK_UP === 0) {
+      state.level += 1;
+      announce("Level up. Now level " + state.level + ".");
+    }
+  }
+  var lowStreakMisses = 0;
+  function maybeLevelDown() {
+    lowStreakMisses += 1;
+    if (state.level > 1 && lowStreakMisses >= 3) {
+      state.level -= 1;
+      lowStreakMisses = 0;
+      announce("Easing back to level " + state.level + " for more practice.");
+    }
+  }
+
+  /* ---------------- Flow ---------------- */
+  function showNext() {
+    elNext.style.display = "inline-block";
+    elNext.focus();
+  }
+
+  function nextWord() {
+    state.settled = false;
+    state.hintUsed = false;
+    elNext.style.display = "none";
+    clearBasketHints();
+
+    if (state.answered >= state.queue.length) {
+      roundComplete();
+      return;
+    }
+    state.current = state.queue[state.answered];
+    state.answered += 1;
+    // re-render baskets in case level changed (e.g. plural basket appears)
+    renderBaskets();
+    renderWord();
+    updateProgress();
+    var verbHint = state.level >= 3 ? " Bonus: think how you would say \"j'aime\" (I like) before it." : "";
+    elPrompt.innerHTML = "Sort noun " + state.answered + " of " + state.queue.length + "." + verbHint;
+  }
+
+  function roundComplete() {
+    elWordHost.innerHTML = "";
+    elBaskets.innerHTML = "";
+    var pct = Math.round((state.correctThisRound / state.queue.length) * 100);
+    var stars = pct >= 100 ? 3 : pct >= 67 ? 2 : pct >= 34 ? 1 : 0;
+    var starStr = "";
+    for (var i = 0; i < 3; i++) starStr += (i < stars ? "★" : "☆");
+    var msg = pct >= 100 ? "Perfect round. Magnifique!" :
+              pct >= 67  ? "Great sorting. Keep practising the tricky ones." :
+                           "Good effort. Try the hint button to spot the endings.";
+    var box = document.createElement("section");
+    box.className = "now-word done-card";
+    box.innerHTML =
+      '<div class="star-row" aria-hidden="true">' + starStr + '</div>' +
+      '<h2>Round complete</h2>' +
+      '<p>You sorted <b>' + state.correctThisRound + ' of ' + state.queue.length + '</b> correctly (' + pct + '%).</p>' +
+      '<p>' + msg + '</p>' +
+      '<button class="btn primary" id="againBtn" type="button">Play another round &#x21BB;</button>';
+    elWordHost.appendChild(box);
+    elPrompt.textContent = "Round finished. Play again to keep building your French.";
+    document.getElementById("againBtn").addEventListener("click", startRound);
+    document.getElementById("againBtn").focus();
+    announce("Round complete. " + state.correctThisRound + " of " + state.queue.length + " correct. " + msg);
+    setFeedback("tip", "&#x1F3C1; Round complete.", msg);
+    updateProgress(true);
+  }
+
+  function startRound() {
+    buildQueue();
+    state.settled = false;
+    setFeedback("tip", "&#x1F1EB;&#x1F1F7; New round.", "Sort each noun into le, la or les. Use the hint if you are unsure of the ending.");
+    nextWord();
+  }
+
+  /* ---------------- Hint ---------------- */
+  function showHint() {
+    if (!state.current || state.settled) return;
+    state.hintUsed = true;
+    var n = state.current;
+    setFeedback("tip", "&#x1F4A1; Hint:", HINTS[n.clue] + " (Correct answers with a hint are worth 1 point.)");
+    // highlight the ending in the matching basket's hint key line
+    clearBasketHints();
+    var key = document.querySelector('.hintkey[data-hint="' + n.art + '"]');
+    if (key) key.innerHTML = "&#x2B05; pattern clue here";
+    announce("Hint. " + n.clue + " ending.");
+  }
+  function clearBasketHints() {
+    var ks = document.querySelectorAll(".hintkey");
+    for (var i = 0; i < ks.length; i++) ks[i].innerHTML = "";
+  }
+
+  /* ---------------- UI updates ---------------- */
+  function setFeedback(kind, tag, body) {
+    elFeedback.className = "feedback " + kind;
+    elFeedback.innerHTML = '<b class="tag">' + tag + '</b> ' + body;
+  }
+  function updateStats() {
+    elScore.textContent = state.score;
+    elStreak.textContent = state.streak;
+    elLevel.textContent = state.level;
+  }
+  function updateProgress(done) {
+    var p = done ? 100 : Math.round(((state.answered - (state.settled ? 0 : 1)) / Math.max(1, state.queue.length)) * 100);
+    if (p < 0) p = 0;
+    elProg.style.width = p + "%";
+  }
+  function announce(msg) { elLive.textContent = msg; }
+
+  /* ---------------- Wire up ---------------- */
+  elNext.addEventListener("click", nextWord);
+  elHint.addEventListener("click", showHint);
+  elRestart.addEventListener("click", startRound);
+
+  // keyboard shortcut: H for hint, N for next
+  document.addEventListener("keydown", function (e) {
+    if (e.target && /input|textarea/i.test(e.target.tagName)) return;
+    if (e.key === "h" || e.key === "H") showHint();
+    else if ((e.key === "n" || e.key === "N") && elNext.style.display !== "none") nextWord();
+  });
+
+  /* ---------------- Init ---------------- */
+  updateStats();
+  startRound();
+})();
+</script>
+</body>
+</html>

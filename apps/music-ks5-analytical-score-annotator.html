@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytical Score Annotator &middot; KS5 Music</title>
+<style>
+  :root{
+    --bg:#0f1424;
+    --panel:#171d33;
+    --panel-2:#1f2745;
+    --ink:#eef1fb;
+    --muted:#a6b0d4;
+    --line:#2c365c;
+    --accent:#5cd1c2;
+    --accent-2:#ffb454;
+    --harm:#ff9e6d;
+    --struct:#7ad0ff;
+    --motif:#bf9bff;
+    --good:#54d28a;
+    --bad:#ff6b7d;
+    --focus:#ffd166;
+    --radius:14px;
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:linear-gradient(180deg,#0d1120,#10162a 40%,#0f1424);
+    color:var(--ink);
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1060px;margin:0 auto;padding:18px 16px 72px}
+  header.app{
+    display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;
+    border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:8px;
+  }
+  header.app h1{font-size:clamp(1.3rem,3.6vw,2rem);margin:0;letter-spacing:.2px}
+  .strand{
+    font-size:.78rem;color:#0d1120;background:var(--accent);
+    padding:3px 10px;border-radius:999px;font-weight:700;
+  }
+  .aim{
+    color:var(--muted);font-size:.95rem;margin:10px 0 18px;
+    background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent-2);
+    padding:10px 14px;border-radius:10px;
+  }
+  .aim b{color:var(--ink)}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px;margin-bottom:18px;
+  }
+  .card h2{margin:0 0 6px;font-size:1.08rem}
+  .card .sub{color:var(--muted);font-size:.9rem;margin:0 0 14px}
+
+  /* Tabs */
+  .tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  .tab{
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);
+    border-radius:999px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:.9rem;
+  }
+  .tab[aria-selected="true"]{background:var(--accent);color:#0d1120;border-color:var(--accent)}
+  .tab:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+  /* Work selector */
+  .works{display:flex;flex-wrap:wrap;gap:8px}
+  .work-btn{
+    flex:1 1 220px;text-align:left;background:var(--panel-2);color:var(--ink);
+    border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;
+    transition:border-color .15s;
+  }
+  .work-btn:hover{border-color:var(--accent)}
+  .work-btn[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+  .work-btn .tt{font-weight:700;display:block}
+  .work-btn .tg{color:var(--muted);font-size:.82rem}
+
+  /* Transport */
+  .transport{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:14px 0}
+  button.btn{
+    background:var(--accent);color:#0d1120;border:0;border-radius:10px;
+    padding:10px 16px;font-weight:700;font-size:.95rem;cursor:pointer;
+  }
+  button.btn.secondary{background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
+  button.btn:active{transform:translateY(1px)}
+  button.btn:disabled{opacity:.45;cursor:not-allowed}
+  button.btn:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  .tempo-ctl{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:.85rem}
+  .tempo-ctl input[type=range]{width:120px}
+  .pos{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.85rem;margin-left:auto}
+
+  /* Score */
+  .score-frame{
+    background:#fbfbf6;border-radius:12px;overflow:hidden;border:1px solid var(--line);
+    position:relative;touch-action:pan-y;
+  }
+  svg.score{display:block;width:100%;height:auto}
+  .score-svg-text{font-family:"Segoe UI",system-ui,sans-serif}
+
+  /* Tool palette */
+  .palette{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+  .tool{
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);
+    border-radius:10px;padding:8px 13px;font-weight:700;cursor:pointer;font-size:.85rem;
+    display:flex;align-items:center;gap:7px;
+  }
+  .tool .dot{width:11px;height:11px;border-radius:50%}
+  .tool[aria-pressed="true"]{box-shadow:inset 0 0 0 2px currentColor}
+  .tool.harm[aria-pressed="true"]{color:var(--harm)}
+  .tool.struct[aria-pressed="true"]{color:var(--struct)}
+  .tool.motif[aria-pressed="true"]{color:var(--motif)}
+  .tool:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+  .hint{color:var(--muted);font-size:.86rem;margin:6px 0 0}
+
+  /* Annotation list */
+  .ann-list{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .ann-item{
+    display:flex;align-items:center;gap:10px;background:var(--panel-2);
+    border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-size:.86rem;
+  }
+  .ann-item .swatch{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+  .ann-item .lbl{flex:1}
+  .ann-item .bar{color:var(--muted);font-variant-numeric:tabular-nums}
+  .ann-item button{
+    background:transparent;border:1px solid var(--line);color:var(--muted);
+    border-radius:7px;padding:3px 8px;cursor:pointer;font-size:.78rem;
+  }
+  .ann-item button:hover{color:var(--bad);border-color:var(--bad)}
+
+  /* Generic inputs */
+  label.fl{display:block;font-size:.82rem;color:var(--muted);margin:0 0 4px}
+  select,input[type=text]{
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);
+    border-radius:9px;padding:8px 10px;font-size:.9rem;font-family:inherit;
+  }
+  select:focus-visible,input:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+
+  /* Feedback */
+  .fb{
+    margin-top:12px;border-radius:11px;padding:12px 14px;font-size:.9rem;
+    border:1px solid var(--line);background:var(--panel-2);
+  }
+  .fb.good{border-color:var(--good);background:rgba(84,210,138,.12)}
+  .fb.bad{border-color:var(--bad);background:rgba(255,107,125,.12)}
+  .fb.tip{border-color:var(--accent-2);background:rgba(255,180,84,.10)}
+  .fb b{color:var(--ink)}
+
+  /* Challenge */
+  .q-meta{color:var(--muted);font-size:.82rem;margin-bottom:6px}
+  .opts{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+  .opt{
+    text-align:left;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);
+    border-radius:10px;padding:11px 14px;cursor:pointer;font-size:.92rem;
+  }
+  .opt:hover{border-color:var(--accent)}
+  .opt[data-state=correct]{border-color:var(--good);background:rgba(84,210,138,.16)}
+  .opt[data-state=wrong]{border-color:var(--bad);background:rgba(255,107,125,.16)}
+  .opt:disabled{cursor:default}
+  .opt:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  .progress{display:flex;gap:5px;margin:4px 0 10px}
+  .progress span{flex:1;height:6px;border-radius:3px;background:var(--line)}
+  .progress span.done{background:var(--accent)}
+  .progress span.cur{background:var(--accent-2)}
+
+  /* Dictation grid */
+  .dict-grid{
+    display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin:12px 0;
+  }
+  .pad{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
+    color:var(--ink);font-weight:700;cursor:pointer;padding:12px 0;text-align:center;font-size:.95rem;
+    touch-action:manipulation;
+  }
+  .pad:hover{border-color:var(--accent)}
+  .pad:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+  .pad.flash{background:var(--accent);color:#0d1120}
+  .answer-row{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+  .slot{
+    min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+    border:1px dashed var(--line);border-radius:9px;font-weight:700;color:var(--muted);
+    background:var(--panel-2);font-variant-numeric:tabular-nums;
+  }
+  .slot.filled{color:var(--ink);border-style:solid}
+  .slot.right{border-color:var(--good);color:var(--good)}
+  .slot.wrong{border-color:var(--bad);color:var(--bad)}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  .scorebadge{
+    display:inline-block;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:999px;padding:3px 11px;font-size:.82rem;color:var(--muted);
+  }
+  .scorebadge b{color:var(--accent)}
+  footer.note{color:var(--muted);font-size:.78rem;text-align:center;margin-top:8px}
+  @media (max-width:560px){
+    .dict-grid{grid-template-columns:repeat(4,1fr)}
+    .pos{margin-left:0;width:100%}
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <h1>Analytical Score Annotator</h1>
+    <span class="strand">KS5 Music &middot; Listening, analysis &amp; appraising</span>
+  </header>
+  <p class="aim"><b>Teacher aim:</b> Students annotate prescribed set-work extracts for harmony, structure and motivic development against a synced score and audio, then test their analysis and aural dictation under exam-style conditions. Project full screen; learners can drive it from a tablet or whiteboard.</p>
+
+  <div class="tabs" role="tablist" aria-label="Activity">
+    <button class="tab" role="tab" id="tab-annot" aria-selected="true" aria-controls="panel-annot">Annotate the score</button>
+    <button class="tab" role="tab" id="tab-chal" aria-selected="false" aria-controls="panel-chal">Analysis challenge</button>
+    <button class="tab" role="tab" id="tab-dict" aria-selected="false" aria-controls="panel-dict">Aural Dictation Pro</button>
+  </div>
+
+  <!-- ============ PANEL 1: ANNOTATE ============ -->
+  <section id="panel-annot" role="tabpanel" aria-labelledby="tab-annot">
+    <div class="card">
+      <h2>1. Choose a set-work extract</h2>
+      <p class="sub">Three fictional study extracts in different styles. Audio is synthesised live in the browser, no files needed.</p>
+      <div class="works" id="works" role="group" aria-label="Set-work extract"></div>
+    </div>
+
+    <div class="card">
+      <h2>2. Listen with the synced score</h2>
+      <p class="sub">Press play to hear the extract while a playhead tracks the bars. Use this to hear the harmony and motifs before you label them.</p>
+      <div class="transport">
+        <button class="btn" id="playBtn">&#x25B6; Play</button>
+        <button class="btn secondary" id="stopBtn">&#x25A0; Stop</button>
+        <div class="tempo-ctl">
+          <label for="tempo">Tempo</label>
+          <input type="range" id="tempo" min="50" max="120" value="76" aria-describedby="tempoVal">
+          <span id="tempoVal">76 bpm</span>
+        </div>
+        <span class="pos" id="posReadout" aria-live="off">Bar 1 &middot; beat 1</span>
+      </div>
+
+      <div class="score-frame">
+        <svg class="score" id="scoreSvg" viewBox="0 0 880 240" role="img" aria-label="Notated score extract with playhead"></svg>
+      </div>
+      <p class="hint" id="annotHint">Pick a tool below, then click a bar (or use the bar selector) to attach an annotation. Tab into the score and press Enter on a bar to annotate with the keyboard.</p>
+    </div>
+
+    <div class="card">
+      <h2>3. Annotate</h2>
+      <p class="sub">Select an annotation type, choose the bar and a label, then add it. Annotations appear on the score and in the list below.</p>
+      <div class="palette" role="group" aria-label="Annotation tool">
+        <button class="tool harm" data-type="harm" aria-pressed="true"><span class="dot" style="background:var(--harm)"></span>Harmony</button>
+        <button class="tool struct" data-type="struct" aria-pressed="false"><span class="dot" style="background:var(--struct)"></span>Structure</button>
+        <button class="tool motif" data-type="motif" aria-pressed="false"><span class="dot" style="background:var(--motif)"></span>Motif</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end">
+        <div>
+          <label class="fl" for="barSel">Bar</label>
+          <select id="barSel"></select>
+        </div>
+        <div style="flex:1 1 240px">
+          <label class="fl" for="lblSel">Label</label>
+          <select id="lblSel"></select>
+        </div>
+        <button class="btn" id="addAnn">Add annotation</button>
+        <button class="btn secondary" id="checkAnn">Check my analysis</button>
+      </div>
+      <ul class="ann-list" id="annList" aria-label="Your annotations"></ul>
+      <div class="fb" id="annFb" role="status" aria-live="polite" hidden></div>
+    </div>
+  </section>
+
+  <!-- ============ PANEL 2: CHALLENGE ============ -->
+  <section id="panel-chal" role="tabpanel" aria-labelledby="tab-chal" hidden>
+    <div class="card">
+      <h2>Analysis challenge</h2>
+      <p class="sub">Higher-order listening questions on the selected extract: cadences, tonality, texture and motivic transformation. Immediate, specific feedback on every answer.</p>
+      <div class="progress" id="chalProg" aria-hidden="true"></div>
+      <div class="q-meta" id="chalMeta">Question 1</div>
+      <p id="chalStem" style="font-size:1.02rem;font-weight:600;margin:4px 0 6px"></p>
+      <button class="btn secondary" id="chalListen" style="margin-bottom:6px">&#x1F50A; Listen to the cue</button>
+      <div class="opts" id="chalOpts" role="group" aria-label="Answer options"></div>
+      <div class="fb" id="chalFb" role="status" aria-live="polite" hidden></div>
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn" id="chalNext" disabled>Next question</button>
+        <span class="scorebadge">Score: <b id="chalScore">0</b> / <span id="chalTotal">0</span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PANEL 3: DICTATION ============ -->
+  <section id="panel-dict" role="tabpanel" aria-labelledby="tab-dict" hidden>
+    <div class="card">
+      <h2>Aural Dictation Pro</h2>
+      <p class="sub">Exam-style melodic dictation. Hear a short tonic-based phrase, then enter the scale degrees in order. You may replay it up to three times, just like the exam.</p>
+      <div class="transport">
+        <button class="btn" id="dictPlay">&#x1F50A; Play phrase</button>
+        <button class="btn secondary" id="dictNew">New phrase</button>
+        <span class="scorebadge">Plays left: <b id="dictPlays">3</b></span>
+      </div>
+      <p class="hint">Tap a scale degree to add the next note. The tonic (doh) is degree 1. Phrases stay in a major key and move by step or small leap.</p>
+      <div class="dict-grid" id="dictPads" role="group" aria-label="Scale degree input"></div>
+      <div class="answer-row" id="dictAnswer" aria-label="Your dictation answer"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" id="dictCheck">Check dictation</button>
+        <button class="btn secondary" id="dictBack">Undo last</button>
+        <button class="btn secondary" id="dictClear">Clear</button>
+      </div>
+      <div class="fb" id="dictFb" role="status" aria-live="polite" hidden></div>
+    </div>
+  </section>
+
+  <footer class="note">Synthesised audio and fictional study extracts. No real performances or pupils are represented.</footer>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   AUDIO ENGINE (WebAudio, no external files)
+   ============================================================ */
+let AC = null;
+function ac(){ if(!AC){ AC = new (window.AudioContext||window.webkitAudioContext)(); } if(AC.state==="suspended"){ AC.resume(); } return AC; }
+
+// Equal temperament: MIDI number to frequency.
+function midiHz(m){ return 440 * Math.pow(2,(m-69)/12); }
+
+// Play one note with a soft, organ-ish tone (two oscillators + envelope).
+function playNote(midi, start, dur, gain){
+  const ctx = ac();
+  const t0 = start;
+  const o1 = ctx.createOscillator();
+  const o2 = ctx.createOscillator();
+  const g  = ctx.createGain();
+  o1.type = "triangle"; o2.type = "sine";
+  o1.frequency.value = midiHz(midi);
+  o2.frequency.value = midiHz(midi+12);
+  o2.detune.value = 4;
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime((gain||0.18), t0+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0008, t0+dur);
+  o1.connect(g); o2.connect(g); g.connect(ctx.destination);
+  o1.start(t0); o2.start(t0);
+  o1.stop(t0+dur+0.05); o2.stop(t0+dur+0.05);
+}
+// Play a chord (array of midi) at a time.
+function playChord(midis, start, dur, gain){
+  midis.forEach(m=>playNote(m, start, dur, (gain||0.12)));
+}
+
+/* ============================================================
+   SET-WORK EXTRACTS (fictional study pieces)
+   Each: 4 bars, simple melody + bass + harmony per bar.
+   Pitches are MIDI. Harmony is a chord array per bar.
+   "answers" hold the correct analytical labels for checking.
+   ============================================================ */
+const C4=60,D4=62,E4=64,F4=65,G4=67,A4=69,B4=71,C5=72,D5=74,E5=76,F5=77,G5=79,A5=81,B5=83;
+const C3=48,D3=50,E3=52,F3=53,G3=55,A3=57,B3=59;
+const Bb4=70,Bb3=58,Eb4=63,Ab3=56,Fs4=66,Fs3=54,Cs4=61;
+
+const WORKS = {
+  baroque:{
+    name:"Study A: Baroque allegro (C major)",
+    tag:"Ground-bass style, 4 bars, common time",
+    key:"C major", meter:4,
+    // melody: array of bars, each bar array of {m,beat,len}
+    melody:[
+      [{m:G4,b:0,l:1},{m:C5,b:1,l:1},{m:E5,b:2,l:1},{m:G5,b:3,l:1}],
+      [{m:F5,b:0,l:1},{m:E5,b:1,l:1},{m:D5,b:2,l:1},{m:C5,b:3,l:1}],
+      [{m:D5,b:0,l:1},{m:G4,b:1,l:1},{m:B4,b:2,l:1},{m:D5,b:3,l:1}],
+      [{m:C5,b:0,l:2},{m:B4,b:2,l:1},{m:C5,b:3,l:1}]
+    ],
+    bass:[ [C3], [F3], [G3], [C3] ],
+    harmony:[ [C4,E4,G4], [F3,A3,C4], [G3,B3,D4], [C4,E4,G4] ],
+    answers:{
+      harm:{1:"I",2:"IV",3:"V",4:"I"},
+      struct:{1:"Phrase opening (antecedent)",4:"Perfect cadence"},
+      motif:{1:"Rising arpeggio motif (a)",3:"Motif a inverted"}
+    },
+    cadence:"perfect", tonality:"major", texture:"melody and bass (two-part)",
+    motivicQ:"inversion"
+  },
+  romantic:{
+    name:"Study B: Romantic lyric theme (F major)",
+    tag:"Expressive melody, 4 bars, leaning to the dominant",
+    key:"F major", meter:4,
+    melody:[
+      [{m:A4,b:0,l:1},{m:C5,b:1,l:1},{m:F5,b:2,l:2}],
+      [{m:E5,b:0,l:1},{m:D5,b:1,l:1},{m:C5,b:2,l:2}],
+      [{m:Bb4,b:0,l:1},{m:D5,b:1,l:1},{m:G5,b:2,l:2}],
+      [{m:F5,b:0,l:1},{m:E5,b:1,l:1},{m:C5,b:2,l:2}]
+    ],
+    bass:[ [F3], [A3], [Bb3], [C3] ],
+    harmony:[ [F3,A3,C4], [A3,C4,F4], [Bb3,D4,F4], [C4,E4,G4] ],
+    answers:{
+      harm:{1:"I",2:"I (first inversion)",3:"IV",4:"V"},
+      struct:{1:"Lyrical theme begins",4:"Imperfect cadence (ends on V)"},
+      motif:{1:"Lyric motif (b)",3:"Motif b sequenced up"}
+    },
+    cadence:"imperfect", tonality:"major", texture:"melody-dominated homophony",
+    motivicQ:"sequence"
+  },
+  modal:{
+    name:"Study C: Folk-modal melody (D Dorian)",
+    tag:"Modal melody, 4 bars, flattened seventh feel",
+    key:"D Dorian", meter:4,
+    melody:[
+      [{m:D5,b:0,l:1},{m:E5,b:1,l:1},{m:F5,b:2,l:1},{m:G5,b:3,l:1}],
+      [{m:A5,b:0,l:2},{m:G5,b:2,l:1},{m:F5,b:3,l:1}],
+      [{m:E5,b:0,l:1},{m:D5,b:1,l:1},{m:F5,b:2,l:1},{m:A5,b:3,l:1}],
+      [{m:G5,b:0,l:1},{m:F5,b:1,l:1},{m:E5,b:2,l:1},{m:D5,b:3,l:1}]
+    ],
+    bass:[ [D3], [G3], [D3], [D3] ],
+    harmony:[ [D4,F4,A4], [G3,Bb3,D4], [D4,F4,A4], [D4,F4,A4] ],
+    answers:{
+      harm:{1:"i",2:"IV",3:"i",4:"i"},
+      struct:{1:"Modal opening",4:"Phrase falls back to the final (D)"},
+      motif:{1:"Stepwise rising motif (c)",4:"Motif c in retrograde (falling)"}
+    },
+    cadence:"plagal-modal", tonality:"modal", texture:"melody with drone-like bass",
+    motivicQ:"retrograde"
+  }
+};
+
+const HARM_LABELS = ["I","i","IV","V","ii","vi","I (first inversion)","V7","i","IV (modal)"];
+const STRUCT_LABELS = ["Phrase opening (antecedent)","Lyrical theme begins","Modal opening","Perfect cadence","Imperfect cadence (ends on V)","Plagal cadence","Phrase falls back to the final (D)","Sequence","Climax"];
+const MOTIF_LABELS = ["Rising arpeggio motif (a)","Lyric motif (b)","Stepwise rising motif (c)","Motif a inverted","Motif b sequenced up","Motif c in retrograde (falling)","Augmentation","Diminution"];
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let currentWork = "baroque";
+let currentTool = "harm";
+let annotations = []; // {type, bar, label}
+let tempo = 76;
+let playTimer = null;
+
+/* ============================================================
+   SCORE RENDERING (SVG)
+   We draw a single treble stave, 4 bars, with simplified
+   noteheads positioned by pitch, plus a playhead.
+   ============================================================ */
+const SVG = document.getElementById("scoreSvg");
+const SVGNS = "http://www.w3.org/2000/svg";
+const STAVE_TOP = 70;      // y of top stave line (E5)
+const LINE_GAP = 11;       // px per stave line
+const BAR_W = 200;
+const BAR_X0 = 60;
+// map midi to a y position. Treble: E5(76) sits on top line.
+// each semitone ~ half of half a line; we use diatonic step ~ LINE_GAP/2
+function midiToY(m){
+  // diatonic position relative to E5 in white-key steps
+  const whiteIndex = {0:0,2:1,4:2,5:3,7:4,9:5,11:6}; // C..B within octave for step counting
+  function stepNumber(midi){
+    const oct = Math.floor(midi/12)-1;
+    const pc = ((midi%12)+12)%12;
+    // nearest white pc for placement
+    const nearest = (pc in whiteIndex)?pc:(pc-1);
+    const wi = whiteIndex[((nearest%12)+12)%12];
+    return oct*7 + wi;
+  }
+  const refOct=5, refStep=2; // E5 -> step 2 of octave 5
+  const ref = refOct*7+refStep;
+  const s = stepNumber(m);
+  const diff = s - ref; // positive = higher
+  return STAVE_TOP - diff*(LINE_GAP/2);
+}
+function isSharp(m){ const pc=((m%12)+12)%12; return ![0,2,4,5,7,9,11].includes(pc); }
+
+function el(tag,attrs,txt){
+  const e=document.createElementNS(SVGNS,tag);
+  for(const k in attrs){ e.setAttribute(k,attrs[k]); }
+  if(txt!=null){ e.textContent=txt; }
+  return e;
+}
+
+function renderScore(){
+  while(SVG.firstChild) SVG.removeChild(SVG.firstChild);
+  const w = WORKS[currentWork];
+  // background
+  SVG.appendChild(el("rect",{x:0,y:0,width:880,height:240,fill:"#fbfbf6"}));
+  // 5 stave lines
+  for(let i=0;i<5;i++){
+    const y=STAVE_TOP+i*LINE_GAP;
+    SVG.appendChild(el("line",{x1:BAR_X0,y1:y,x2:BAR_X0+4*BAR_W,y2:y,stroke:"#444",["stroke-width"]:1}));
+  }
+  // clef (simple "G" mark)
+  SVG.appendChild(el("text",{x:24,y:STAVE_TOP+3*LINE_GAP+8,["font-size"]:42,fill:"#222",["font-family"]:"Georgia,serif"},"𝄞"));
+  // key / title
+  SVG.appendChild(el("text",{x:BAR_X0,y:34,["font-size"]:15,fill:"#222",["font-weight"]:700,["font-family"]:"Segoe UI,sans-serif"},w.name));
+  SVG.appendChild(el("text",{x:BAR_X0,y:52,["font-size"]:12,fill:"#666",["font-family"]:"Segoe UI,sans-serif"},"Key: "+w.key+" · "+w.meter+"/4"));
+
+  // barlines + bar numbers + clickable bar zones
+  for(let b=0;b<4;b++){
+    const x=BAR_X0+b*BAR_W;
+    SVG.appendChild(el("line",{x1:x,y1:STAVE_TOP,x2:x,y2:STAVE_TOP+4*LINE_GAP,stroke:"#444",["stroke-width"]:1}));
+    SVG.appendChild(el("text",{x:x+4,y:STAVE_TOP-6,["font-size"]:11,fill:"#999",["font-family"]:"Segoe UI,sans-serif"},(b+1)));
+    // invisible clickable bar zone (keyboard focusable)
+    const zone=el("rect",{x:x,y:STAVE_TOP-14,width:BAR_W,height:4*LINE_GAP+24,fill:"transparent",
+      tabindex:0,role:"button",["aria-label"]:"Bar "+(b+1)+", press Enter to annotate","data-bar":(b+1),class:"barzone",style:"cursor:pointer"});
+    zone.addEventListener("pointerup",()=>annotateBar(b+1));
+    zone.addEventListener("keydown",(ev)=>{ if(ev.key==="Enter"||ev.key===" "){ ev.preventDefault(); annotateBar(b+1);} });
+    SVG.appendChild(zone);
+  }
+  // final barline
+  const xe=BAR_X0+4*BAR_W;
+  SVG.appendChild(el("line",{x1:xe-3,y1:STAVE_TOP,x2:xe-3,y2:STAVE_TOP+4*LINE_GAP,stroke:"#444",["stroke-width"]:1}));
+  SVG.appendChild(el("line",{x1:xe,y1:STAVE_TOP,x2:xe,y2:STAVE_TOP+4*LINE_GAP,stroke:"#444",["stroke-width"]:3}));
+
+  // notes
+  w.melody.forEach((bar,bi)=>{
+    bar.forEach(n=>{
+      const x=BAR_X0+bi*BAR_W + 18 + (n.b/4)*(BAR_W-30);
+      const y=midiToY(n.m);
+      // ledger lines if above/below stave
+      drawLedger(x,y);
+      SVG.appendChild(el("ellipse",{cx:x,cy:y,rx:6,ry:4.6,fill:"#1b1b1b",transform:"rotate(-18 "+x+" "+y+")"}));
+      // stem
+      const up = y>STAVE_TOP+2*LINE_GAP;
+      if(up){ SVG.appendChild(el("line",{x1:x+5.5,y1:y,x2:x+5.5,y2:y-26,stroke:"#1b1b1b",["stroke-width"]:1.4})); }
+      else { SVG.appendChild(el("line",{x1:x-5.5,y1:y,x2:x-5.5,y2:y+26,stroke:"#1b1b1b",["stroke-width"]:1.4})); }
+      if(isSharp(n.m)){ SVG.appendChild(el("text",{x:x-16,y:y+4,["font-size"]:14,fill:"#1b1b1b"},"♯")); }
+    });
+  });
+
+  // playhead
+  const ph=el("line",{id:"playhead",x1:BAR_X0,y1:STAVE_TOP-16,x2:BAR_X0,y2:STAVE_TOP+4*LINE_GAP+8,stroke:"#5cd1c2",["stroke-width"]:2,opacity:0});
+  SVG.appendChild(ph);
+
+  // annotation layer
+  renderAnnotationsOnScore();
+}
+function drawLedger(x,y){
+  // top stave line y = STAVE_TOP, bottom = STAVE_TOP+4*LINE_GAP
+  const top=STAVE_TOP, bot=STAVE_TOP+4*LINE_GAP;
+  if(y < top-2){
+    for(let ly=top-LINE_GAP; ly>=y-2; ly-=LINE_GAP){
+      SVG.appendChild(el("line",{x1:x-9,y1:ly,x2:x+9,y2:ly,stroke:"#444",["stroke-width"]:1}));
+    }
+  } else if(y > bot+2){
+    for(let ly=bot+LINE_GAP; ly<=y+2; ly+=LINE_GAP){
+      SVG.appendChild(el("line",{x1:x-9,y1:ly,x2:x+9,y2:ly,stroke:"#444",["stroke-width"]:1}));
+    }
+  }
+}
+function annColour(type){ return type==="harm"?"#d9622b":type==="struct"?"#1d7fb8":"#7a4fd6"; }
+function renderAnnotationsOnScore(){
+  // remove old
+  SVG.querySelectorAll(".annmark").forEach(n=>n.remove());
+  // group by bar so multiple labels stack
+  const byBar={};
+  annotations.forEach(a=>{ (byBar[a.bar]=byBar[a.bar]||[]).push(a); });
+  Object.keys(byBar).forEach(barStr=>{
+    const bar=+barStr;
+    const list=byBar[bar];
+    const x=BAR_X0+(bar-1)*BAR_W+BAR_W/2;
+    list.forEach((a,i)=>{
+      let y;
+      if(a.type==="harm"){ y=STAVE_TOP+4*LINE_GAP+22; }
+      else if(a.type==="struct"){ y=STAVE_TOP+4*LINE_GAP+38; }
+      else { y=STAVE_TOP-22; }
+      const t=el("text",{x:x,y:y,["text-anchor"]:"middle",["font-size"]:12,fill:annColour(a.type),
+        ["font-weight"]:700,class:"annmark",["font-family"]:"Segoe UI,sans-serif"}, a.label);
+      SVG.appendChild(t);
+    });
+  });
+}
+
+/* ============================================================
+   PLAYBACK with synced playhead
+   ============================================================ */
+function stopPlayback(){
+  if(playTimer){ clearInterval(playTimer); playTimer=null; }
+  const ph=document.getElementById("playhead"); if(ph){ ph.setAttribute("opacity",0); }
+  document.getElementById("posReadout").textContent="Bar 1 · beat 1";
+}
+function playWork(){
+  stopPlayback();
+  const ctx=ac();
+  const w=WORKS[currentWork];
+  const spb = 60/tempo; // seconds per beat
+  const start = ctx.currentTime + 0.08;
+  // schedule audio
+  w.melody.forEach((bar,bi)=>{
+    bar.forEach(n=>{
+      const t = start + (bi*4 + n.b)*spb;
+      playNote(n.m, t, n.l*spb*0.95, 0.2);
+    });
+    // harmony on beat 1 of each bar
+    const t = start + bi*4*spb;
+    playChord(w.harmony[bi], t, 4*spb*0.95, 0.07);
+  });
+  // playhead animation
+  const ph=document.getElementById("playhead"); ph.setAttribute("opacity",1);
+  const totalBeats=16;
+  const t0=performance.now();
+  playTimer=setInterval(()=>{
+    const elapsed=(performance.now()-t0)/1000;
+    const beat=elapsed/spb;
+    if(beat>=totalBeats){ stopPlayback(); return; }
+    const x=BAR_X0 + (beat/16)*(4*BAR_W);
+    ph.setAttribute("x1",x); ph.setAttribute("x2",x);
+    const barNo=Math.floor(beat/4)+1;
+    const beatNo=Math.floor(beat%4)+1;
+    document.getElementById("posReadout").textContent="Bar "+barNo+" · beat "+beatNo;
+  },40);
+}
+
+/* ============================================================
+   WORK SELECTOR
+   ============================================================ */
+function buildWorkButtons(){
+  const wrap=document.getElementById("works");
+  wrap.innerHTML="";
+  Object.keys(WORKS).forEach(key=>{
+    const w=WORKS[key];
+    const b=document.createElement("button");
+    b.className="work-btn"; b.setAttribute("aria-pressed", key===currentWork);
+    b.innerHTML='<span class="tt">'+w.name+'</span><span class="tg">'+w.tag+'</span>';
+    b.addEventListener("click",()=>{
+      currentWork=key; annotations=[];
+      buildWorkButtons(); renderScore(); refreshAnnList(); buildBarSel();
+      document.getElementById("annFb").hidden=true;
+      buildChallenge(); resetDictation();
+    });
+    wrap.appendChild(b);
+  });
+}
+
+/* ============================================================
+   ANNOTATION TOOLS
+   ============================================================ */
+function setTool(type){
+  currentTool=type;
+  document.querySelectorAll(".tool").forEach(t=>t.setAttribute("aria-pressed", t.dataset.type===type));
+  buildLblSel();
+}
+document.querySelectorAll(".tool").forEach(t=>{
+  t.addEventListener("click",()=>setTool(t.dataset.type));
+});
+function buildBarSel(){
+  const s=document.getElementById("barSel"); s.innerHTML="";
+  for(let i=1;i<=4;i++){ const o=document.createElement("option"); o.value=i; o.textContent="Bar "+i; s.appendChild(o); }
+}
+function buildLblSel(){
+  const s=document.getElementById("lblSel"); s.innerHTML="";
+  const set = currentTool==="harm"?HARM_LABELS : currentTool==="struct"?STRUCT_LABELS : MOTIF_LABELS;
+  // unique
+  [...new Set(set)].forEach(l=>{ const o=document.createElement("option"); o.value=l; o.textContent=l; s.appendChild(o); });
+}
+function annotateBar(bar){
+  // when clicking a bar, set the selector then scroll focus there
+  document.getElementById("barSel").value=bar;
+  const hint=document.getElementById("annotHint");
+  hint.textContent="Bar "+bar+" selected. Choose a label and press Add annotation.";
+}
+document.getElementById("addAnn").addEventListener("click",()=>{
+  const bar=+document.getElementById("barSel").value;
+  const label=document.getElementById("lblSel").value;
+  // prevent exact duplicate
+  if(annotations.some(a=>a.type===currentTool&&a.bar===bar&&a.label===label)){
+    flashAnnFb("tip","That exact annotation is already on bar "+bar+".");
+    return;
+  }
+  annotations.push({type:currentTool,bar,label});
+  renderAnnotationsOnScore(); refreshAnnList();
+  flashAnnFb("tip","Added: <b>"+label+"</b> on bar "+bar+". Add more, then press <b>Check my analysis</b>.");
+});
+function refreshAnnList(){
+  const ul=document.getElementById("annList"); ul.innerHTML="";
+  if(!annotations.length){ const li=document.createElement("li"); li.className="ann-item"; li.innerHTML='<span class="lbl" style="color:var(--muted)">No annotations yet.</span>'; ul.appendChild(li); return; }
+  annotations.slice().sort((a,b)=>a.bar-b.bar).forEach(a=>{
+    const li=document.createElement("li"); li.className="ann-item";
+    li.innerHTML='<span class="swatch" style="background:'+annColour(a.type)+'"></span>'
+      +'<span class="lbl">'+a.label+'</span><span class="bar">bar '+a.bar+'</span>';
+    const del=document.createElement("button"); del.textContent="Remove"; del.setAttribute("aria-label","Remove "+a.label+" on bar "+a.bar);
+    del.addEventListener("click",()=>{ annotations=annotations.filter(x=>x!==a); renderAnnotationsOnScore(); refreshAnnList(); });
+    li.appendChild(del); ul.appendChild(li);
+  });
+}
+function flashAnnFb(kind,html){
+  const fb=document.getElementById("annFb");
+  fb.hidden=false; fb.className="fb "+kind; fb.innerHTML=html;
+}
+
+/* CHECK THE ANALYSIS: compares annotations against the model answer
+   and gives specific, per-bar feedback. */
+document.getElementById("checkAnn").addEventListener("click",()=>{
+  const w=WORKS[currentWork];
+  const ans=w.answers;
+  if(!annotations.length){ flashAnnFb("tip","Add at least one harmonic, structural or motivic label first, then check."); return; }
+  let correct=0, total=0, notes=[];
+
+  // Harmony: every bar has a target chord
+  for(let bar=1;bar<=4;bar++){
+    if(ans.harm[bar]){
+      total++;
+      const got=annotations.find(a=>a.type==="harm"&&a.bar===bar);
+      if(!got){ notes.push('<span style="color:var(--accent-2)">Bar '+bar+' harmony</span>: not yet labelled (expected <b>'+ans.harm[bar]+'</b>).'); }
+      else if(got.label===ans.harm[bar]){ correct++; notes.push('<span style="color:var(--good)">Bar '+bar+' harmony ✓</span> '+got.label+' is correct.'); }
+      else { notes.push('<span style="color:var(--bad)">Bar '+bar+' harmony ✗</span> you wrote <b>'+got.label+'</b>; the chord here is <b>'+ans.harm[bar]+'</b>. '+harmHint(bar,w)); }
+    }
+  }
+  // Structure (selected key bars)
+  Object.keys(ans.struct).forEach(barStr=>{
+    const bar=+barStr; total++;
+    const got=annotations.find(a=>a.type==="struct"&&a.bar===bar);
+    if(!got){ notes.push('<span style="color:var(--accent-2)">Bar '+bar+' structure</span>: try labelling this. Hint: '+ans.struct[bar]+'.'); }
+    else if(got.label===ans.struct[bar]){ correct++; notes.push('<span style="color:var(--good)">Bar '+bar+' structure ✓</span> '+got.label+'.'); }
+    else { notes.push('<span style="color:var(--bad)">Bar '+bar+' structure ✗</span> the key structural event here is <b>'+ans.struct[bar]+'</b>, not "'+got.label+'".'); }
+  });
+  // Motif (selected key bars)
+  Object.keys(ans.motif).forEach(barStr=>{
+    const bar=+barStr; total++;
+    const got=annotations.find(a=>a.type==="motif"&&a.bar===bar);
+    if(!got){ notes.push('<span style="color:var(--accent-2)">Bar '+bar+' motif</span>: a motivic feature lives here. Listen again and label it.'); }
+    else if(got.label===ans.motif[bar]){ correct++; notes.push('<span style="color:var(--good)">Bar '+bar+' motif ✓</span> '+got.label+'.'); }
+    else { notes.push('<span style="color:var(--bad)">Bar '+bar+' motif ✗</span> the motivic device here is <b>'+ans.motif[bar]+'</b>.'); }
+  });
+
+  const pct=Math.round(100*correct/total);
+  const head='<b>'+correct+' of '+total+' analytical points correct ('+pct+'%).</b><br>';
+  const kind = pct>=80?"good":pct>=40?"tip":"bad";
+  flashAnnFb(kind, head+'<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;font-size:.86rem">'+notes.map(n=>'<span>'+n+'</span>').join("")+'</div>');
+});
+function harmHint(bar,w){
+  // give a reason rooted in the bass note
+  const root=w.bass[bar-1][0];
+  const pc=((root%12)+12)%12;
+  const names={0:"C",2:"D",4:"E",5:"F",7:"G",9:"A",11:"B",10:"B flat",3:"E flat"};
+  return 'Listen to the bass: it sounds '+ (names[pc]||"its root") +', which tells you the chord root.';
+}
+
+/* ============================================================
+   ANALYSIS CHALLENGE
+   ============================================================ */
+let chalQs=[], chalIdx=0, chalScore=0, chalLocked=false;
+function buildChallenge(){
+  const w=WORKS[currentWork];
+  chalQs=[
+    {
+      stem:"Listen to bars 3 to 4. What cadence ends this extract?",
+      cue:()=>playCadenceCue(),
+      opts:[
+        {t:"Perfect cadence (V to I)",ok:w.cadence==="perfect"},
+        {t:"Imperfect cadence (ends on V)",ok:w.cadence==="imperfect"},
+        {t:"Plagal or modal close (to the final)",ok:w.cadence==="plagal-modal"},
+        {t:"Interrupted cadence (V to vi)",ok:false}
+      ],
+      why:{
+        perfect:"The bass moves G to C (V to I) and the melody settles on the tonic: a perfect cadence, the most final-sounding close.",
+        imperfect:"The phrase comes to rest on the dominant chord (V), leaving it sounding unfinished: an imperfect cadence.",
+        "plagal-modal":"This melody is modal (Dorian). It falls back to its final, D, without a leading-note pull, so it is a modal or plagal-type close, not a perfect cadence."
+      }
+    },
+    {
+      stem:"What best describes the tonality of this extract?",
+      cue:()=>playWork(),
+      opts:[
+        {t:"A major key",ok:w.tonality==="major"},
+        {t:"A minor key",ok:false},
+        {t:"Modal (not standard major or minor)",ok:w.tonality==="modal"},
+        {t:"Atonal (no key centre)",ok:false}
+      ],
+      why:{
+        major:"The third above the tonic is major and the harmony uses I, IV and V: this is clearly a major key, "+w.key+".",
+        modal:"There is a clear tonal centre on D but a flattened seventh (C natural) and no sharpened leading note: this is the Dorian mode, not a standard major or minor key."
+      }
+    },
+    {
+      stem:"How does the opening motif return later in the extract?",
+      cue:()=>playWork(),
+      opts:[
+        {t:"By inversion (the shape is turned upside down)",ok:w.motivicQ==="inversion"},
+        {t:"By sequence (repeated at a different pitch)",ok:w.motivicQ==="sequence"},
+        {t:"In retrograde (played backwards)",ok:w.motivicQ==="retrograde"},
+        {t:"By augmentation (note values doubled)",ok:false}
+      ],
+      why:{
+        inversion:"The rising arpeggio of bar 1 reappears as a falling shape in bar 3: the intervals are mirrored, so the motif is inverted.",
+        sequence:"The lyric motif from bar 1 is restated a step higher in bar 3 with the same melodic shape: that is a melodic sequence.",
+        retrograde:"The stepwise rising figure of bar 1 returns descending in bar 4, sounding the same pitches in reverse order: retrograde."
+      }
+    },
+    {
+      stem:"Which best describes the texture of this extract?",
+      cue:()=>playWork(),
+      opts:[
+        {t:w.texture,ok:true},
+        {t:"Dense polyphony with four independent voices",ok:false},
+        {t:"Unaccompanied single line (monophony)",ok:false},
+        {t:"Antiphonal call and response between choirs",ok:false}
+      ],
+      shuffle:true,
+      why:{any:"The extract has a clear tune supported underneath, so the texture is best described as: "+w.texture+"."}
+    }
+  ];
+  chalIdx=0; chalScore=0; chalLocked=false;
+  document.getElementById("chalTotal").textContent=chalQs.length;
+  document.getElementById("chalScore").textContent=0;
+  renderChallenge();
+}
+function renderChallenge(){
+  const q=chalQs[chalIdx];
+  // progress
+  const prog=document.getElementById("chalProg"); prog.innerHTML="";
+  chalQs.forEach((_,i)=>{ const s=document.createElement("span"); if(i<chalIdx)s.className="done"; else if(i===chalIdx)s.className="cur"; prog.appendChild(s); });
+  document.getElementById("chalMeta").textContent="Question "+(chalIdx+1)+" of "+chalQs.length;
+  document.getElementById("chalStem").textContent=q.stem;
+  const fb=document.getElementById("chalFb"); fb.hidden=true;
+  document.getElementById("chalNext").disabled=true;
+  chalLocked=false;
+  const wrap=document.getElementById("chalOpts"); wrap.innerHTML="";
+  let opts=q.opts.map((o,i)=>({o,i}));
+  if(q.shuffle){ opts=opts.sort(()=>Math.random()-0.5); }
+  opts.forEach(({o})=>{
+    const b=document.createElement("button"); b.className="opt"; b.textContent=o.t;
+    b.addEventListener("click",()=>answerChallenge(b,o,q));
+    wrap.appendChild(b);
+  });
+}
+function answerChallenge(btn,opt,q){
+  if(chalLocked) return;
+  chalLocked=true;
+  const w=WORKS[currentWork];
+  const all=[...document.querySelectorAll("#chalOpts .opt")];
+  all.forEach(b=>b.disabled=true);
+  const fb=document.getElementById("chalFb"); fb.hidden=false;
+  if(opt.ok){
+    btn.setAttribute("data-state","correct");
+    chalScore++; document.getElementById("chalScore").textContent=chalScore;
+    fb.className="fb good";
+    fb.innerHTML="<b>Correct.</b> "+explainChal(q,w,true);
+  } else {
+    btn.setAttribute("data-state","wrong");
+    // highlight the correct one
+    all.forEach((b,i)=>{ /* match by text */ });
+    // find correct option text
+    const correctOpt=q.opts.find(o=>o.ok);
+    all.forEach(b=>{ if(correctOpt && b.textContent===correctOpt.t) b.setAttribute("data-state","correct"); });
+    fb.className="fb bad";
+    fb.innerHTML="<b>Not quite.</b> The answer is <b>"+(correctOpt?correctOpt.t:"")+"</b>. "+explainChal(q,w,false);
+  }
+  document.getElementById("chalNext").disabled = (chalIdx>=chalQs.length-1);
+  if(chalIdx>=chalQs.length-1){
+    document.getElementById("chalNext").textContent="Finished";
+    fb.innerHTML += '<div style="margin-top:8px"><b>Challenge complete: '+chalScore+' / '+chalQs.length+'.</b> Switch extract to try another style.</div>';
+  }
+}
+function explainChal(q,w,wasRight){
+  if(q.why.any) return q.why.any;
+  const keyMap={
+    perfect:w.cadence,imperfect:w.cadence,"plagal-modal":w.cadence,
+    major:w.tonality,modal:w.tonality,
+    inversion:w.motivicQ,sequence:w.motivicQ,retrograde:w.motivicQ
+  };
+  // pick the why entry matching this work's actual property
+  for(const k in q.why){ if(k===w.cadence||k===w.tonality||k===w.motivicQ){ return q.why[k]; } }
+  return "Listen again and compare the bars carefully.";
+}
+document.getElementById("chalNext").addEventListener("click",()=>{
+  if(chalIdx<chalQs.length-1){ chalIdx++; renderChallenge(); }
+});
+document.getElementById("chalListen").addEventListener("click",()=>{
+  const q=chalQs[chalIdx]; if(q&&q.cue) q.cue();
+});
+function playCadenceCue(){
+  // play bars 3-4 only
+  const w=WORKS[currentWork];
+  const ctx=ac(); const spb=60/tempo; const start=ctx.currentTime+0.06;
+  for(let bi=2;bi<4;bi++){
+    w.melody[bi].forEach(n=>{ playNote(n.m,start+((bi-2)*4+n.b)*spb,n.l*spb*0.95,0.2); });
+    playChord(w.harmony[bi],start+(bi-2)*4*spb,4*spb*0.95,0.08);
+  }
+}
+
+/* ============================================================
+   AURAL DICTATION PRO
+   Generates a major-key phrase by scale degree; pupil enters degrees.
+   ============================================================ */
+let dictTonic=C4, dictDegrees=[], dictAnswer=[], dictPlaysLeft=3;
+const MAJOR_STEPS=[0,2,4,5,7,9,11,12]; // degree 1..8 semitone offsets
+function degToMidi(deg){ return dictTonic + MAJOR_STEPS[deg-1]; }
+function makePhrase(){
+  // start on 1, 3 or 5; move mostly by step, length 5
+  const starts=[1,3,5];
+  let cur=starts[Math.floor(Math.random()*starts.length)];
+  const seq=[cur];
+  for(let i=0;i<4;i++){
+    const moves=[-2,-1,-1,1,1,2];
+    let nx=cur+moves[Math.floor(Math.random()*moves.length)];
+    if(nx<1)nx=cur+1; if(nx>8)nx=cur-1;
+    seq.push(nx); cur=nx;
+  }
+  return seq;
+}
+function resetDictation(){
+  // tonic depends on the chosen work's key for variety
+  const keyTonics={ "C major":C4, "F major":F4-12, "D Dorian":D4 };
+  dictTonic = keyTonics[WORKS[currentWork].key] || C4;
+  dictDegrees=makePhrase();
+  dictAnswer=[]; dictPlaysLeft=3;
+  document.getElementById("dictPlays").textContent=3;
+  renderDictAnswer();
+  document.getElementById("dictFb").hidden=true;
+}
+function buildDictPads(){
+  const wrap=document.getElementById("dictPads"); wrap.innerHTML="";
+  for(let d=1;d<=8;d++){
+    const b=document.createElement("button"); b.className="pad";
+    b.textContent=d; b.setAttribute("aria-label","Scale degree "+d+(d===1?" (tonic)":(d===8?" (octave)":"")));
+    b.addEventListener("click",()=>{
+      // audible feedback of the pitch + add to answer
+      playNote(degToMidi(d), ac().currentTime+0.02, 0.45, 0.22);
+      b.classList.add("flash"); setTimeout(()=>b.classList.remove("flash"),180);
+      if(dictAnswer.length<dictDegrees.length){ dictAnswer.push(d); renderDictAnswer(); }
+    });
+    wrap.appendChild(b);
+  }
+}
+function renderDictAnswer(){
+  const row=document.getElementById("dictAnswer"); row.innerHTML="";
+  for(let i=0;i<dictDegrees.length;i++){
+    const s=document.createElement("div"); s.className="slot";
+    if(dictAnswer[i]!=null){ s.classList.add("filled"); s.textContent=dictAnswer[i]; }
+    else { s.textContent="–"; }
+    row.appendChild(s);
+  }
+}
+document.getElementById("dictPlay").addEventListener("click",()=>{
+  if(dictPlaysLeft<=0){ flashDict("tip","No plays left for this phrase. Enter your best answer and check it, or start a new phrase."); return; }
+  dictPlaysLeft--; document.getElementById("dictPlays").textContent=dictPlaysLeft;
+  const ctx=ac(); const spb=0.5; const start=ctx.currentTime+0.1;
+  // play tonic first as reference
+  playNote(dictTonic,start,0.4,0.16);
+  dictDegrees.forEach((d,i)=>{ playNote(degToMidi(d), start+0.7+i*spb, spb*0.9, 0.22); });
+});
+document.getElementById("dictNew").addEventListener("click",()=>{ resetDictation(); flashDict("tip","New phrase ready. Press <b>Play phrase</b> to hear it."); });
+document.getElementById("dictBack").addEventListener("click",()=>{ dictAnswer.pop(); renderDictAnswer(); });
+document.getElementById("dictClear").addEventListener("click",()=>{ dictAnswer=[]; renderDictAnswer(); });
+document.getElementById("dictCheck").addEventListener("click",()=>{
+  if(dictAnswer.length<dictDegrees.length){ flashDict("tip","Enter all "+dictDegrees.length+" notes before checking. You have "+dictAnswer.length+" so far."); return; }
+  const slots=[...document.querySelectorAll("#dictAnswer .slot")];
+  let right=0, detail=[];
+  for(let i=0;i<dictDegrees.length;i++){
+    const ok=dictAnswer[i]===dictDegrees[i];
+    slots[i].classList.remove("right","wrong");
+    slots[i].classList.add(ok?"right":"wrong");
+    if(ok) right++;
+    else {
+      const dir = dictAnswer[i]>dictDegrees[i] ? "too high" : "too low";
+      detail.push("Note "+(i+1)+": you put degree "+dictAnswer[i]+", it was degree "+dictDegrees[i]+" ("+dir+").");
+    }
+  }
+  const all=right===dictDegrees.length;
+  if(all){
+    flashDict("good","<b>Perfect dictation.</b> All "+dictDegrees.length+" scale degrees correct. The contour you heard was "+contourWord(dictDegrees)+". Press <b>New phrase</b> for another.");
+  } else {
+    flashDict("bad","<b>"+right+" of "+dictDegrees.length+" correct.</b><div style='margin-top:6px;display:flex;flex-direction:column;gap:3px;font-size:.86rem'>"+detail.map(d=>"<span>"+d+"</span>").join("")+"</div><div style='margin-top:6px'>Tip: hum the tonic, then track each note up or down from it.</div>");
+  }
+});
+function contourWord(seq){
+  const up=seq[seq.length-1]>seq[0]; const peak=Math.max(...seq);
+  if(peak>seq[0]&&peak>seq[seq.length-1]) return "an arch (rising then falling)";
+  return up?"mostly rising":"mostly falling";
+}
+function flashDict(kind,html){ const fb=document.getElementById("dictFb"); fb.hidden=false; fb.className="fb "+kind; fb.innerHTML=html; }
+
+/* ============================================================
+   TRANSPORT + TEMPO
+   ============================================================ */
+document.getElementById("playBtn").addEventListener("click",playWork);
+document.getElementById("stopBtn").addEventListener("click",stopPlayback);
+document.getElementById("tempo").addEventListener("input",(e)=>{
+  tempo=+e.target.value; document.getElementById("tempoVal").textContent=tempo+" bpm";
+});
+
+/* ============================================================
+   TABS
+   ============================================================ */
+const tabs=[["tab-annot","panel-annot"],["tab-chal","panel-chal"],["tab-dict","panel-dict"]];
+function selectTab(id){
+  tabs.forEach(([t,p])=>{
+    const sel=t===id;
+    document.getElementById(t).setAttribute("aria-selected",sel);
+    document.getElementById(p).hidden=!sel;
+  });
+  stopPlayback();
+}
+tabs.forEach(([t])=>{
+  const btn=document.getElementById(t);
+  btn.addEventListener("click",()=>selectTab(t));
+  btn.addEventListener("keydown",(e)=>{
+    const idx=tabs.findIndex(x=>x[0]===t);
+    if(e.key==="ArrowRight"){ e.preventDefault(); const n=tabs[(idx+1)%tabs.length][0]; document.getElementById(n).focus(); selectTab(n); }
+    if(e.key==="ArrowLeft"){ e.preventDefault(); const n=tabs[(idx-1+tabs.length)%tabs.length][0]; document.getElementById(n).focus(); selectTab(n); }
+  });
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+buildWorkButtons();
+renderScore();
+buildBarSel();
+buildLblSel();
+refreshAnnList();
+buildChallenge();
+buildDictPads();
+resetDictation();
+</script>
+</body>
+</html>

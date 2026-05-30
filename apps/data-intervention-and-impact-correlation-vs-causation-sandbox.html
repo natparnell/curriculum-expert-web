@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Correlation vs Causation Sandbox</title>
+<style>
+  :root {
+    --ink: #1c2430;
+    --muted: #5a6776;
+    --line: #d9e0e8;
+    --bg: #f4f6f9;
+    --card: #ffffff;
+    --accent: #2563a8;
+    --accent-dark: #18406e;
+    --intervention: #d97706;
+    --counterfactual: #0e9488;
+    --warn: #b91c1c;
+    --good: #15803d;
+    --shadow: 0 1px 3px rgba(20,40,70,.08), 0 8px 24px rgba(20,40,70,.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px 64px; }
+  header.app {
+    border-left: 5px solid var(--accent);
+    padding: 4px 0 4px 16px;
+    margin-bottom: 8px;
+  }
+  header.app h1 {
+    font-size: clamp(1.45rem, 3.4vw, 2.1rem);
+    margin: 0 0 4px;
+    letter-spacing: -.01em;
+  }
+  .crumb {
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .aim {
+    background: #eef4fb;
+    border: 1px solid #d3e2f3;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: .95rem;
+    color: var(--accent-dark);
+    margin: 14px 0 22px;
+  }
+  .aim strong { color: var(--accent-dark); }
+  .scenario {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 22px;
+  }
+  .scenario h2 { margin: 0 0 6px; font-size: 1.15rem; }
+  .scenario p.story { margin: 0 0 4px; color: var(--muted); font-size: .95rem; }
+  .claim {
+    margin-top: 12px;
+    background: #fff7ed;
+    border: 1px solid #f6d9af;
+    border-left: 4px solid var(--intervention);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: .96rem;
+  }
+  .claim .q { font-weight: 700; color: var(--intervention); }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 22px; }
+  @media (min-width: 880px) { .grid { grid-template-columns: 1.15fr .85fr; } }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+  }
+  .panel h3 {
+    margin: 0 0 4px;
+    font-size: 1.02rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel .sub { color: var(--muted); font-size: .85rem; margin: 0 0 14px; }
+
+  .control { margin-bottom: 18px; }
+  .control .lab {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: .9rem; font-weight: 600; margin-bottom: 6px;
+  }
+  .control .lab .val {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-dark);
+    font-weight: 700;
+    background: #eef4fb;
+    padding: 1px 8px;
+    border-radius: 20px;
+    font-size: .82rem;
+  }
+  .control .hint { font-size: .8rem; color: var(--muted); margin-top: 4px; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 8px; border-radius: 8px;
+    background: linear-gradient(90deg, var(--accent) var(--fill,50%), #e3e9f0 var(--fill,50%));
+    outline: none; touch-action: none; margin: 0;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--accent);
+    box-shadow: 0 1px 4px rgba(0,0,0,.2); cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--accent); cursor: pointer;
+  }
+  input[type=range]:focus-visible { box-shadow: 0 0 0 3px rgba(37,99,168,.35); }
+  input[type=range].cf {
+    background: linear-gradient(90deg, var(--counterfactual) var(--fill,50%), #e3e9f0 var(--fill,50%));
+  }
+  input[type=range].cf::-webkit-slider-thumb { border-color: var(--counterfactual); }
+  input[type=range].cf::-moz-range-thumb { border-color: var(--counterfactual); }
+
+  .toggle-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+  .switch { position: relative; flex: 0 0 auto; width: 46px; height: 26px; margin-top: 2px; }
+  .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .slider-sw {
+    position: absolute; cursor: pointer; inset: 0;
+    background: #c5cdd7; border-radius: 26px; transition: .18s;
+  }
+  .slider-sw::before {
+    content: ""; position: absolute; height: 20px; width: 20px;
+    left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .18s;
+  }
+  .switch input:checked + .slider-sw { background: var(--counterfactual); }
+  .switch input:checked + .slider-sw::before { transform: translateX(20px); }
+  .switch input:focus-visible + .slider-sw { box-shadow: 0 0 0 3px rgba(14,148,136,.4); }
+  .toggle-row .tt { font-size: .9rem; }
+  .toggle-row .tt strong { display: block; }
+  .toggle-row .tt span { color: var(--muted); font-size: .82rem; }
+
+  .chartwrap { position: relative; }
+  svg.chart { width: 100%; height: auto; display: block; touch-action: none; border-radius: 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: .82rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  .swatch { width: 16px; height: 4px; border-radius: 3px; display: inline-block; }
+  .swatch.dash { background: repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 9px); height: 3px; }
+
+  .readout {
+    margin-top: 14px;
+    border-radius: 10px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    background: #fbfcfd;
+    font-size: .92rem;
+  }
+  .readout .verdict { font-weight: 700; font-size: 1.02rem; margin-bottom: 4px; display: flex; gap: 8px; align-items: center; }
+  .verdict.bad { color: var(--warn); }
+  .verdict.ok { color: var(--good); }
+  .verdict.mixed { color: var(--intervention); }
+  .readout .num {
+    font-variant-numeric: tabular-nums;
+    background: #eef4fb; padding: 1px 7px; border-radius: 6px; font-weight: 700;
+  }
+  .readout ul { margin: 8px 0 0; padding-left: 18px; }
+  .readout li { margin-bottom: 4px; }
+
+  .stat-band { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .stat {
+    flex: 1 1 130px; background: #fff; border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px;
+  }
+  .stat .k { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .stat .v { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .v.big { color: var(--intervention); }
+  .stat .v.cf { color: var(--counterfactual); }
+  .stat .v.true { color: var(--accent-dark); }
+
+  .btnrow { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+  button.act {
+    font: inherit; font-weight: 600; font-size: .9rem;
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    border-radius: 9px; padding: 9px 16px; cursor: pointer; transition: .12s;
+  }
+  button.act:hover { background: var(--accent-dark); }
+  button.act.ghost { background: #fff; color: var(--accent); }
+  button.act.ghost:hover { background: #eef4fb; }
+  button.act:focus-visible { outline: 3px solid rgba(37,99,168,.4); outline-offset: 2px; }
+
+  details.teach {
+    margin-top: 22px; background: #fff; border: 1px solid var(--line);
+    border-radius: 12px; padding: 4px 18px; box-shadow: var(--shadow);
+  }
+  details.teach summary {
+    cursor: pointer; font-weight: 700; padding: 12px 0; list-style: none;
+    display: flex; align-items: center; gap: 8px;
+  }
+  details.teach summary::-webkit-details-marker { display: none; }
+  details.teach summary::after { content: '\25BC'; margin-left: auto; font-size: .7rem; color: var(--muted); }
+  details.teach[open] summary::after { content: '\25B2'; }
+  details.teach .body { padding: 0 0 16px; font-size: .92rem; color: #36424f; }
+  details.teach .body p { margin: 6px 0; }
+  .glos { display: grid; gap: 10px; margin-top: 8px; }
+  .glos div { background: #f7f9fb; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+  .glos b { color: var(--accent-dark); }
+
+  .challenge {
+    margin-top: 22px; background: linear-gradient(180deg,#fff,#fbfcfe);
+    border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .challenge h3 { margin: 0 0 6px; }
+  .challenge .qtext { font-size: .98rem; margin-bottom: 12px; }
+  .opts { display: grid; gap: 8px; }
+  .opt {
+    text-align: left; font: inherit; border: 1px solid var(--line); background: #fff;
+    border-radius: 9px; padding: 11px 14px; cursor: pointer; transition: .12s;
+  }
+  .opt:hover { border-color: var(--accent); background: #f5f9fd; }
+  .opt:focus-visible { outline: 3px solid rgba(37,99,168,.4); outline-offset: 2px; }
+  .opt.right { border-color: var(--good); background: #effaf1; }
+  .opt.wrong { border-color: var(--warn); background: #fdf0f0; }
+  .cfb { margin-top: 12px; font-size: .92rem; border-radius: 8px; padding: 11px 14px; display: none; }
+  .cfb.show { display: block; }
+  .cfb.right { background: #effaf1; border: 1px solid #bfe6c8; color: #1d5a30; }
+  .cfb.wrong { background: #fdf0f0; border: 1px solid #f1c9c9; color: #8a2222; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  footer.note { margin-top: 30px; font-size: .8rem; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <div class="crumb">Data &amp; Analytics &middot; Intervention and Impact</div>
+    <h1>Correlation vs Causation Sandbox</h1>
+  </header>
+
+  <div class="aim">
+    <strong>Teaching aim:</strong> a results dip recovered the term after we launched an intervention. Did the intervention cause the recovery? Drag the confounder and the counterfactual to see how much of the rise the intervention can honestly claim, and why "it went up afterwards" is not proof.
+  </div>
+
+  <section class="scenario">
+    <h2>The scenario</h2>
+    <p class="story">Maple Vale Academy ran a Year 11 reading intervention from the spring term. The mean reading age rose over the year. The senior team want to report the impact.</p>
+    <div class="claim">
+      <span class="q">The claim under test:</span> "Our intervention raised reading ages by the full amount of the rise." Use the controls to decide how much of that rise the intervention can fairly take credit for.
+    </div>
+  </section>
+
+  <div class="grid">
+    <!-- LEFT: chart and verdict -->
+    <section class="panel" aria-labelledby="chart-h">
+      <h3 id="chart-h">&#x1F4C8; What the data shows</h3>
+      <p class="sub">Each point is the year-group mean reading-age gain (months) per term. The intervention starts at the dotted line.</p>
+
+      <div class="chartwrap">
+        <svg class="chart" viewBox="0 0 520 320" role="img"
+             aria-labelledby="chart-title chart-desc" tabindex="0">
+          <title id="chart-title">Reading-age gain by term</title>
+          <desc id="chart-desc" aria-live="polite">Line chart updates as you change the controls.</desc>
+          <g id="gridlines"></g>
+          <g id="axis"></g>
+          <line id="interv-line" x1="0" y1="0" x2="0" y2="0"></line>
+          <text id="interv-label" class="ilabel"></text>
+          <polyline id="line-observed" fill="none"></polyline>
+          <polyline id="line-counter" fill="none"></polyline>
+          <g id="dots-observed"></g>
+        </svg>
+      </div>
+
+      <div class="legend" aria-hidden="false">
+        <span><i class="swatch" style="background:var(--accent)"></i> Observed results (what happened)</span>
+        <span style="color:var(--counterfactual)"><i class="swatch dash"></i> Counterfactual (likely result with no intervention)</span>
+      </div>
+
+      <div class="stat-band">
+        <div class="stat">
+          <div class="k">Total rise observed</div>
+          <div class="v big"><span id="s-total">0</span> mo</div>
+        </div>
+        <div class="stat">
+          <div class="k">Would have risen anyway</div>
+          <div class="v cf"><span id="s-anyway">0</span> mo</div>
+        </div>
+        <div class="stat">
+          <div class="k">Honest intervention effect</div>
+          <div class="v true"><span id="s-true">0</span> mo</div>
+        </div>
+      </div>
+
+      <div class="readout" aria-live="polite" id="verdict">
+        <div class="verdict mixed" id="v-head">&#x1F50E; Adjust the controls to test the claim.</div>
+        <div id="v-body">The blue line is what happened. The teal dashed line is your best estimate of what would have happened anyway. The gap between them is all the intervention can honestly claim.</div>
+      </div>
+    </section>
+
+    <!-- RIGHT: controls -->
+    <section class="panel" aria-labelledby="ctrl-h">
+      <h3 id="ctrl-h">&#x1F39B;&#xFE0F; The levers</h3>
+      <p class="sub">Change these and watch the verdict respond.</p>
+
+      <div class="control">
+        <label class="lab" for="effect">
+          Real intervention strength
+          <span class="val"><span id="effect-v">5</span> mo</span>
+        </label>
+        <input type="range" id="effect" min="0" max="10" value="5" step="1"
+               aria-describedby="effect-h">
+        <div class="hint" id="effect-h">The genuine boost the programme gives a typical pupil.</div>
+      </div>
+
+      <div class="control">
+        <label class="lab" for="confounder">
+          Confounder: new phonics across the whole year
+          <span class="val"><span id="conf-v">4</span> mo</span>
+        </label>
+        <input type="range" id="confounder" min="0" max="10" value="4" step="1"
+               aria-describedby="conf-h">
+        <div class="hint" id="conf-h">A separate change that lifts <em>everyone</em>, intervention or not. It inflates the observed rise without the intervention causing it.</div>
+      </div>
+
+      <div class="control">
+        <label class="lab" for="regression">
+          Regression to the mean (recovery from a bad term)
+          <span class="val"><span id="reg-v">3</span> mo</span>
+        </label>
+        <input type="range" id="regression" min="0" max="8" value="3" step="1"
+               aria-describedby="reg-h">
+        <div class="hint" id="reg-h">After an unusually low term, scores tend to bounce back on their own. Pupils picked <em>because</em> they dipped will rise without help.</div>
+      </div>
+
+      <div class="toggle-row">
+        <label class="switch">
+          <input type="checkbox" id="counter" checked aria-describedby="cf-h">
+          <span class="slider-sw"></span>
+        </label>
+        <div class="tt">
+          <strong>Show the counterfactual</strong>
+          <span id="cf-h">A comparison group who did not get the intervention. Without it you cannot separate effect from everything else.</span>
+        </div>
+      </div>
+
+      <div class="toggle-row">
+        <label class="switch">
+          <input type="checkbox" id="cherry" aria-describedby="ch-h">
+          <span class="slider-sw"></span>
+        </label>
+        <div class="tt">
+          <strong>Cherry-pick the lowest starters</strong>
+          <span id="ch-h">Only enrol pupils who had the worst term. This maximises regression to the mean and flatters the result.</span>
+        </div>
+      </div>
+
+      <div class="btnrow">
+        <button class="act ghost" id="btn-overclaim" type="button">Show the over-claim</button>
+        <button class="act ghost" id="btn-fair" type="button">Show the fair claim</button>
+        <button class="act ghost" id="btn-reset" type="button">Reset</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- CHALLENGE -->
+  <section class="challenge" aria-labelledby="chal-h">
+    <h3 id="chal-h">&#x1F9E0; Quick check</h3>
+    <p class="qtext" id="q-text"></p>
+    <div class="opts" id="q-opts" role="group" aria-label="Answer options"></div>
+    <div class="cfb" id="q-feedback" aria-live="polite"></div>
+    <div class="btnrow"><button class="act ghost" id="q-next" type="button" style="display:none">Next question</button></div>
+  </section>
+
+  <details class="teach">
+    <summary>For the teacher: how to use this and what it proves</summary>
+    <div class="body">
+      <p><strong>The core message:</strong> a rise after an intervention is not evidence the intervention caused it. Three rival explanations can produce the same rise: a confounder that lifts everyone, regression to the mean, and natural maturation. The only honest measure of impact is the gap between what happened and a credible counterfactual.</p>
+      <p><strong>Run it live:</strong> start with the confounder and regression at zero so the observed rise equals the real effect. Then raise the confounder. The observed total climbs but the honest effect does not move. That separation is the whole lesson.</p>
+      <p><strong>Then flip "Show the counterfactual" off.</strong> The verdict warns that with no comparison group the leader can only see the blue line, so any of that rise could be claimed. Turning the counterfactual back on shows how much was never theirs to claim.</p>
+      <p><strong>"Cherry-pick the lowest starters"</strong> models a common trap: choosing the weakest pupils for an intervention guarantees a bounce-back that the programme did not cause.</p>
+      <div class="glos">
+        <div><b>Correlation:</b> two things move together. Here, the intervention and the rise both happen at once.</div>
+        <div><b>Causation:</b> one thing actually produces the change in the other. Far harder to establish.</div>
+        <div><b>Confounder:</b> a third factor driving the outcome that is mistaken for the cause.</div>
+        <div><b>Counterfactual:</b> what would have happened without the intervention. The benchmark for true impact.</div>
+        <div><b>Regression to the mean:</b> extreme results tend to be followed by more average ones, with no cause needed.</div>
+      </div>
+    </div>
+  </details>
+
+  <footer class="note">Demonstration data only. Maple Vale Academy and all figures are fictional and illustrative.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- chart geometry ----
+  var W = 520, H = 320, PADL = 46, PADR = 18, PADT = 22, PADB = 40;
+  var terms = ["Aut 1", "Aut 2", "Spr 1", "Spr 2", "Sum 1", "Sum 2"];
+  var N = terms.length;
+  var INTERV_INDEX = 2; // intervention starts at Spr 1
+  var Y_MAX = 26;       // months on y axis
+
+  var svg = document.querySelector("svg.chart");
+  var EL = {
+    grid: document.getElementById("gridlines"),
+    axis: document.getElementById("axis"),
+    iLine: document.getElementById("interv-line"),
+    iLabel: document.getElementById("interv-label"),
+    obs: document.getElementById("line-observed"),
+    cnt: document.getElementById("line-counter"),
+    dots: document.getElementById("dots-observed"),
+    desc: document.getElementById("chart-desc")
+  };
+
+  function svgEl(name, attrs) {
+    var e = document.createElementNS("http://www.w3.org/2000/svg", name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function xFor(i) { return PADL + (W - PADL - PADR) * (i / (N - 1)); }
+  function yFor(v) { return PADT + (H - PADT - PADB) * (1 - v / Y_MAX); }
+
+  // ---- static axis / gridlines ----
+  (function drawAxes() {
+    for (var v = 0; v <= Y_MAX; v += 5) {
+      var y = yFor(v);
+      EL.grid.appendChild(svgEl("line", {
+        x1: PADL, y1: y, x2: W - PADR, y2: y,
+        stroke: "#eef1f5", "stroke-width": 1
+      }));
+      var t = svgEl("text", { x: PADL - 8, y: y + 4, "text-anchor": "end",
+        "font-size": 11, fill: "#7a8694" });
+      t.textContent = v;
+      EL.axis.appendChild(t);
+    }
+    var yl = svgEl("text", { x: 14, y: PADT + 70, "font-size": 11, fill: "#7a8694",
+      transform: "rotate(-90 14 " + (PADT + 70) + ")" });
+    yl.textContent = "Reading-age gain (months)";
+    EL.axis.appendChild(yl);
+    for (var i = 0; i < N; i++) {
+      var tx = svgEl("text", { x: xFor(i), y: H - PADB + 18, "text-anchor": "middle",
+        "font-size": 11, fill: "#7a8694" });
+      tx.textContent = terms[i];
+      EL.axis.appendChild(tx);
+    }
+  })();
+
+  // ---- state ----
+  var state = { effect: 5, confounder: 4, regression: 3, counter: true, cherry: false };
+
+  // baseline pre-intervention trajectory (months gain per term, fictional)
+  // a dip at the term before intervention to make regression meaningful
+  var BASE = [9, 7, 5, 8, 10, 11];
+
+  // ---- compute the two series ----
+  function compute() {
+    var observed = [], counter = [];
+    for (var i = 0; i < N; i++) {
+      var afterStart = i >= INTERV_INDEX;
+      // counterfactual = base trajectory + confounder lift (applies to all)
+      //                + regression bounce (only after a dip, decaying)
+      var conf = afterStart ? state.confounder : 0;
+      var regGain = 0;
+      if (afterStart) {
+        var stepsIn = i - INTERV_INDEX; // 0,1,2,3
+        var cherryMult = state.cherry ? 1.6 : 1.0;
+        regGain = state.regression * cherryMult * Math.max(0, 1 - stepsIn * 0.35);
+      }
+      var cf = BASE[i] + conf + regGain;
+      var ob = cf + (afterStart ? state.effect : 0);
+      counter.push(cf);
+      observed.push(ob);
+    }
+    return { observed: observed, counter: counter };
+  }
+
+  function clampY(v) { return Math.max(0, Math.min(Y_MAX, v)); }
+
+  function render() {
+    var d = compute();
+    // polylines
+    function pts(arr) {
+      return arr.map(function (v, i) { return xFor(i) + "," + yFor(clampY(v)); }).join(" ");
+    }
+    EL.obs.setAttribute("points", pts(d.observed));
+    EL.obs.setAttribute("stroke", "#2563a8");
+    EL.obs.setAttribute("stroke-width", "3");
+    EL.obs.setAttribute("stroke-linejoin", "round");
+
+    if (state.counter) {
+      EL.cnt.setAttribute("points", pts(d.counter));
+      EL.cnt.setAttribute("stroke", "#0e9488");
+      EL.cnt.setAttribute("stroke-width", "2.5");
+      EL.cnt.setAttribute("stroke-dasharray", "6 5");
+      EL.cnt.setAttribute("stroke-linejoin", "round");
+      EL.cnt.style.display = "";
+    } else {
+      EL.cnt.style.display = "none";
+    }
+
+    // intervention line
+    var ix = xFor(INTERV_INDEX);
+    EL.iLine.setAttribute("x1", ix); EL.iLine.setAttribute("x2", ix);
+    EL.iLine.setAttribute("y1", PADT); EL.iLine.setAttribute("y2", H - PADB);
+    EL.iLine.setAttribute("stroke", "#d97706");
+    EL.iLine.setAttribute("stroke-width", "1.5");
+    EL.iLine.setAttribute("stroke-dasharray", "3 3");
+    EL.iLabel.setAttribute("x", ix + 5);
+    EL.iLabel.setAttribute("y", PADT + 12);
+    EL.iLabel.setAttribute("font-size", "10");
+    EL.iLabel.setAttribute("fill", "#b45309");
+    EL.iLabel.setAttribute("font-weight", "600");
+    EL.iLabel.textContent = "intervention starts";
+
+    // dots on observed
+    EL.dots.innerHTML = "";
+    d.observed.forEach(function (v, i) {
+      EL.dots.appendChild(svgEl("circle", {
+        cx: xFor(i), cy: yFor(clampY(v)), r: 4.5,
+        fill: "#fff", stroke: "#2563a8", "stroke-width": 2
+      }));
+    });
+
+    updateReadout(d);
+  }
+
+  // ---- the honest-effect maths and verdict ----
+  function updateReadout(d) {
+    var startObs = d.observed[INTERV_INDEX - 1];
+    var endObs = d.observed[N - 1];
+    var totalRise = endObs - startObs;
+
+    var startCf = d.counter[INTERV_INDEX - 1];
+    var endCf = d.counter[N - 1];
+    var anywayRise = endCf - startCf;
+
+    var honest = totalRise - anywayRise; // equals state.effect by construction (end term)
+
+    setText("s-total", round1(totalRise));
+    setText("s-anyway", round1(anywayRise));
+    setText("s-true", round1(honest));
+
+    var head = document.getElementById("v-head");
+    var body = document.getElementById("v-body");
+
+    var overclaim = totalRise - honest; // what would be falsely credited
+    var sharePct = totalRise > 0 ? Math.round(100 * honest / totalRise) : 0;
+
+    var msgs = [];
+
+    if (!state.counter) {
+      head.className = "verdict bad";
+      head.innerHTML = "&#x26A0;&#xFE0F; No counterfactual: you cannot separate cause from coincidence.";
+      body.innerHTML = "Without a comparison group you only see the blue line rising by <span class='num'>"
+        + round1(totalRise) + " mo</span>. A leader could claim the whole rise, but there is no way to know how much the intervention actually caused. <strong>Turn the counterfactual on to find out.</strong>";
+      announce("No counterfactual. Observed rise " + round1(totalRise) + " months. Cause cannot be separated.");
+      return;
+    }
+
+    var listHtml = "";
+    if (state.confounder > 0) msgs.push("A trust-wide phonics change lifted <strong>everyone</strong> by " + state.confounder + " mo. That is a <em>confounder</em>, not your effect.");
+    if (state.regression > 0) msgs.push("Some of the rise is regression to the mean (a bounce back from the low term)" + (state.cherry ? ", amplified because you cherry-picked the lowest starters." : "."));
+    if (state.effect === 0 && (state.confounder > 0 || state.regression > 0)) {
+      msgs.unshift("The intervention did <strong>nothing</strong>, yet the line still rose. Correlation is not causation.");
+    }
+    if (msgs.length) {
+      listHtml = "<ul><li>" + msgs.join("</li><li>") + "</li></ul>";
+    }
+
+    if (overclaim < 0.5) {
+      head.className = "verdict ok";
+      head.innerHTML = "&#x2705; Honest claim: the rise is mostly the intervention.";
+      body.innerHTML = "The observed rise is <span class='num'>" + round1(totalRise)
+        + " mo</span> and the counterfactual barely moves, so the intervention can fairly claim about <span class='num'>"
+        + round1(honest) + " mo</span> (" + sharePct + "% of the rise)." + listHtml;
+    } else if (honest <= 0.5) {
+      head.className = "verdict bad";
+      head.innerHTML = "&#x274C; Over-claim: almost none of the rise is the intervention.";
+      body.innerHTML = "The line rose by <span class='num'>" + round1(totalRise)
+        + " mo</span> but the comparison group rose by <span class='num'>" + round1(anywayRise)
+        + " mo</span> without help. The honest effect is only <span class='num'>" + round1(honest)
+        + " mo</span>. Reporting the full rise as impact would be misleading." + listHtml;
+    } else {
+      head.className = "verdict mixed";
+      head.innerHTML = "&#x1F7E0; Part real, part borrowed: separate the two.";
+      body.innerHTML = "Of the <span class='num'>" + round1(totalRise)
+        + " mo</span> rise, only <span class='num'>" + round1(honest)
+        + " mo</span> (" + sharePct + "%) is the intervention. The other <span class='num'>"
+        + round1(anywayRise) + " mo</span> would have happened anyway." + listHtml;
+    }
+    announce("Observed rise " + round1(totalRise) + " months. Would rise anyway " + round1(anywayRise)
+      + ". Honest intervention effect " + round1(honest) + " months, " + sharePct + " percent of the rise.");
+  }
+
+  function announce(t) { EL.desc.textContent = t; }
+  function setText(id, t) { document.getElementById(id).textContent = t; }
+  function round1(n) { return (Math.round(n * 10) / 10).toString(); }
+
+  // ---- wire sliders ----
+  function wireSlider(id, key, valId) {
+    var el = document.getElementById(id);
+    function paint() {
+      var pct = (el.value - el.min) / (el.max - el.min) * 100;
+      el.style.setProperty("--fill", pct + "%");
+    }
+    el.addEventListener("input", function () {
+      state[key] = parseFloat(el.value);
+      if (valId) setText(valId, el.value);
+      paint();
+      render();
+    });
+    paint();
+  }
+  wireSlider("effect", "effect", "effect-v");
+  wireSlider("confounder", "confounder", "conf-v");
+  wireSlider("regression", "regression", "reg-v");
+
+  document.getElementById("counter").addEventListener("change", function () {
+    state.counter = this.checked; render();
+  });
+  document.getElementById("cherry").addEventListener("change", function () {
+    state.cherry = this.checked; render();
+  });
+
+  // ---- preset buttons ----
+  function setSliders(o) {
+    if ("effect" in o) { setRange("effect", o.effect, "effect", "effect-v"); }
+    if ("confounder" in o) { setRange("confounder", o.confounder, "confounder", "conf-v"); }
+    if ("regression" in o) { setRange("regression", o.regression, "regression", "reg-v"); }
+    if ("counter" in o) { document.getElementById("counter").checked = o.counter; state.counter = o.counter; }
+    if ("cherry" in o) { document.getElementById("cherry").checked = o.cherry; state.cherry = o.cherry; }
+    render();
+  }
+  function setRange(id, value, key, valId) {
+    var el = document.getElementById(id);
+    el.value = value; state[key] = value;
+    setText(valId, value);
+    var pct = (el.value - el.min) / (el.max - el.min) * 100;
+    el.style.setProperty("--fill", pct + "%");
+  }
+
+  document.getElementById("btn-overclaim").addEventListener("click", function () {
+    setSliders({ effect: 1, confounder: 6, regression: 5, counter: true, cherry: true });
+  });
+  document.getElementById("btn-fair").addEventListener("click", function () {
+    setSliders({ effect: 7, confounder: 0, regression: 1, counter: true, cherry: false });
+  });
+  document.getElementById("btn-reset").addEventListener("click", function () {
+    setSliders({ effect: 5, confounder: 4, regression: 3, counter: true, cherry: false });
+  });
+
+  // ---- quick-check quiz ----
+  var QUESTIONS = [
+    {
+      q: "Reading ages rose the term after a new intervention launched. A senior leader says this proves the intervention worked. What is the strongest objection?",
+      opts: [
+        "Other changes could have caused the rise, so a comparison group is needed.",
+        "Reading ages always rise, so the data is wrong.",
+        "The rise is too small to matter.",
+        "The intervention should have been longer."
+      ],
+      correct: 0,
+      right: "Exactly. A rise after an event does not prove the event caused it. Without a counterfactual you cannot rule out confounders, maturation or regression to the mean.",
+      wrong: "Not quite. The issue is not the size or length, it is that a rise after an intervention is not proof of cause. You need a comparison group to know what would have happened anyway."
+    },
+    {
+      q: "A trust rolled out new phonics to every class at the same time as one school ran an extra intervention. The new phonics is best described as a:",
+      opts: [
+        "Counterfactual.",
+        "Confounder that lifts everyone and inflates the apparent effect.",
+        "Regression to the mean.",
+        "Random error that cancels out."
+      ],
+      correct: 1,
+      right: "Right. A confounder lifts the whole cohort, so part of the observed rise belongs to the phonics, not the intervention.",
+      wrong: "Look again. Something that lifts every class, intervention or not, is a confounder. It inflates the observed rise without the intervention causing it."
+    },
+    {
+      q: "A school enrols only the pupils who had the worst term. Most then improve. Why is this weak evidence that the intervention worked?",
+      opts: [
+        "Because worst-term pupils tend to bounce back anyway (regression to the mean).",
+        "Because worst-term pupils never improve.",
+        "Because the sample is too large.",
+        "Because reading age is not measurable."
+      ],
+      correct: 0,
+      right: "Correct. Pupils chosen because they hit a low tend to rise towards average on their own. The bounce-back can be mistaken for impact.",
+      wrong: "Not this one. Choosing pupils because they had an extreme low term guarantees a bounce-back towards average, with or without the intervention. That is regression to the mean."
+    }
+  ];
+  var qi = 0;
+  var qText = document.getElementById("q-text");
+  var qOpts = document.getElementById("q-opts");
+  var qFb = document.getElementById("q-feedback");
+  var qNext = document.getElementById("q-next");
+
+  function loadQuestion() {
+    var item = QUESTIONS[qi];
+    qText.textContent = (qi + 1) + ". " + item.q;
+    qOpts.innerHTML = "";
+    qFb.className = "cfb";
+    qFb.textContent = "";
+    qNext.style.display = "none";
+    item.opts.forEach(function (text, idx) {
+      var b = document.createElement("button");
+      b.className = "opt";
+      b.type = "button";
+      b.textContent = text;
+      b.addEventListener("click", function () { answer(idx, b, item); });
+      qOpts.appendChild(b);
+    });
+  }
+  function answer(idx, btn, item) {
+    var buttons = qOpts.querySelectorAll(".opt");
+    buttons.forEach(function (b) { b.disabled = true; });
+    if (idx === item.correct) {
+      btn.classList.add("right");
+      qFb.className = "cfb show right";
+      qFb.innerHTML = "&#x2705; " + item.right;
+    } else {
+      btn.classList.add("wrong");
+      buttons[item.correct].classList.add("right");
+      qFb.className = "cfb show wrong";
+      qFb.innerHTML = "&#x1F4A1; " + item.wrong;
+    }
+    if (qi < QUESTIONS.length - 1) {
+      qNext.style.display = "";
+      qNext.textContent = "Next question";
+    } else {
+      qNext.style.display = "";
+      qNext.textContent = "Start again";
+    }
+  }
+  qNext.addEventListener("click", function () {
+    qi = (qi + 1) % QUESTIONS.length;
+    loadQuestion();
+  });
+  loadQuestion();
+
+  // initial render
+  render();
+})();
+</script>
+</body>
+</html>

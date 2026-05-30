@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acquisition Stages Explorer</title>
+<style>
+  :root{
+    --ink:#1d2733;
+    --muted:#5a6877;
+    --line:#d9e0e8;
+    --bg:#f4f6f9;
+    --card:#ffffff;
+    --accent:#1f5fa6;
+    --accent-soft:#e7f0fa;
+    --green:#1f7a4d;
+    --green-soft:#e3f3ea;
+    --red:#b23b3b;
+    --red-soft:#fbe8e8;
+    --amber:#9a6b00;
+    --amber-soft:#fbf1d8;
+    --behaviourist:#7a4ea8;
+    --nativist:#1f7a8c;
+    --social:#b85c1e;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(20,30,45,.06),0 6px 18px rgba(20,30,45,.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 64px;}
+  header.page{margin-bottom:18px;}
+  .eyebrow{
+    font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;
+  }
+  h1{font-size:1.7rem;margin:.2rem 0 .35rem;line-height:1.15;}
+  .aim{
+    background:var(--accent-soft);border:1px solid #cfe0f2;border-radius:var(--radius);
+    padding:12px 14px;font-size:.95rem;color:#22364a;max-width:760px;
+  }
+  .aim strong{color:var(--accent);}
+  .layout{display:grid;grid-template-columns:1fr;gap:18px;margin-top:18px;}
+  @media(min-width:900px){
+    .layout{grid-template-columns:300px 1fr;align-items:start;}
+  }
+  .panel{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:16px;
+  }
+  .panel h2{font-size:1.02rem;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+  .panel h2 .num{
+    width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;
+    font-size:.78rem;display:inline-flex;align-items:center;justify-content:center;font-weight:700;flex:none;
+  }
+  .hint{font-size:.84rem;color:var(--muted);margin:0 0 12px;}
+
+  /* Utterance cards (draggable) */
+  .deck{display:flex;flex-direction:column;gap:10px;}
+  .utterance{
+    border:1px solid var(--line);border-radius:12px;background:#fff;
+    padding:11px 12px;cursor:grab;touch-action:none;position:relative;
+    box-shadow:0 1px 1px rgba(20,30,45,.05);
+  }
+  .utterance:focus-visible{outline:3px solid var(--accent);outline-offset:2px;}
+  .utterance.dragging{opacity:.5;}
+  .utterance.placed{opacity:.45;cursor:default;border-style:dashed;}
+  .utterance .quote{font-weight:600;font-size:.98rem;}
+  .utterance .age{font-size:.78rem;color:var(--muted);margin-top:2px;}
+  .utterance .grab{
+    position:absolute;top:8px;right:10px;color:#aeb8c4;font-size:.9rem;
+  }
+  .all-placed{
+    font-size:.86rem;color:var(--green);font-weight:600;text-align:center;padding:8px;
+  }
+
+  /* Timeline */
+  .timeline{display:flex;flex-direction:column;gap:12px;}
+  .stage{
+    border:1.5px dashed var(--line);border-radius:12px;padding:10px 12px;
+    background:#fbfcfe;transition:border-color .12s,background .12s;
+  }
+  .stage.droptarget{border-color:var(--accent);background:var(--accent-soft);}
+  .stage-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+  .stage-name{font-weight:700;font-size:.96rem;}
+  .stage-age{font-size:.78rem;color:var(--muted);font-weight:600;
+    background:#eef2f7;border-radius:999px;padding:2px 9px;}
+  .stage-desc{font-size:.82rem;color:var(--muted);margin:3px 0 8px;}
+  .slot{min-height:42px;display:flex;flex-direction:column;gap:8px;}
+  .slot:empty::before{
+    content:"Drop an utterance here";color:#aab4c0;font-size:.82rem;font-style:italic;
+    padding:6px 2px;
+  }
+  .dropped{
+    border-radius:10px;padding:9px 11px;font-size:.92rem;position:relative;
+    border:1px solid;
+  }
+  .dropped.correct{background:var(--green-soft);border-color:#bfe3cd;}
+  .dropped.wrong{background:var(--red-soft);border-color:#f1c9c9;}
+  .dropped .quote{font-weight:600;}
+  .dropped .verdict{font-size:.8rem;margin-top:4px;font-weight:600;}
+  .dropped.correct .verdict{color:var(--green);}
+  .dropped.wrong .verdict{color:var(--red);}
+  .dropped .reason{font-size:.82rem;color:#3a4754;margin-top:4px;}
+  .dropped .return{
+    position:absolute;top:6px;right:8px;background:none;border:none;cursor:pointer;
+    color:var(--muted);font-size:1rem;line-height:1;padding:2px 4px;border-radius:6px;
+  }
+  .dropped .return:hover{background:rgba(0,0,0,.06);}
+
+  /* Theory reveal */
+  .theories{display:none;margin-top:8px;}
+  .dropped.correct .theories{display:block;}
+  .theories-title{font-size:.76rem;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--muted);font-weight:700;margin:8px 0 6px;}
+  .theory{
+    border-left:3px solid;padding:6px 0 6px 10px;margin-bottom:7px;font-size:.83rem;
+  }
+  .theory.behaviourist{border-color:var(--behaviourist);}
+  .theory.nativist{border-color:var(--nativist);}
+  .theory.social{border-color:var(--social);}
+  .theory .tname{font-weight:700;}
+  .theory.behaviourist .tname{color:var(--behaviourist);}
+  .theory.nativist .tname{color:var(--nativist);}
+  .theory.social .tname{color:var(--social);}
+  .theory .who{color:var(--muted);font-weight:600;}
+
+  /* Scoreboard */
+  .scorebar{
+    display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+    margin-top:18px;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow);
+  }
+  .score-chip{font-size:.9rem;font-weight:600;}
+  .score-chip span{color:var(--accent);font-weight:800;}
+  .bar{flex:1;min-width:140px;height:10px;border-radius:999px;background:#eef2f7;overflow:hidden;}
+  .bar>i{display:block;height:100%;width:0;background:var(--green);transition:width .35s ease;}
+  .btn{
+    border:1px solid var(--accent);background:var(--accent);color:#fff;
+    border-radius:10px;padding:8px 14px;font-size:.9rem;font-weight:600;cursor:pointer;
+  }
+  .btn.ghost{background:#fff;color:var(--accent);}
+  .btn:focus-visible{outline:3px solid var(--amber);outline-offset:2px;}
+
+  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:.78rem;color:var(--muted);margin-top:12px;}
+  .legend b{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px;}
+
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+
+  /* keyboard move helper */
+  .kbd-hint{font-size:.78rem;color:var(--muted);margin-top:10px;}
+  .kbd{background:#eef2f7;border:1px solid #d6dde6;border-radius:5px;padding:0 5px;font-size:.74rem;
+    font-family:ui-monospace,Menlo,Consolas,monospace;}
+  .picker{
+    margin-top:8px;border:1px dashed var(--accent);border-radius:10px;padding:10px;
+    background:var(--accent-soft);font-size:.85rem;display:none;
+  }
+  .picker.show{display:block;}
+  .picker button{
+    display:block;width:100%;text-align:left;border:1px solid var(--line);background:#fff;
+    border-radius:8px;padding:7px 9px;margin-top:6px;cursor:pointer;font-size:.85rem;
+  }
+  .picker button:hover{background:#f0f6fd;}
+  footer.note{font-size:.78rem;color:var(--muted);margin-top:24px;text-align:center;}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="page">
+    <div class="eyebrow">English Language A&#8209;level &#183; Child Language Acquisition</div>
+    <h1>Acquisition Stages Explorer</h1>
+    <div class="aim">
+      <strong>Teacher aim:</strong> Pupils place fictional child utterances on the 0 to 11 development timeline.
+      The app checks each placement and then reveals how the <strong>behaviourist</strong>, <strong>nativist</strong>
+      and <strong>social&#8209;interactionist</strong> theories each explain the evidence, so pupils can argue from data
+      rather than memorising labels.
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: deck of utterances -->
+    <section class="panel" aria-labelledby="deck-h">
+      <h2 id="deck-h"><span class="num">1</span>Utterance deck</h2>
+      <p class="hint">Drag a card onto the stage where it first typically appears. On touch screens, press and drag.
+      Each card is fictional demonstration data.</p>
+      <div class="deck" id="deck" aria-label="Utterance cards to place"></div>
+      <p class="all-placed" id="allPlaced" hidden>All cards placed. Review the theory notes on the right.</p>
+      <p class="kbd-hint">Keyboard: focus a card with <span class="kbd">Tab</span>, press
+        <span class="kbd">Enter</span> or <span class="kbd">Space</span> to choose a stage from a list.</p>
+      <div class="legend">
+        <span><b style="background:var(--behaviourist)"></b>Behaviourist</span>
+        <span><b style="background:var(--nativist)"></b>Nativist</span>
+        <span><b style="background:var(--social)"></b>Social&#8209;interactionist</span>
+      </div>
+    </section>
+
+    <!-- RIGHT: timeline -->
+    <section class="panel" aria-labelledby="tl-h">
+      <h2 id="tl-h"><span class="num">2</span>Development timeline (0 to 11 years)</h2>
+      <p class="hint">Stages run from pre&#8209;verbal sounds through to complex written narrative. Correct placements unlock
+      the competing theory notes.</p>
+      <div class="timeline" id="timeline"></div>
+    </section>
+  </div>
+
+  <div class="scorebar" role="region" aria-label="Progress and score">
+    <div class="score-chip">Correct: <span id="scoreNum">0</span> / <span id="scoreTotal">0</span></div>
+    <div class="bar"><i id="scoreFill"></i></div>
+    <button class="btn ghost" id="resetBtn" type="button">Reset activity</button>
+  </div>
+
+  <div class="sr-only" aria-live="polite" id="live"></div>
+
+  <footer class="note">
+    Acquisition Stages Explorer &#183; WeST teaching demo. Theorists referenced: Skinner, Chomsky, Bruner, Vygotsky,
+    Halliday, Piaget. Ages are typical ranges; real children vary.
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- Data: stages on the 0-11 timeline ---------- */
+const STAGES = [
+  {id:"prelang", name:"Pre‑verbal / babbling", age:"0–1 yr",
+    desc:"Cooing, then reduplicated babbling (no real words yet)."},
+  {id:"holophrastic", name:"Holophrastic (one‑word)", age:"1–1.5 yr",
+    desc:"Single words carry a whole meaning; nouns dominate."},
+  {id:"twoword", name:"Two‑word", age:"1.5–2 yr",
+    desc:"Two words combined with consistent word order; no grammar markers."},
+  {id:"telegraphic", name:"Telegraphic", age:"2–3 yr",
+    desc:"Three+ content words; function words and inflections often omitted."},
+  {id:"postteleg", name:"Post‑telegraphic", age:"3–5 yr",
+    desc:"Grammar markers appear; virtuous (over‑regularisation) errors are common."},
+  {id:"earlyschool", name:"Early literacy / school entry", age:"5–7 yr",
+    desc:"Complex spoken sentences; emergent reading and writing."},
+  {id:"written", name:"Developing writing", age:"7–11 yr",
+    desc:"Connected written narrative with conjunctions and varied tense."}
+];
+
+/* ---------- Data: utterances ----------
+   theories: how each lens reads THIS specific utterance. */
+const UTTERANCES = [
+  {
+    id:"u1", quote:"“ba‑ba‑ba‑ba”", age:"about 7 months",
+    stage:"prelang",
+    reason:"Reduplicated consonant‑vowel babbling with no meaning is the babbling stage, before first words.",
+    theories:{
+      behaviourist:"Sounds the child hears most get reinforced and repeated; selective reinforcement shapes the phoneme set.",
+      nativist:"Babbling appears on a universal timetable even in deaf infants at first, suggesting an innate readiness.",
+      social:"Caregivers respond as if it is talk, drawing the infant into proto‑conversation (turn‑taking)."
+    }
+  },
+  {
+    id:"u2", quote:"“Milk!” (meaning: I want milk)", age:"about 14 months",
+    stage:"holophrastic",
+    reason:"One word standing for a whole demand is holophrastic: a single word carries sentence‑level meaning.",
+    theories:{
+      behaviourist:"A mand: the word is reinforced because it gets the milk, so the operant behaviour is strengthened.",
+      nativist:"Even one word shows the child mapping sound to concept, consistent with an innate semantic capacity.",
+      social:"The child uses language to satisfy needs, matching Halliday’s instrumental function in context."
+    }
+  },
+  {
+    id:"u3", quote:"“daddy gone”", age:"about 20 months",
+    stage:"twoword",
+    reason:"Two content words in fixed order, no inflections or function words: the two‑word stage.",
+    theories:{
+      behaviourist:"Word pairs that earn a response are imitated and chained from heard speech.",
+      nativist:"Consistent word order with no model for this exact phrase suggests an emerging rule, not pure copying.",
+      social:"The phrase comments on a shared event (a departure), so meaning depends on joint attention."
+    }
+  },
+  {
+    id:"u4", quote:"“want more juice now”", age:"about 2.5 years",
+    stage:"telegraphic",
+    reason:"Several content words but missing function words (‘I’, ‘the’): classic telegraphic speech.",
+    theories:{
+      behaviourist:"High‑value content words are reinforced first; low‑stress function words are dropped.",
+      nativist:"Content‑word strings still respect English order, hinting at innate structural knowledge.",
+      social:"In the scaffolded routine of mealtimes, the adult supplies the missing words back to the child."
+    }
+  },
+  {
+    id:"u5", quote:"“I runned to the park”", age:"about 4 years",
+    stage:"postteleg",
+    reason:"A virtuous over‑regularisation error (‘runned’) shows a grammar rule applied: post‑telegraphic.",
+    theories:{
+      behaviourist:"Hard to explain: the child never heard ‘runned’, so it cannot be simple imitation.",
+      nativist:"Strong evidence for innate rule‑forming: the child over‑applies the ‘+ed’ past‑tense rule.",
+      social:"An adult recast (‘yes, you ran’) gently models the correct form within the exchange."
+    }
+  },
+  {
+    id:"u6", quote:"“Why can’t we go because it’s raining?”", age:"about 6 years",
+    stage:"earlyschool",
+    reason:"A complex spoken sentence with subordination (‘because’) typical at school entry.",
+    theories:{
+      behaviourist:"The complexity exceeds what reinforced imitation alone can readily account for.",
+      nativist:"Recursive, embedded clauses fit Chomsky’s view of an innate capacity for infinite structure.",
+      social:"Questioning and reasoning develop through dialogue and Bruner’s scaffolding in the classroom."
+    }
+  },
+  {
+    id:"u7", quote:"“First we got the bus, then we walked to the beach and it was sunny.”",
+    age:"about 8 years (written)",
+    stage:"written",
+    reason:"Connected written narrative with sequencing conjunctions and consistent past tense: developing writing.",
+    theories:{
+      behaviourist:"Practice and feedback (marking, praise) shape conventional written forms over time.",
+      nativist:"Written grammar reuses the same innate syntactic system already mastered in speech.",
+      social:"Writing is a cultural tool learned with adult guidance, reflecting Vygotsky’s view of mediation."
+    }
+  }
+];
+
+/* ---------- State ---------- */
+const placement = {}; // utteranceId -> stageId
+let liveEl;
+
+/* ---------- Build DOM ---------- */
+function build(){
+  const deck = document.getElementById("deck");
+  const tl = document.getElementById("timeline");
+  liveEl = document.getElementById("live");
+  deck.innerHTML = "";
+  tl.innerHTML = "";
+
+  // shuffle utterances for the deck so order is not a clue
+  const order = UTTERANCES.map(u=>u.id);
+  for(let i=order.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
+
+  order.forEach(id=>{
+    const u = UTTERANCES.find(x=>x.id===id);
+    const card = document.createElement("div");
+    card.className = "utterance";
+    card.id = "card-"+u.id;
+    card.setAttribute("draggable","false");
+    card.setAttribute("tabindex","0");
+    card.setAttribute("role","button");
+    card.setAttribute("aria-label","Utterance: "+u.quote.replace(/[“”]/g,"")+", "+u.age+". Activate to choose a stage.");
+    card.dataset.uid = u.id;
+    card.innerHTML =
+      '<div class="quote">'+u.quote+'</div>'+
+      '<div class="age">'+u.age+'</div>'+
+      '<div class="grab" aria-hidden="true">&#x2630;</div>'+
+      '<div class="picker" id="picker-'+u.id+'" role="listbox" aria-label="Choose a stage"></div>';
+    deck.appendChild(card);
+    enableDrag(card);
+    enableKeyboard(card, u);
+  });
+
+  STAGES.forEach(s=>{
+    const st = document.createElement("div");
+    st.className = "stage";
+    st.id = "stage-"+s.id;
+    st.dataset.sid = s.id;
+    st.setAttribute("role","group");
+    st.setAttribute("aria-label",s.name+", "+s.age);
+    st.innerHTML =
+      '<div class="stage-head"><span class="stage-name">'+s.name+'</span>'+
+      '<span class="stage-age">'+s.age+'</span></div>'+
+      '<div class="stage-desc">'+s.desc+'</div>'+
+      '<div class="slot" id="slot-'+s.id+'"></div>';
+    tl.appendChild(st);
+    enableDrop(st);
+  });
+
+  document.getElementById("scoreTotal").textContent = UTTERANCES.length;
+  updateScore();
+}
+
+/* ---------- Pointer drag ---------- */
+let dragInfo = null;
+
+function enableDrag(card){
+  card.addEventListener("pointerdown", function(e){
+    if(card.classList.contains("placed")) return;
+    if(e.button && e.button!==0) return;
+    e.preventDefault();
+    const rect = card.getBoundingClientRect();
+    const ghost = card.cloneNode(true);
+    ghost.style.position="fixed";
+    ghost.style.left=rect.left+"px";
+    ghost.style.top=rect.top+"px";
+    ghost.style.width=rect.width+"px";
+    ghost.style.pointerEvents="none";
+    ghost.style.zIndex="9999";
+    ghost.style.opacity="0.92";
+    ghost.style.boxShadow="0 8px 24px rgba(20,30,45,.25)";
+    ghost.style.transform="rotate(-1.5deg)";
+    document.body.appendChild(ghost);
+    dragInfo = {card, ghost, uid:card.dataset.uid,
+      offX:e.clientX-rect.left, offY:e.clientY-rect.top};
+    card.classList.add("dragging");
+    try{card.setPointerCapture(e.pointerId);}catch(err){}
+  });
+
+  card.addEventListener("pointermove", function(e){
+    if(!dragInfo || dragInfo.card!==card) return;
+    e.preventDefault();
+    dragInfo.ghost.style.left=(e.clientX-dragInfo.offX)+"px";
+    dragInfo.ghost.style.top=(e.clientY-dragInfo.offY)+"px";
+    highlightTargetUnder(e.clientX,e.clientY);
+  });
+
+  card.addEventListener("pointerup", function(e){
+    if(!dragInfo || dragInfo.card!==card) return;
+    e.preventDefault();
+    const target = stageUnder(e.clientX,e.clientY);
+    finishDrag(target);
+  });
+
+  card.addEventListener("pointercancel", function(){
+    if(dragInfo && dragInfo.card===card) finishDrag(null);
+  });
+}
+
+function clearHighlights(){
+  document.querySelectorAll(".stage.droptarget").forEach(s=>s.classList.remove("droptarget"));
+}
+function stageUnder(x,y){
+  clearHighlights();
+  const els = document.elementsFromPoint(x,y);
+  for(const el of els){
+    const st = el.closest && el.closest(".stage");
+    if(st) return st;
+  }
+  return null;
+}
+function highlightTargetUnder(x,y){
+  clearHighlights();
+  const els = document.elementsFromPoint(x,y);
+  for(const el of els){
+    const st = el.closest && el.closest(".stage");
+    if(st){st.classList.add("droptarget");return;}
+  }
+}
+function finishDrag(targetStage){
+  const info = dragInfo;
+  dragInfo = null;
+  clearHighlights();
+  if(info){
+    info.card.classList.remove("dragging");
+    if(info.ghost && info.ghost.parentNode) info.ghost.parentNode.removeChild(info.ghost);
+    if(targetStage){
+      placeUtterance(info.uid, targetStage.dataset.sid);
+    }
+  }
+}
+
+/* ---------- Drop targets (no native DnD needed, pointer handles it) ---------- */
+function enableDrop(stageEl){
+  // Pointer-based drop is handled in finishDrag; nothing extra required here.
+}
+
+/* ---------- Keyboard / accessible placement ---------- */
+function enableKeyboard(card, u){
+  card.addEventListener("keydown", function(e){
+    if(card.classList.contains("placed")) return;
+    if(e.key==="Enter" || e.key===" "){
+      e.preventDefault();
+      togglePicker(u);
+    } else if(e.key==="Escape"){
+      closePicker(u);
+    }
+  });
+}
+function togglePicker(u){
+  const p = document.getElementById("picker-"+u.id);
+  const open = p.classList.contains("show");
+  document.querySelectorAll(".picker.show").forEach(x=>x.classList.remove("show"));
+  if(open){p.innerHTML="";return;}
+  p.innerHTML = "";
+  const lbl = document.createElement("div");
+  lbl.style.fontWeight="700";lbl.style.marginBottom="2px";
+  lbl.textContent="Place at which stage?";
+  p.appendChild(lbl);
+  STAGES.forEach(s=>{
+    const b=document.createElement("button");
+    b.type="button";
+    b.setAttribute("role","option");
+    b.textContent=s.name+" ("+s.age+")";
+    b.addEventListener("click",function(){
+      placeUtterance(u.id, s.id);
+      p.classList.remove("show");p.innerHTML="";
+    });
+    p.appendChild(b);
+  });
+  p.classList.add("show");
+  const first = p.querySelector("button");
+  if(first) first.focus();
+}
+function closePicker(u){
+  const p=document.getElementById("picker-"+u.id);
+  p.classList.remove("show");p.innerHTML="";
+  document.getElementById("card-"+u.id).focus();
+}
+
+/* ---------- Placement logic + feedback ---------- */
+function placeUtterance(uid, sid){
+  const u = UTTERANCES.find(x=>x.id===uid);
+  if(!u) return;
+  // remove any prior placement of this utterance
+  removePlacement(uid, true);
+
+  placement[uid]=sid;
+  const correct = (sid===u.stage);
+  const slot = document.getElementById("slot-"+sid);
+
+  const item = document.createElement("div");
+  item.className = "dropped "+(correct?"correct":"wrong");
+  item.id = "dropped-"+uid;
+  item.dataset.uid = uid;
+
+  let html =
+    '<button class="return" type="button" aria-label="Return this card to the deck" title="Return to deck">&#x2715;</button>'+
+    '<div class="quote">'+u.quote+'</div>'+
+    '<div class="verdict">'+(correct
+        ? '&#x2714; Correct placement'
+        : '&#x2716; Not the first stage for this')+'</div>'+
+    '<div class="reason">'+ (correct
+        ? u.reason
+        : buildWrongReason(u, sid))+'</div>';
+
+  if(correct){
+    const correctStage = STAGES.find(s=>s.id===u.stage);
+    html += '<div class="theories">'+
+      '<div class="theories-title">What each theory predicts here</div>'+
+      theoryBlock("behaviourist","Behaviourist","Skinner",u.theories.behaviourist)+
+      theoryBlock("nativist","Nativist","Chomsky",u.theories.nativist)+
+      theoryBlock("social","Social‑interactionist","Bruner / Vygotsky",u.theories.social)+
+      '</div>';
+  }
+
+  item.innerHTML = html;
+  slot.appendChild(item);
+
+  item.querySelector(".return").addEventListener("click",function(){
+    removePlacement(uid,false);
+    announce("Card returned to the deck.");
+  });
+
+  // grey out / disable the deck card
+  const card = document.getElementById("card-"+uid);
+  card.classList.add("placed");
+  card.setAttribute("aria-disabled","true");
+
+  const stageName = STAGES.find(s=>s.id===sid).name;
+  announce((correct?"Correct. ":"Try again. ")+u.quote.replace(/[“”]/g,"")+" placed at "+stageName+". "+
+    (correct?"Theory notes revealed.":"Reason: "+stripTags(buildWrongReason(u,sid))));
+  updateScore();
+}
+
+function buildWrongReason(u, chosenSid){
+  const right = STAGES.find(s=>s.id===u.stage);
+  const chosen = STAGES.find(s=>s.id===chosenSid);
+  return "This is typical of the <strong>"+right.name+"</strong> stage ("+right.age+
+    "), not the "+chosen.name+" stage. Hint: "+u.reason;
+}
+
+function theoryBlock(cls, name, who, text){
+  return '<div class="theory '+cls+'">'+
+    '<span class="tname">'+name+'</span> <span class="who">('+who+')</span>: '+text+'</div>';
+}
+
+function removePlacement(uid, silent){
+  if(!(uid in placement)) {
+    // still ensure stray DOM removed
+  }
+  delete placement[uid];
+  const old = document.getElementById("dropped-"+uid);
+  if(old && old.parentNode) old.parentNode.removeChild(old);
+  const card = document.getElementById("card-"+uid);
+  if(card){
+    card.classList.remove("placed");
+    card.removeAttribute("aria-disabled");
+  }
+  if(!silent) updateScore();
+}
+
+/* ---------- Score ---------- */
+function updateScore(){
+  let correct=0;
+  UTTERANCES.forEach(u=>{ if(placement[u.id]===u.stage) correct++; });
+  document.getElementById("scoreNum").textContent = correct;
+  const pct = Math.round((correct/UTTERANCES.length)*100);
+  document.getElementById("scoreFill").style.width = pct+"%";
+  const placedCount = Object.keys(placement).length;
+  const allPlacedMsg = document.getElementById("allPlaced");
+  allPlacedMsg.hidden = !(placedCount===UTTERANCES.length);
+}
+
+/* ---------- Helpers ---------- */
+function announce(msg){ if(liveEl) liveEl.textContent = msg; }
+function stripTags(html){ const d=document.createElement("div"); d.innerHTML=html; return d.textContent||""; }
+
+/* ---------- Reset ---------- */
+document.getElementById("resetBtn").addEventListener("click",function(){
+  for(const k in placement) delete placement[k];
+  build();
+  announce("Activity reset. All cards back in the deck.");
+});
+
+/* Close any open keyboard picker when clicking elsewhere */
+document.addEventListener("pointerdown",function(e){
+  if(!e.target.closest(".picker") && !e.target.closest(".utterance")){
+    document.querySelectorAll(".picker.show").forEach(p=>{p.classList.remove("show");p.innerHTML="";});
+  }
+});
+
+build();
+</script>
+</body>
+</html>

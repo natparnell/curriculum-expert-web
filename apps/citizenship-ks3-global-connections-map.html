@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global Connections Map | Citizenship KS3</title>
+<style>
+  :root{
+    --ink:#13233b;
+    --paper:#f4f6fb;
+    --card:#ffffff;
+    --line:#d6deea;
+    --sea:#cfe0f2;
+    --land:#9fb6cc;
+    --uk:#e8742c;
+    --un:#2f7fd6;
+    --nato:#4a4f8f;
+    --comm:#2f9e6b;
+    --accent:#e8742c;
+    --good:#1c7d4d;
+    --bad:#b23a48;
+    --muted:#5a6a82;
+    --shadow:0 6px 22px rgba(19,35,59,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.55;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 16px 60px}
+  header.app{
+    background:linear-gradient(135deg,#13233b,#1d3a5f);
+    color:#fff;border-radius:16px;padding:22px 24px;box-shadow:var(--shadow);
+  }
+  header.app h1{margin:0 0 4px;font-size:1.7rem;letter-spacing:-.01em}
+  header.app .sub{margin:0;color:#cfe0f2;font-size:.98rem}
+  .aim{
+    margin:14px 0 0;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);
+    border-radius:10px;padding:10px 14px;font-size:.92rem;
+  }
+  .aim strong{color:#ffd9b8}
+  .tabs{display:flex;gap:8px;margin:18px 0 6px;flex-wrap:wrap}
+  .tab{
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    padding:9px 16px;border-radius:999px;font-size:.92rem;cursor:pointer;
+    font-weight:600;box-shadow:var(--shadow);
+  }
+  .tab[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .tab:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .panel{display:none}
+  .panel.active{display:block}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:18px;margin-top:16px;box-shadow:var(--shadow);
+  }
+  h2{font-size:1.2rem;margin:.1em 0 .4em}
+  h3{font-size:1.02rem;margin:.6em 0 .3em}
+  p.lead{color:var(--muted);margin-top:0}
+  .map-area{display:grid;grid-template-columns:1.4fr .9fr;gap:16px}
+  @media(max-width:780px){.map-area{grid-template-columns:1fr}}
+  .map-shell{
+    background:var(--sea);border:1px solid var(--line);border-radius:12px;
+    overflow:hidden;position:relative;
+  }
+  svg.map{display:block;width:100%;height:auto;touch-action:manipulation}
+  .country{
+    fill:var(--land);stroke:#fff;stroke-width:1.2;cursor:pointer;
+    transition:fill .15s ease;
+  }
+  .country:hover,.country:focus-visible{fill:#7e99b5;outline:none}
+  .country:focus-visible{stroke:var(--accent);stroke-width:2.4}
+  .country.is-uk{fill:var(--uk)}
+  .country.lit-un{fill:var(--un)}
+  .country.lit-nato{fill:var(--nato)}
+  .country.lit-comm{fill:var(--comm)}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 0;font-size:.82rem}
+  .legend button{
+    border:1px solid var(--line);background:#fff;border-radius:999px;
+    padding:5px 11px;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:6px;
+    color:var(--ink);
+  }
+  .legend button[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--ink)}
+  .legend button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .dot{width:13px;height:13px;border-radius:3px;display:inline-block}
+  .dot.un{background:var(--un)}.dot.nato{background:var(--nato)}
+  .dot.comm{background:var(--comm)}.dot.uk{background:var(--uk)}
+  .info{
+    background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:14px;
+    min-height:180px;
+  }
+  .info h3{margin-top:0}
+  .pill{display:inline-block;font-size:.72rem;font-weight:700;border-radius:999px;
+    padding:3px 9px;margin:0 5px 5px 0;color:#fff}
+  .pill.un{background:var(--un)}.pill.nato{background:var(--nato)}
+  .pill.comm{background:var(--comm)}.pill.none{background:#8595aa}
+  .stat-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
+  .stat{flex:1;min-width:120px;background:#fff;border:1px solid var(--line);
+    border-radius:10px;padding:10px;text-align:center}
+  .stat b{display:block;font-size:1.4rem;color:var(--accent)}
+  .stat span{font-size:.78rem;color:var(--muted)}
+  /* chain builder */
+  .chain-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:780px){.chain-grid{grid-template-columns:1fr}}
+  .scenario{
+    background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;
+  }
+  .scenario.selected{box-shadow:inset 0 0 0 2px var(--accent)}
+  .scenario button.pick{
+    margin-top:8px;border:1px solid var(--accent);background:#fff;color:var(--accent);
+    font-weight:700;border-radius:8px;padding:6px 12px;cursor:pointer;
+  }
+  .scenario button.pick[aria-pressed="true"]{background:var(--accent);color:#fff}
+  .slots{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+  .slot{
+    border:2px dashed var(--line);border-radius:10px;min-height:54px;padding:8px 10px;
+    display:flex;align-items:center;gap:8px;background:#fcfdff;
+  }
+  .slot .slot-num{
+    flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;
+  }
+  .slot.over{border-color:var(--accent);background:#fff4ec}
+  .slot.filled{border-style:solid;border-color:var(--good);background:#f1faf4}
+  .slot.wrong{border-style:solid;border-color:var(--bad);background:#fcf1f2}
+  .slot .filled-label{font-weight:600}
+  .bank{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .tile{
+    background:#fff;border:1px solid var(--ink);border-radius:9px;padding:8px 11px;
+    cursor:grab;font-size:.88rem;font-weight:600;touch-action:none;user-select:none;
+    box-shadow:var(--shadow);
+  }
+  .tile:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .tile.dragging{opacity:.5}
+  .tile.placed{display:none}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .btn{
+    border:none;border-radius:9px;padding:9px 16px;font-weight:700;cursor:pointer;
+    font-size:.9rem;
+  }
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+  .btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+  .feedback{
+    margin-top:12px;border-radius:10px;padding:12px 14px;font-size:.92rem;display:none;
+    border:1px solid var(--line);
+  }
+  .feedback.show{display:block}
+  .feedback.ok{background:#eef9f1;border-color:#bfe6cd;color:#13502f}
+  .feedback.no{background:#fdeef0;border-color:#f0c4ca;color:#7d2530}
+  .feedback ul{margin:6px 0 0;padding-left:20px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .kbd-hint{font-size:.78rem;color:var(--muted);margin-top:8px}
+  footer.app{margin-top:26px;font-size:.8rem;color:var(--muted);text-align:center}
+  .help-row{font-size:.82rem;color:var(--muted);margin-top:6px}
+  details.facts{margin-top:10px}
+  details.facts summary{cursor:pointer;font-weight:700;color:var(--ink)}
+  .progress{font-size:.84rem;color:var(--muted);margin-top:8px}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <h1>Global Connections Map</h1>
+    <p class="sub">Citizenship &middot; Key Stage 3 &middot; The UK's role in the wider world</p>
+    <p class="aim"><strong>Teacher aim:</strong> Pupils explore why the UK joins international organisations (the UN, NATO and the Commonwealth) and trace how a global issue travels from a distant country into their own local community.</p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Activities">
+    <button class="tab" role="tab" id="tab-map" aria-controls="panel-map" aria-selected="true">1. Explore the map</button>
+    <button class="tab" role="tab" id="tab-chain" aria-controls="panel-chain" aria-selected="false" tabindex="-1">2. Trace the connection</button>
+  </div>
+
+  <!-- ============ PANEL 1: MAP ============ -->
+  <section class="panel active" id="panel-map" role="tabpanel" aria-labelledby="tab-map">
+    <div class="card">
+      <h2>Which clubs does the UK belong to?</h2>
+      <p class="lead">Switch on an organisation, then select a country to find out whether the UK shares membership with it, and what that membership means.</p>
+
+      <div class="legend" role="group" aria-label="Choose an organisation to highlight">
+        <button id="f-un" aria-pressed="true" data-org="un"><span class="dot un"></span>United Nations</button>
+        <button id="f-nato" aria-pressed="false" data-org="nato"><span class="dot nato"></span>NATO</button>
+        <button id="f-comm" aria-pressed="false" data-org="comm"><span class="dot comm"></span>Commonwealth</button>
+        <span style="display:flex;align-items:center;gap:6px;font-weight:600"><span class="dot uk"></span>United Kingdom</span>
+      </div>
+
+      <div class="map-area" style="margin-top:14px">
+        <div class="map-shell">
+          <svg class="map" viewBox="0 0 600 360" role="application" aria-label="Simplified world map. Select a country to learn about its links with the United Kingdom." id="worldmap">
+            <!-- Simplified, stylised country shapes. Not geographically exact: for teaching links only. -->
+            <g id="countries"></g>
+          </svg>
+        </div>
+
+        <div>
+          <div class="info" id="infoBox" aria-live="polite" aria-atomic="true">
+            <h3 id="infoTitle">Select a country</h3>
+            <p id="infoBody" style="margin:0;color:var(--muted)">Tap or click a shape on the map, or use Tab and Enter to move between countries.</p>
+            <div id="infoPills"></div>
+          </div>
+          <div class="stat-row">
+            <div class="stat"><b>193</b><span>UN member states</span></div>
+            <div class="stat"><b>32</b><span>NATO members</span></div>
+            <div class="stat"><b>56</b><span>Commonwealth members</span></div>
+          </div>
+          <p class="kbd-hint">Keyboard: Tab to a country, press Enter or Space to select it. Use the buttons above to change which club is shown.</p>
+        </div>
+      </div>
+
+      <details class="facts">
+        <summary>Quick facts for your notes</summary>
+        <ul>
+          <li><b>United Nations (UN):</b> almost every country in the world is a member. It works on peace, human rights, health and climate. The UK is one of five permanent members of the Security Council.</li>
+          <li><b>NATO:</b> a defence alliance of European and North American countries. If one member is attacked, the others agree to help defend it.</li>
+          <li><b>Commonwealth:</b> a voluntary group of 56 countries, most with historic ties to Britain. It is a partnership for trade, sport (the Commonwealth Games) and shared values, not a defence or law-making body.</li>
+        </ul>
+      </details>
+    </div>
+  </section>
+
+  <!-- ============ PANEL 2: CHAIN ============ -->
+  <section class="panel" id="panel-chain" role="tabpanel" aria-labelledby="tab-chain" tabindex="0">
+    <div class="card">
+      <h2>From a global issue to your street</h2>
+      <p class="lead">Pick a real-world issue, then build the chain that shows how it reaches a pupil in Devon or Cornwall. Drag a step into each numbered slot, or use the keyboard. Order matters.</p>
+
+      <div class="chain-grid">
+        <div>
+          <h3>Choose a scenario</h3>
+          <div class="scenario selected" data-sc="0">
+            <strong>Scenario A: A storm far away</strong>
+            <p style="margin:.3em 0 0;font-size:.88rem;color:var(--muted)">A severe flood hits a Commonwealth country. How might it reach a Year 8 pupil in Plymouth?</p>
+            <button class="pick" aria-pressed="true">Selected</button>
+          </div>
+          <div class="scenario" data-sc="1" style="margin-top:10px">
+            <strong>Scenario B: A health emergency</strong>
+            <p style="margin:.3em 0 0;font-size:.88rem;color:var(--muted)">A new disease appears overseas. How does the global response shape life at a Cornish school?</p>
+            <button class="pick" aria-pressed="false">Select</button>
+          </div>
+        </div>
+
+        <div>
+          <h3>Build the chain</h3>
+          <div class="slots" id="slots" aria-label="Connection chain, four steps in order">
+            <div class="slot" data-slot="0" tabindex="0" role="button" aria-label="Step 1, empty. Activate to place the selected step here."><span class="slot-num">1</span><span class="slot-text">Drop step 1 here</span></div>
+            <div class="slot" data-slot="1" tabindex="0" role="button" aria-label="Step 2, empty. Activate to place the selected step here."><span class="slot-num">2</span><span class="slot-text">Drop step 2 here</span></div>
+            <div class="slot" data-slot="2" tabindex="0" role="button" aria-label="Step 3, empty. Activate to place the selected step here."><span class="slot-num">3</span><span class="slot-text">Drop step 3 here</span></div>
+            <div class="slot" data-slot="3" tabindex="0" role="button" aria-label="Step 4, empty. Activate to place the selected step here."><span class="slot-num">4</span><span class="slot-text">Drop step 4 here</span></div>
+          </div>
+        </div>
+      </div>
+
+      <h3 style="margin-top:16px">Step cards (in the wrong order)</h3>
+      <p class="help-row">Drag a card into a slot, or select a card with Enter, then select a slot with Enter to place it. Cards return to the bank if you clear the chain.</p>
+      <div class="bank" id="bank" aria-label="Available step cards"></div>
+
+      <div class="controls">
+        <button class="btn primary" id="checkBtn">Check my chain</button>
+        <button class="btn ghost" id="resetBtn">Clear</button>
+      </div>
+      <div class="progress" id="chainProgress" aria-live="polite">0 of 4 steps placed.</div>
+
+      <div class="feedback" id="chainFeedback" role="status" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <footer class="app">
+    Global Connections Map &middot; Demonstration resource for WeST Citizenship. Map shapes are stylised for teaching and are not to scale. All names are fictional.
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ===================== TAB SWITCHING ===================== */
+const tabs = [document.getElementById('tab-map'), document.getElementById('tab-chain')];
+const panels = {
+  'tab-map': document.getElementById('panel-map'),
+  'tab-chain': document.getElementById('panel-chain')
+};
+function selectTab(tab){
+  tabs.forEach(t=>{
+    const on = t===tab;
+    t.setAttribute('aria-selected', on?'true':'false');
+    t.tabIndex = on?0:-1;
+  });
+  Object.values(panels).forEach(p=>p.classList.remove('active'));
+  panels[tab.id].classList.add('active');
+}
+tabs.forEach((t,i)=>{
+  t.addEventListener('click',()=>selectTab(t));
+  t.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+      e.preventDefault();
+      const dir = e.key==='ArrowRight'?1:-1;
+      const next = tabs[(i+dir+tabs.length)%tabs.length];
+      next.focus(); selectTab(next);
+    }
+  });
+});
+
+/* ===================== MAP DATA ===================== */
+/* Each country: stylised polygon points, memberships, and a short note. */
+const COUNTRIES = [
+  { id:'uk', name:'United Kingdom', uk:true,  un:true, nato:true, comm:true,
+    pts:'250,118 262,108 270,116 264,128 256,140 246,138 244,126',
+    note:'Home. The UK is a member of all three: the UN, NATO and the Commonwealth. It is one of five permanent members of the UN Security Council.' },
+  { id:'usa', name:'United States', un:true, nato:true, comm:false,
+    pts:'70,150 150,140 165,170 130,200 80,205 55,180',
+    note:'A close UK ally in NATO and a fellow UN member. It is not in the Commonwealth.' },
+  { id:'canada', name:'Canada', un:true, nato:true, comm:true,
+    pts:'60,90 160,82 170,120 120,138 65,135',
+    note:'Shares all three clubs with the UK. King Charles III is also King of Canada, a Commonwealth realm.' },
+  { id:'france', name:'France', un:true, nato:true, comm:false,
+    pts:'278,150 300,146 305,165 290,178 274,170',
+    note:'A NATO ally and UN Security Council permanent member, just across the Channel. Not in the Commonwealth.' },
+  { id:'germany', name:'Germany', un:true, nato:true, comm:false,
+    pts:'300,135 322,132 326,152 308,160 298,150',
+    note:'A European NATO partner and UN member. Not a Commonwealth country.' },
+  { id:'russia', name:'Russia', un:true, nato:false, comm:false,
+    pts:'360,95 520,90 540,140 440,150 360,140',
+    note:'A UN member and permanent Security Council member, but NOT in NATO. NATO is a defence alliance the UK belongs to.' },
+  { id:'india', name:'India', un:true, nato:false, comm:true,
+    pts:'420,200 460,195 470,235 440,255 415,235',
+    note:'The largest Commonwealth country by population, and a fellow UN member. It is not in NATO.' },
+  { id:'australia', name:'Australia', un:true, nato:false, comm:true,
+    pts:'500,270 560,265 568,305 520,315 495,295',
+    note:'A Commonwealth realm and UN member. Hosts and competes in the Commonwealth Games with the UK. Not in NATO.' },
+  { id:'safrica', name:'South Africa', un:true, nato:false, comm:true,
+    pts:'320,290 355,288 360,320 330,330 312,312',
+    note:'A Commonwealth and UN member in southern Africa. It rejoined the Commonwealth in 1994.' },
+  { id:'nigeria', name:'Nigeria', un:true, nato:false, comm:true,
+    pts:'300,235 330,232 334,258 308,265 294,250',
+    note:'A large Commonwealth and UN member in West Africa.' },
+  { id:'brazil', name:'Brazil', un:true, nato:false, comm:false,
+    pts:'150,250 210,245 220,295 170,310 140,285',
+    note:'A major UN member in South America. Not in NATO or the Commonwealth.' },
+  { id:'china', name:'China', un:true, nato:false, comm:false,
+    pts:'470,150 540,148 548,195 490,205 465,180',
+    note:'A UN member and permanent Security Council member. Not in NATO or the Commonwealth.' }
+];
+
+const cg = document.getElementById('countries');
+const infoTitle = document.getElementById('infoTitle');
+const infoBody = document.getElementById('infoBody');
+const infoPills = document.getElementById('infoPills');
+let activeOrg = 'un';
+
+function membershipPills(c){
+  const out = [];
+  if(c.un) out.push('<span class="pill un">UN member</span>');
+  if(c.nato) out.push('<span class="pill nato">NATO member</span>');
+  if(c.comm) out.push('<span class="pill comm">Commonwealth</span>');
+  if(out.length===0) out.push('<span class="pill none">None of these three</span>');
+  return out.join('');
+}
+
+function describe(c){
+  infoTitle.textContent = c.name + (c.uk ? ' (the UK)' : '');
+  let shared = '';
+  if(!c.uk){
+    const sharesActive = c[activeOrg];
+    const orgLabel = {un:'the United Nations', nato:'NATO', comm:'the Commonwealth'}[activeOrg];
+    shared = sharesActive
+      ? `Yes: the UK and ${c.name} are BOTH in ${orgLabel}. `
+      : `No: ${c.name} is NOT in ${orgLabel} with the UK. `;
+  }
+  infoBody.textContent = shared + c.note;
+  infoPills.innerHTML = membershipPills(c);
+}
+
+function paint(){
+  document.querySelectorAll('.country').forEach(el=>{
+    el.classList.remove('lit-un','lit-nato','lit-comm');
+    const c = COUNTRIES.find(x=>x.id===el.dataset.id);
+    if(c.uk) return; // UK keeps its own colour
+    if(c[activeOrg]) el.classList.add('lit-'+activeOrg);
+  });
+}
+
+// Build the SVG country shapes
+COUNTRIES.forEach(c=>{
+  const poly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  poly.setAttribute('points', c.pts);
+  poly.setAttribute('class','country'+(c.uk?' is-uk':''));
+  poly.setAttribute('data-id', c.id);
+  poly.setAttribute('tabindex','0');
+  poly.setAttribute('role','button');
+  poly.setAttribute('aria-label', c.name + '. Select to see its links with the UK.');
+  const title = document.createElementNS('http://www.w3.org/2000/svg','title');
+  title.textContent = c.name;
+  poly.appendChild(title);
+  const act = ()=>{ describe(c); };
+  poly.addEventListener('click', act);
+  poly.addEventListener('keydown', e=>{
+    if(e.key==='Enter'||e.key===' '){ e.preventDefault(); act(); }
+  });
+  cg.appendChild(poly);
+});
+
+// Org filter buttons
+document.querySelectorAll('.legend button[data-org]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.legend button[data-org]').forEach(b=>b.setAttribute('aria-pressed','false'));
+    btn.setAttribute('aria-pressed','true');
+    activeOrg = btn.dataset.org;
+    paint();
+    // refresh the info text if a country is already selected
+    const cur = COUNTRIES.find(x=>x.name===infoTitle.textContent.replace(' (the UK)',''));
+    if(cur) describe(cur);
+  });
+});
+paint();
+
+/* ===================== CHAIN BUILDER ===================== */
+const SCENARIOS = [
+  {
+    title:'A storm far away',
+    intro:'A severe flood hits a Commonwealth country.',
+    steps:[
+      'A severe flood damages homes and crops in a Commonwealth country.',
+      'The United Nations coordinates emergency aid and the UK pledges support.',
+      'The UK government and charities run an appeal; UK schools take part.',
+      'A pupil in Plymouth raises money in an assembly and learns why the UK helps.'
+    ]
+  },
+  {
+    title:'A health emergency',
+    intro:'A new disease appears overseas.',
+    steps:[
+      'A new disease is first reported in another country.',
+      'The World Health Organization (a UN body) warns countries and shares advice.',
+      'The UK government changes its public health guidance for everyone.',
+      'A pupil in a Cornish school follows new hygiene rules in the classroom.'
+    ]
+  }
+];
+
+let currentScenario = 0;
+const slotsEl = document.getElementById('slots');
+const bankEl = document.getElementById('bank');
+const chainFeedback = document.getElementById('chainFeedback');
+const chainProgress = document.getElementById('chainProgress');
+let selectedTileIdx = null; // for keyboard placement
+
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+// order index travels with each tile (correctIndex = its true position)
+function buildBank(){
+  bankEl.innerHTML='';
+  const steps = SCENARIOS[currentScenario].steps;
+  const order = shuffle(steps.map((_,i)=>i));
+  // ensure not already in correct order
+  if(order.every((v,i)=>v===i)) { [order[0],order[1]]=[order[1],order[0]]; }
+  order.forEach(correctIndex=>{
+    const tile = document.createElement('div');
+    tile.className='tile';
+    tile.textContent = steps[correctIndex];
+    tile.setAttribute('draggable','true');
+    tile.setAttribute('tabindex','0');
+    tile.setAttribute('role','button');
+    tile.dataset.correct = correctIndex;
+    tile.setAttribute('aria-label','Step card: '+steps[correctIndex]+'. Select to pick up, then choose a slot.');
+    bankEl.appendChild(tile);
+  });
+  wireTiles();
+}
+
+function resetSlots(){
+  slotsEl.querySelectorAll('.slot').forEach((s,i)=>{
+    s.className='slot';
+    s.dataset.correct='';
+    s.innerHTML = '<span class="slot-num">'+(i+1)+'</span><span class="slot-text">Drop step '+(i+1)+' here</span>';
+    s.setAttribute('aria-label','Step '+(i+1)+', empty. Activate to place the selected step here.');
+  });
+}
+
+function updateProgress(){
+  const filled = slotsEl.querySelectorAll('.slot.filled').length;
+  chainProgress.textContent = filled+' of 4 steps placed.';
+}
+
+function placeTileInSlot(tile, slot){
+  // if slot already filled, return its tile to bank first
+  if(slot.classList.contains('filled')){
+    returnSlotToBank(slot);
+  }
+  const correct = tile.dataset.correct;
+  slot.classList.add('filled');
+  slot.classList.remove('wrong');
+  slot.dataset.correct = correct;
+  const num = slot.querySelector('.slot-num').outerHTML;
+  slot.innerHTML = num + '<span class="filled-label">'+tile.textContent+'</span>';
+  slot.dataset.tileText = tile.textContent;
+  const slotIndex = parseInt(slot.dataset.slot,10);
+  slot.setAttribute('aria-label','Step '+(slotIndex+1)+', filled with: '+tile.textContent+'. Activate to clear.');
+  tile.classList.add('placed');
+  chainFeedback.classList.remove('show');
+  updateProgress();
+}
+
+function returnSlotToBank(slot){
+  const txt = slot.dataset.tileText;
+  if(!txt) return;
+  // find the matching hidden tile and unhide it
+  const tile = [...bankEl.querySelectorAll('.tile')].find(t=>t.textContent===txt && t.classList.contains('placed'));
+  if(tile) tile.classList.remove('placed');
+  const slotIndex = parseInt(slot.dataset.slot,10);
+  slot.className='slot';
+  slot.dataset.correct='';
+  slot.dataset.tileText='';
+  slot.innerHTML='<span class="slot-num">'+(slotIndex+1)+'</span><span class="slot-text">Drop step '+(slotIndex+1)+' here</span>';
+  slot.setAttribute('aria-label','Step '+(slotIndex+1)+', empty. Activate to place the selected step here.');
+  updateProgress();
+}
+
+/* ---- Drag and drop using Pointer Events ---- */
+let dragTile=null, ghost=null, pointerId=null;
+
+function wireTiles(){
+  bankEl.querySelectorAll('.tile').forEach(tile=>{
+    tile.addEventListener('pointerdown', onPointerDown);
+    tile.addEventListener('keydown', onTileKey);
+  });
+}
+
+function onTileKey(e){
+  if(e.key==='Enter'||e.key===' '){
+    e.preventDefault();
+    // toggle selection of this tile for keyboard placement
+    bankEl.querySelectorAll('.tile').forEach(t=>t.style.boxShadow='');
+    const tiles=[...bankEl.querySelectorAll('.tile:not(.placed)')];
+    if(selectedTileIdx===this){
+      selectedTileIdx=null;
+    }else{
+      selectedTileIdx=this;
+      this.style.boxShadow='0 0 0 3px var(--accent)';
+      announce('Card selected. Now move to a slot and press Enter to place it.');
+    }
+  }
+}
+
+function onPointerDown(e){
+  if(this.classList.contains('placed')) return;
+  dragTile=this; pointerId=e.pointerId;
+  this.setPointerCapture(pointerId);
+  this.classList.add('dragging');
+  ghost=this.cloneNode(true);
+  ghost.style.position='fixed';
+  ghost.style.pointerEvents='none';
+  ghost.style.zIndex='9999';
+  ghost.style.opacity='0.9';
+  ghost.style.width=this.offsetWidth+'px';
+  document.body.appendChild(ghost);
+  moveGhost(e);
+  this.addEventListener('pointermove', onPointerMove);
+  this.addEventListener('pointerup', onPointerUp);
+  this.addEventListener('pointercancel', onPointerUp);
+  e.preventDefault();
+}
+function moveGhost(e){
+  if(!ghost) return;
+  ghost.style.left=(e.clientX - ghost.offsetWidth/2)+'px';
+  ghost.style.top=(e.clientY - 18)+'px';
+}
+function slotUnder(x,y){
+  const el=document.elementFromPoint(x,y);
+  return el ? el.closest('.slot') : null;
+}
+function onPointerMove(e){
+  moveGhost(e);
+  slotsEl.querySelectorAll('.slot').forEach(s=>s.classList.remove('over'));
+  const s=slotUnder(e.clientX,e.clientY);
+  if(s) s.classList.add('over');
+}
+function onPointerUp(e){
+  const s=slotUnder(e.clientX,e.clientY);
+  if(dragTile){
+    dragTile.classList.remove('dragging');
+    dragTile.removeEventListener('pointermove', onPointerMove);
+    dragTile.removeEventListener('pointerup', onPointerUp);
+    dragTile.removeEventListener('pointercancel', onPointerUp);
+  }
+  slotsEl.querySelectorAll('.slot').forEach(sl=>sl.classList.remove('over'));
+  if(s && dragTile) placeTileInSlot(dragTile, s);
+  if(ghost){ ghost.remove(); ghost=null; }
+  dragTile=null; pointerId=null;
+}
+
+/* ---- Slot interactions (click to clear, or keyboard place) ---- */
+slotsEl.querySelectorAll('.slot').forEach(slot=>{
+  slot.addEventListener('click', ()=>{
+    if(selectedTileIdx && !selectedTileIdx.classList.contains('placed')){
+      placeTileInSlot(selectedTileIdx, slot);
+      selectedTileIdx.style.boxShadow='';
+      selectedTileIdx=null;
+    } else if(slot.classList.contains('filled')){
+      returnSlotToBank(slot);
+    }
+  });
+  slot.addEventListener('keydown', e=>{
+    if(e.key==='Enter'||e.key===' '){
+      e.preventDefault();
+      slot.click();
+    }
+  });
+});
+
+/* ---- Live announcer ---- */
+let announcer = document.createElement('div');
+announcer.className='sr-only';
+announcer.setAttribute('aria-live','assertive');
+document.body.appendChild(announcer);
+function announce(msg){ announcer.textContent=''; setTimeout(()=>announcer.textContent=msg,40); }
+
+/* ---- Check answer with targeted feedback ---- */
+document.getElementById('checkBtn').addEventListener('click', ()=>{
+  const slots=[...slotsEl.querySelectorAll('.slot')];
+  const filled=slots.filter(s=>s.classList.contains('filled'));
+  if(filled.length<4){
+    chainFeedback.className='feedback no show';
+    chainFeedback.innerHTML='<strong>Not finished yet.</strong> Place a step in all four slots before checking. You have '+filled.length+' of 4.';
+    announce('Place all four steps first.');
+    return;
+  }
+  let correctCount=0;
+  const issues=[];
+  slots.forEach((s,i)=>{
+    const placed=parseInt(s.dataset.correct,10);
+    if(placed===i){
+      s.classList.remove('wrong'); s.classList.add('filled');
+      s.style.borderColor='var(--good)'; s.style.background='#f1faf4';
+      correctCount++;
+    }else{
+      s.classList.add('wrong');
+      // give a specific hint about WHERE it belongs
+      issues.push('Step '+(i+1)+' is out of place. That card actually belongs in position '+(placed+1)+'.');
+    }
+  });
+  if(correctCount===4){
+    chainFeedback.className='feedback ok show';
+    chainFeedback.innerHTML='<strong>Correct chain.</strong> You have shown how a global issue travels through international cooperation right down to a single pupil. '+
+      'Notice the pattern: a problem in another country, then an international organisation responds, then the UK acts nationally, then it reaches one local life. '+
+      '<ul><li>The international organisation here is part of <b>the UN family</b>.</li>'+
+      '<li>This is what people mean by <b>global citizenship</b>: distant events and our local lives are connected.</li></ul>';
+    announce('Correct. All four steps in the right order.');
+  }else{
+    chainFeedback.className='feedback no show';
+    chainFeedback.innerHTML='<strong>'+correctCount+' of 4 in the right place.</strong> The green slots are correct; the red ones need to move. '+
+      '<ul>'+issues.map(t=>'<li>'+t+'</li>').join('')+'</ul>'+
+      'Tip: think about the order of events in time. What has to happen first before anyone in the UK can respond?';
+    announce(correctCount+' of 4 correct. Adjust the red slots.');
+  }
+});
+
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  resetSlots();
+  buildBank();
+  chainFeedback.classList.remove('show');
+  selectedTileIdx=null;
+  updateProgress();
+  announce('Chain cleared. All cards returned to the bank.');
+});
+
+/* ---- Scenario picker ---- */
+document.querySelectorAll('.scenario').forEach(sc=>{
+  sc.querySelector('.pick').addEventListener('click', ()=>{
+    document.querySelectorAll('.scenario').forEach(x=>{
+      x.classList.remove('selected');
+      const b=x.querySelector('.pick');
+      b.setAttribute('aria-pressed','false'); b.textContent='Select';
+    });
+    sc.classList.add('selected');
+    const btn=sc.querySelector('.pick');
+    btn.setAttribute('aria-pressed','true'); btn.textContent='Selected';
+    currentScenario=parseInt(sc.dataset.sc,10);
+    resetSlots();
+    buildBank();
+    chainFeedback.classList.remove('show');
+    updateProgress();
+    announce('Scenario changed. New step cards loaded.');
+  });
+});
+
+// init
+resetSlots();
+buildBank();
+updateProgress();
+</script>
+</body>
+</html>

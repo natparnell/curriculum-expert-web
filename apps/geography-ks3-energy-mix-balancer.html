@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Mix Balancer</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e1726;--panel:#16223a;--panel-2:#1d2d4a;--border:#2a3f63;
+  --text:#e7eef7;--dim:#9fb0c8;--muted:#6f819c;
+  --accent:#3ea6ff;--accent-d:#1f74c4;
+  --good:#3ec18f;--good-d:#1f7d5b;
+  --warn:#f0b429;--bad:#ef5f5f;
+  --coal:#5b6470;--gas:#c98a3c;--nuclear:#b257d6;--wind:#46c2c2;--solar:#f5d04a;--hydro:#3b8fd6;
+  --radius:12px;
+}
+html,body{height:100%;font-family:'Segoe UI',system-ui,-apple-system,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+body{overflow-x:hidden;line-height:1.45}
+
+header{position:sticky;top:0;z-index:40;background:linear-gradient(135deg,#0b1322,#13203a);border-bottom:2px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.brand h1{font-size:1.35rem;font-weight:800;letter-spacing:.3px;background:linear-gradient(90deg,var(--wind),var(--solar));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.brand p{font-size:.78rem;color:var(--dim);margin-top:2px}
+.aim{font-size:.74rem;color:var(--muted);max-width:420px}
+.aim strong{color:var(--accent)}
+
+#wrap{max-width:1180px;margin:0 auto;padding:18px;display:grid;grid-template-columns:1.15fr .85fr;gap:18px;align-items:start}
+
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.card h2{font-size:.82rem;text-transform:uppercase;letter-spacing:.7px;color:var(--dim);font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+
+/* Country picker */
+.countries{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:6px}
+.cbtn{padding:7px 12px;border:1px solid var(--border);border-radius:20px;background:var(--panel-2);color:var(--dim);cursor:pointer;font-size:.78rem;font-weight:600;transition:all .15s}
+.cbtn:hover{border-color:var(--accent);color:var(--text)}
+.cbtn[aria-pressed="true"]{background:var(--accent-d);border-color:var(--accent);color:#fff}
+.cdesc{font-size:.76rem;color:var(--muted);margin-top:8px;min-height:2.4em}
+
+/* Sliders */
+.src{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:9px}
+.src .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.src .name{font-size:.83rem;font-weight:700;display:flex;align-items:center;gap:7px}
+.swatch{width:13px;height:13px;border-radius:3px;flex-shrink:0;display:inline-block}
+.src .pct{font-size:.92rem;font-weight:800;font-variant-numeric:tabular-nums}
+.src .tags{font-size:.66rem;color:var(--muted);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:7px;border-radius:5px;outline:none;cursor:pointer;background:var(--border)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--accent);border:3px solid #fff;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.5)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--accent);border:3px solid #fff;cursor:pointer}
+input[type=range]:focus-visible{outline:2px solid var(--solar);outline-offset:3px}
+
+/* Demand bar */
+.demand{margin-bottom:14px}
+.demand .lab{display:flex;justify-content:space-between;font-size:.78rem;color:var(--dim);margin-bottom:6px}
+.demand .lab b{color:var(--text);font-variant-numeric:tabular-nums}
+.bar{height:24px;border-radius:7px;background:var(--panel-2);overflow:hidden;display:flex;border:1px solid var(--border);position:relative}
+.bar .seg{height:100%;transition:width .25s ease}
+.bar .demline{position:absolute;top:-4px;bottom:-4px;width:3px;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.7);z-index:2}
+.bar .demline::after{content:'demand';position:absolute;top:-15px;left:50%;transform:translateX(-50%);font-size:.6rem;color:#fff;white-space:nowrap}
+.supplymsg{font-size:.78rem;font-weight:700;margin-top:8px;padding:7px 10px;border-radius:8px}
+.supplymsg.short{background:rgba(239,95,95,.15);color:#ffb1b1;border:1px solid rgba(239,95,95,.4)}
+.supplymsg.over{background:rgba(240,180,41,.15);color:#ffdd8a;border:1px solid rgba(240,180,41,.4)}
+.supplymsg.ok{background:rgba(62,193,143,.15);color:#9ff0cf;border:1px solid rgba(62,193,143,.4)}
+
+/* Gauges */
+.gauges{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+.gauge{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:11px 10px;text-align:center}
+.gauge .gt{font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700}
+.gauge .gv{font-size:1.45rem;font-weight:800;margin:3px 0;font-variant-numeric:tabular-nums}
+.gauge .gu{font-size:.64rem;color:var(--muted)}
+.meter{height:8px;border-radius:5px;background:var(--border);overflow:hidden;margin-top:8px}
+.meter span{display:block;height:100%;border-radius:5px;transition:width .3s,background .3s}
+.gauge .grate{font-size:.66rem;font-weight:700;margin-top:6px}
+
+/* Feedback */
+.feedback{font-size:.82rem}
+.feedback .verdict{font-size:.95rem;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.feedback ul{list-style:none;display:flex;flex-direction:column;gap:7px}
+.feedback li{padding:8px 11px;border-radius:8px;background:var(--panel-2);border-left:3px solid var(--muted);font-size:.79rem}
+.feedback li.pos{border-left-color:var(--good)}
+.feedback li.neg{border-left-color:var(--bad)}
+.feedback li.tip{border-left-color:var(--accent)}
+.feedback li b{color:var(--text)}
+
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.actions button{padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--panel-2);color:var(--text);cursor:pointer;font-size:.78rem;font-weight:700;transition:all .15s}
+.actions button:hover{border-color:var(--accent);background:var(--accent-d)}
+.actions button.primary{background:var(--accent-d);border-color:var(--accent)}
+
+.legend{font-size:.7rem;color:var(--muted);margin-top:10px;display:flex;flex-wrap:wrap;gap:12px}
+.legend span{display:flex;align-items:center;gap:5px}
+
+footer{text-align:center;font-size:.72rem;color:var(--muted);padding:14px 18px 26px}
+
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+@media(max-width:840px){
+  #wrap{grid-template-columns:1fr}
+  .aim{display:none}
+}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header>
+  <div class="brand">
+    <h1>&#x26A1; Energy Mix Balancer</h1>
+    <p>KS3 Geography &middot; Resource geography: energy, food and water security</p>
+  </div>
+  <p class="aim"><strong>Teacher aim:</strong> pupils balance a country's energy sources to meet demand, then explain the trade-offs between cost, emissions and energy security.</p>
+</header>
+
+<main id="wrap">
+
+  <!-- LEFT: controls -->
+  <section class="card" aria-labelledby="ctrl-h">
+    <h2 id="ctrl-h">&#x1F30D; Choose a country</h2>
+    <div class="countries" id="countries" role="group" aria-label="Choose a country to balance"></div>
+    <p class="cdesc" id="cdesc"></p>
+
+    <h2 style="margin-top:16px">&#x1F39B;&#xFE0F; Set the energy mix</h2>
+    <div id="sliders"></div>
+
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--good)"></span>renewable / low carbon</span>
+      <span><span class="swatch" style="background:var(--coal)"></span>fossil fuel</span>
+    </div>
+  </section>
+
+  <!-- RIGHT: results -->
+  <section class="card" aria-labelledby="res-h">
+    <h2 id="res-h">&#x1F4CA; Your country's results</h2>
+
+    <div class="demand">
+      <div class="lab"><span>Electricity supply vs demand</span><b id="supplyTxt">0%</b></div>
+      <div class="bar" id="supplyBar" role="img" aria-label="Supply bar against demand line">
+        <div class="demline" style="left:100%"></div>
+      </div>
+      <div class="supplymsg ok" id="supplyMsg" role="status">Set the mix to total 100%.</div>
+    </div>
+
+    <div class="gauges">
+      <div class="gauge">
+        <div class="gt">Cost</div>
+        <div class="gv" id="costV">0</div>
+        <div class="gu">index, lower is cheaper</div>
+        <div class="meter"><span id="costM"></span></div>
+        <div class="grate" id="costR"></div>
+      </div>
+      <div class="gauge">
+        <div class="gt">Emissions</div>
+        <div class="gv" id="emV">0</div>
+        <div class="gu">CO&#x2082; index, lower is cleaner</div>
+        <div class="meter"><span id="emM"></span></div>
+        <div class="grate" id="emR"></div>
+      </div>
+      <div class="gauge">
+        <div class="gt">Security</div>
+        <div class="gv" id="secV">0</div>
+        <div class="gu">reliability, higher is safer</div>
+        <div class="meter"><span id="secM"></span></div>
+        <div class="grate" id="secR"></div>
+      </div>
+    </div>
+
+    <div class="feedback" aria-live="polite" id="feedback">
+      <div class="verdict" id="verdict"></div>
+      <ul id="fbList"></ul>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="checkBtn">Check my plan</button>
+      <button id="evenBtn">Spread evenly</button>
+      <button id="resetBtn">Reset to start</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Demonstration tool for classroom use. Figures are simplified teaching values, not official national statistics. UK English. &copy; WeST.
+</footer>
+
+<script>
+"use strict";
+
+/* ---- Energy source model (simplified KS3 teaching values) ----
+   cost: relative price per unit (1 cheap .. 5 dear)
+   co2:  carbon per unit (0 none .. 10 high)
+   rel:  reliability / dispatchable score (1 intermittent .. 10 firm)
+   ren:  is it renewable / low carbon for the colour key
+*/
+var SOURCES = [
+  {key:"coal",   name:"Coal",        emoji:"\u{1F311}", colour:"var(--coal)",    cost:2, co2:10, rel:9,  ren:false, note:"cheap, very dirty, reliable"},
+  {key:"gas",    name:"Gas",         emoji:"\u{1F525}", colour:"var(--gas)",     cost:3, co2:6,  rel:9,  ren:false, note:"flexible, imported, medium carbon"},
+  {key:"nuclear",name:"Nuclear",     emoji:"\u{269B}",  colour:"var(--nuclear)", cost:4, co2:1,  rel:10, ren:false, note:"low carbon, firm, costly to build"},
+  {key:"wind",   name:"Wind",        emoji:"\u{1F4A8}", colour:"var(--wind)",    cost:2, co2:0,  rel:4,  ren:true,  note:"clean, cheap, only when windy"},
+  {key:"solar",  name:"Solar",       emoji:"\u{2600}",  colour:"var(--solar)",   cost:2, co2:0,  rel:3,  ren:true,  note:"clean, only in daylight"},
+  {key:"hydro",  name:"Hydro",       emoji:"\u{1F4A7}", colour:"var(--hydro)",   cost:3, co2:1,  rel:8,  ren:true,  note:"clean, firm, needs the right rivers"}
+];
+
+/* Countries: a starting mix (must sum to 100) plus a short brief */
+var COUNTRIES = {
+  riverland:{name:"Riverland", brief:"A wet, mountainous country with big rivers. Lots of rain, little wind, modest sunshine.", mix:{coal:10,gas:20,nuclear:5,wind:5,solar:5,hydro:55}, sun:0.5, windy:0.4, importGas:true},
+  windhaven:{name:"Windhaven", brief:"A windswept island in the cold north. Strong reliable winds, weak winter sun, no rivers for hydro.", mix:{coal:25,gas:35,nuclear:10,wind:25,solar:5,hydro:0}, sun:0.4, windy:1.3, importGas:true},
+  sunfields:{name:"Sunfields", brief:"A hot, dry country near the equator. Brilliant sunshine, light winds, no big rivers.", mix:{coal:30,gas:30,nuclear:0,wind:5,solar:35,hydro:0}, sun:1.4, windy:0.5, importGas:false},
+  carbonia:{name:"Carbonia",  brief:"A heavily industrial country built on cheap home-mined coal. Average sun and wind.", mix:{coal:65,gas:20,nuclear:5,wind:5,solar:5,hydro:0}, sun:0.8, windy:0.8, importGas:false}
+};
+
+var state = {country:"riverland", mix:{}};
+
+/* ---------- Build country buttons ---------- */
+var cWrap = document.getElementById("countries");
+Object.keys(COUNTRIES).forEach(function(id){
+  var b = document.createElement("button");
+  b.className = "cbtn";
+  b.textContent = COUNTRIES[id].name;
+  b.setAttribute("aria-pressed", id===state.country ? "true":"false");
+  b.addEventListener("click", function(){ loadCountry(id); });
+  cWrap.appendChild(b);
+});
+
+/* ---------- Build sliders ---------- */
+var sWrap = document.getElementById("sliders");
+SOURCES.forEach(function(s){
+  var box = document.createElement("div");
+  box.className = "src";
+  box.innerHTML =
+    '<div class="top">' +
+      '<span class="name"><span class="swatch" style="background:'+s.colour+'"></span>'+s.emoji+' '+s.name+'</span>' +
+      '<span class="pct" id="pct-'+s.key+'">0%</span>' +
+    '</div>' +
+    '<input type="range" min="0" max="100" step="5" value="0" id="r-'+s.key+'" ' +
+      'aria-label="'+s.name+' share of the energy mix, percent" ' +
+      'aria-describedby="tags-'+s.key+'">' +
+    '<div class="tags" id="tags-'+s.key+'">'+s.note+'</div>';
+  sWrap.appendChild(box);
+  box.querySelector("input").addEventListener("input", function(e){
+    state.mix[s.key] = parseInt(e.target.value,10);
+    render();
+  });
+});
+
+/* ---------- Load a country ---------- */
+function loadCountry(id){
+  state.country = id;
+  state.mix = {};
+  SOURCES.forEach(function(s){ state.mix[s.key] = COUNTRIES[id].mix[s.key] || 0; });
+  Array.prototype.forEach.call(cWrap.children, function(btn,i){
+    btn.setAttribute("aria-pressed", Object.keys(COUNTRIES)[i]===id ? "true":"false");
+  });
+  document.getElementById("cdesc").textContent = COUNTRIES[id].brief;
+  syncSliders();
+  clearVerdict();
+  render();
+}
+
+function syncSliders(){
+  SOURCES.forEach(function(s){
+    document.getElementById("r-"+s.key).value = state.mix[s.key];
+  });
+}
+
+/* ---------- Maths ---------- */
+function totals(){
+  var c = COUNTRIES[state.country];
+  var sum=0, cost=0, co2=0, firm=0, eff=0, renShare=0, sources=0;
+  SOURCES.forEach(function(s){
+    var p = state.mix[s.key]/100;
+    if(p<=0) return;
+    sources++;
+    sum += state.mix[s.key];
+    cost += p*s.cost;
+    co2  += p*s.co2;
+    // effective output: wind/solar scaled by the country's wind/sun
+    var avail = 1;
+    if(s.key==="wind")  avail = c.windy;
+    if(s.key==="solar") avail = c.sun;
+    if(s.key==="hydro") avail = 1; // hydro modelled as firm here
+    eff += p*avail;
+    firm += p*s.rel;
+    if(s.ren) renShare += state.mix[s.key];
+  });
+  return {sum:sum, cost:cost, co2:co2, firm:firm, eff:eff, renShare:renShare, sources:sources};
+}
+
+/* Map raw scores to 0..100 gauge values */
+function clamp(v){ return Math.max(0,Math.min(100,v)); }
+
+/* ---------- Render ---------- */
+function render(){
+  var t = totals();
+
+  // slider % labels
+  SOURCES.forEach(function(s){ document.getElementById("pct-"+s.key).textContent = state.mix[s.key]+"%"; });
+
+  // supply bar
+  var bar = document.getElementById("supplyBar");
+  // remove old segs
+  Array.prototype.slice.call(bar.querySelectorAll(".seg")).forEach(function(n){ n.remove(); });
+  SOURCES.forEach(function(s){
+    if(state.mix[s.key]<=0) return;
+    var seg = document.createElement("div");
+    seg.className = "seg";
+    seg.style.background = s.colour;
+    seg.style.width = state.mix[s.key]+"%";
+    seg.title = s.name+" "+state.mix[s.key]+"%";
+    bar.insertBefore(seg, bar.querySelector(".demline"));
+  });
+  document.getElementById("supplyTxt").textContent = t.sum+"%";
+
+  var msg = document.getElementById("supplyMsg");
+  if(t.sum < 100){
+    msg.className = "supplymsg short";
+    msg.textContent = "Blackout risk: supply is " + t.sum + "%, which is below the 100% demand. Add more sources.";
+  } else if(t.sum > 100){
+    msg.className = "supplymsg over";
+    msg.textContent = "Wasteful: supply is " + t.sum + "%, above demand. You are paying for energy you do not need.";
+  } else {
+    msg.className = "supplymsg ok";
+    msg.textContent = "Balanced: supply exactly meets the 100% demand. Now look at the trade-offs.";
+  }
+
+  // Gauges (0..100). Use the planned mix even if it does not total 100.
+  // Cost: cost index roughly 2..4 per 100% -> scale.
+  var costVal = clamp(t.cost*100/ (t.sum||100) * 25);   // normalise per-unit cost
+  var emVal   = clamp(t.co2*100/ (t.sum||100) * 10);    // co2 index 0..10 -> 0..100
+  // Security: blend firmness with whether supply meets demand and import reliance
+  var c = COUNTRIES[state.country];
+  var firmAvg = (t.sum>0) ? (t.firm/(t.sum/100))/10*100 : 0; // 0..100
+  var meetPenalty = (t.sum<100) ? (100-t.sum) : 0;          // shortfall hurts security
+  var importPen = 0;
+  if(c.importGas){ importPen = state.mix.gas*0.4; }         // imported gas lowers security
+  var secVal = clamp(firmAvg*0.7 + (t.sum>=100?30:0) - meetPenalty - importPen);
+
+  setGauge("cost", costVal, costVal, true);
+  setGauge("em",   emVal,   emVal,   true);
+  setGauge("sec",  secVal,  100-secVal, false); // higher security is good
+
+  document.getElementById("costV").textContent = Math.round(costVal);
+  document.getElementById("emV").textContent   = Math.round(emVal);
+  document.getElementById("secV").textContent  = Math.round(secVal);
+
+  state._t = t; state._g = {cost:costVal, em:emVal, sec:secVal};
+}
+
+/* setGauge: id, fill value 0..100, badness 0..100 (for colour), lowerIsBetter */
+function setGauge(id, fillVal, badness, lowerIsBetter){
+  var m = document.getElementById(id+"M");
+  m.style.width = Math.round(fillVal)+"%";
+  var col = badness<33 ? "var(--good)" : badness<66 ? "var(--warn)" : "var(--bad)";
+  m.style.background = col;
+  var r = document.getElementById(id+"R");
+  var word = badness<33 ? "good" : badness<66 ? "fair" : "poor";
+  r.textContent = word;
+  r.style.color = col;
+}
+
+/* ---------- Check / feedback ---------- */
+function clearVerdict(){
+  document.getElementById("verdict").textContent = "";
+  document.getElementById("fbList").innerHTML = "";
+}
+
+function checkPlan(){
+  var t = state._t, g = state._g, c = COUNTRIES[state.country];
+  var list = document.getElementById("fbList");
+  var verdict = document.getElementById("verdict");
+  list.innerHTML = "";
+  var items = [];
+
+  // 1) Demand balance
+  if(t.sum<100){
+    items.push(["neg","<b>Not enough power.</b> Your mix supplies "+t.sum+"% of demand. A real country would face blackouts. Push your sliders up to reach 100%."]);
+  } else if(t.sum>100){
+    items.push(["neg","<b>Over-supplied at "+t.sum+"%.</b> Building power stations you do not need wastes money. Trim back to 100%."]);
+  } else {
+    items.push(["pos","<b>Demand met exactly.</b> Supply equals 100% demand, so the lights stay on without waste."]);
+  }
+
+  // 2) Emissions
+  if(g.em<33){
+    items.push(["pos","<b>Low emissions.</b> You lean on low-carbon sources, so this mix helps the climate."]);
+  } else if(g.em<66){
+    items.push(["tip","<b>Medium emissions.</b> There is still a fair amount of fossil fuel here. Swapping some coal or gas for wind, solar, hydro or nuclear would cut CO&#x2082;."]);
+  } else {
+    items.push(["neg","<b>High emissions.</b> Burning a lot of coal or gas gives high CO&#x2082;. This is the cheapest option for some countries but worst for the climate."]);
+  }
+
+  // 3) Security with geography links
+  if(g.sec>=60){
+    items.push(["pos","<b>Strong energy security.</b> You have enough firm, reliable supply, so a calm or cloudy day will not cause a shortage."]);
+  } else {
+    var why = [];
+    if(c.importGas && state.mix.gas>=30) why.push("you rely heavily on imported gas, which a supplier could cut off");
+    var renHeavy = (state.mix.wind+state.mix.solar);
+    if(renHeavy>=50 && (c.windy<0.9 || c.sun<0.9)) why.push("you depend on wind or solar that this country does not get reliably");
+    if(t.sum<100) why.push("your supply does not even reach 100% of demand");
+    if(why.length===0) why.push("too little firm, dispatchable power (gas, nuclear or hydro) to cover quiet weather");
+    items.push(["neg","<b>Weak energy security:</b> "+why.join("; ")+"."]);
+  }
+
+  // 4) Geography-specific coaching
+  if(c.windy>=1.1 && state.mix.wind<25){
+    items.push(["tip","<b>Geography tip:</b> "+c.name+" is very windy. Using more wind would be cheap and clean here."]);
+  }
+  if(c.sun>=1.2 && state.mix.solar<25){
+    items.push(["tip","<b>Geography tip:</b> "+c.name+" has strong sunshine. More solar would be a good fit."]);
+  }
+  if(state.country==="riverland" && state.mix.hydro<40){
+    items.push(["tip","<b>Geography tip:</b> Riverland has big rivers. Hydro is clean and firm here, so it can do a lot of the work."]);
+  }
+  if(c.sun<0.6 && state.mix.solar>=25){
+    items.push(["neg","<b>Poor fit:</b> "+c.name+" gets weak sunshine, so a big solar share will under-perform in winter."]);
+  }
+
+  // Overall verdict
+  var balanced = (t.sum===100);
+  var clean = g.em<45, cheap = g.cost<50, secure = g.sec>=55;
+  var score = (balanced?1:0)+(clean?1:0)+(cheap?1:0)+(secure?1:0);
+  var v, ico;
+  if(!balanced){ v="Fix the balance first"; ico="\u{26A0}\u{FE0F}"; }
+  else if(score>=4){ v="Excellent, well balanced mix"; ico="\u{1F31F}"; }
+  else if(score===3){ v="Good mix, one trade-off to improve"; ico="\u{1F44D}"; }
+  else { v="It works, but the trade-offs are tough"; ico="\u{1F914}"; }
+  verdict.textContent = ico+" "+v;
+
+  items.forEach(function(it){
+    var li = document.createElement("li");
+    li.className = it[0];
+    li.innerHTML = it[1];
+    list.appendChild(li);
+  });
+
+  // move focus to feedback for screen reader / keyboard users
+  document.getElementById("feedback").setAttribute("tabindex","-1");
+  document.getElementById("feedback").focus();
+}
+
+/* ---------- Buttons ---------- */
+document.getElementById("checkBtn").addEventListener("click", checkPlan);
+document.getElementById("resetBtn").addEventListener("click", function(){ loadCountry(state.country); });
+document.getElementById("evenBtn").addEventListener("click", function(){
+  // spread to ~100 across all six (step 5): 15,15,15,20,20,15 etc -> use 15..20
+  var vals = {coal:0,gas:20,nuclear:20,wind:20,solar:15,hydro:25};
+  SOURCES.forEach(function(s){ state.mix[s.key]=vals[s.key]||0; });
+  syncSliders(); clearVerdict(); render();
+});
+
+/* ---------- Init ---------- */
+loadCountry("riverland");
+</script>
+</body>
+</html>

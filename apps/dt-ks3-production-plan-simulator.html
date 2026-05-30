@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Production Plan Simulator | KS3 Design and Technology</title>
+<style>
+  :root {
+    --ink: #1c2430;
+    --paper: #f4f6f9;
+    --card: #ffffff;
+    --line: #d7dde6;
+    --accent: #1f6f5c;
+    --accent-dark: #14503f;
+    --amber: #b97808;
+    --amber-bg: #fdf3df;
+    --red: #b3261e;
+    --red-bg: #fbe6e4;
+    --green: #1f7a43;
+    --green-bg: #e4f3ea;
+    --blue: #1f5d8c;
+    --blue-bg: #e6eff6;
+    --shadow: 0 1px 3px rgba(20,40,60,.12), 0 6px 18px rgba(20,40,60,.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app-head {
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+  }
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 0 0 4px;
+  }
+  h1 { font-size: clamp(1.5rem, 4vw, 2.1rem); margin: 0 0 6px; line-height: 1.15; }
+  .aim {
+    background: var(--blue-bg);
+    border-left: 4px solid var(--blue);
+    padding: 8px 12px;
+    border-radius: 0 8px 8px 0;
+    font-size: .92rem;
+    margin-top: 10px;
+  }
+  .aim strong { color: var(--blue); }
+  .layout { display: grid; gap: 18px; grid-template-columns: 1fr; }
+  @media (min-width: 880px) {
+    .layout { grid-template-columns: 1.15fr .85fr; align-items: start; }
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .card h2 {
+    font-size: 1.02rem;
+    margin: 0 0 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card .sub { font-size: .82rem; color: #5a6675; margin: 0 0 12px; }
+  .brief {
+    background: var(--amber-bg);
+    border: 1px solid #f0d9a8;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    font-size: .9rem;
+  }
+  .brief h3 { margin: 0 0 6px; font-size: .95rem; color: var(--amber); }
+  .brief ul { margin: 6px 0 0; padding-left: 18px; }
+  .brief li { margin: 2px 0; }
+
+  /* Sequence list */
+  .seq-list { list-style: none; margin: 0; padding: 0; }
+  .step {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    background: #fbfcfe;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 10px 10px 8px;
+    margin-bottom: 8px;
+    touch-action: none;
+    cursor: grab;
+    transition: box-shadow .12s, transform .05s, border-color .12s;
+  }
+  .step:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  .step.dragging { opacity: .55; cursor: grabbing; }
+  .step.drop-target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+  .step.kb-selected { border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue) inset; background: var(--blue-bg); }
+  .handle {
+    display: flex; align-items: center; justify-content: center;
+    width: 26px; color: #8a96a6; font-size: 1.2rem; flex: 0 0 auto;
+    user-select: none;
+  }
+  .step-body { flex: 1 1 auto; min-width: 0; }
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: .78rem; font-weight: 700;
+    margin-right: 6px; flex: 0 0 auto;
+  }
+  .step-title { font-weight: 600; font-size: .92rem; }
+  .step-meta { font-size: .78rem; color: #5a6675; margin-top: 3px; }
+  .tag {
+    display: inline-block; font-size: .7rem; font-weight: 600;
+    padding: 1px 7px; border-radius: 20px; margin: 2px 4px 0 0;
+    border: 1px solid transparent;
+  }
+  .tag.tool { background: var(--blue-bg); color: var(--blue); border-color: #bcd4e8; }
+  .tag.qc { background: var(--green-bg); color: var(--green); border-color: #b6dcc4; }
+  .tag.haz { background: var(--red-bg); color: var(--red); border-color: #e8b6b2; }
+
+  .kb-hint { font-size: .75rem; color: #6a7686; margin: 4px 0 12px; }
+
+  /* Tool allocation */
+  .tool-bank { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+  .alloc-row {
+    display: grid; grid-template-columns: 1fr; gap: 8px;
+  }
+  .alloc-item {
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px;
+    background: #fbfcfe;
+  }
+  .alloc-item .ai-title { font-weight: 600; font-size: .9rem; margin-bottom: 6px; }
+  .alloc-item select {
+    width: 100%; padding: 8px; font-size: .88rem; border-radius: 8px;
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+  }
+  .alloc-item select:focus-visible { outline: 3px solid var(--blue); outline-offset: 1px; }
+  .alloc-item.ok { border-color: var(--green); background: var(--green-bg); }
+  .alloc-item.bad { border-color: var(--amber); background: var(--amber-bg); }
+
+  .qc-grid { display: grid; gap: 8px; }
+  .qc-opt {
+    display: flex; align-items: flex-start; gap: 10px;
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px;
+    background: #fbfcfe; cursor: pointer;
+  }
+  .qc-opt input { margin-top: 3px; width: 18px; height: 18px; flex: 0 0 auto; }
+  .qc-opt .qc-txt { font-size: .88rem; }
+  .qc-opt:focus-within { outline: 3px solid var(--blue); outline-offset: 1px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button.btn {
+    font: inherit; font-weight: 600; border: none; border-radius: 10px;
+    padding: 11px 18px; cursor: pointer; font-size: .92rem;
+  }
+  button.btn:focus-visible { outline: 3px solid #000; outline-offset: 2px; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-ghost { background: #eef1f5; color: var(--ink); border: 1px solid var(--line); }
+  .btn-ghost:hover { background: #e3e8ee; }
+
+  /* Run output */
+  .runline {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+    border-radius: 8px; margin-bottom: 6px; font-size: .88rem;
+    border: 1px solid var(--line); background: #fbfcfe;
+  }
+  .runline .ic { flex: 0 0 auto; font-size: 1.05rem; width: 22px; text-align: center; }
+  .runline.good { background: var(--green-bg); border-color: #b6dcc4; }
+  .runline.warn { background: var(--amber-bg); border-color: #f0d9a8; }
+  .runline.fail { background: var(--red-bg); border-color: #e8b6b2; }
+  .runline .ln-body { flex: 1 1 auto; }
+  .runline .ln-title { font-weight: 600; }
+  .runline .ln-note { font-size: .8rem; color: #4a5564; margin-top: 1px; }
+
+  .scorebar {
+    display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 14px;
+  }
+  .scorechip {
+    flex: 1 1 120px; text-align: center; border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 8px; background: #fbfcfe;
+  }
+  .scorechip .num { font-size: 1.4rem; font-weight: 800; line-height: 1; }
+  .scorechip .lab { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: #5a6675; margin-top: 4px; }
+  .scorechip.q .num { color: var(--green); }
+  .scorechip.t .num { color: var(--blue); }
+  .scorechip.r .num { color: var(--amber); }
+
+  .verdict {
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
+    font-size: .92rem; border: 1px solid var(--line);
+  }
+  .verdict.pass { background: var(--green-bg); border-color: #b6dcc4; }
+  .verdict.partial { background: var(--amber-bg); border-color: #f0d9a8; }
+  .verdict.scrap { background: var(--red-bg); border-color: #e8b6b2; }
+  .verdict h3 { margin: 0 0 4px; font-size: 1rem; }
+
+  .empty-run { color: #6a7686; font-size: .9rem; text-align: center; padding: 18px 8px; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  footer.foot {
+    margin-top: 26px; font-size: .78rem; color: #6a7686; text-align: center;
+    border-top: 1px solid var(--line); padding-top: 12px;
+  }
+  details.help { margin-top: 14px; font-size: .85rem; }
+  details.help summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+  details.help ul { margin: 8px 0 0; padding-left: 18px; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app-head">
+    <p class="eyebrow">KS3 Design and Technology &middot; Make</p>
+    <h1>Production Plan Simulator</h1>
+    <p class="aim"><strong>Teacher aim:</strong> Pupils sequence the manufacture of a product, allocate the correct precise tools and quality checks, then run the plan to find bottlenecks and errors. Covers the National Curriculum <em>Make</em> strand: planning, selecting from wider materials and components, and using precise tools, techniques and processes accurately.</p>
+  </header>
+
+  <div class="brief">
+    <h3>&#x1F4CB; The brief: a pine and acrylic phone stand</h3>
+    <p style="margin:0 0 4px;">Workshop technician <strong>Mr Okafor</strong> needs a one-off prototype phone stand made from a pine base with a clear acrylic upright. Your job is to plan the manufacture so it can be made safely, accurately and in the right order. Get the plan right, then press <strong>Run the plan</strong> to simulate the build.</p>
+    <ul>
+      <li>Order the manufacturing stages logically (you cannot finish a part before you have marked and cut it).</li>
+      <li>Pick the most precise, correct tool for each stage.</li>
+      <li>Choose the quality checks that actually catch errors.</li>
+    </ul>
+  </div>
+
+  <div class="layout">
+    <!-- LEFT COLUMN: planning -->
+    <div>
+      <section class="card" aria-labelledby="seqHead">
+        <h2 id="seqHead">&#x1F522; 1. Sequence the manufacture</h2>
+        <p class="sub">Drag the stages into a sensible order, or use the keyboard.</p>
+        <p class="kb-hint">Keyboard: focus a stage with Tab, press <kbd>Enter</kbd> or <kbd>Space</kbd> to pick it up, then use <kbd>&uarr;</kbd> / <kbd>&darr;</kbd> to move it and <kbd>Enter</kbd> to drop.</p>
+        <ol class="seq-list" id="seqList" aria-label="Manufacturing stages, reorder these"></ol>
+      </section>
+
+      <section class="card" aria-labelledby="toolHead" style="margin-top:16px;">
+        <h2 id="toolHead">&#x1F527; 2. Allocate a precise tool to each stage</h2>
+        <p class="sub">Choose the tool a workshop would actually use for accuracy and safety.</p>
+        <div class="alloc-row" id="toolAlloc"></div>
+      </section>
+
+      <section class="card" aria-labelledby="qcHead" style="margin-top:16px;">
+        <h2 id="qcHead">&#x2705; 3. Choose your quality checks</h2>
+        <p class="sub">Pick the checks that genuinely catch manufacturing errors. Tick at least two.</p>
+        <div class="qc-grid" id="qcGrid"></div>
+      </section>
+
+      <div class="controls">
+        <button class="btn btn-primary" id="runBtn">&#x25B6; Run the plan</button>
+        <button class="btn btn-ghost" id="resetBtn">&#x21BB; Reset</button>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: simulation output -->
+    <div>
+      <section class="card" aria-labelledby="outHead">
+        <h2 id="outHead">&#x1F3ED; Production run</h2>
+        <p class="sub">Press Run to simulate the build with your plan.</p>
+
+        <div class="scorebar" id="scoreBar" hidden>
+          <div class="scorechip q"><div class="num" id="scoreQ">0</div><div class="lab">Quality %</div></div>
+          <div class="scorechip t"><div class="num" id="scoreT">0</div><div class="lab">Build min</div></div>
+          <div class="scorechip r"><div class="num" id="scoreR">0</div><div class="lab">Re-work min</div></div>
+        </div>
+
+        <div id="verdictBox"></div>
+
+        <div id="runOutput" aria-live="polite" aria-atomic="false">
+          <p class="empty-run">No run yet. Plan your stages, tools and checks, then press <strong>Run the plan</strong>.</p>
+        </div>
+
+        <details class="help">
+          <summary>What the simulator is checking</summary>
+          <ul>
+            <li>Stages in a workable order (mark out, then cut, then shape, then finish, then assemble).</li>
+            <li>Each tool matched to its task for accuracy (for example a try square for marking right angles, not a ruler alone).</li>
+            <li>Quality checks placed so errors are caught before they are made permanent.</li>
+            <li>Safety steps (goggles, guards) present before machining.</li>
+          </ul>
+        </details>
+      </section>
+    </div>
+  </div>
+
+  <footer class="foot">
+    Demonstration activity for WeST KS3 Design and Technology. Fictional brief and characters. UK English.
+  </footer>
+</div>
+
+<div class="sr-only" id="liveStatus" aria-live="assertive"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ----- Data model -----------------------------------------------------
+  // Correct manufacturing order (canonical). Lower order = earlier.
+  var STAGES = [
+    { id:"select",  title:"Select and check materials",        order:1,
+      desc:"Choose pine and acrylic, check for defects.",
+      tools:["tape-measure","try-square","marking-gauge"], correctTool:"tape-measure",
+      toolNote:"A tape measure confirms the stock is long enough before you commit to cutting." },
+    { id:"mark",    title:"Mark out the parts",                order:2,
+      desc:"Set out lengths and the right-angle base.",
+      tools:["try-square","ruler-only","marking-gauge","tape-measure"], correctTool:"try-square",
+      toolNote:"A try square gives an accurate 90 degree line; a ruler alone cannot guarantee a square corner." },
+    { id:"safety",  title:"Set up guards and PPE",             order:3, safety:true,
+      desc:"Goggles on, machine guards in place before any machining.",
+      tools:["goggles-guard","none","gloves-loose"], correctTool:"goggles-guard",
+      toolNote:"Eye protection and guards must be set before cutting begins." },
+    { id:"cut",     title:"Cut the pine base to size",         order:4,
+      desc:"Cut the timber close to the marked line.",
+      tools:["tenon-saw","craft-knife","bench-shears"], correctTool:"tenon-saw",
+      toolNote:"A tenon saw makes a straight, controlled cut in timber along a marked line." },
+    { id:"acrylic", title:"Cut and smooth the acrylic upright",order:5,
+      desc:"Cut acrylic and remove sharp edges.",
+      tools:["coping-saw","tenon-saw","wood-chisel"], correctTool:"coping-saw",
+      toolNote:"A coping saw with a fine blade cuts acrylic cleanly; a tenon saw can chip and crack it." },
+    { id:"shape",   title:"Shape and smooth the pine",         order:6,
+      desc:"Remove saw marks, ease the edges.",
+      tools:["glasspaper","tenon-saw","tape-measure"], correctTool:"glasspaper",
+      toolNote:"Glasspaper (abrasive) smooths the surface and edges after cutting." },
+    { id:"join",    title:"Join base and upright",             order:7,
+      desc:"Fix the acrylic upright into the pine base.",
+      tools:["pva-glue","masking-tape","none"], correctTool:"pva-glue",
+      toolNote:"A suitable adhesive forms a permanent joint between the two parts." },
+    { id:"finish",  title:"Apply finish and final inspect",    order:8,
+      desc:"Protect the timber and inspect against the spec.",
+      tools:["wood-wax","more-glasspaper","none"], correctTool:"wood-wax",
+      toolNote:"A finish protects the pine and improves appearance once assembly is complete." }
+  ];
+
+  var TOOL_LABELS = {
+    "tape-measure":"Tape measure", "try-square":"Try square", "marking-gauge":"Marking gauge",
+    "ruler-only":"Ruler only (no square)", "goggles-guard":"Safety goggles + machine guard",
+    "none":"No tool needed", "gloves-loose":"Loose gloves near machine",
+    "tenon-saw":"Tenon saw", "craft-knife":"Craft knife", "bench-shears":"Bench shears",
+    "coping-saw":"Coping saw (fine blade)", "wood-chisel":"Wood chisel",
+    "glasspaper":"Glasspaper (abrasive)", "pva-glue":"PVA / suitable adhesive",
+    "masking-tape":"Masking tape", "wood-wax":"Wood wax / finish",
+    "more-glasspaper":"More glasspaper"
+  };
+
+  // Quality check options. correct = a genuinely useful check.
+  var QC_OPTIONS = [
+    { id:"q-square",  text:"Check the base corner with a try square after marking out, before cutting.", correct:true,
+      note:"Catches a non-square base while it can still be re-marked, not after cutting." },
+    { id:"q-fit",     text:"Dry-fit the acrylic upright into the slot before gluing.", correct:true,
+      note:"Finds a sloppy or tight joint before the glue makes it permanent." },
+    { id:"q-spec",    text:"Measure the finished height against the brief with a tape measure.", correct:true,
+      note:"Confirms the product meets the specification (final inspection)." },
+    { id:"q-colour",  text:"Ask a friend whether they like the colour of the pine.", correct:false,
+      note:"An opinion is not a measurable quality check against the specification." },
+    { id:"q-paint",   text:"Repaint the whole stand if any saw mark is visible.", correct:false,
+      note:"Re-working everything is wasteful; smooth the mark with glasspaper instead." },
+    { id:"q-after",   text:"Check the dimensions only after the finish has been applied.", correct:false,
+      note:"Too late: an error found now means scrapping a finished part." }
+  ];
+
+  // ----- State ----------------------------------------------------------
+  var state = {
+    order: STAGES.map(function(s){ return s.id; }),
+    tools: {},   // stageId -> toolId
+    checks: {},  // qcId -> bool
+    grabbed: null
+  };
+
+  function byId(id){ return STAGES.filter(function(s){return s.id===id;})[0]; }
+  function $(s){ return document.querySelector(s); }
+  function el(tag, cls){ var e=document.createElement(tag); if(cls) e.className=cls; return e; }
+  function announce(msg){ $("#liveStatus").textContent=""; setTimeout(function(){ $("#liveStatus").textContent=msg; },30); }
+
+  // ----- Render sequence list -------------------------------------------
+  var seqList = $("#seqList");
+
+  function renderSeq(){
+    seqList.innerHTML = "";
+    state.order.forEach(function(sid, idx){
+      var s = byId(sid);
+      var li = el("li","step");
+      li.setAttribute("data-id", sid);
+      li.setAttribute("tabindex","0");
+      li.setAttribute("role","button");
+      li.setAttribute("aria-roledescription","reorderable manufacturing stage");
+      li.setAttribute("aria-label", "Position " + (idx+1) + ". " + s.title + ". Activate to pick up and reorder.");
+      if(state.grabbed===sid){ li.classList.add("kb-selected"); }
+
+      var handle = el("span","handle"); handle.setAttribute("aria-hidden","true"); handle.textContent = "☰";
+      var body = el("div","step-body");
+      var num = el("span","step-num"); num.setAttribute("aria-hidden","true"); num.textContent = (idx+1);
+      var title = el("span","step-title"); title.textContent = s.title;
+      var line1 = el("div"); line1.appendChild(num); line1.appendChild(title);
+      var meta = el("div","step-meta"); meta.textContent = s.desc;
+      body.appendChild(line1); body.appendChild(meta);
+      li.appendChild(handle); li.appendChild(body);
+      seqList.appendChild(li);
+    });
+    bindPointerDrag();
+  }
+
+  // ----- Pointer drag (touch + mouse) -----------------------------------
+  var dragId = null, dragEl = null, placeholder = null, startY = 0;
+
+  function bindPointerDrag(){
+    var steps = seqList.querySelectorAll(".step");
+    Array.prototype.forEach.call(steps, function(step){
+      step.addEventListener("pointerdown", onDown);
+      step.addEventListener("keydown", onKey);
+    });
+  }
+
+  function onDown(e){
+    // ignore if it began on a focus that wants keyboard; pointer drag for direct manipulation
+    if(e.button !== undefined && e.button !== 0) return;
+    var step = e.currentTarget;
+    dragId = step.getAttribute("data-id");
+    dragEl = step;
+    startY = e.clientY;
+    step.classList.add("dragging");
+    try { step.setPointerCapture(e.pointerId); } catch(err){}
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
+    e.preventDefault();
+  }
+
+  function onMove(e){
+    if(!dragEl) return;
+    var after = getStepAfter(e.clientY);
+    clearDropTargets();
+    if(after && after !== dragEl){ after.classList.add("drop-target"); }
+  }
+
+  function clearDropTargets(){
+    var t = seqList.querySelectorAll(".drop-target");
+    Array.prototype.forEach.call(t, function(x){ x.classList.remove("drop-target"); });
+  }
+
+  function getStepAfter(y){
+    var steps = Array.prototype.slice.call(seqList.querySelectorAll(".step:not(.dragging)"));
+    var closest = null, closestDist = Infinity;
+    steps.forEach(function(st){
+      var box = st.getBoundingClientRect();
+      var centre = box.top + box.height/2;
+      var dist = Math.abs(y - centre);
+      if(dist < closestDist){ closestDist = dist; closest = st; }
+    });
+    if(!closest) return null;
+    var box = closest.getBoundingClientRect();
+    // decide insert before or after the closest based on pointer position
+    closest._insertAfter = (y > box.top + box.height/2);
+    return closest;
+  }
+
+  function onUp(e){
+    if(!dragEl) return;
+    var target = null;
+    var steps = seqList.querySelectorAll(".step:not(.dragging)");
+    Array.prototype.forEach.call(steps, function(st){ if(st.classList.contains("drop-target")) target = st; });
+    if(target){
+      var fromIdx = state.order.indexOf(dragId);
+      state.order.splice(fromIdx,1);
+      var toIdx = state.order.indexOf(target.getAttribute("data-id"));
+      if(target._insertAfter) toIdx += 1;
+      state.order.splice(toIdx,0,dragId);
+    }
+    dragEl.classList.remove("dragging");
+    clearDropTargets();
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    document.removeEventListener("pointercancel", onUp);
+    dragEl = null; dragId = null;
+    renderSeq();
+    announce("Stages reordered.");
+  }
+
+  // ----- Keyboard reorder -----------------------------------------------
+  function onKey(e){
+    var step = e.currentTarget;
+    var sid = step.getAttribute("data-id");
+    if(e.key === "Enter" || e.key === " " || e.key === "Spacebar"){
+      e.preventDefault();
+      if(state.grabbed === sid){
+        state.grabbed = null;
+        renderSeq();
+        focusStage(sid);
+        announce(byId(sid).title + " dropped.");
+      } else {
+        state.grabbed = sid;
+        renderSeq();
+        focusStage(sid);
+        announce(byId(sid).title + " picked up. Use up and down arrows to move it, then Enter to drop.");
+      }
+    } else if((e.key === "ArrowUp" || e.key === "ArrowDown") && state.grabbed === sid){
+      e.preventDefault();
+      var idx = state.order.indexOf(sid);
+      var ni = e.key === "ArrowUp" ? idx-1 : idx+1;
+      if(ni < 0 || ni >= state.order.length) return;
+      state.order.splice(idx,1);
+      state.order.splice(ni,0,sid);
+      renderSeq();
+      focusStage(sid);
+      announce(byId(sid).title + " moved to position " + (ni+1) + ".");
+    }
+  }
+
+  function focusStage(sid){
+    setTimeout(function(){
+      var node = seqList.querySelector('.step[data-id="'+sid+'"]');
+      if(node) node.focus();
+    }, 20);
+  }
+
+  // ----- Tool allocation ------------------------------------------------
+  var toolAlloc = $("#toolAlloc");
+  function renderTools(){
+    toolAlloc.innerHTML = "";
+    STAGES.forEach(function(s){
+      var item = el("div","alloc-item");
+      item.setAttribute("data-stage", s.id);
+      var t = el("div","ai-title"); t.textContent = s.title;
+      var sel = el("select");
+      sel.setAttribute("aria-label","Tool for: " + s.title);
+      var blank = el("option"); blank.value=""; blank.textContent="Choose a tool..."; sel.appendChild(blank);
+      // shuffle-stable: present options in defined order
+      s.tools.forEach(function(tid){
+        var o = el("option"); o.value=tid; o.textContent = TOOL_LABELS[tid] || tid;
+        if(state.tools[s.id]===tid) o.selected=true;
+        sel.appendChild(o);
+      });
+      sel.addEventListener("change", function(){
+        state.tools[s.id] = sel.value;
+      });
+      item.appendChild(t); item.appendChild(sel);
+      toolAlloc.appendChild(item);
+    });
+  }
+
+  // ----- Quality checks -------------------------------------------------
+  var qcGrid = $("#qcGrid");
+  function renderQC(){
+    qcGrid.innerHTML = "";
+    QC_OPTIONS.forEach(function(q){
+      var lab = el("label","qc-opt");
+      var cb = el("input"); cb.type="checkbox"; cb.value=q.id;
+      cb.setAttribute("aria-label", q.text);
+      if(state.checks[q.id]) cb.checked = true;
+      cb.addEventListener("change", function(){ state.checks[q.id] = cb.checked; });
+      var txt = el("span","qc-txt"); txt.textContent = q.text;
+      lab.appendChild(cb); lab.appendChild(txt);
+      qcGrid.appendChild(lab);
+    });
+  }
+
+  // ----- Run the simulation ---------------------------------------------
+  function runPlan(){
+    var lines = [];
+    var quality = 100;
+    var buildMin = 0;
+    var reworkMin = 0;
+    var canonical = STAGES.slice().sort(function(a,b){return a.order-b.order;}).map(function(s){return s.id;});
+
+    // 1) Sequence check: find first out-of-order stage relative to canonical
+    var seqProblems = [];
+    // Build a map of canonical position
+    var pos = {}; canonical.forEach(function(id,i){ pos[id]=i; });
+    // Detect inversions: a stage appearing before a stage that should precede it
+    for(var i=0;i<state.order.length;i++){
+      for(var j=i+1;j<state.order.length;j++){
+        if(pos[state.order[i]] > pos[state.order[j]]){
+          seqProblems.push({ early: state.order[j], late: state.order[i] });
+        }
+      }
+    }
+    // Report the most meaningful sequence issues (max 2 specific)
+    if(seqProblems.length === 0){
+      lines.push({ cls:"good", ic:"✔", title:"Stage order is logical.",
+        note:"Mark out, set up safety, cut, shape, join, then finish. The line flows without backtracking." });
+      buildMin += 40;
+    } else {
+      // pick a couple of clear, teachable inversions
+      var shown = 0;
+      var seen = {};
+      for(var k=0;k<seqProblems.length && shown<2;k++){
+        var p = seqProblems[k];
+        var key = p.early+">"+p.late;
+        if(seen[key]) continue; seen[key]=true;
+        var eS = byId(p.early), lS = byId(p.late);
+        lines.push({ cls:"fail", ic:"✖", title:"Out of order: “"+lS.title+"” happens before “"+eS.title+"”.",
+          note:"You cannot do that yet. “"+eS.title+"” must come first, otherwise you are working on a part that is not ready." });
+        shown++;
+      }
+      var penalty = Math.min(40, seqProblems.length*8);
+      quality -= penalty;
+      reworkMin += seqProblems.length*6;
+      buildMin += 40 + seqProblems.length*4;
+    }
+
+    // Specific safety-before-machining check
+    var safetyIdx = state.order.indexOf("safety");
+    var cutIdx = state.order.indexOf("cut");
+    var acrIdx = state.order.indexOf("acrylic");
+    if(safetyIdx > cutIdx || safetyIdx > acrIdx){
+      lines.push({ cls:"fail", ic:"⚠", title:"Safety set-up comes after cutting.",
+        note:"PPE and guards must be in place before any machining or sawing. This is a serious health and safety error." });
+      quality -= 15; reworkMin += 5;
+    }
+
+    // 2) Tool allocation check
+    var toolBad = [];
+    var toolMissing = [];
+    STAGES.forEach(function(s){
+      var chosen = state.tools[s.id];
+      if(!chosen){ toolMissing.push(s); return; }
+      if(chosen !== s.correctTool){ toolBad.push({ s:s, chosen:chosen }); }
+    });
+
+    if(toolMissing.length){
+      lines.push({ cls:"warn", ic:"❔", title:toolMissing.length + " stage(s) have no tool allocated.",
+        note:"Allocate a tool to every stage so the operator knows what to pick up: " + toolMissing.map(function(s){return s.title;}).join("; ") + "." });
+      quality -= toolMissing.length*5;
+      buildMin += toolMissing.length*3;
+    }
+    if(toolBad.length === 0 && toolMissing.length === 0){
+      lines.push({ cls:"good", ic:"✔", title:"Every tool is matched to its task.",
+        note:"Precise tool selection keeps the work accurate and safe." });
+      buildMin += 20;
+    } else {
+      toolBad.forEach(function(tb){
+        lines.push({ cls:"warn", ic:"✖", title:"Wrong tool for “"+tb.s.title+"”: you picked "+ (TOOL_LABELS[tb.chosen]||tb.chosen) +".",
+          note:"Use "+ TOOL_LABELS[tb.s.correctTool] +" instead. " + tb.s.toolNote });
+      });
+      quality -= toolBad.length*8;
+      reworkMin += toolBad.length*5;
+      buildMin += 20 + toolBad.length*3;
+    }
+
+    // 3) Quality checks
+    var goodChecks = QC_OPTIONS.filter(function(q){ return q.correct && state.checks[q.id]; });
+    var badChecks  = QC_OPTIONS.filter(function(q){ return !q.correct && state.checks[q.id]; });
+    var missedGood = QC_OPTIONS.filter(function(q){ return q.correct && !state.checks[q.id]; });
+
+    if(goodChecks.length >= 2 && badChecks.length === 0){
+      lines.push({ cls:"good", ic:"✔", title:"Strong quality control: "+goodChecks.length+" effective checks chosen.",
+        note:"Errors are caught early, before they become permanent. That keeps re-work low." });
+      quality += 6;
+      reworkMin = Math.max(0, reworkMin-4);
+    } else {
+      if(goodChecks.length < 2){
+        lines.push({ cls:"warn", ic:"❔", title:"Not enough effective quality checks ("+goodChecks.length+" of the useful ones chosen).",
+          note:"Pick at least two real checks. Missed: " + missedGood.map(function(q){return "“"+q.text+"”";}).slice(0,2).join(" ") });
+        quality -= (2-goodChecks.length)*7;
+        reworkMin += 6;
+      }
+      badChecks.forEach(function(q){
+        lines.push({ cls:"warn", ic:"✖", title:"That is not a useful quality check.",
+          note:"“"+q.text+"” " + q.note });
+        quality -= 5;
+      });
+    }
+
+    // Clamp
+    quality = Math.max(0, Math.min(100, Math.round(quality)));
+    buildMin = Math.round(buildMin);
+    reworkMin = Math.round(reworkMin);
+
+    // ----- Render output ------------------------------------------------
+    var out = $("#runOutput");
+    out.innerHTML = "";
+    lines.forEach(function(l){
+      var row = el("div","runline " + l.cls);
+      var ic = el("span","ic"); ic.setAttribute("aria-hidden","true"); ic.textContent = l.ic;
+      var b = el("div","ln-body");
+      var t = el("div","ln-title"); t.textContent = l.title;
+      var n = el("div","ln-note"); n.textContent = l.note;
+      b.appendChild(t); b.appendChild(n);
+      row.appendChild(ic); row.appendChild(b);
+      out.appendChild(row);
+    });
+
+    // scores
+    $("#scoreBar").hidden = false;
+    $("#scoreQ").textContent = quality;
+    $("#scoreT").textContent = buildMin;
+    $("#scoreR").textContent = reworkMin;
+
+    // verdict
+    var vb = $("#verdictBox");
+    vb.innerHTML = "";
+    var v = el("div","verdict");
+    var vh = el("h3");
+    var vp = el("p"); vp.style.margin = "0";
+    if(quality >= 90 && reworkMin <= 4){
+      v.classList.add("pass");
+      vh.textContent = "✅ Prototype passes inspection.";
+      vp.textContent = "A clean, accurate build with very little re-work. Mr Okafor signs it off. This is what good production planning looks like.";
+    } else if(quality >= 65){
+      v.classList.add("partial");
+      vh.textContent = "⚠ Usable, but with re-work.";
+      vp.textContent = "The stand can be made, but the bottlenecks above cost time and accuracy. Fix the flagged stages and run it again to raise the quality score.";
+    } else {
+      v.classList.add("scrap");
+      vh.textContent = "✖ Build fails: too many errors.";
+      vp.textContent = "Errors stacked up and a part would be scrapped. Re-order the stages, match the precise tools, and add real quality checks, then run again.";
+    }
+    v.appendChild(vh); v.appendChild(vp);
+    vb.appendChild(v);
+
+    // colour the tool allocation items to give inline feedback too
+    STAGES.forEach(function(s){
+      var node = toolAlloc.querySelector('.alloc-item[data-stage="'+s.id+'"]');
+      if(!node) return;
+      node.classList.remove("ok","bad");
+      if(state.tools[s.id] === s.correctTool) node.classList.add("ok");
+      else if(state.tools[s.id]) node.classList.add("bad");
+    });
+
+    announce("Production run complete. Quality " + quality + " percent. Build " + buildMin + " minutes. Re-work " + reworkMin + " minutes. " + vh.textContent.replace(/[^\x00-\x7F]/g,"").trim());
+    vb.scrollIntoView({ behavior:"smooth", block:"nearest" });
+  }
+
+  // ----- Reset ----------------------------------------------------------
+  function resetAll(){
+    state.order = STAGES.map(function(s){ return s.id; });
+    // light shuffle so the starting order is not already perfect
+    state.order = shuffle(state.order.slice());
+    state.tools = {};
+    state.checks = {};
+    state.grabbed = null;
+    renderSeq(); renderTools(); renderQC();
+    $("#scoreBar").hidden = true;
+    $("#verdictBox").innerHTML = "";
+    $("#runOutput").innerHTML = '<p class="empty-run">Plan reset. Re-order the stages, allocate tools and checks, then press <strong>Run the plan</strong>.</p>';
+    announce("Plan reset.");
+  }
+
+  function shuffle(arr){
+    for(var i=arr.length-1;i>0;i--){
+      var j = Math.floor(Math.random()*(i+1));
+      var tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp;
+    }
+    return arr;
+  }
+
+  // ----- Init -----------------------------------------------------------
+  // Start with a deliberately scrambled order so there is a real task.
+  state.order = shuffle(STAGES.map(function(s){ return s.id; }));
+  renderSeq();
+  renderTools();
+  renderQC();
+
+  $("#runBtn").addEventListener("click", runPlan);
+  $("#resetBtn").addEventListener("click", resetAll);
+
+})();
+</script>
+</body>
+</html>

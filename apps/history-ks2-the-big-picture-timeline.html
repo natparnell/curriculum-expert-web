@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Big Picture Timeline</title>
+<style>
+  :root {
+    --ink: #1d2433;
+    --muted: #5a6478;
+    --line: #d7dde8;
+    --paper: #f6f8fc;
+    --card: #ffffff;
+    --accent: #2b5fb3;
+    --good: #1f8a4c;
+    --good-bg: #e4f6ec;
+    --warn: #b3531f;
+    --warn-bg: #fbecdf;
+    --bad: #b32b3a;
+    --bad-bg: #fbe3e6;
+    --bc: #6a4ea0;
+    --ad: #2b5fb3;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  header.page {
+    background: linear-gradient(120deg, #20335c, #2b5fb3);
+    color: #fff;
+    padding: 18px 20px 20px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+  header.page h1 { margin: 0 0 4px; font-size: clamp(1.4rem, 4vw, 2rem); }
+  .aim {
+    margin: 6px 0 0;
+    font-size: 0.95rem;
+    color: #e7eefc;
+  }
+  .aim strong { color: #fff; }
+  main { padding: 18px 0 60px; }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin: 0 0 18px;
+    box-shadow: 0 1px 3px rgba(20,30,60,0.05);
+  }
+  .panel h2 { margin: 0 0 6px; font-size: 1.15rem; }
+  .panel p.lead { margin: 0 0 12px; color: var(--muted); font-size: 0.95rem; }
+
+  /* Task bar */
+  .taskbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    background: #eef3fb;
+    border: 1px solid #d4e0f3;
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin: 0 0 16px;
+  }
+  .taskbar .label { font-weight: 700; color: var(--accent); }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .pill .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+  /* Tokens to drag */
+  .tokens {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 8px;
+  }
+  .token {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 2px solid;
+    border-radius: 10px;
+    padding: 8px 12px;
+    background: #fff;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+  .token:focus-visible { outline: 3px solid #ffb02e; outline-offset: 2px; }
+  .token[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: default;
+    text-decoration: line-through;
+  }
+  .token .emoji { font-size: 1.2rem; }
+  .token.dragging { opacity: 0.6; cursor: grabbing; }
+
+  /* The ribbon */
+  .ribbon-frame {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fbfcff;
+    padding: 10px 8px 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ribbon {
+    position: relative;
+    height: 260px;
+    min-width: 760px;
+    touch-action: none;
+  }
+  .era-band {
+    position: absolute;
+    top: 0;
+    bottom: 38px;
+    width: 50%;
+  }
+  .era-band.bc { left: 0; background: linear-gradient(180deg, #efe9f7, #f6f2fc); border-right: 2px dashed #b3a3d6; }
+  .era-band.ad { left: 50%; background: linear-gradient(180deg, #e8f0fb, #f3f7fd); }
+  .era-label {
+    position: absolute;
+    top: 6px;
+    font-weight: 800;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 6px;
+    color: #fff;
+  }
+  .era-label.bc { left: 8px; background: var(--bc); }
+  .era-label.ad { right: 8px; background: var(--ad); }
+  .now-marker {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 38px;
+    width: 0;
+    border-right: 3px solid #1d2433;
+  }
+  .now-label {
+    position: absolute;
+    right: 4px;
+    bottom: 42px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #1d2433;
+  }
+  .tick {
+    position: absolute;
+    bottom: 38px;
+    width: 0;
+    border-left: 1px solid #c2cbdb;
+    height: 8px;
+  }
+  .tick-label {
+    position: absolute;
+    bottom: 12px;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .axis-base {
+    position: absolute;
+    left: 0; right: 0;
+    bottom: 38px;
+    border-top: 2px solid #aab4c7;
+  }
+
+  /* Drop slots: lanes where placed periods sit */
+  .lane {
+    position: absolute;
+    left: 0; right: 0;
+    height: 56px;
+    border: 2px dashed #c7d2e6;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.35);
+  }
+  .lane.lane-hover { border-color: var(--accent); background: rgba(43,95,179,0.08); }
+  .lane-hint {
+    position: absolute;
+    left: 8px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.78rem;
+    color: #93a0b8;
+    pointer-events: none;
+  }
+
+  /* Placed period bar (proportionally sized + positioned) */
+  .period-bar {
+    position: absolute;
+    height: 44px;
+    top: 6px;
+    border-radius: 7px;
+    border: 2px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-weight: 700;
+    font-size: 0.82rem;
+    color: #1d2433;
+    padding: 0 6px;
+    overflow: hidden;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  }
+  .period-bar .emoji { font-size: 1rem; }
+
+  /* Colour themes */
+  .c-egypt { border-color:#caa53d; background:#fbf2d6; }
+  .c-egypt.token { color:#7a5c0e; }
+  .c-romans { border-color:#b32b3a; background:#fbe3e6; }
+  .c-romans.token { color:#8a1622; }
+  .c-vikings { border-color:#1f8a8a; background:#dff4f4; }
+  .c-vikings.token { color:#0e5a5a; }
+  .sw-egypt { background:#caa53d; }
+  .sw-romans { background:#b32b3a; }
+  .sw-vikings { background:#1f8a8a; }
+
+  /* Feedback area */
+  .feedback {
+    margin: 14px 0 0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    border: 1px solid var(--line);
+    background: #f4f6fb;
+    min-height: 24px;
+  }
+  .feedback.good { background: var(--good-bg); border-color:#bfe6cd; }
+  .feedback.warn { background: var(--warn-bg); border-color:#f0d2b6; }
+  .feedback.bad { background: var(--bad-bg); border-color:#f0bcc2; }
+  .feedback strong { display:block; margin-bottom:2px; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 14px 0 0;
+  }
+  button.btn {
+    font: inherit;
+    font-weight: 700;
+    border: none;
+    border-radius: 9px;
+    padding: 9px 16px;
+    cursor: pointer;
+    background: var(--accent);
+    color: #fff;
+  }
+  button.btn.secondary { background:#eef1f7; color: var(--ink); border:1px solid var(--line); }
+  button.btn:focus-visible { outline: 3px solid #ffb02e; outline-offset: 2px; }
+  button.btn:hover { filter: brightness(1.05); }
+
+  .qbox { margin-top: 16px; }
+  .qbox h3 { margin: 0 0 8px; font-size: 1rem; }
+  .qrow { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+  .qbtn {
+    font: inherit;
+    border: 2px solid var(--line);
+    background:#fff;
+    border-radius: 9px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .qbtn:hover { border-color: var(--accent); }
+  .qbtn:focus-visible { outline: 3px solid #ffb02e; outline-offset: 2px; }
+  .qbtn.right { background: var(--good-bg); border-color: var(--good); }
+  .qbtn.wrong { background: var(--bad-bg); border-color: var(--bad); }
+
+  .sr-only {
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+  }
+  .legend-note { font-size:0.82rem; color: var(--muted); margin-top:8px; }
+  .scale-note {
+    font-size: 0.8rem;
+    color: var(--muted);
+    background:#fff8e6;
+    border:1px solid #f0e2b6;
+    border-radius:8px;
+    padding:8px 10px;
+    margin-top:10px;
+  }
+  footer { color: var(--muted); font-size:0.8rem; text-align:center; padding:0 0 20px; }
+  @media (max-width: 560px) {
+    .ribbon { height: 280px; }
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="page">
+  <div class="wrap">
+    <h1>The Big Picture Timeline</h1>
+    <p class="aim"><strong>Teaching aim:</strong> KS2 chronological understanding. Place studied periods on one proportionally scaled BC/AD ribbon, then read off which civilisations overlapped and how long ago each one was.</p>
+  </div>
+</header>
+
+<main>
+<div class="wrap">
+
+  <section class="panel">
+    <h2>1. Build the ribbon</h2>
+    <p class="lead">Drag each period onto the ribbon. The bar snaps to the years it really happened, scaled to size. A longer bar means a longer period; bars further left happened longer ago.</p>
+
+    <div class="taskbar" aria-hidden="false">
+      <span class="label">Place these three:</span>
+      <span class="pill"><span class="swatch sw-egypt"></span>Ancient Egypt</span>
+      <span class="pill"><span class="swatch sw-romans"></span>Roman Britain</span>
+      <span class="pill"><span class="swatch sw-vikings"></span>The Vikings</span>
+    </div>
+
+    <div class="tokens" id="tokens" role="group" aria-label="Period cards to place on the timeline. Use the buttons, or press Enter on a card to place it.">
+      <!-- tokens injected -->
+    </div>
+
+    <div class="ribbon-frame">
+      <div class="ribbon" id="ribbon"
+           role="application"
+           aria-label="Big picture timeline ribbon. Left half is BC, right half is AD. The far right is today.">
+        <div class="era-band bc"><span class="era-label bc">BC (before)</span></div>
+        <div class="era-band ad"><span class="era-label ad">AD (after)</span></div>
+        <div class="axis-base"></div>
+        <div class="now-marker"></div>
+        <span class="now-label">Today</span>
+        <!-- ticks, lanes and bars injected -->
+      </div>
+    </div>
+
+    <div class="scale-note" id="scaleNote">
+      Scale: the whole ribbon runs from 3000 BC on the left to today (2026) on the right. Every 1 centimetre of ribbon is about the same number of years.
+    </div>
+
+    <div class="feedback" id="feedback" role="status" aria-live="polite">
+      Start by placing <strong>Ancient Egypt</strong>. Drag the card onto a lane, or select it and press a lane button.
+    </div>
+
+    <div class="controls">
+      <button class="btn secondary" id="resetBtn" type="button">Clear the ribbon</button>
+      <button class="btn" id="checkBtn" type="button">Check the big picture</button>
+    </div>
+  </section>
+
+  <section class="panel" id="quizPanel" hidden>
+    <h2>2. Read the big picture</h2>
+    <p class="lead">Now look across your finished ribbon and answer. Each answer gives you instant, specific feedback tied to the years on the ribbon.</p>
+    <div class="qbox" id="quizHost"><!-- questions injected --></div>
+    <div class="feedback" id="quizFeedback" role="status" aria-live="polite">Answer the questions above.</div>
+  </section>
+
+  <section class="panel">
+    <h2>What pupils should notice</h2>
+    <ul class="legend-note" style="margin:0; padding-left:18px; line-height:1.7;">
+      <li>Ancient Egypt began long before the Romans, and lasted a very long time.</li>
+      <li>The Romans in Britain and the early Vikings nearly touch, but the Romans came first.</li>
+      <li>Even the Vikings were over a thousand years ago: history is much older than it feels.</li>
+    </ul>
+  </section>
+
+  <footer>The Big Picture Timeline. Demonstration teaching tool. Dates are rounded for KS2 clarity.</footer>
+</div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- Period data (rounded, KS2-friendly). Negative = BC, positive = AD. ----
+  // Sources of rounding: National Curriculum KS2 study units.
+  var TODAY = 2026;
+  var LEFT_YEAR = -3000;   // 3000 BC at far left
+  var RIGHT_YEAR = TODAY;  // today at far right
+  var SPAN = RIGHT_YEAR - LEFT_YEAR; // total years across ribbon
+
+  var PERIODS = [
+    {
+      id: "egypt",
+      name: "Ancient Egypt",
+      emoji: "\u{1F3FA}",          // amphora
+      cls: "c-egypt",
+      start: -3100, end: -30,      // c.3100 BC to 30 BC
+      lane: 0,
+      blurb: "Ancient Egypt"
+    },
+    {
+      id: "romans",
+      name: "Roman Britain",
+      emoji: "\u{1F3DB}",          // classical building
+      cls: "c-romans",
+      start: 43, end: 410,         // AD 43 to AD 410
+      lane: 1,
+      blurb: "Roman Britain"
+    },
+    {
+      id: "vikings",
+      name: "The Vikings",
+      emoji: "\u{2693}",           // anchor
+      cls: "c-vikings",
+      start: 793, end: 1066,       // AD 793 to AD 1066
+      lane: 2,
+      blurb: "The Vikings"
+    }
+  ];
+
+  var ribbon = document.getElementById("ribbon");
+  var tokensHost = document.getElementById("tokens");
+  var feedback = document.getElementById("feedback");
+  var quizPanel = document.getElementById("quizPanel");
+  var quizHost = document.getElementById("quizHost");
+  var quizFeedback = document.getElementById("quizFeedback");
+
+  var placed = {}; // id -> true once correctly placed
+  var selectedId = null;
+
+  // ---- Year to horizontal fraction (0..1) ----
+  function yearToFrac(y) {
+    return (y - LEFT_YEAR) / SPAN;
+  }
+
+  // ---- Build ticks ----
+  function buildTicks() {
+    var ticks = [
+      { y: -3000, label: "3000 BC" },
+      { y: -2000, label: "2000 BC" },
+      { y: -1000, label: "1000 BC" },
+      { y: 0,     label: "0" },
+      { y: 1000,  label: "AD 1000" },
+      { y: 2000,  label: "AD 2000" }
+    ];
+    ticks.forEach(function (t) {
+      var f = yearToFrac(t.y);
+      var tick = document.createElement("div");
+      tick.className = "tick";
+      tick.style.left = (f * 100) + "%";
+      ribbon.appendChild(tick);
+      var lab = document.createElement("div");
+      lab.className = "tick-label";
+      lab.style.left = (f * 100) + "%";
+      lab.textContent = t.label;
+      ribbon.appendChild(lab);
+    });
+  }
+
+  // ---- Build the three lanes ----
+  var laneEls = [];
+  function buildLanes() {
+    var top = 34;        // below era labels
+    var gap = 6;
+    var laneH = 56;
+    for (var i = 0; i < 3; i++) {
+      var lane = document.createElement("div");
+      lane.className = "lane";
+      lane.style.top = (top + i * (laneH + gap)) + "px";
+      lane.setAttribute("data-lane", String(i));
+      var hint = document.createElement("span");
+      hint.className = "lane-hint";
+      hint.textContent = "Lane " + (i + 1);
+      lane.appendChild(hint);
+      ribbon.appendChild(lane);
+      laneEls.push(lane);
+    }
+  }
+
+  // ---- Build period bars (hidden until placed) preview helper ----
+  function placePeriod(p) {
+    if (placed[p.id]) return;
+    placed[p.id] = true;
+    var lane = laneEls[p.lane];
+    var hint = lane.querySelector(".lane-hint");
+    if (hint) hint.style.display = "none";
+
+    var fStart = yearToFrac(p.start);
+    var fEnd = yearToFrac(p.end);
+    var bar = document.createElement("div");
+    bar.className = "period-bar " + p.cls;
+    bar.style.left = (fStart * 100) + "%";
+    bar.style.width = Math.max((fEnd - fStart) * 100, 2.2) + "%";
+    bar.innerHTML = '<span class="emoji">' + p.emoji + '</span>' + p.name;
+    bar.setAttribute("role", "img");
+    bar.setAttribute("aria-label", p.name + ", " + yearText(p.start) + " to " + yearText(p.end));
+    lane.appendChild(bar);
+
+    // disable token
+    var tok = document.getElementById("tok-" + p.id);
+    if (tok) {
+      tok.setAttribute("aria-disabled", "true");
+      tok.setAttribute("tabindex", "-1");
+    }
+  }
+
+  function yearText(y) {
+    if (y < 0) return Math.abs(y) + " BC";
+    if (y === 0) return "year 0";
+    return "AD " + y;
+  }
+
+  // ---- Drag handling via Pointer Events ----
+  var dragState = null;
+
+  function startDrag(p, tokenEl, ev) {
+    if (placed[p.id]) return;
+    dragState = { p: p, tokenEl: tokenEl };
+    tokenEl.classList.add("dragging");
+    try { tokenEl.setPointerCapture(ev.pointerId); } catch (e) {}
+    ev.preventDefault();
+  }
+
+  function laneFromPoint(clientX, clientY) {
+    for (var i = 0; i < laneEls.length; i++) {
+      var r = laneEls[i].getBoundingClientRect();
+      if (clientY >= r.top - 18 && clientY <= r.bottom + 18 &&
+          clientX >= r.left - 40 && clientX <= r.right + 40) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function clearLaneHover() {
+    laneEls.forEach(function (l) { l.classList.remove("lane-hover"); });
+  }
+
+  function onMove(ev) {
+    if (!dragState) return;
+    ev.preventDefault();
+    clearLaneHover();
+    var li = laneFromPoint(ev.clientX, ev.clientY);
+    if (li >= 0) laneEls[li].classList.add("lane-hover");
+  }
+
+  function onUp(ev) {
+    if (!dragState) return;
+    var p = dragState.p;
+    dragState.tokenEl.classList.remove("dragging");
+    var li = laneFromPoint(ev.clientX, ev.clientY);
+    clearLaneHover();
+    resolveDrop(p, li);
+    dragState = null;
+  }
+
+  // ---- Decide what feedback to give for a drop on a given lane ----
+  function resolveDrop(p, laneIndex) {
+    if (laneIndex < 0) {
+      setFeedback("warn", "Not quite on a lane",
+        "Let go of " + p.name + " inside one of the dashed lanes on the ribbon, then it will snap to the right years.");
+      return;
+    }
+    if (laneIndex === p.lane) {
+      placePeriod(p);
+      onCorrectPlace(p);
+    } else {
+      // Placed in the wrong lane: still teach with specific feedback, do not place.
+      var msg = wrongLaneMessage(p, laneIndex);
+      setFeedback("warn", "Good try, but check the order", msg);
+    }
+  }
+
+  function wrongLaneMessage(p, laneIndex) {
+    // Lanes are ordered oldest (lane 0) to newest (lane 2).
+    if (p.id === "egypt") {
+      return "Ancient Egypt is the oldest period here (about 3100 BC). The oldest period belongs in the top lane, on the far left of the ribbon.";
+    }
+    if (p.id === "romans") {
+      return "Roman Britain (AD 43 to AD 410) comes after Ancient Egypt but before the Vikings, so it belongs in the middle lane.";
+    }
+    return "The Vikings (AD 793 to AD 1066) are the most recent of the three, so they belong in the bottom lane, closest to today.";
+  }
+
+  function onCorrectPlace(p) {
+    var howLongAgo = TODAY - p.end; // years since it ended
+    var lengthYears = p.end - p.start;
+    var msg;
+    if (p.id === "egypt") {
+      msg = "Yes. Ancient Egypt began about 5,100 years ago and lasted roughly " + commafy(lengthYears) +
+            " years, far longer than any later period here. See how wide its bar is.";
+    } else if (p.id === "romans") {
+      msg = "Correct. The Romans were in Britain from AD 43 to AD 410, about " + commafy(howLongAgo) +
+            " years ago. Their bar sits just right of year 0.";
+    } else {
+      msg = "Spot on. The Vikings (AD 793 to AD 1066) ended about " + commafy(howLongAgo) +
+            " years ago, the closest of the three to today, yet still nearly a thousand years back.";
+    }
+    setFeedback("good", "Placed correctly", msg);
+    maybeFinish();
+  }
+
+  function maybeFinish() {
+    var done = PERIODS.every(function (p) { return placed[p.id]; });
+    if (done) {
+      setFeedback("good", "Big picture complete",
+        "All three periods are on the ribbon. Look across it: Egypt is far left and very wide, the Romans sit just after year 0, and the Vikings are nearest today. Now scroll down to read the big picture.");
+      quizPanel.hidden = false;
+      buildQuiz();
+      quizPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  function commafy(n) {
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  function setFeedback(kind, title, body) {
+    feedback.className = "feedback " + (kind || "");
+    feedback.innerHTML = "<strong>" + title + "</strong>" + body;
+  }
+
+  // ---- Build tokens with keyboard support ----
+  function buildTokens() {
+    PERIODS.forEach(function (p) {
+      var tok = document.createElement("div");
+      tok.className = "token " + p.cls;
+      tok.id = "tok-" + p.id;
+      tok.setAttribute("tabindex", "0");
+      tok.setAttribute("role", "button");
+      tok.setAttribute("aria-label",
+        "Place " + p.name + ", " + yearText(p.start) + " to " + yearText(p.end) +
+        ". Press Enter to select, then choose a lane.");
+      tok.innerHTML = '<span class="emoji">' + p.emoji + '</span>' + p.name;
+
+      tok.addEventListener("pointerdown", function (ev) { startDrag(p, tok, ev); });
+      tok.addEventListener("pointermove", onMove);
+      tok.addEventListener("pointerup", onUp);
+      tok.addEventListener("pointercancel", function () {
+        tok.classList.remove("dragging"); clearLaneHover(); dragState = null;
+      });
+
+      // Keyboard: select then place via lane buttons
+      tok.addEventListener("keydown", function (ev) {
+        if (placed[p.id]) return;
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          selectToken(p);
+        }
+      });
+
+      tokensHost.appendChild(tok);
+    });
+    buildLaneButtons();
+  }
+
+  // Keyboard lane buttons (appear once a token is selected)
+  var laneBtnHost = null;
+  function buildLaneButtons() {
+    laneBtnHost = document.createElement("div");
+    laneBtnHost.id = "laneBtns";
+    laneBtnHost.style.cssText = "display:none; gap:8px; flex-wrap:wrap; margin-top:8px;";
+    laneBtnHost.setAttribute("role", "group");
+    laneBtnHost.setAttribute("aria-label", "Choose a lane for the selected period");
+    var hosts = ["Top lane (oldest)", "Middle lane", "Bottom lane (most recent)"];
+    hosts.forEach(function (txt, i) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "btn secondary";
+      b.textContent = txt;
+      b.addEventListener("click", function () {
+        if (!selectedId) return;
+        var p = PERIODS.filter(function (x) { return x.id === selectedId; })[0];
+        resolveDrop(p, i);
+        if (placed[p.id]) {
+          selectedId = null;
+          laneBtnHost.style.display = "none";
+        }
+      });
+      laneBtnHost.appendChild(b);
+    });
+    tokensHost.parentNode.insertBefore(laneBtnHost, tokensHost.nextSibling);
+  }
+
+  function selectToken(p) {
+    selectedId = p.id;
+    laneBtnHost.style.display = "flex";
+    setFeedback("", "Choosing a lane for " + p.name,
+      "Now pick the correct lane below. Oldest periods go in the top lane; the most recent go in the bottom lane.");
+    var first = laneBtnHost.querySelector("button");
+    if (first) first.focus();
+  }
+
+  // ---- Quiz: read the big picture ----
+  var QUESTIONS = [
+    {
+      q: "Which of these three civilisations is the oldest?",
+      options: ["The Vikings", "Roman Britain", "Ancient Egypt"],
+      answer: 2,
+      right: "Ancient Egypt began about 3100 BC, long before the Romans or Vikings. Its bar is furthest to the left.",
+      wrong: "Look again at the far left of the ribbon. The bar nearest 3000 BC is the oldest: Ancient Egypt."
+    },
+    {
+      q: "Which two periods were closest together in time?",
+      options: ["Egypt and the Romans", "The Romans and the Vikings", "Egypt and the Vikings"],
+      answer: 1,
+      right: "Yes. Roman Britain ended in AD 410 and the Vikings began in AD 793, only about 380 years apart. Their bars nearly touch.",
+      wrong: "Check the gaps on the ribbon. The Romans (ending AD 410) and the Vikings (starting AD 793) sit closest together."
+    },
+    {
+      q: "About how long ago did the Vikings end (AD 1066)?",
+      options: ["About 100 years ago", "About 500 years ago", "Nearly 1,000 years ago"],
+      answer: 2,
+      right: "Correct. From AD 1066 to today is nearly 1,000 years. Even the most recent of the three is a very long time ago.",
+      wrong: "Count from AD 1066 to today on the ribbon: that gap is nearly 1,000 years, not hundreds."
+    },
+    {
+      q: "Did Ancient Egypt and Roman Britain ever overlap?",
+      options: ["Yes, for hundreds of years", "Only just, near year 0", "No, Egypt ended long before"],
+      answer: 1,
+      right: "Good reading. Ancient Egypt as a power ended about 30 BC and Roman Britain began AD 43, so they only just miss, very close to year 0.",
+      wrong: "Look near year 0. Ancient Egypt ends about 30 BC and Roman Britain starts AD 43, so they only just miss overlapping."
+    }
+  ];
+
+  function buildQuiz() {
+    if (quizHost.dataset.built === "1") return;
+    quizHost.dataset.built = "1";
+    var answered = 0;
+    QUESTIONS.forEach(function (item, qi) {
+      var box = document.createElement("div");
+      box.className = "qbox";
+      var h = document.createElement("h3");
+      h.textContent = (qi + 1) + ". " + item.q;
+      box.appendChild(h);
+      var row = document.createElement("div");
+      row.className = "qrow";
+      row.setAttribute("role", "group");
+      row.setAttribute("aria-label", item.q);
+      item.options.forEach(function (opt, oi) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "qbtn";
+        b.textContent = opt;
+        b.addEventListener("click", function () {
+          var already = row.getAttribute("data-done") === "1";
+          if (oi === item.answer) {
+            b.classList.add("right");
+            row.setAttribute("data-done", "1");
+            quizFeedback.className = "feedback good";
+            quizFeedback.innerHTML = "<strong>Correct</strong>" + item.right;
+            if (!already) answered++;
+            if (answered === QUESTIONS.length) {
+              quizFeedback.innerHTML += " <strong style='margin-top:6px;'>All four answered. You can now read the whole big picture at a glance.</strong>";
+            }
+          } else {
+            b.classList.add("wrong");
+            quizFeedback.className = "feedback bad";
+            quizFeedback.innerHTML = "<strong>Not quite</strong>" + item.wrong;
+          }
+        });
+        row.appendChild(b);
+      });
+      box.appendChild(row);
+      quizHost.appendChild(box);
+    });
+  }
+
+  // ---- Reset ----
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    placed = {};
+    selectedId = null;
+    // remove bars
+    var bars = ribbon.querySelectorAll(".period-bar");
+    Array.prototype.forEach.call(bars, function (b) { b.parentNode.removeChild(b); });
+    laneEls.forEach(function (l) {
+      var hint = l.querySelector(".lane-hint");
+      if (hint) hint.style.display = "";
+    });
+    PERIODS.forEach(function (p) {
+      var tok = document.getElementById("tok-" + p.id);
+      if (tok) { tok.removeAttribute("aria-disabled"); tok.setAttribute("tabindex", "0"); }
+    });
+    if (laneBtnHost) laneBtnHost.style.display = "none";
+    setFeedback("", "Ribbon cleared",
+      "Start again by placing Ancient Egypt. Drag a card onto a lane, or select it and choose a lane.");
+  });
+
+  document.getElementById("checkBtn").addEventListener("click", function () {
+    var count = PERIODS.filter(function (p) { return placed[p.id]; }).length;
+    if (count === 0) {
+      setFeedback("warn", "Nothing placed yet", "Drag a period card onto a lane to begin building the big picture.");
+      return;
+    }
+    if (count < 3) {
+      var missing = PERIODS.filter(function (p) { return !placed[p.id]; }).map(function (p) { return p.name; });
+      setFeedback("warn", "Almost there", "Still to place: " + missing.join(", ") + ". Each one snaps to its real years.");
+      return;
+    }
+    maybeFinish();
+  });
+
+  // ---- Init ----
+  buildTicks();
+  buildLanes();
+  buildTokens();
+})();
+</script>
+</body>
+</html>

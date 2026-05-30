@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Algorithm Detective</title>
+<style>
+  :root {
+    --ink: #1f2440;
+    --paper: #f4f6fb;
+    --card: #ffffff;
+    --accent: #2f59d6;
+    --accent-dark: #21409a;
+    --good: #1f8b4c;
+    --good-soft: #e3f6ea;
+    --warn: #b9621a;
+    --warn-soft: #fdeede;
+    --line: #d7dcec;
+    --shadow: 0 6px 18px rgba(31,36,64,.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", Tahoma, Verdana, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+    padding: 16px;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  header.app-head {
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+    color: #fff;
+    border-radius: 16px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  header.app-head h1 {
+    margin: 0 0 4px;
+    font-size: clamp(1.5rem, 4vw, 2.1rem);
+    letter-spacing: .3px;
+  }
+  header.app-head p.sub { margin: 0; font-size: 1rem; opacity: .95; }
+  .aim {
+    background: var(--card);
+    border: 1px dashed var(--accent);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin: 14px 0 18px;
+    font-size: .95rem;
+  }
+  .aim strong { color: var(--accent-dark); }
+  .grid {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 18px;
+  }
+  @media (max-width: 760px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: var(--shadow);
+  }
+  .panel h2 {
+    margin: 0 0 10px;
+    font-size: 1.15rem;
+    color: var(--accent-dark);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hint { font-size: .9rem; color: #5a607a; margin: 0 0 12px; }
+
+  /* Steps list */
+  ol.steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  li.step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fbfcff;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin: 0 0 10px;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    transition: border-color .15s, box-shadow .15s, transform .05s;
+  }
+  li.step:focus {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  li.step.dragging {
+    opacity: .55;
+    border-color: var(--accent);
+    cursor: grabbing;
+  }
+  li.step.drop-target {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(47,89,214,.18);
+  }
+  li.step.grabbed-kb {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(47,89,214,.25);
+    background: #eef3ff;
+  }
+  .step .num {
+    flex: 0 0 auto;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .95rem;
+  }
+  .step .emoji { font-size: 1.4rem; flex: 0 0 auto; }
+  .step .label { flex: 1 1 auto; font-size: 1rem; }
+  .step .handle {
+    flex: 0 0 auto;
+    color: #aab0c6;
+    font-size: 1.2rem;
+    letter-spacing: -2px;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  button.btn {
+    font: inherit;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 16px;
+    cursor: pointer;
+    background: var(--accent);
+    color: #fff;
+    box-shadow: var(--shadow);
+    transition: filter .15s, transform .05s;
+  }
+  button.btn:hover { filter: brightness(1.05); }
+  button.btn:active { transform: translateY(1px); }
+  button.btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  button.btn.ghost {
+    background: #fff;
+    color: var(--accent-dark);
+    border: 2px solid var(--accent);
+    box-shadow: none;
+  }
+
+  /* Character display */
+  .character-stage {
+    text-align: center;
+  }
+  .figure {
+    font-size: clamp(3.2rem, 14vw, 5rem);
+    line-height: 1.1;
+    margin: 6px 0;
+    min-height: 1.2em;
+  }
+  .figure-state {
+    font-size: .95rem;
+    color: #5a607a;
+    min-height: 1.4em;
+  }
+
+  .feedback {
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-top: 14px;
+    font-size: 1rem;
+    border: 2px solid var(--line);
+    background: #fafbff;
+    min-height: 1.4em;
+  }
+  .feedback.good { background: var(--good-soft); border-color: var(--good); color: #135a30; }
+  .feedback.warn { background: var(--warn-soft); border-color: var(--warn); color: #8a4a13; }
+  .feedback strong { display: block; margin-bottom: 2px; }
+
+  .progress-line {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 6px;
+    font-size: .9rem;
+    color: #5a607a;
+  }
+  .stars { font-size: 1.1rem; letter-spacing: 2px; }
+
+  .kb-tip {
+    font-size: .82rem;
+    color: #6a7090;
+    margin-top: 12px;
+    background: #f0f3fb;
+    border-radius: 10px;
+    padding: 8px 10px;
+  }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0,0,0,0); border: 0;
+  }
+  footer.foot {
+    margin-top: 18px;
+    font-size: .82rem;
+    color: #6a7090;
+    text-align: center;
+  }
+  .badge {
+    display: inline-block;
+    background: rgba(255,255,255,.2);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: .8rem;
+    margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+
+  <header class="app-head">
+    <h1>&#x1F50E; Algorithm Detective</h1>
+    <p class="sub">Computing &middot; Key Stage 1 &middot; Algorithms: precise step-by-step instructions</p>
+    <span class="badge">Detective on duty: Robo-Ray</span>
+  </header>
+
+  <div class="aim">
+    <strong>Teacher aim:</strong> Pupils learn that an algorithm is an <em>ordered, unambiguous</em> set of instructions. They debug a muddled "get dressed" algorithm, predict what each step does, and reorder the steps until Robo-Ray is dressed correctly.
+  </div>
+
+  <div class="grid">
+
+    <!-- LEFT: the algorithm to debug -->
+    <section class="panel" aria-labelledby="algoTitle">
+      <h2 id="algoTitle">&#x1F4CB; The wonky algorithm</h2>
+      <p class="hint">These get-dressed steps are in the wrong order. Drag a step to move it, or use the keyboard (see tip below). Then press <strong>Run the algorithm</strong> to see what Robo-Ray does.</p>
+
+      <ol class="steps" id="stepsList" aria-label="List of algorithm steps. Reorder them into the correct sequence."></ol>
+
+      <div class="controls">
+        <button class="btn" id="runBtn" type="button">&#x25B6; Run the algorithm</button>
+        <button class="btn ghost" id="shuffleBtn" type="button">&#x1F500; Mix it up again</button>
+      </div>
+
+      <div class="kb-tip" id="kbTip">
+        <strong>Keyboard:</strong> Press <kbd>Tab</kbd> to a step, then <kbd>Space</kbd> or <kbd>Enter</kbd> to pick it up. Use the <kbd>&#x2191;</kbd> and <kbd>&#x2193;</kbd> arrows to move it. Press <kbd>Space</kbd> or <kbd>Enter</kbd> again to drop it.
+      </div>
+    </section>
+
+    <!-- RIGHT: Robo-Ray + feedback -->
+    <section class="panel character-stage" aria-labelledby="rayTitle">
+      <h2 id="rayTitle" style="justify-content:center;">&#x1F916; Robo-Ray follows the steps</h2>
+      <div class="figure" id="figure" aria-hidden="true">&#x1F916;</div>
+      <div class="figure-state" id="figureState">Robo-Ray is waiting for instructions.</div>
+
+      <div class="progress-line">
+        <span>Steps in the right place:</span>
+        <span class="stars" id="stars" aria-hidden="true"></span>
+        <span id="scoreText">0 of 5</span>
+      </div>
+
+      <div class="feedback" id="feedback" role="status" aria-live="polite">
+        Put the steps in a sensible order, then press Run. A good algorithm has no muddles: every step must come before the steps that need it.
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    Algorithm Detective &middot; A WeST classroom demonstration. Robo-Ray is a friendly robot, not a real person.
+  </footer>
+
+</div>
+
+<!-- Live region for screen readers announcing moves -->
+<div class="sr-only" id="moveAnnounce" aria-live="assertive"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // The correct algorithm: order matters. Each step has a check that
+  // tells us whether it makes sense given what has happened so far.
+  // id: stable key. emoji: visual. label: instruction. order: correct position (0-based).
+  var CORRECT = [
+    { id: "pants",  emoji: "\u{1FA72}", label: "Put on your pants",        order: 0 },
+    { id: "vest",   emoji: "\u{1F455}", label: "Put on your vest",         order: 1 },
+    { id: "socks",  emoji: "\u{1F9E6}", label: "Put on your socks",        order: 2 },
+    { id: "shoes",  emoji: "\u{1F45F}", label: "Put on your shoes",        order: 3 },
+    { id: "coat",   emoji: "\u{1F9E5}", label: "Put on your coat",         order: 4 }
+  ];
+
+  // Rule pairs: "A must come before B" because the second needs the first.
+  // Used to give targeted debugging feedback, not just "wrong".
+  var BEFORE_RULES = [
+    { a: "socks", b: "shoes", msg: "Socks must go on before shoes. You cannot put shoes on first and then socks on top." },
+    { a: "vest",  b: "coat",  msg: "The vest goes on before the coat. The coat is the last layer." },
+    { a: "pants", b: "coat",  msg: "Get the pants on early, before the coat." }
+  ];
+
+  var stepsList = document.getElementById("stepsList");
+  var figure = document.getElementById("figure");
+  var figureState = document.getElementById("figureState");
+  var feedback = document.getElementById("feedback");
+  var stars = document.getElementById("stars");
+  var scoreText = document.getElementById("scoreText");
+  var moveAnnounce = document.getElementById("moveAnnounce");
+  var runBtn = document.getElementById("runBtn");
+  var shuffleBtn = document.getElementById("shuffleBtn");
+
+  var order = []; // array of step ids, current order
+  var keyboardGrabbedId = null; // id of step picked up via keyboard
+
+  function shuffle(arr) {
+    var a = arr.slice();
+    // Fisher-Yates, but reject the already-correct order so there is always a puzzle.
+    var attempts = 0;
+    do {
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = a[i]; a[i] = a[j]; a[j] = t;
+      }
+      attempts++;
+    } while (isCorrectOrder(a) && attempts < 20);
+    return a;
+  }
+
+  function isCorrectOrder(ids) {
+    for (var i = 0; i < ids.length; i++) {
+      if (ids[i] !== CORRECT[i].id) return false;
+    }
+    return true;
+  }
+
+  function stepById(id) {
+    for (var i = 0; i < CORRECT.length; i++) {
+      if (CORRECT[i].id === id) return CORRECT[i];
+    }
+    return null;
+  }
+
+  function render() {
+    stepsList.innerHTML = "";
+    order.forEach(function (id, idx) {
+      var s = stepById(id);
+      var li = document.createElement("li");
+      li.className = "step";
+      li.dataset.id = id;
+      li.setAttribute("tabindex", "0");
+      li.setAttribute("role", "button");
+      li.setAttribute("aria-roledescription", "draggable step");
+      li.setAttribute("aria-label",
+        "Step " + (idx + 1) + " of " + order.length + ": " + s.label +
+        ". Press Space or Enter to pick up and move with arrow keys.");
+      if (id === keyboardGrabbedId) li.classList.add("grabbed-kb");
+
+      li.innerHTML =
+        '<span class="num">' + (idx + 1) + '</span>' +
+        '<span class="emoji" aria-hidden="true">' + s.emoji + '</span>' +
+        '<span class="label">' + s.label + '</span>' +
+        '<span class="handle" aria-hidden="true">&#x2630;</span>';
+
+      attachPointer(li);
+      attachKeyboard(li);
+      stepsList.appendChild(li);
+    });
+    updateScore();
+  }
+
+  function updateScore() {
+    var inPlace = 0;
+    for (var i = 0; i < order.length; i++) {
+      if (order[i] === CORRECT[i].id) inPlace++;
+    }
+    var starStr = "";
+    for (var k = 0; k < order.length; k++) {
+      starStr += (k < inPlace) ? "★" : "☆";
+    }
+    stars.textContent = starStr;
+    scoreText.textContent = inPlace + " of " + order.length;
+    return inPlace;
+  }
+
+  // ---------- Pointer (touch + mouse) drag ----------
+  var dragId = null;
+
+  function attachPointer(li) {
+    li.addEventListener("pointerdown", function (e) {
+      // ignore if a keyboard grab is active
+      if (keyboardGrabbedId) return;
+      dragId = li.dataset.id;
+      li.classList.add("dragging");
+      li.setPointerCapture(e.pointerId);
+    });
+
+    li.addEventListener("pointermove", function (e) {
+      if (dragId === null) return;
+      var target = elementStepUnder(e.clientX, e.clientY);
+      clearDropTargets();
+      if (target && target.dataset.id !== dragId) {
+        target.classList.add("drop-target");
+      }
+    });
+
+    li.addEventListener("pointerup", function (e) {
+      if (dragId === null) return;
+      var target = elementStepUnder(e.clientX, e.clientY);
+      if (target && target.dataset.id !== dragId) {
+        moveBeside(dragId, target.dataset.id);
+      }
+      finishDrag();
+    });
+
+    li.addEventListener("pointercancel", function () {
+      finishDrag();
+    });
+  }
+
+  function elementStepUnder(x, y) {
+    var el = document.elementFromPoint(x, y);
+    while (el && el !== document.body) {
+      if (el.classList && el.classList.contains("step")) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function clearDropTargets() {
+    var ts = stepsList.querySelectorAll(".drop-target");
+    for (var i = 0; i < ts.length; i++) ts[i].classList.remove("drop-target");
+  }
+
+  function finishDrag() {
+    clearDropTargets();
+    var d = stepsList.querySelectorAll(".dragging");
+    for (var i = 0; i < d.length; i++) d[i].classList.remove("dragging");
+    dragId = null;
+  }
+
+  // Move dragged id to the position of target id (insert before/after sensibly).
+  function moveBeside(movedId, targetId) {
+    var from = order.indexOf(movedId);
+    var to = order.indexOf(targetId);
+    if (from === -1 || to === -1) return;
+    order.splice(from, 1);
+    to = order.indexOf(targetId);
+    // Insert at target position
+    order.splice(to, 0, movedId);
+    feedback.className = "feedback";
+    feedback.innerHTML = "You moved a step. Keep arranging, then press Run to test the algorithm.";
+    render();
+  }
+
+  // ---------- Keyboard reordering ----------
+  function attachKeyboard(li) {
+    li.addEventListener("keydown", function (e) {
+      var id = li.dataset.id;
+      var idx = order.indexOf(id);
+
+      if (e.key === " " || e.key === "Enter" || e.key === "Spacebar") {
+        e.preventDefault();
+        if (keyboardGrabbedId === id) {
+          keyboardGrabbedId = null;
+          announce(stepById(id).label + " dropped at position " + (idx + 1) + ".");
+        } else if (!keyboardGrabbedId) {
+          keyboardGrabbedId = id;
+          announce(stepById(id).label + " picked up. Use up and down arrows to move it.");
+        }
+        render();
+        refocus(id);
+        return;
+      }
+
+      if (e.key === "Escape" && keyboardGrabbedId === id) {
+        e.preventDefault();
+        keyboardGrabbedId = null;
+        announce("Move cancelled.");
+        render();
+        refocus(id);
+        return;
+      }
+
+      if ((e.key === "ArrowUp" || e.key === "ArrowDown") && keyboardGrabbedId === id) {
+        e.preventDefault();
+        var dir = (e.key === "ArrowUp") ? -1 : 1;
+        var newIdx = idx + dir;
+        if (newIdx < 0 || newIdx >= order.length) return;
+        order.splice(idx, 1);
+        order.splice(newIdx, 0, id);
+        announce(stepById(id).label + " moved to position " + (newIdx + 1) + ".");
+        feedback.className = "feedback";
+        feedback.innerHTML = "You moved a step. Keep arranging, then press Run to test the algorithm.";
+        render();
+        refocus(id);
+      }
+    });
+  }
+
+  function refocus(id) {
+    // After re-render, focus the same step element.
+    var el = stepsList.querySelector('[data-id="' + id + '"]');
+    if (el) el.focus();
+  }
+
+  function announce(msg) {
+    moveAnnounce.textContent = "";
+    // tiny delay so repeated identical messages still read
+    window.setTimeout(function () { moveAnnounce.textContent = msg; }, 30);
+  }
+
+  // ---------- Run / debug the algorithm ----------
+  function findFirstBrokenRule() {
+    for (var i = 0; i < BEFORE_RULES.length; i++) {
+      var r = BEFORE_RULES[i];
+      var ai = order.indexOf(r.a);
+      var bi = order.indexOf(r.b);
+      if (ai > bi) return r; // a comes after b: broken
+    }
+    return null;
+  }
+
+  function runAlgorithm() {
+    var inPlace = updateScore();
+    var correct = isCorrectOrder(order);
+
+    if (correct) {
+      figure.textContent = "\u{1F973}"; // party face
+      figureState.textContent = "Robo-Ray is fully dressed and ready to go outside.";
+      feedback.className = "feedback good";
+      feedback.innerHTML = "<strong>Solved! Great detective work.</strong> Every step was in the right order, so the algorithm worked perfectly. A clear algorithm has no muddles.";
+      announce("Solved. Robo-Ray is dressed correctly.");
+      return;
+    }
+
+    // Animate Robo-Ray going wrong at the first muddle, to make the bug visible.
+    var broken = findFirstBrokenRule();
+    figure.textContent = "\u{1F635}\u{200D}\u{1F4AB}"; // dizzy / confused
+    var stateMsg, fb;
+
+    if (broken) {
+      stateMsg = "Uh oh, Robo-Ray got muddled.";
+      fb = "<strong>There is a bug to fix.</strong> " + broken.msg;
+    } else if (order[order.length - 1] !== "coat") {
+      stateMsg = "Robo-Ray put the coat on too early.";
+      fb = "<strong>Almost!</strong> The coat is the last layer, so it should be the final step.";
+    } else {
+      stateMsg = "Robo-Ray is not quite right yet.";
+      fb = "<strong>Close!</strong> " + inPlace + " of " + order.length +
+           " steps are in the right place. Look at which step seems out of order.";
+    }
+
+    figureState.textContent = stateMsg;
+    feedback.className = "feedback warn";
+    feedback.innerHTML = fb + " You have " + inPlace + " of " + order.length + " steps correct. Reorder and run again.";
+    announce(stateMsg + " " + inPlace + " of " + order.length + " steps correct.");
+  }
+
+  function reset() {
+    order = shuffle(CORRECT.map(function (s) { return s.id; }));
+    keyboardGrabbedId = null;
+    figure.textContent = "\u{1F916}";
+    figureState.textContent = "Robo-Ray is waiting for instructions.";
+    feedback.className = "feedback";
+    feedback.innerHTML = "Put the steps in a sensible order, then press Run. A good algorithm has no muddles: every step must come before the steps that need it.";
+    render();
+  }
+
+  runBtn.addEventListener("click", runAlgorithm);
+  shuffleBtn.addEventListener("click", reset);
+
+  reset();
+})();
+</script>
+</body>
+</html>

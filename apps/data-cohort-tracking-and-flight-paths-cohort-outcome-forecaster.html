@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cohort Outcome Forecaster</title>
+<style>
+  :root{
+    --ink:#16202c; --muted:#5a6b7b; --line:#dbe3ec; --bg:#f4f7fb;
+    --card:#ffffff; --brand:#1f5fa8; --brand-d:#163f6e;
+    --opt:#2e8b6e; --opt-bg:#e4f4ee; --caut:#c2683a; --caut-bg:#fbeee5;
+    --mid:#1f5fa8; --mid-bg:#e7f0fb;
+    --good:#2e8b6e; --warn:#c79a2a; --bad:#c0492f;
+    --shadow:0 2px 10px rgba(22,32,44,.06);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:var(--bg); line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  header{
+    background:linear-gradient(135deg,var(--brand-d),var(--brand));
+    color:#fff; padding:22px 20px 18px;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:0 16px}
+  header h1{margin:0 0 4px; font-size:1.55rem; letter-spacing:-.01em}
+  header .sub{margin:0; font-size:.95rem; opacity:.92}
+  .aim{
+    background:rgba(255,255,255,.13); border:1px solid rgba(255,255,255,.25);
+    border-radius:10px; padding:9px 13px; margin-top:12px; font-size:.9rem;
+  }
+  .aim strong{font-weight:700}
+  main{padding:20px 0 60px}
+  .grid{display:grid; gap:18px; grid-template-columns:1fr}
+  @media(min-width:880px){ .grid{grid-template-columns:1.15fr .85fr} }
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    box-shadow:var(--shadow); padding:18px;
+  }
+  .card h2{margin:0 0 4px; font-size:1.12rem}
+  .card .hint{margin:0 0 14px; color:var(--muted); font-size:.88rem}
+  .legend{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px}
+  .chip{font-size:.78rem; padding:3px 9px; border-radius:20px; font-weight:600}
+  .chip.opt{background:var(--opt-bg); color:var(--opt)}
+  .chip.mid{background:var(--mid-bg); color:var(--mid)}
+  .chip.caut{background:var(--caut-bg); color:var(--caut)}
+
+  /* subject sliders */
+  .subj{padding:11px 0; border-top:1px solid var(--line)}
+  .subj:first-of-type{border-top:none}
+  .subj .row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; flex-wrap:wrap}
+  .subj .name{font-weight:700; font-size:.95rem}
+  .subj .name .tag{
+    font-size:.68rem; font-weight:700; color:var(--brand-d);
+    background:var(--mid-bg); padding:1px 7px; border-radius:20px; margin-left:6px; vertical-align:middle;
+  }
+  .subj .name .tag.dbl{background:#efe7fb; color:#6b3fa0}
+  .readout{font-variant-numeric:tabular-nums; font-size:.86rem; color:var(--muted)}
+  .readout b{color:var(--ink); font-size:1rem}
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:6px;
+    background:linear-gradient(90deg,#e6edf5,#cfe0f3); outline:none; margin:2px 0 4px; touch-action:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:26px; height:26px; border-radius:50%;
+    background:var(--brand); border:3px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.3); cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:26px; height:26px; border-radius:50%; background:var(--brand);
+    border:3px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.3); cursor:pointer;
+  }
+  input[type=range]:focus-visible{box-shadow:0 0 0 3px rgba(31,95,168,.4)}
+  .gradeline{display:flex; justify-content:space-between; font-size:.66rem; color:var(--muted); padding:0 1px}
+
+  /* forecast panel */
+  .measure{margin-bottom:16px}
+  .measure .lab{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px}
+  .measure .lab .ttl{font-weight:700; font-size:1rem}
+  .measure .lab .ttl small{font-weight:500; color:var(--muted); font-size:.78rem}
+  .bigval{font-size:2rem; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+  .bigval.p8.pos{color:var(--good)} .bigval.p8.neg{color:var(--bad)} .bigval.p8.zero{color:var(--mid)}
+  .band{position:relative; height:30px; border-radius:8px; background:#eef2f7; border:1px solid var(--line); overflow:hidden; margin-top:8px}
+  .band .fill{position:absolute; top:0; bottom:0; background:linear-gradient(90deg,var(--caut-bg),var(--opt-bg)); border-left:2px solid var(--caut); border-right:2px solid var(--opt)}
+  .band .mark{position:absolute; top:-3px; bottom:-3px; width:3px; background:var(--mid); border-radius:2px}
+  .band .nat{position:absolute; top:0; bottom:0; width:2px; background:#8aa0b6; border-left:1px dashed #8aa0b6}
+  .scenrow{display:flex; justify-content:space-between; font-size:.82rem; margin-top:6px; color:var(--muted)}
+  .scenrow span b{color:var(--ink)}
+  .scenrow .caut b{color:var(--caut)} .scenrow .opt b{color:var(--opt)}
+
+  .verdict{
+    margin-top:6px; border-radius:11px; padding:13px 14px; font-size:.92rem;
+    border:1px solid var(--line); background:#fbfdff;
+  }
+  .verdict h3{margin:0 0 5px; font-size:.95rem; display:flex; align-items:center; gap:7px}
+  .verdict .dot{width:11px; height:11px; border-radius:50%; flex:none}
+  .verdict.good{background:var(--opt-bg); border-color:#bfe3d6} .verdict.good .dot{background:var(--good)}
+  .verdict.warn{background:#fcf6e6; border-color:#ecdfb4} .verdict.warn .dot{background:var(--warn)}
+  .verdict.bad{background:var(--caut-bg); border-color:#eccab2} .verdict.bad .dot{background:var(--bad)}
+  .verdict p{margin:0; color:var(--ink)}
+
+  .ontrack{display:flex; gap:10px; margin:2px 0 14px; flex-wrap:wrap}
+  .pill{flex:1 1 0; min-width:120px; background:#fbfdff; border:1px solid var(--line); border-radius:11px; padding:10px 12px; text-align:center}
+  .pill .n{font-size:1.5rem; font-weight:800; font-variant-numeric:tabular-nums}
+  .pill .l{font-size:.74rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em}
+  .pill.on .n{color:var(--good)} .pill.off .n{color:var(--bad)}
+
+  .controls{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+  button.preset{
+    border:1px solid var(--line); background:#fff; color:var(--brand-d); font-weight:600;
+    border-radius:9px; padding:9px 13px; font-size:.85rem; cursor:pointer; flex:1 1 auto;
+  }
+  button.preset:hover{background:var(--mid-bg)}
+  button.preset:focus-visible{outline:3px solid rgba(31,95,168,.4); outline-offset:1px}
+
+  details.method{margin-top:18px; border:1px solid var(--line); border-radius:11px; background:#fff; box-shadow:var(--shadow)}
+  details.method summary{cursor:pointer; padding:13px 16px; font-weight:700; font-size:.95rem; list-style:none}
+  details.method summary::-webkit-details-marker{display:none}
+  details.method summary::before{content:'\25B8'; display:inline-block; margin-right:9px; color:var(--brand); transition:transform .15s}
+  details.method[open] summary::before{transform:rotate(90deg)}
+  details.method .body{padding:0 16px 16px; font-size:.88rem; color:var(--ink)}
+  details.method table{width:100%; border-collapse:collapse; margin:8px 0; font-size:.82rem}
+  details.method th,details.method td{text-align:left; padding:5px 8px; border-bottom:1px solid var(--line)}
+  details.method th{color:var(--muted); font-weight:600}
+  details.method code{background:#eef2f7; padding:1px 5px; border-radius:5px; font-size:.82em}
+  .visually-hidden{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0}
+  footer{color:var(--muted); font-size:.8rem; text-align:center; padding:0 16px 30px}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header>
+  <div class="wrap">
+    <h1>Cohort Outcome Forecaster</h1>
+    <p class="sub">Data &amp; Analytics &middot; Cohort Tracking and Flight Paths</p>
+    <div class="aim">
+      <strong>Teacher aim:</strong> set each subject's projected working-at grades, then read off the whole cohort's forecast Progress 8 and Attainment 8 with optimistic and cautious scenario bands. Pupils learn how individual grades aggregate into headline measures.
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="grid">
+
+    <!-- LEFT: input -->
+    <section class="card" aria-labelledby="inp-h">
+      <h2 id="inp-h">Year 11 working-at grades (demo cohort)</h2>
+      <p class="hint">Drag each slider to the cohort's average projected grade in that subject. English and Maths count double in Attainment 8. Slots marked EBacc and Open fill the remaining 6 slots.</p>
+      <div id="subjects"></div>
+
+      <div class="controls">
+        <button class="preset" type="button" data-preset="floor">On the floor</button>
+        <button class="preset" type="button" data-preset="solid">Solid Grade 5s</button>
+        <button class="preset" type="button" data-preset="strong">Strong cohort</button>
+      </div>
+    </section>
+
+    <!-- RIGHT: forecast -->
+    <section class="card" aria-labelledby="fc-h">
+      <h2 id="fc-h">Cohort forecast</h2>
+      <p class="hint">Updates live as you move any slider.</p>
+
+      <div class="ontrack">
+        <div class="pill on">
+          <div class="n" id="onN">0</div>
+          <div class="l">slots on track</div>
+        </div>
+        <div class="pill off">
+          <div class="n" id="offN">0</div>
+          <div class="l">slots off track</div>
+        </div>
+      </div>
+
+      <!-- Attainment 8 -->
+      <div class="measure">
+        <div class="lab">
+          <span class="ttl">Attainment 8 <small>avg score per pupil</small></span>
+          <span class="bigval" id="a8val">0.0</span>
+        </div>
+        <div class="legend">
+          <span class="chip caut">Cautious</span>
+          <span class="chip mid">Most likely</span>
+          <span class="chip opt">Optimistic</span>
+        </div>
+        <div class="band" id="a8band" role="img" aria-label="Attainment 8 scenario band">
+          <div class="fill" id="a8fill"></div>
+          <div class="mark" id="a8mark"></div>
+        </div>
+        <div class="scenrow">
+          <span class="caut">Cautious <b id="a8caut">0</b></span>
+          <span>Likely <b id="a8mid">0</b></span>
+          <span class="opt">Optimistic <b id="a8opt">0</b></span>
+        </div>
+      </div>
+
+      <!-- Progress 8 -->
+      <div class="measure">
+        <div class="lab">
+          <span class="ttl">Progress 8 <small>vs national, dashed line = 0</small></span>
+          <span class="bigval p8 zero" id="p8val">0.00</span>
+        </div>
+        <div class="band" id="p8band" role="img" aria-label="Progress 8 scenario band relative to national average">
+          <div class="nat" id="p8nat"></div>
+          <div class="fill" id="p8fill"></div>
+          <div class="mark" id="p8mark"></div>
+        </div>
+        <div class="scenrow">
+          <span class="caut">Cautious <b id="p8caut">0</b></span>
+          <span>Likely <b id="p8mid">0</b></span>
+          <span class="opt">Optimistic <b id="p8opt">0</b></span>
+        </div>
+      </div>
+
+      <div class="verdict" id="verdict" aria-live="polite">
+        <h3><span class="dot"></span><span id="vTitle">Set the sliders</span></h3>
+        <p id="vText">Move a slider to forecast the cohort outcome.</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="visually-hidden" aria-live="polite" id="srLive"></div>
+
+  <details class="method">
+    <summary>How the forecast is built (teacher and pupil notes)</summary>
+    <div class="body">
+      <p><strong>Attainment 8</strong> is a points score across 8 subject slots. Each grade is worth its number of points (Grade 8 = 8 points). English and Maths count <em>double</em>, so the cohort fills 10 slot-weights in total. We add the weighted points and that gives the average Attainment 8 score per pupil.</p>
+      <table>
+        <tr><th>Slot</th><th>Weight</th><th>Counts toward</th></tr>
+        <tr><td>English</td><td>&times;2</td><td>Attainment 8 and Progress 8</td></tr>
+        <tr><td>Maths</td><td>&times;2</td><td>Attainment 8 and Progress 8</td></tr>
+        <tr><td>EBacc 1, 2, 3</td><td>&times;1</td><td>Attainment 8 and Progress 8</td></tr>
+        <tr><td>Open 1, 2, 3</td><td>&times;1</td><td>Attainment 8 and Progress 8</td></tr>
+      </table>
+      <p><strong>Progress 8</strong> compares this cohort's Attainment 8 to the national average for pupils with the same starting points. Here the demo national estimate for this prior-attainment cohort is <code>A8 = 46.0</code>. Progress 8 is <code>(cohort A8 - 46.0) / 10</code>, because each slot-grade above or below national adds one tenth of a grade per slot. A score of <code>0.00</code> means in line with national; <code>+0.50</code> means half a grade per subject above; <code>-0.50</code> means half a grade below (a floor-standard concern).</p>
+      <p><strong>Scenario bands.</strong> No forecast is certain. The <span style="color:var(--opt);font-weight:700">optimistic</span> band assumes pupils on a grade boundary tip up; the <span style="color:var(--caut);font-weight:700">cautious</span> band assumes some slip. The band is wider when more slots sit exactly on a grade boundary, because those are the pupils most likely to move either way. The most-likely line sits in the middle.</p>
+      <p><strong>On track vs off track.</strong> A slot is <em>on track</em> if its working-at grade is Grade 5 (a strong pass) or above. The forecast tells you how aggregated headline measures respond when you nudge a single subject, which is exactly the cohort-level question a Flight Path Tracker leaves unanswered.</p>
+    </div>
+  </details>
+</main>
+
+<footer>
+  Demonstration data only. Fictional cohort. National benchmark and band widths are illustrative and simplified for teaching, not official DfE figures.
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  // Eight Attainment 8 slots. weight 2 = double-counted (English, Maths).
+  var SUBJECTS = [
+    {key:"eng", name:"English",     tag:"Double", dbl:true,  w:2, g:5},
+    {key:"mat", name:"Maths",       tag:"Double", dbl:true,  w:2, g:5},
+    {key:"eb1", name:"Science (EBacc)",   tag:"EBacc", dbl:false, w:1, g:5},
+    {key:"eb2", name:"History (EBacc)",   tag:"EBacc", dbl:false, w:1, g:4},
+    {key:"eb3", name:"French (EBacc)",    tag:"EBacc", dbl:false, w:1, g:4},
+    {key:"op1", name:"Art (Open)",        tag:"Open",  dbl:false, w:1, g:5},
+    {key:"op2", name:"Geography (Open)",  tag:"Open",  dbl:false, w:1, g:4},
+    {key:"op3", name:"Computing (Open)",  tag:"Open",  dbl:false, w:1, g:5}
+  ];
+
+  var NAT_A8 = 46.0;      // demo national A8 for this prior-attainment cohort
+  var TOTAL_WEIGHT = 10;  // 8 slots, two doubled
+
+  var PRESETS = {
+    floor:  [3,3,3,3,2,4,3,4],
+    solid:  [5,5,5,5,5,5,5,5],
+    strong: [7,6,7,6,6,7,6,7]
+  };
+
+  var host = document.getElementById("subjects");
+
+  // grades use whole numbers 1..9; "boundary risk" simulated by tracking
+  // how close current value sits to a 0.5 split. We use integer grades but
+  // give each slider a half-step feel for the band by reading fractional risk.
+  SUBJECTS.forEach(function(s, i){
+    var wrap = document.createElement("div");
+    wrap.className = "subj";
+    var inputId = "sl_" + s.key;
+    var tagCls = s.dbl ? "tag dbl" : "tag";
+    wrap.innerHTML =
+      '<div class="row">' +
+        '<span class="name">' + s.name + ' <span class="' + tagCls + '">' + s.tag + '</span></span>' +
+        '<span class="readout">grade <b id="rg_' + s.key + '">' + s.g + '</b></span>' +
+      '</div>' +
+      '<input type="range" id="' + inputId + '" min="1" max="9" step="1" value="' + s.g + '" ' +
+        'aria-label="' + s.name + ' projected working-at grade, 1 to 9" ' +
+        'aria-valuetext="Grade ' + s.g + '">' +
+      '<div class="gradeline"><span>1</span><span>3</span><span>5</span><span>7</span><span>9</span></div>';
+    host.appendChild(wrap);
+
+    var input = wrap.querySelector("input");
+    input.addEventListener("input", function(){
+      s.g = parseInt(input.value, 10);
+      input.setAttribute("aria-valuetext", "Grade " + s.g);
+      document.getElementById("rg_" + s.key).textContent = s.g;
+      recompute(true);
+    });
+  });
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+  function recompute(announce){
+    // Attainment 8: sum of (grade * weight) across slots, then divide by 10.
+    var weighted = 0, onTrack = 0, offTrack = 0;
+    SUBJECTS.forEach(function(s){
+      weighted += s.g * s.w;
+      if (s.g >= 5) onTrack += s.w; else offTrack += s.w;
+    });
+    // A8 as a per-pupil score across 8 subjects (max 90). Standard A8 = sum of
+    // weighted grade-points (eng+mat counted twice). Here weighted already = that sum.
+    var a8 = weighted; // 0..90 scale (10 weighted slots x up to 9)
+
+    // Progress 8 = (a8 - national) / 10
+    var p8 = (a8 - NAT_A8) / 10;
+
+    // Scenario spread. More slots near the "5 pass" boundary => more uncertainty.
+    // Each slot exactly on grade 4 or 5 contributes higher movement risk.
+    var risk = 0;
+    SUBJECTS.forEach(function(s){
+      var nearBoundary = (s.g === 4 || s.g === 5) ? 1 : 0.4;
+      risk += nearBoundary * s.w;
+    });
+    // spread in A8 points: scaled risk, capped sensibly
+    var spreadA8 = clamp(risk * 0.55, 1.5, 7);
+    var a8opt = a8 + spreadA8;
+    var a8caut = a8 - spreadA8;
+    var p8opt = (a8opt - NAT_A8) / 10;
+    var p8caut = (a8caut - NAT_A8) / 10;
+
+    // ---- render numbers ----
+    document.getElementById("onN").textContent = onTrack;
+    document.getElementById("offN").textContent = offTrack;
+    setText("a8val", a8.toFixed(1));
+    setText("a8mid", a8.toFixed(1));
+    setText("a8opt", a8opt.toFixed(1));
+    setText("a8caut", a8caut.toFixed(1));
+
+    var p8el = document.getElementById("p8val");
+    p8el.textContent = (p8 >= 0 ? "+" : "") + p8.toFixed(2);
+    p8el.className = "bigval p8 " + (p8 > 0.05 ? "pos" : (p8 < -0.05 ? "neg" : "zero"));
+    setText("p8mid", (p8>=0?"+":"") + p8.toFixed(2));
+    setText("p8opt", (p8opt>=0?"+":"") + p8opt.toFixed(2));
+    setText("p8caut", (p8caut>=0?"+":"") + p8caut.toFixed(2));
+
+    // ---- A8 band geometry (scale 20..70 of the 0..90 score) ----
+    placeBand("a8", a8caut, a8, a8opt, 20, 70);
+
+    // ---- P8 band geometry (scale -1.0 .. +1.0) ----
+    var p8nat = document.getElementById("p8nat");
+    p8nat.style.left = pct(0, -1, 1) + "%";
+    placeBand("p8", p8caut, p8, p8opt, -1, 1);
+
+    // ---- verdict ----
+    renderVerdict(p8, offTrack, spreadA8);
+
+    if (announce){
+      var live = document.getElementById("srLive");
+      live.textContent = "Attainment 8 " + a8.toFixed(1) +
+        ", Progress 8 " + (p8>=0?"plus ":"minus ") + Math.abs(p8).toFixed(2) +
+        ". " + offTrack + " weighted slots off track.";
+    }
+  }
+
+  function placeBand(prefix, lo, mid, hi, sMin, sMax){
+    var l = clamp(pct(lo, sMin, sMax), 0, 100);
+    var h = clamp(pct(hi, sMin, sMax), 0, 100);
+    var m = clamp(pct(mid, sMin, sMax), 0, 100);
+    var fill = document.getElementById(prefix + "fill");
+    fill.style.left = l + "%";
+    fill.style.width = Math.max(2, h - l) + "%";
+    document.getElementById(prefix + "mark").style.left = m + "%";
+  }
+
+  function pct(v, lo, hi){ return ((v - lo) / (hi - lo)) * 100; }
+  function setText(id, t){ document.getElementById(id).textContent = t; }
+
+  function renderVerdict(p8, offTrack, spread){
+    var v = document.getElementById("verdict");
+    var t = document.getElementById("vTitle");
+    var p = document.getElementById("vText");
+    var cls, title, msg;
+    var spreadWord = spread > 4.5 ? "wide" : (spread > 3 ? "moderate" : "narrow");
+
+    if (p8 >= 0.5){
+      cls = "good"; title = "Well above national";
+      msg = "Forecast Progress 8 of " + fmt(p8) + " is around half a grade per subject above national. The " + spreadWord + " band means even the cautious scenario stays strongly positive. Protect this with high attendance and exam technique.";
+    } else if (p8 >= 0){
+      cls = "good"; title = "Above national";
+      msg = "Forecast Progress 8 of " + fmt(p8) + " is positive. " + (offTrack>0 ? offTrack + " weighted slots are below a Grade 5, so the " + spreadWord + " cautious band could dip near zero: target those subjects to bank the gain." : "Every slot is on track; the priority now is securing grade boundaries.");
+    } else if (p8 >= -0.5){
+      cls = "warn"; title = "Below national";
+      msg = "Forecast Progress 8 of " + fmt(p8) + " is negative. " + offTrack + " weighted slots sit below a Grade 5. Lifting one off-track subject by a grade shifts Attainment 8 by its slot weight and moves Progress 8 noticeably. Try nudging Maths or English (double weight) for the biggest effect.";
+    } else {
+      cls = "bad"; title = "Floor-standard concern";
+      msg = "Forecast Progress 8 of " + fmt(p8) + " is below minus 0.5, the floor-standard threshold. The cohort is well below national. Focus intervention on the double-weighted English and Maths slots and the off-track EBacc subjects to recover the headline measure.";
+    }
+    v.className = "verdict " + cls;
+    t.textContent = title;
+    p.textContent = msg;
+  }
+  function fmt(p){ return (p>=0?"+":"") + p.toFixed(2); }
+
+  // presets
+  document.querySelectorAll("button.preset").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var arr = PRESETS[btn.getAttribute("data-preset")];
+      SUBJECTS.forEach(function(s, i){
+        s.g = arr[i];
+        var input = document.getElementById("sl_" + s.key);
+        input.value = s.g;
+        input.setAttribute("aria-valuetext", "Grade " + s.g);
+        document.getElementById("rg_" + s.key).textContent = s.g;
+      });
+      recompute(true);
+    });
+  });
+
+  recompute(false);
+})();
+</script>
+</body>
+</html>

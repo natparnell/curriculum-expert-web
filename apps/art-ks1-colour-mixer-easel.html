@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Colour Mixer Easel</title>
+<style>
+  :root{
+    --ink:#23252e;
+    --muted:#5d6376;
+    --paper:#f6f3ee;
+    --card:#ffffff;
+    --line:#e0dccf;
+    --brand:#8a3b6b;
+    --brand-soft:#f7e6f0;
+    --green:#1b7a4f;
+    --green-soft:#e2f4ea;
+    --amber:#a96a07;
+    --amber-soft:#fbeed3;
+    --focus:#1746e0;
+    --red-paint:#d8332f;
+    --yellow-paint:#f4c20d;
+    --blue-paint:#1f63c4;
+    --orange-paint:#e8772b;
+    --green-paint:#2f9e54;
+    --purple-paint:#7a3fa6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Segoe UI",Tahoma,Verdana,Arial,sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1000px;margin:0 auto;padding:18px 16px 70px;}
+  header.app{
+    background:linear-gradient(135deg,#8a3b6b,#b6557f);
+    color:#fff;border-radius:18px;padding:20px 22px;margin-bottom:14px;
+    box-shadow:0 6px 18px rgba(120,40,90,.18);
+  }
+  header.app h1{margin:0;font-size:1.8rem;letter-spacing:.2px;}
+  header.app .aim{
+    margin:10px 0 0;font-size:1rem;background:rgba(255,255,255,.16);
+    padding:9px 13px;border-radius:10px;
+  }
+  header.app .aim strong{font-weight:700;}
+  .meta-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .chip{
+    background:rgba(255,255,255,.2);border-radius:999px;
+    padding:4px 12px;font-size:.82rem;font-weight:600;
+  }
+
+  .stage{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;}
+  .easel-col{flex:2 1 460px;min-width:320px;}
+  .side-col{flex:1 1 300px;min-width:280px;}
+
+  .panel{
+    background:var(--card);border:1px solid var(--line);
+    border-radius:16px;padding:16px 16px 18px;margin-bottom:14px;
+    box-shadow:0 3px 10px rgba(60,50,40,.05);
+  }
+  .panel h2{margin:0 0 6px;font-size:1.15rem;}
+  .panel p.hint{margin:0 0 12px;color:var(--muted);font-size:.92rem;}
+
+  /* Paint shelf */
+  .shelf{
+    display:flex;gap:14px;flex-wrap:wrap;justify-content:center;
+    padding:10px;background:#efe9dd;border-radius:14px;border:1px solid var(--line);
+  }
+  .blob{
+    width:78px;height:78px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:700;font-size:.82rem;text-align:center;
+    box-shadow:inset 0 -6px 12px rgba(0,0,0,.18), 0 3px 6px rgba(0,0,0,.18);
+    cursor:grab;touch-action:none;user-select:none;
+    border:3px solid rgba(255,255,255,.55);
+    text-shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+  .blob:focus-visible{outline:4px solid var(--focus);outline-offset:3px;}
+  .blob.dragging{opacity:.55;cursor:grabbing;}
+  .blob.red{background:var(--red-paint);}
+  .blob.yellow{background:var(--yellow-paint);color:#5a4400;text-shadow:none;}
+  .blob.blue{background:var(--blue-paint);}
+  .blob.selected{box-shadow:inset 0 -6px 12px rgba(0,0,0,.18), 0 0 0 4px var(--focus);}
+
+  /* Palette / mixing area */
+  .palette-zone{position:relative;margin-top:14px;}
+  .palette{
+    position:relative;height:240px;border-radius:50% 50% 46% 46%/60% 60% 40% 40%;
+    background:radial-gradient(circle at 50% 38%, #fffdfa, #efe7d6);
+    border:4px solid #cdbf9f;
+    box-shadow:inset 0 8px 18px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.1);
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  .palette.over{border-color:var(--brand);box-shadow:inset 0 0 0 3px var(--brand-soft), 0 4px 12px rgba(0,0,0,.12);}
+  .well-label{
+    color:#9a8f78;font-size:.95rem;text-align:center;max-width:80%;
+    pointer-events:none;
+  }
+  .splat{
+    position:absolute;border-radius:50%;
+    box-shadow:inset 0 -5px 10px rgba(0,0,0,.18);
+    pointer-events:none;opacity:0;transform:scale(.4);
+    transition:opacity .25s ease, transform .25s ease;
+  }
+  .splat.show{opacity:.92;transform:scale(1);}
+  .mix-result{
+    position:relative;z-index:2;width:120px;height:120px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:700;font-size:.95rem;text-align:center;
+    box-shadow:inset 0 -8px 16px rgba(0,0,0,.2), 0 4px 10px rgba(0,0,0,.18);
+    opacity:0;transform:scale(.5);transition:opacity .3s ease, transform .3s ease;
+    text-shadow:0 1px 2px rgba(0,0,0,.4);border:3px solid rgba(255,255,255,.55);
+  }
+  .mix-result.show{opacity:1;transform:scale(1);}
+
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;justify-content:center;}
+  button.btn{
+    font-family:inherit;font-size:.95rem;font-weight:700;cursor:pointer;
+    border:none;border-radius:999px;padding:11px 18px;color:#fff;
+    background:var(--brand);box-shadow:0 3px 8px rgba(120,40,90,.22);
+  }
+  button.btn.secondary{background:#6b7180;}
+  button.btn:focus-visible{outline:4px solid var(--focus);outline-offset:3px;}
+  button.btn:active{transform:translateY(1px);}
+
+  /* Keyboard mixer */
+  .kb-mix{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;margin-top:12px;}
+  .kb-mix label{font-size:.88rem;color:var(--muted);font-weight:600;}
+  select.picker{
+    font-family:inherit;font-size:.95rem;padding:8px 10px;border-radius:10px;
+    border:2px solid var(--line);background:#fff;color:var(--ink);
+  }
+  select.picker:focus-visible{outline:3px solid var(--focus);outline-offset:2px;}
+
+  /* Feedback */
+  .feedback{
+    margin-top:14px;border-radius:12px;padding:12px 14px;font-size:1rem;
+    background:var(--brand-soft);border:1px solid #ecc9dd;min-height:30px;
+  }
+  .feedback.good{background:var(--green-soft);border-color:#bfe6cf;color:#13593b;}
+  .feedback.muddy{background:var(--amber-soft);border-color:#ecd8a6;color:#7a4d05;}
+  .feedback strong{font-weight:700;}
+
+  /* Colour wheel */
+  .wheel-wrap{display:flex;flex-direction:column;align-items:center;}
+  .wheel{display:block;max-width:100%;height:auto;}
+  .wheel svg text{font-family:"Segoe UI",Tahoma,Arial,sans-serif;font-weight:700;}
+  .legend{margin-top:10px;font-size:.85rem;color:var(--muted);text-align:center;}
+  .score-line{
+    margin-top:10px;font-weight:700;font-size:1rem;text-align:center;color:var(--brand);
+  }
+
+  .swatch-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .swatch{
+    width:46px;height:46px;border-radius:10px;border:2px dashed #c9c0ac;
+    display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#bdb39c;
+  }
+  .swatch.filled{border-style:solid;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);}
+
+  details.teacher{margin-top:6px;}
+  details.teacher summary{
+    cursor:pointer;font-weight:700;color:var(--brand);padding:8px 0;
+  }
+  details.teacher ul{margin:6px 0 0;padding-left:20px;}
+  details.teacher li{margin:4px 0;font-size:.92rem;color:var(--muted);}
+
+  .visually-hidden{
+    position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;
+    overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;
+  }
+
+  footer.note{margin-top:18px;color:var(--muted);font-size:.82rem;text-align:center;}
+
+  @media (max-width:560px){
+    .blob{width:66px;height:66px;font-size:.76rem;}
+    .palette{height:200px;}
+    .mix-result{width:104px;height:104px;}
+  }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<div class="wrap">
+  <header class="app">
+    <h1>Colour Mixer Easel &#x1F3A8;</h1>
+    <p class="aim"><strong>Teaching aim:</strong> pupils mix the three primary colours to discover the secondary colours, and fill in the class colour wheel as each new colour is found.</p>
+    <div class="meta-row">
+      <span class="chip">Art and Design</span>
+      <span class="chip">Key Stage 1</span>
+      <span class="chip">Colour theory and mixing</span>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="easel-col">
+      <section class="panel">
+        <h2>1. Choose two paints</h2>
+        <p class="hint">Drag a paint blob onto the palette. Drop two paints in to mix them. On a keyboard, pick two paints below and press <strong>Mix</strong>.</p>
+
+        <div class="shelf" role="group" aria-label="Paint blobs you can drag">
+          <div class="blob red" id="blob-red" tabindex="0" role="button"
+               aria-label="Red primary paint. Press Enter to add to the palette."
+               data-colour="red">Red</div>
+          <div class="blob yellow" id="blob-yellow" tabindex="0" role="button"
+               aria-label="Yellow primary paint. Press Enter to add to the palette."
+               data-colour="yellow">Yellow</div>
+          <div class="blob blue" id="blob-blue" tabindex="0" role="button"
+               aria-label="Blue primary paint. Press Enter to add to the palette."
+               data-colour="blue">Blue</div>
+        </div>
+
+        <div class="palette-zone">
+          <div class="palette" id="palette" aria-label="Mixing palette drop area">
+            <div class="splat" id="splat-a"></div>
+            <div class="splat" id="splat-b"></div>
+            <div class="mix-result" id="mixResult" aria-hidden="true"></div>
+            <div class="well-label" id="wellLabel">Drop your first paint here</div>
+          </div>
+        </div>
+
+        <div class="kb-mix">
+          <label for="pickA">Paint one</label>
+          <select class="picker" id="pickA" aria-label="Choose first paint">
+            <option value="">Choose...</option>
+            <option value="red">Red</option>
+            <option value="yellow">Yellow</option>
+            <option value="blue">Blue</option>
+          </select>
+          <label for="pickB">Paint two</label>
+          <select class="picker" id="pickB" aria-label="Choose second paint">
+            <option value="">Choose...</option>
+            <option value="red">Red</option>
+            <option value="yellow">Yellow</option>
+            <option value="blue">Blue</option>
+          </select>
+          <button class="btn" id="mixBtn" type="button">Mix &#x1FAE7;</button>
+        </div>
+
+        <div class="controls">
+          <button class="btn secondary" id="clearBtn" type="button">Clean the palette</button>
+        </div>
+
+        <div class="feedback" id="feedback" role="status" aria-live="polite">
+          Pick two paints to start mixing. What do you think red and yellow will make?
+        </div>
+      </section>
+    </div>
+
+    <div class="side-col">
+      <section class="panel">
+        <h2>2. The class colour wheel</h2>
+        <p class="hint">Each secondary colour you discover fills in on the wheel.</p>
+        <div class="wheel-wrap">
+          <div class="wheel" id="wheelHolder" aria-hidden="true"></div>
+          <div class="swatch-row" aria-hidden="true">
+            <div class="swatch" id="sw-orange">?</div>
+            <div class="swatch" id="sw-green">?</div>
+            <div class="swatch" id="sw-purple">?</div>
+          </div>
+          <p class="legend">Primaries: red, yellow, blue. Secondaries to find: orange, green, purple.</p>
+          <p class="score-line" id="scoreLine">Secondaries discovered: 0 of 3</p>
+          <p class="visually-hidden" id="wheelStatus" role="status" aria-live="polite">No secondary colours discovered yet.</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <details class="teacher">
+          <summary>For the teacher</summary>
+          <ul>
+            <li><strong>Primary colours</strong> are red, yellow and blue. You cannot make them by mixing.</li>
+            <li><strong>Secondary colours:</strong> red plus yellow gives orange; yellow plus blue gives green; blue plus red gives purple.</li>
+            <li>Mixing all three, or the same colour twice, gives a muddy brown. Ask why this happens.</li>
+            <li>Discussion prompt: where do we see orange, green and purple outside? (Fictional pupils Asha, Bram and Cleo can each name one.)</li>
+            <li>Tablet tip: drag the paint blobs with a finger; the palette glows when a paint is over it.</li>
+          </ul>
+        </details>
+      </section>
+    </div>
+  </div>
+
+  <footer class="note">Colour Mixer Easel. Demonstration activity for WeST. All names and examples are fictional.</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var PAINTS = {
+    red:    { name:"Red",    hex:"#d8332f" },
+    yellow: { name:"Yellow", hex:"#f4c20d" },
+    blue:   { name:"Blue",   hex:"#1f63c4" }
+  };
+
+  var SECONDARIES = {
+    "red+yellow": { key:"orange", name:"Orange", hex:"#e8772b" },
+    "yellow+red": { key:"orange", name:"Orange", hex:"#e8772b" },
+    "yellow+blue":{ key:"green",  name:"Green",  hex:"#2f9e54" },
+    "blue+yellow":{ key:"green",  name:"Green",  hex:"#2f9e54" },
+    "blue+red":   { key:"purple", name:"Purple", hex:"#7a3fa6" },
+    "red+blue":   { key:"purple", name:"Purple", hex:"#7a3fa6" }
+  };
+
+  var discovered = { orange:false, green:false, purple:false };
+
+  // Drop slots: up to two paints chosen via drag
+  var dropped = [];
+
+  var palette   = document.getElementById("palette");
+  var wellLabel = document.getElementById("wellLabel");
+  var splatA    = document.getElementById("splat-a");
+  var splatB    = document.getElementById("splat-b");
+  var mixResult = document.getElementById("mixResult");
+  var feedback  = document.getElementById("feedback");
+  var scoreLine = document.getElementById("scoreLine");
+  var wheelStatus = document.getElementById("wheelStatus");
+  var pickA = document.getElementById("pickA");
+  var pickB = document.getElementById("pickB");
+
+  /* ---------- Colour wheel (SVG, six segments) ---------- */
+  var WHEEL_SEGMENTS = [
+    { id:"red",    label:"Red",    hex:"#d8332f", primary:true,  start:-90 },
+    { id:"orange", label:"Orange", hex:"#e8772b", primary:false, start:-30 },
+    { id:"yellow", label:"Yellow", hex:"#f4c20d", primary:true,  start:30 },
+    { id:"green",  label:"Green",  hex:"#2f9e54", primary:false, start:90 },
+    { id:"blue",   label:"Blue",   hex:"#1f63c4", primary:true,  start:150 },
+    { id:"purple", label:"Purple", hex:"#7a3fa6", primary:false, start:210 }
+  ];
+
+  function polar(cx, cy, r, deg){
+    var rad = deg * Math.PI / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+
+  function buildWheel(){
+    var cx = 130, cy = 130, rOuter = 120, rInner = 44;
+    var svg = '<svg viewBox="0 0 260 260" width="240" height="240" class="wheel" role="img" aria-label="Class colour wheel showing primary and secondary colours">';
+    WHEEL_SEGMENTS.forEach(function(seg){
+      var a0 = seg.start, a1 = seg.start + 60;
+      var p1 = polar(cx, cy, rOuter, a0);
+      var p2 = polar(cx, cy, rOuter, a1);
+      var p3 = polar(cx, cy, rInner, a1);
+      var p4 = polar(cx, cy, rInner, a0);
+      var d = "M " + p1.x.toFixed(1) + " " + p1.y.toFixed(1) +
+              " A " + rOuter + " " + rOuter + " 0 0 1 " + p2.x.toFixed(1) + " " + p2.y.toFixed(1) +
+              " L " + p3.x.toFixed(1) + " " + p3.y.toFixed(1) +
+              " A " + rInner + " " + rInner + " 0 0 0 " + p4.x.toFixed(1) + " " + p4.y.toFixed(1) +
+              " Z";
+      var locked = (!seg.primary && !discovered[seg.id]);
+      var fill = locked ? "#e8e2d4" : seg.hex;
+      var mid = polar(cx, cy, (rOuter + rInner) / 2, a0 + 30);
+      var textFill = locked ? "#a99f88" : (seg.id === "yellow" ? "#5a4400" : "#ffffff");
+      var labelTxt = locked ? "?" : seg.label;
+      svg += '<path d="' + d + '" fill="' + fill + '" stroke="#ffffff" stroke-width="3"/>';
+      svg += '<text x="' + mid.x.toFixed(1) + '" y="' + (mid.y + 4).toFixed(1) + '" text-anchor="middle" font-size="13" fill="' + textFill + '">' + labelTxt + '</text>';
+    });
+    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + rInner + '" fill="#fffdfa" stroke="#cdbf9f" stroke-width="3"/>';
+    svg += '<text x="' + cx + '" y="' + (cy + 5) + '" text-anchor="middle" font-size="12" fill="#8a3b6b">Colour wheel</text>';
+    svg += '</svg>';
+    document.getElementById("wheelHolder").innerHTML = svg;
+  }
+
+  function updateSwatch(key, hex){
+    var el = document.getElementById("sw-" + key);
+    if(!el) return;
+    el.classList.add("filled");
+    el.style.background = hex;
+    el.textContent = key === "orange" ? "\u{1F34A}" : (key === "green" ? "\u{1F33F}" : "\u{1F347}");
+  }
+
+  function countDiscovered(){
+    var n = 0;
+    for(var k in discovered){ if(discovered[k]) n++; }
+    return n;
+  }
+
+  function refreshScore(){
+    var n = countDiscovered();
+    scoreLine.textContent = "Secondaries discovered: " + n + " of 3";
+    if(n === 3){
+      scoreLine.textContent = "Well done! All 3 secondaries discovered. \u{1F389}";
+    }
+  }
+
+  /* ---------- Mixing logic ---------- */
+  function mix(a, b){
+    if(!a || !b){
+      setFeedback("Choose two paints first, then mix.", "");
+      return;
+    }
+    var key = a + "+" + b;
+    var sameColour = (a === b);
+
+    showSplats(PAINTS[a].hex, PAINTS[b].hex);
+
+    if(sameColour){
+      showResult("#8a6a44", PAINTS[a].name + " + " + PAINTS[a].name);
+      setFeedback("That is two of the same paint, so it stays <strong>" + PAINTS[a].name.toLowerCase() + "</strong>. To make a new colour, mix two <em>different</em> primaries.", "muddy");
+      return;
+    }
+
+    if(SECONDARIES[key]){
+      var sec = SECONDARIES[key];
+      showResult(sec.hex, sec.name);
+      var firstTime = !discovered[sec.key];
+      discovered[sec.key] = true;
+      updateSwatch(sec.key, sec.hex);
+      buildWheel();
+      refreshScore();
+      if(firstTime){
+        setFeedback("<strong>New colour discovered!</strong> " + PAINTS[a].name + " and " + PAINTS[b].name + " make <strong>" + sec.name + "</strong>. " + sec.name + " is a <em>secondary</em> colour. It has joined the wheel.", "good");
+        wheelStatus.textContent = sec.name + " discovered and added to the colour wheel. " + countDiscovered() + " of 3 secondaries found.";
+      } else {
+        setFeedback(PAINTS[a].name + " and " + PAINTS[b].name + " make <strong>" + sec.name + "</strong> again. " + sec.name + " is already on the wheel.", "good");
+      }
+      return;
+    }
+
+    // Fallback (should not happen with 3 primaries) treat as muddy
+    showResult("#6f5a3e", "Muddy");
+    setFeedback("Those mixed into a muddy brown. Try two different primary colours.", "muddy");
+  }
+
+  function showSplats(hexA, hexB){
+    placeSplat(splatA, hexA, "30%", "26%", 88);
+    placeSplat(splatB, hexB, "58%", "34%", 88);
+  }
+  function placeSplat(el, hex, left, top, size){
+    el.style.background = hex;
+    el.style.width = size + "px";
+    el.style.height = size + "px";
+    el.style.left = left;
+    el.style.top = top;
+    el.classList.remove("show");
+    // reflow to restart transition
+    void el.offsetWidth;
+    el.classList.add("show");
+  }
+  function showResult(hex, label){
+    mixResult.style.background = hex;
+    mixResult.textContent = label;
+    mixResult.classList.remove("show");
+    void mixResult.offsetWidth;
+    mixResult.classList.add("show");
+    wellLabel.style.display = "none";
+  }
+
+  function setFeedback(html, kind){
+    feedback.className = "feedback" + (kind ? " " + kind : "");
+    feedback.innerHTML = html;
+  }
+
+  function cleanPalette(){
+    dropped = [];
+    [splatA, splatB, mixResult].forEach(function(el){ el.classList.remove("show"); });
+    mixResult.textContent = "";
+    wellLabel.style.display = "";
+    wellLabel.textContent = "Drop your first paint here";
+    pickA.value = "";
+    pickB.value = "";
+    setFeedback("Palette cleaned. Pick two paints to mix again.", "");
+  }
+
+  /* ---------- Drag and drop via Pointer Events ---------- */
+  var activeBlob = null, ghost = null, startX = 0, startY = 0;
+
+  function makeGhost(blob){
+    var g = blob.cloneNode(true);
+    g.style.position = "fixed";
+    g.style.zIndex = "9999";
+    g.style.pointerEvents = "none";
+    g.style.margin = "0";
+    g.style.opacity = "0.9";
+    g.classList.remove("selected");
+    document.body.appendChild(g);
+    return g;
+  }
+
+  function onPointerDown(e){
+    var blob = e.currentTarget;
+    activeBlob = blob;
+    blob.classList.add("dragging");
+    try { blob.setPointerCapture(e.pointerId); } catch(err){}
+    ghost = makeGhost(blob);
+    moveGhost(e.clientX, e.clientY);
+  }
+  function onPointerMove(e){
+    if(!activeBlob || !ghost) return;
+    moveGhost(e.clientX, e.clientY);
+    if(isOverPalette(e.clientX, e.clientY)){
+      palette.classList.add("over");
+    } else {
+      palette.classList.remove("over");
+    }
+  }
+  function moveGhost(x, y){
+    var r = ghost.getBoundingClientRect();
+    ghost.style.left = (x - r.width/2) + "px";
+    ghost.style.top = (y - r.height/2) + "px";
+  }
+  function isOverPalette(x, y){
+    var r = palette.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  }
+  function onPointerUp(e){
+    if(!activeBlob) return;
+    var blob = activeBlob;
+    blob.classList.remove("dragging");
+    if(ghost){ ghost.remove(); ghost = null; }
+    palette.classList.remove("over");
+    if(isOverPalette(e.clientX, e.clientY)){
+      addPaintToPalette(blob.getAttribute("data-colour"));
+    }
+    activeBlob = null;
+  }
+
+  function addPaintToPalette(colour){
+    dropped.push(colour);
+    if(dropped.length === 1){
+      wellLabel.textContent = PAINTS[colour].name + " added. Now drop a second paint.";
+      // show single splat preview
+      placeSplat(splatA, PAINTS[colour].hex, "40%", "30%", 80);
+      splatB.classList.remove("show");
+      mixResult.classList.remove("show");
+      setFeedback("You added <strong>" + PAINTS[colour].name + "</strong>. What will it make when you add another paint?", "");
+    } else if(dropped.length === 2){
+      pickA.value = dropped[0];
+      pickB.value = dropped[1];
+      mix(dropped[0], dropped[1]);
+      dropped = []; // reset for next mix
+    }
+  }
+
+  // Keyboard: Enter/Space on a blob adds it to the palette
+  function onBlobKey(e){
+    if(e.key === "Enter" || e.key === " " || e.key === "Spacebar"){
+      e.preventDefault();
+      addPaintToPalette(e.currentTarget.getAttribute("data-colour"));
+    }
+  }
+
+  /* ---------- Wire up ---------- */
+  ["blob-red","blob-yellow","blob-blue"].forEach(function(id){
+    var b = document.getElementById(id);
+    b.addEventListener("pointerdown", onPointerDown);
+    b.addEventListener("pointermove", onPointerMove);
+    b.addEventListener("pointerup", onPointerUp);
+    b.addEventListener("pointercancel", onPointerUp);
+    b.addEventListener("keydown", onBlobKey);
+  });
+
+  document.getElementById("mixBtn").addEventListener("click", function(){
+    dropped = [];
+    mix(pickA.value, pickB.value);
+  });
+  document.getElementById("clearBtn").addEventListener("click", cleanPalette);
+
+  buildWheel();
+  refreshScore();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hardy-Weinberg Simulator</title>
+<style>
+  :root {
+    --ink: #15202b;
+    --muted: #5b6b7a;
+    --line: #d6dee6;
+    --panel: #ffffff;
+    --bg: #eef2f6;
+    --accent: #1d6f8b;
+    --accent-dark: #14516a;
+    --dom: #2f7d4f;     /* dominant allele A */
+    --rec: #b8533a;     /* recessive allele a */
+    --warn: #b07400;
+    --good: #2f7d4f;
+    --bad: #b8533a;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20,40,60,.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 18px 16px 60px; }
+  header.app {
+    background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+    color: #fff;
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  header.app h1 { margin: 0 0 4px; font-size: 1.55rem; letter-spacing: .2px; }
+  header.app .aim {
+    margin: 6px 0 0;
+    font-size: .98rem;
+    background: rgba(255,255,255,.15);
+    padding: 8px 12px;
+    border-radius: 10px;
+    border-left: 4px solid rgba(255,255,255,.6);
+  }
+  header.app .sub { margin: 2px 0 0; font-size: .9rem; opacity: .92; }
+
+  .grid { display: grid; gap: 16px; margin-top: 16px; }
+  @media (min-width: 900px) {
+    .grid.main { grid-template-columns: 360px 1fr; align-items: start; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+  }
+  .panel h2 {
+    margin: 0 0 10px; font-size: 1.05rem; color: var(--accent-dark);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel h2 .pill {
+    font-size: .68rem; font-weight: 700; background: var(--bg); color: var(--muted);
+    padding: 2px 8px; border-radius: 999px; letter-spacing: .4px;
+  }
+  label.field { display: block; margin: 14px 0 0; font-weight: 600; font-size: .92rem; }
+  label.field .val { float: right; font-variant-numeric: tabular-nums; color: var(--accent-dark); }
+  input[type=range] { width: 100%; margin: 8px 0 2px; touch-action: manipulation; accent-color: var(--accent); }
+  .hint { font-size: .8rem; color: var(--muted); margin: 2px 0 0; }
+
+  .freqbar {
+    display: flex; height: 30px; border-radius: 8px; overflow: hidden; margin-top: 10px;
+    border: 1px solid var(--line); font-size: .8rem; font-weight: 700; color: #fff;
+  }
+  .freqbar .a { background: var(--dom); }
+  .freqbar .b { background: var(--rec); }
+  .freqbar span { display: flex; align-items: center; justify-content: center; min-width: 0; transition: flex-basis .25s; }
+
+  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    padding: 9px 14px; border-radius: 10px; touch-action: manipulation;
+    transition: background .15s, transform .05s;
+  }
+  button:hover { background: var(--accent-dark); }
+  button:active { transform: translateY(1px); }
+  button.ghost { background: #fff; color: var(--accent-dark); }
+  button.ghost:hover { background: var(--bg); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button:focus-visible { outline: 3px solid #ffbf47; outline-offset: 2px; }
+  input[type=range]:focus-visible { outline: 3px solid #ffbf47; outline-offset: 4px; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 4px; }
+  @media (max-width: 560px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat {
+    background: var(--bg); border-radius: 10px; padding: 10px; text-align: center;
+    border: 1px solid var(--line);
+  }
+  .stat .k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .stat .v { font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .stat.dom .v { color: var(--dom); }
+  .stat.rec .v { color: var(--rec); }
+
+  canvas { display: block; width: 100%; height: auto; border-radius: 10px; background: #fbfcfd; border: 1px solid var(--line); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: .82rem; }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,.15); }
+
+  .geno-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+  .geno {
+    border-radius: 10px; padding: 8px; text-align: center; color: #fff; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .geno small { display: block; font-weight: 600; font-size: .72rem; opacity: .9; margin-bottom: 2px; }
+  .geno.aa { background: #2f7d4f; }
+  .geno.het { background: #6a8f3d; }
+  .geno.rr { background: #b8533a; }
+
+  table.gen { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .85rem; }
+  table.gen th, table.gen td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  table.gen th { color: var(--muted); font-weight: 700; text-align: right; }
+  table.gen th:first-child, table.gen td:first-child { text-align: left; }
+  .scroller { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+
+  .feedback {
+    margin-top: 12px; border-radius: 10px; padding: 12px 14px; font-size: .92rem;
+    background: #f3f8fb; border: 1px solid #cfe3ee; border-left: 5px solid var(--accent);
+  }
+  .feedback strong { color: var(--accent-dark); }
+  .feedback.win { background: #eef7f0; border-color: #bfe0c8; border-left-color: var(--good); }
+  .feedback.alert { background: #fdf6ea; border-color: #ecd9b0; border-left-color: var(--warn); }
+
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 18px 0 0; }
+  .tab {
+    background: #fff; border: 1px solid var(--line); color: var(--muted);
+    padding: 8px 14px; border-radius: 999px; font-weight: 700; cursor: pointer; font-size: .9rem;
+  }
+  .tab[aria-selected="true"] { background: var(--accent-dark); color: #fff; border-color: var(--accent-dark); }
+  .tab:focus-visible { outline: 3px solid #ffbf47; outline-offset: 2px; }
+  .tabpanel { margin-top: 14px; }
+  .tabpanel[hidden] { display: none; }
+
+  .chi-form { display: grid; gap: 10px; }
+  .chi-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; align-items: center; }
+  .chi-row label { font-weight: 600; font-size: .9rem; }
+  .chi-row input[type=number] { width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+  .chi-row input[type=number]:focus-visible { outline: 3px solid #ffbf47; }
+  .chi-head { font-size: .76rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+
+  .quiz { margin-top: 8px; }
+  .quiz .opts { display: grid; gap: 8px; margin-top: 8px; }
+  .quiz .opt {
+    text-align: left; background: #fff; border: 1px solid var(--line); color: var(--ink);
+    padding: 10px 12px; border-radius: 10px; font-weight: 600;
+  }
+  .quiz .opt:hover { background: var(--bg); }
+  .quiz .opt.correct { background: #eef7f0; border-color: var(--good); color: var(--accent-dark); }
+  .quiz .opt.wrong { background: #fdeeea; border-color: var(--bad); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .note { font-size: .82rem; color: var(--muted); margin-top: 14px; }
+  code.eq { background: var(--bg); padding: 2px 6px; border-radius: 6px; font-weight: 700; }
+  footer.app { margin-top: 26px; font-size: .8rem; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<!-- WEST-TTS v1 : shared voice selection. Prefers Google UK English (female) / matching
+     Google voice per language (free network neural), falls back to best local voice offline. -->
+<script>
+window.westTTS = (function () {
+  var synth = window.speechSynthesis, voices = [];
+  function load() { if (synth) voices = synth.getVoices() || []; }
+  if (synth) { load(); try { synth.addEventListener('voiceschanged', load); } catch (e) {} }
+  function score(v, lang) {
+    var base = lang.slice(0, 2).toLowerCase(), s = 0, n = (v.name || '').toLowerCase();
+    if ((v.lang || '').toLowerCase() === lang.toLowerCase()) s += 25;
+    else if ((v.lang || '').toLowerCase().slice(0, 2) === base) s += 12;
+    if (n.indexOf('google') >= 0) s += 40;           // chosen preference: Google neural
+    if (v.localService === false) s += 18;           // network neural quality
+    if (base === 'en' && n.indexOf('uk english female') >= 0) s += 30;
+    if (base === 'en' && (v.lang || '').toLowerCase() === 'en-gb') s += 8;
+    if (/natural|neural|enhanced|premium|siri/.test(n)) s += 8;
+    return s;
+  }
+  function pick(lang) {
+    lang = lang || 'en-GB';
+    var base = lang.slice(0, 2).toLowerCase();
+    var pool = voices.filter(function (v) { return (v.lang || '').toLowerCase().slice(0, 2) === base; });
+    if (!pool.length) pool = voices.slice();
+    pool.sort(function (a, b) { return score(b, lang) - score(a, lang); });
+    return pool[0] || null;
+  }
+  function speak(text, opts) {
+    if (!synth || !text) return null;
+    opts = opts || {};
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = opts.lang || 'en-GB';
+    var v = pick(u.lang); if (v) u.voice = v;
+    u.rate = opts.rate != null ? opts.rate : 0.9;
+    u.pitch = opts.pitch != null ? opts.pitch : 1.1;
+    synth.speak(u);
+    return u;
+  }
+  return { speak: speak, pick: pick, cancel: function () { if (synth) synth.cancel(); }, ready: function () { return !!synth; } };
+})();
+</script>
+<div class="wrap">
+
+  <header class="app">
+    <h1>Hardy-Weinberg Simulator &#x1F9EC;</h1>
+    <p class="sub">Science &middot; KS5 Biology &middot; Genetics, evolution and biodiversity</p>
+    <p class="aim"><strong>Teaching aim:</strong> set allele frequencies and a selection pressure, then run the population forward to see how <code class="eq">p</code> and <code class="eq">q</code> change, and test when the Hardy-Weinberg equilibrium holds.</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Activities">
+    <button class="tab" role="tab" id="tab-sim" aria-controls="panel-sim" aria-selected="true">Population simulator</button>
+    <button class="tab" role="tab" id="tab-chi" aria-controls="panel-chi" aria-selected="false">Chi-squared test</button>
+    <button class="tab" role="tab" id="tab-check" aria-controls="panel-check" aria-selected="false">Quick check</button>
+  </nav>
+
+  <!-- ============ SIMULATOR ============ -->
+  <section class="tabpanel" id="panel-sim" role="tabpanel" aria-labelledby="tab-sim">
+    <div class="grid main">
+
+      <div class="panel" aria-label="Controls">
+        <h2>Set up the gene pool <span class="pill">CONTROLS</span></h2>
+
+        <label class="field" for="qStart">
+          Starting recessive allele frequency, q
+          <span class="val" id="qStartVal">0.50</span>
+        </label>
+        <input type="range" id="qStart" min="0.01" max="0.99" step="0.01" value="0.50"
+               aria-describedby="qHint">
+        <p class="hint" id="qHint">p (dominant A) plus q (recessive a) always sum to 1. The bar below shows the gene pool.</p>
+
+        <div class="freqbar" aria-hidden="true">
+          <span class="a" id="barA">A 0.50</span>
+          <span class="b" id="barB">a 0.50</span>
+        </div>
+
+        <label class="field" for="pop">
+          Population size
+          <span class="val" id="popVal">500</span>
+        </label>
+        <input type="range" id="pop" min="50" max="2000" step="50" value="500">
+        <p class="hint">Smaller populations show more genetic drift (random sampling error).</p>
+
+        <label class="field" for="sel">
+          Selection against recessive phenotype (aa)
+          <span class="val" id="selVal">0%</span>
+        </label>
+        <input type="range" id="sel" min="0" max="100" step="5" value="0"
+               aria-describedby="selHint">
+        <p class="hint" id="selHint">0% means no selection (one Hardy-Weinberg condition). Raise it to remove a share of aa individuals before they breed.</p>
+
+        <div class="btnrow">
+          <button id="btnStep" type="button">Advance 1 generation</button>
+          <button id="btnRun" type="button" class="ghost">Run 10</button>
+          <button id="btnReset" type="button" class="ghost">Reset</button>
+        </div>
+        <div class="btnrow">
+          <button id="btnNarrate" type="button" class="ghost" aria-pressed="false">&#x1F50A; Read result aloud</button>
+        </div>
+      </div>
+
+      <div class="panel" aria-label="Population and results">
+        <h2>The population now <span class="pill" id="genTag">GENERATION 0</span></h2>
+
+        <div class="stats" role="group" aria-label="Allele and genotype frequencies">
+          <div class="stat dom"><div class="k">p (allele A)</div><div class="v" id="sP">0.50</div></div>
+          <div class="stat rec"><div class="k">q (allele a)</div><div class="v" id="sQ">0.50</div></div>
+          <div class="stat"><div class="k">Generation</div><div class="v" id="sGen">0</div></div>
+        </div>
+
+        <div class="geno-grid" role="group" aria-label="Predicted genotype counts">
+          <div class="geno aa"><small>Homozygous AA (p&sup2;)</small><span id="gAA">125</span></div>
+          <div class="geno het"><small>Heterozygous Aa (2pq)</small><span id="gAa">250</span></div>
+          <div class="geno rr"><small>Homozygous aa (q&sup2;)</small><span id="gaa">125</span></div>
+        </div>
+
+        <canvas id="cvs" width="680" height="240" role="img"
+                aria-label="Grid of individuals coloured by genotype"></canvas>
+        <div class="legend" aria-hidden="true">
+          <div class="item"><span class="swatch" style="background:#2f7d4f"></span> AA (homozygous dominant)</div>
+          <div class="item"><span class="swatch" style="background:#6a8f3d"></span> Aa (heterozygous)</div>
+          <div class="item"><span class="swatch" style="background:#b8533a"></span> aa (homozygous recessive, shows recessive trait)</div>
+        </div>
+
+        <div class="feedback" id="fb" role="status" aria-live="polite">
+          Set q and the selection pressure, then advance a generation. With no selection and a large population, p and q should stay almost constant: that is Hardy-Weinberg equilibrium.
+        </div>
+
+        <h2 style="margin-top:18px">Generation log <span class="pill">DATA</span></h2>
+        <div class="scroller">
+          <table class="gen" aria-label="History of allele frequencies by generation">
+            <thead>
+              <tr><th>Gen</th><th>p</th><th>q</th><th>AA</th><th>Aa</th><th>aa</th></tr>
+            </thead>
+            <tbody id="logBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CHI-SQUARED ============ -->
+  <section class="tabpanel" id="panel-chi" role="tabpanel" aria-labelledby="tab-chi" hidden>
+    <div class="panel">
+      <h2>Chi-squared (&chi;&sup2;) goodness-of-fit <span class="pill">DIHYBRID</span></h2>
+      <p class="hint" style="margin-top:0">A dihybrid cross of two heterozygotes (RrYy x RrYy) predicts a 9:3:3:1 ratio. Enter the observed offspring counts from a class experiment and test whether the difference from the expected ratio is due to chance.</p>
+
+      <form class="chi-form" id="chiForm">
+        <div class="chi-row chi-head"><span>Phenotype</span><span>Observed (O)</span><span>Expected ratio</span></div>
+        <div class="chi-row">
+          <label for="o1">Round, yellow</label>
+          <input type="number" id="o1" min="0" step="1" value="315" inputmode="numeric">
+          <span>9</span>
+        </div>
+        <div class="chi-row">
+          <label for="o2">Round, green</label>
+          <input type="number" id="o2" min="0" step="1" value="108" inputmode="numeric">
+          <span>3</span>
+        </div>
+        <div class="chi-row">
+          <label for="o3">Wrinkled, yellow</label>
+          <input type="number" id="o3" min="0" step="1" value="101" inputmode="numeric">
+          <span>3</span>
+        </div>
+        <div class="chi-row">
+          <label for="o4">Wrinkled, green</label>
+          <input type="number" id="o4" min="0" step="1" value="32" inputmode="numeric">
+          <span>1</span>
+        </div>
+      </form>
+      <div class="btnrow">
+        <button id="btnChi" type="button">Calculate &chi;&sup2;</button>
+        <button id="btnChiMendel" type="button" class="ghost">Load Mendel's pea data</button>
+      </div>
+
+      <div class="scroller" style="margin-top:14px">
+        <table class="gen" aria-label="Chi-squared working">
+          <thead>
+            <tr><th>Phenotype</th><th>O</th><th>E</th><th>O&minus;E</th><th>(O&minus;E)&sup2;/E</th></tr>
+          </thead>
+          <tbody id="chiBody"></tbody>
+          <tfoot><tr><th colspan="4">&chi;&sup2; total</th><th id="chiTotal">&ndash;</th></tr></tfoot>
+        </table>
+      </div>
+
+      <div class="feedback" id="chiFb" role="status" aria-live="polite">
+        Critical value at p = 0.05 with 3 degrees of freedom is 7.82. If &chi;&sup2; is below this, the difference is not significant and the 9:3:3:1 model is supported.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ QUICK CHECK ============ -->
+  <section class="tabpanel" id="panel-check" role="tabpanel" aria-labelledby="tab-check" hidden>
+    <div class="panel quiz">
+      <h2>Quick check <span class="pill">RECALL</span></h2>
+      <p id="qText" style="font-weight:600">Loading question.</p>
+      <div class="opts" id="qOpts" role="group" aria-label="Answer options"></div>
+      <div class="feedback" id="qFb" role="status" aria-live="polite" hidden></div>
+      <div class="btnrow"><button id="btnNextQ" type="button">Next question</button></div>
+    </div>
+  </section>
+
+  <p class="note">
+    Hardy-Weinberg equilibrium assumes: no mutation, no migration, no natural selection, random mating, and a large population. Break any one (for example by adding selection or shrinking the population here) and the allele frequencies will drift away from <code class="eq">p&sup2; + 2pq + q&sup2; = 1</code>.
+  </p>
+
+  <footer class="app">Fictional demonstration populations only. WeST Curriculum Expert.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- helpers ---------- */
+  var $ = function (id) { return document.getElementById(id); };
+  function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+  function fmt(x) { return x.toFixed(2); }
+
+  /* ---------- TAB SWITCHING ---------- */
+  var tabs = [$("tab-sim"), $("tab-chi"), $("tab-check")];
+  var panels = { "tab-sim": $("panel-sim"), "tab-chi": $("panel-chi"), "tab-check": $("panel-check") };
+  function selectTab(t) {
+    tabs.forEach(function (b) {
+      var on = (b === t);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      panels[b.id].hidden = !on;
+    });
+    t.focus();
+  }
+  tabs.forEach(function (b, i) {
+    b.addEventListener("click", function () { selectTab(b); });
+    b.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        var dir = e.key === "ArrowRight" ? 1 : -1;
+        selectTab(tabs[(i + dir + tabs.length) % tabs.length]);
+      }
+    });
+  });
+
+  /* =========================================================
+     POPULATION SIMULATOR
+     Model: an explicit population of diploid individuals.
+     Each individual carries two alleles. Each generation:
+       1. count alleles -> p, q
+       2. apply selection against aa (remove a fraction)
+       3. survivors mate at random: draw 2 alleles per offspring
+          from the surviving allele pool, rebuild population.
+     This produces real drift in small populations and a clear
+     directional change under selection.
+  ========================================================= */
+
+  var state = {
+    pop: 500,
+    sel: 0,                 // selection coefficient against aa, 0..1
+    individuals: [],        // each: 'AA' | 'Aa' | 'aa'
+    gen: 0,
+    log: []
+  };
+
+  function buildFromFreq(q, n) {
+    var p = 1 - q;
+    var inds = [];
+    // assign genotypes by HW proportions with rounding
+    var nAA = Math.round(p * p * n);
+    var nAa = Math.round(2 * p * q * n);
+    var naa = n - nAA - nAa;
+    if (naa < 0) { nAa += naa; naa = 0; }
+    var i;
+    for (i = 0; i < nAA; i++) inds.push("AA");
+    for (i = 0; i < nAa; i++) inds.push("Aa");
+    for (i = 0; i < naa; i++) inds.push("aa");
+    return inds;
+  }
+
+  function counts(inds) {
+    var c = { AA: 0, Aa: 0, aa: 0 };
+    for (var i = 0; i < inds.length; i++) c[inds[i]]++;
+    return c;
+  }
+
+  function freqs(inds) {
+    var c = counts(inds);
+    var total = inds.length;
+    var aAlleles = 2 * c.AA + c.Aa;          // A alleles
+    var bAlleles = 2 * c.aa + c.Aa;          // a alleles
+    var tot = aAlleles + bAlleles;
+    var p = tot ? aAlleles / tot : 0;
+    return { p: p, q: 1 - p, c: c, n: total };
+  }
+
+  function resetSim() {
+    state.pop = parseInt($("pop").value, 10);
+    state.sel = parseInt($("sel").value, 10) / 100;
+    var q = parseFloat($("qStart").value);
+    state.individuals = buildFromFreq(q, state.pop);
+    state.gen = 0;
+    state.log = [];
+    render(true);
+    logRow();
+  }
+
+  function advance() {
+    var inds = state.individuals;
+    // 1. selection: remove a fraction of aa before breeding
+    var survivors = [];
+    for (var i = 0; i < inds.length; i++) {
+      if (inds[i] === "aa" && Math.random() < state.sel) continue;
+      survivors.push(inds[i]);
+    }
+    if (survivors.length < 2) survivors = inds.slice(); // avoid extinction wipe-out
+    // 2. build gamete pool from survivors
+    var pool = [];
+    for (var j = 0; j < survivors.length; j++) {
+      var g = survivors[j];
+      pool.push(g[0]); pool.push(g[1]);
+    }
+    // 3. random mating: each new individual draws 2 alleles at random
+    var next = [];
+    for (var k = 0; k < state.pop; k++) {
+      var a1 = pool[(Math.random() * pool.length) | 0];
+      var a2 = pool[(Math.random() * pool.length) | 0];
+      next.push(genoOf(a1, a2));
+    }
+    state.individuals = next;
+    state.gen++;
+    render(false);
+    logRow();
+  }
+
+  function genoOf(a1, a2) {
+    if (a1 === "A" && a2 === "A") return "AA";
+    if (a1 === "a" && a2 === "a") return "aa";
+    return "Aa";
+  }
+
+  /* ---------- drawing ---------- */
+  var cvs = $("cvs"), ctx = cvs.getContext("2d");
+  var COLS = { AA: "#2f7d4f", Aa: "#6a8f3d", aa: "#b8533a" };
+
+  function drawPopulation(inds) {
+    var W = cvs.width, H = cvs.height;
+    ctx.clearRect(0, 0, W, H);
+    var n = inds.length;
+    // choose a grid that fits
+    var cols = Math.ceil(Math.sqrt(n * (W / H)));
+    var rows = Math.ceil(n / cols);
+    var cw = W / cols, ch = H / rows;
+    var r = Math.max(1.5, Math.min(cw, ch) / 2 - 1);
+    for (var i = 0; i < n; i++) {
+      var cx = (i % cols) * cw + cw / 2;
+      var cy = ((i / cols) | 0) * ch + ch / 2;
+      ctx.fillStyle = COLS[inds[i]];
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /* ---------- render ---------- */
+  function render(isReset) {
+    var f = freqs(state.individuals);
+    $("sP").textContent = fmt(f.p);
+    $("sQ").textContent = fmt(f.q);
+    $("sGen").textContent = state.gen;
+    $("genTag").textContent = "GENERATION " + state.gen;
+    $("gAA").textContent = f.c.AA;
+    $("gAa").textContent = f.c.Aa;
+    $("gaa").textContent = f.c.aa;
+    drawPopulation(state.individuals);
+    cvs.setAttribute("aria-label",
+      "Generation " + state.gen + ". p equals " + fmt(f.p) + ", q equals " + fmt(f.q) +
+      ". Counts: " + f.c.AA + " AA, " + f.c.Aa + " Aa, " + f.c.aa + " aa.");
+    giveFeedback(f, isReset);
+  }
+
+  var lastNarration = "";
+
+  function giveFeedback(f, isReset) {
+    var fb = $("fb");
+    fb.className = "feedback";
+    var sel = state.sel, msg = "", cls = "";
+
+    if (isReset || state.gen === 0) {
+      var expAA = (f.p * f.p * f.n);
+      msg = "Generation 0 built from q = " + fmt(f.q) + ". Expected aa count is q&sup2; &times; N = " +
+        fmt(f.q * f.q) + " &times; " + f.n + " &asymp; " + Math.round(f.q * f.q * f.n) +
+        ", and you have " + f.c.aa + ". Now advance a generation.";
+      lastNarration = "Generation zero. q is " + fmt(f.q) + ". Advance a generation to see what happens.";
+    } else {
+      var prev = state.log[state.log.length - 2];
+      var dq = prev ? (f.q - prev.q) : 0;
+      var dir = dq < -0.005 ? "fallen" : dq > 0.005 ? "risen" : "barely changed";
+      if (sel > 0 && f.q > 0.001) {
+        cls = "alert";
+        msg = "<strong>Selection is acting.</strong> Removing aa individuals strips a alleles from the pool, so q has " + dir +
+          " to " + fmt(f.q) + " (change of " + (dq >= 0 ? "+" : "") + fmt(dq) + "). The population is <em>not</em> in Hardy-Weinberg equilibrium: one condition (no selection) is broken.";
+        lastNarration = "Selection is acting against the recessive phenotype. q has " + dir + " to " + fmt(f.q) + ".";
+      } else if (sel === 0 && state.pop < 200) {
+        msg = "<strong>No selection, small population.</strong> q has " + dir + " to " + fmt(f.q) +
+          ". With only " + state.pop + " individuals, any wobble is genetic drift: random sampling error, not selection. Notice it jitters rather than trending.";
+        cls = Math.abs(dq) > 0.02 ? "alert" : "";
+        lastNarration = "No selection, but a small population, so q drifts randomly. q is now " + fmt(f.q) + ".";
+      } else {
+        cls = "win";
+        msg = "<strong>Equilibrium holding.</strong> No selection and a large population, so q has " + dir +
+          " and sits at " + fmt(f.q) + ". Allele frequencies stay roughly constant generation to generation: this is Hardy-Weinberg equilibrium.";
+        lastNarration = "Equilibrium is holding. q is steady at about " + fmt(f.q) + ".";
+      }
+      // near-fixation note
+      if (f.q < 0.01) {
+        cls = "win";
+        msg += " The recessive allele is now nearly eliminated (q &asymp; 0), but rare a alleles hide in heterozygotes, so it is hard to remove completely.";
+        lastNarration = "The recessive allele is nearly eliminated, but rare copies still hide in heterozygotes.";
+      } else if (f.p < 0.01) {
+        cls = "alert";
+        msg += " The dominant allele is nearly lost (p &asymp; 0).";
+      }
+    }
+    fb.innerHTML = msg;
+    if (cls) fb.classList.add(cls);
+  }
+
+  function logRow() {
+    var f = freqs(state.individuals);
+    state.log.push({ gen: state.gen, p: f.p, q: f.q, c: f.c });
+    var body = $("logBody");
+    var tr = document.createElement("tr");
+    tr.innerHTML = "<td>" + state.gen + "</td><td>" + fmt(f.p) + "</td><td>" + fmt(f.q) +
+      "</td><td>" + f.c.AA + "</td><td>" + f.c.Aa + "</td><td>" + f.c.aa + "</td>";
+    body.insertBefore(tr, body.firstChild);
+  }
+
+  /* ---------- slider wiring ---------- */
+  function updateFreqBar() {
+    var q = parseFloat($("qStart").value), p = 1 - q;
+    $("qStartVal").textContent = fmt(q);
+    $("barA").style.flexBasis = (p * 100) + "%";
+    $("barB").style.flexBasis = (q * 100) + "%";
+    $("barA").textContent = "A " + fmt(p);
+    $("barB").textContent = "a " + fmt(q);
+  }
+  $("qStart").addEventListener("input", function () { updateFreqBar(); });
+  $("qStart").addEventListener("change", resetSim);
+  $("pop").addEventListener("input", function () { $("popVal").textContent = this.value; });
+  $("pop").addEventListener("change", resetSim);
+  $("sel").addEventListener("input", function () { $("selVal").textContent = this.value + "%"; state.sel = parseInt(this.value, 10) / 100; });
+
+  $("btnStep").addEventListener("click", advance);
+  $("btnReset").addEventListener("click", resetSim);
+  $("btnRun").addEventListener("click", function () {
+    var i = 0;
+    var run = function () { advance(); if (++i < 10) setTimeout(run, 70); };
+    run();
+  });
+
+  /* ---------- narration ---------- */
+  $("btnNarrate").addEventListener("click", function () {
+    if (window.westTTS && window.westTTS.ready()) {
+      window.westTTS.speak(lastNarration || "Set up the gene pool, then advance a generation.",
+        { lang: "en-GB", rate: 0.95, pitch: 1.05 });
+    }
+  });
+
+  /* =========================================================
+     CHI-SQUARED
+  ========================================================= */
+  var chiRatios = [9, 3, 3, 1];
+  var chiNames = ["Round, yellow", "Round, green", "Wrinkled, yellow", "Wrinkled, green"];
+
+  function calcChi() {
+    var obs = [+$("o1").value, +$("o2").value, +$("o3").value, +$("o4").value].map(function (x) {
+      return isFinite(x) && x >= 0 ? x : 0;
+    });
+    var total = obs.reduce(function (a, b) { return a + b; }, 0);
+    var ratioSum = 16;
+    var body = $("chiBody");
+    body.innerHTML = "";
+    var chi = 0;
+    for (var i = 0; i < 4; i++) {
+      var exp = total * chiRatios[i] / ratioSum;
+      var diff = obs[i] - exp;
+      var term = exp > 0 ? (diff * diff) / exp : 0;
+      chi += term;
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td>" + chiNames[i] + "</td><td>" + obs[i] + "</td><td>" +
+        exp.toFixed(1) + "</td><td>" + diff.toFixed(1) + "</td><td>" + term.toFixed(3) + "</td>";
+      body.appendChild(tr);
+    }
+    $("chiTotal").textContent = chi.toFixed(3);
+    var crit = 7.82; // df = 3, p = 0.05
+    var fb = $("chiFb");
+    fb.className = "feedback";
+    if (total === 0) {
+      fb.innerHTML = "Enter some observed counts first.";
+      return;
+    }
+    if (chi < crit) {
+      fb.classList.add("win");
+      fb.innerHTML = "<strong>&chi;&sup2; = " + chi.toFixed(2) + ", below the critical value 7.82 (3 d.f., p = 0.05).</strong> " +
+        "The difference between observed and expected is not statistically significant, so we accept the null hypothesis: the data fit a 9:3:3:1 dihybrid ratio. Any deviation is likely due to chance.";
+    } else {
+      fb.classList.add("alert");
+      fb.innerHTML = "<strong>&chi;&sup2; = " + chi.toFixed(2) + ", above the critical value 7.82 (3 d.f., p = 0.05).</strong> " +
+        "The deviation is statistically significant, so we reject the null hypothesis. Something other than chance (for example linkage, selection or a recording error) is affecting the ratio.";
+    }
+  }
+  $("btnChi").addEventListener("click", calcChi);
+  $("btnChiMendel").addEventListener("click", function () {
+    $("o1").value = 315; $("o2").value = 108; $("o3").value = 101; $("o4").value = 32;
+    calcChi();
+  });
+
+  /* =========================================================
+     QUICK CHECK
+  ========================================================= */
+  var questions = [
+    {
+      q: "In a population at Hardy-Weinberg equilibrium, 16% of individuals show the recessive phenotype. What is the frequency of the recessive allele, q?",
+      opts: ["0.16", "0.40", "0.60", "0.04"],
+      correct: 1,
+      why: "q&sup2; = 0.16, so q = &radic;0.16 = 0.40. The recessive phenotype frequency equals q squared."
+    },
+    {
+      q: "Using the same population (q = 0.40), what fraction are heterozygous carriers (Aa)?",
+      opts: ["0.16", "0.36", "0.48", "0.24"],
+      correct: 2,
+      why: "p = 1 &minus; q = 0.60. Heterozygotes = 2pq = 2 &times; 0.60 &times; 0.40 = 0.48."
+    },
+    {
+      q: "Which of these would NOT, on its own, break Hardy-Weinberg equilibrium?",
+      opts: ["Strong natural selection", "A very small population", "Non-random (assortative) mating", "Counting every allele accurately"],
+      correct: 3,
+      why: "The five conditions are no selection, no mutation, no migration, random mating and a large population. Accurate counting is good practice, not a disturbing force."
+    },
+    {
+      q: "Selection removes the recessive (aa) phenotype every generation. Why does the recessive allele persist for many generations?",
+      opts: ["Mutation recreates it instantly", "It is carried, hidden, in heterozygotes", "Selection cannot reduce allele frequency", "p&sup2; protects it"],
+      correct: 1,
+      why: "Heterozygotes (Aa) carry a copy of the recessive allele but show the dominant phenotype, so selection cannot 'see' those copies. The allele is shielded."
+    },
+    {
+      q: "A &chi;&sup2; test on a dihybrid cross gives 9.1 with 3 degrees of freedom (critical value 7.82 at p = 0.05). What do you conclude?",
+      opts: ["Reject the null hypothesis: the deviation is significant", "Accept the null hypothesis: a good fit", "The cross was monohybrid", "p and q must be equal"],
+      correct: 0,
+      why: "9.1 is greater than 7.82, so the result is significant at the 5% level. We reject the null hypothesis that the data fit the expected 9:3:3:1 ratio by chance."
+    }
+  ];
+  var qIdx = -1;
+
+  function loadQ() {
+    qIdx = (qIdx + 1) % questions.length;
+    var item = questions[qIdx];
+    $("qText").innerHTML = item.q;
+    var fb = $("qFb"); fb.hidden = true; fb.className = "feedback";
+    var box = $("qOpts"); box.innerHTML = "";
+    item.opts.forEach(function (text, i) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "opt";
+      b.innerHTML = text;
+      b.addEventListener("click", function () { answerQ(i, b); });
+      box.appendChild(b);
+    });
+  }
+  function answerQ(i, btn) {
+    var item = questions[qIdx];
+    var opts = $("qOpts").querySelectorAll(".opt");
+    opts.forEach(function (o) { o.disabled = true; });
+    var fb = $("qFb"); fb.hidden = false;
+    if (i === item.correct) {
+      btn.classList.add("correct");
+      fb.classList.add("win");
+      fb.innerHTML = "<strong>Correct.</strong> " + item.why;
+    } else {
+      btn.classList.add("wrong");
+      opts[item.correct].classList.add("correct");
+      fb.classList.add("alert");
+      fb.innerHTML = "<strong>Not quite.</strong> " + item.why;
+    }
+  }
+  $("btnNextQ").addEventListener("click", loadQ);
+
+  /* ---------- init ---------- */
+  updateFreqBar();
+  resetSim();
+  loadQ();
+})();
+</script>
+</body>
+</html>
