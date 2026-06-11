@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sound Sampling | Computing KS4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f1726;
+    --panel:#16223a;
+    --panel-2:#1d2c49;
+    --ink:#e8eef9;
+    --muted:#9fb0cc;
+    --line:#2a3c5e;
+    --accent:#2dd4bf;        /* computing-teal */
+    --accent-deep:#0d9488;
+    --accent-2:#f6ad55;
+    --analogue:#63b3ed;      /* original wave */
+    --sample:#f687b3;        /* sample points */
+    --recon:#fbbf24;         /* reconstructed stepped wave */
+    --ok:#68d391;
+    --bad:#fc8181;
+    --highlight:#fff3c4;
+    --mono:"JetBrains Mono","SFMono-Regular",Consolas,Menlo,monospace;
+    --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--sans);
+    background:linear-gradient(180deg,#0c1320,#0f1726 40%);
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  header.app{
+    padding:20px 20px 14px;
+    border-bottom:1px solid var(--line);
+    background:rgba(13,20,34,.6);
+  }
+  .eyebrow{
+    display:inline-block;
+    font-size:.72rem;
+    font-weight:700;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:#06251f;
+    background:var(--accent);
+    padding:4px 11px;
+    border-radius:999px;
+    margin-bottom:10px;
+  }
+  header.app h1{margin:0;font-size:1.55rem;letter-spacing:.2px}
+  header.app .aim{
+    margin:8px 0 0;color:var(--muted);font-size:.96rem;max-width:80ch;
+  }
+  header.app .aim b{color:var(--accent)}
+  .wrap{
+    max-width:1240px;margin:0 auto;padding:18px 16px 70px;
+    display:grid;gap:16px;
+    grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);
+  }
+  @media (max-width:900px){ .wrap{grid-template-columns:1fr} }
+  .card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px;
+  }
+  .card h2{margin:0 0 12px;font-size:1.05rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .card h2 .tag{
+    font-size:.7rem;background:var(--panel-2);color:var(--muted);
+    padding:2px 9px;border-radius:999px;border:1px solid var(--line);font-weight:600;
+  }
+  .card h3{margin:18px 0 8px;font-size:.92rem;color:var(--accent)}
+  .card h3:first-child{margin-top:0}
+  /* canvas */
+  .canvas-shell{
+    position:relative;background:#0a1120;border:1px solid var(--line);
+    border-radius:12px;padding:8px;overflow:hidden;
+  }
+  canvas#scope{display:block;width:100%;height:auto;border-radius:8px}
+  .legend{font-size:.78rem;color:var(--muted);margin-top:10px;display:flex;flex-wrap:wrap;gap:6px 16px}
+  .legend span{display:inline-flex;align-items:center}
+  .swatch{display:inline-block;width:13px;height:13px;border-radius:3px;vertical-align:middle;margin-right:6px}
+  .swatch.line{height:3px;border-radius:2px;width:18px}
+  /* controls */
+  .controls{display:grid;gap:14px;margin-top:14px}
+  .ctrl{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:11px 13px;
+  }
+  .ctrl .ctrl-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:7px}
+  .ctrl label{font-size:.82rem;font-weight:600}
+  .ctrl .ctrl-val{font-family:var(--mono);font-size:.92rem;font-weight:700;color:var(--accent)}
+  .ctrl .ctrl-sub{font-size:.72rem;color:var(--muted);margin-top:5px}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:999px;
+    background:linear-gradient(90deg,var(--accent-deep),var(--accent));outline:none;margin:2px 0;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:20px;height:20px;border-radius:50%;
+    background:#fff;border:3px solid var(--accent-deep);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.4);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--accent-deep);cursor:pointer;
+  }
+  input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+  .seg{display:flex;gap:6px;flex-wrap:wrap}
+  .seg button{flex:1;min-width:72px}
+  button,select{
+    font:inherit;border-radius:9px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--ink);padding:9px 13px;cursor:pointer;transition:background .12s,border-color .12s;
+  }
+  button:hover{background:#26395c}
+  button.primary{background:var(--accent);color:#06251f;border-color:transparent;font-weight:700}
+  button.primary:hover{background:#34e3cf}
+  button.active{background:var(--accent);color:#06251f;border-color:transparent;font-weight:700}
+  button:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
+  /* readout / file size */
+  .readout{
+    background:#0a1120;border:1px solid var(--line);border-radius:10px;padding:13px;font-family:var(--mono);font-size:.9rem;
+  }
+  .readout .line{display:flex;justify-content:space-between;gap:12px;padding:3px 0;flex-wrap:wrap}
+  .readout .line .k{color:var(--muted)}
+  .readout .line .v{color:var(--ink);font-weight:600;text-align:right}
+  .formula{
+    background:linear-gradient(180deg,#102033,#0a1120);border:1px solid var(--accent-deep);
+    border-radius:10px;padding:13px;margin-top:12px;
+  }
+  .formula .title{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);font-weight:700;margin-bottom:8px}
+  .formula .eq{font-family:var(--mono);font-size:.92rem;line-height:1.9}
+  .formula .eq .step{display:block}
+  .formula .eq b{color:var(--recon)}
+  .formula .eq .res{color:var(--accent);font-weight:700}
+  .pill{display:inline-block;font-family:var(--mono);font-size:.8rem;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin:0 2px}
+  /* fidelity meter */
+  .meter-wrap{margin-top:12px}
+  .meter-label{display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-bottom:5px}
+  .meter{height:12px;border-radius:999px;background:#0a1120;border:1px solid var(--line);overflow:hidden}
+  .meter .fill{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,var(--bad),var(--accent-2),var(--ok));transition:width .25s ease}
+  /* explainer + questions */
+  .note{
+    border-radius:10px;padding:12px 14px;font-size:.9rem;border:1px solid var(--line);
+    background:var(--panel-2);margin-top:12px;
+  }
+  .note b{color:var(--accent)}
+  .note p{margin:0 0 8px}
+  .note p:last-child{margin-bottom:0}
+  details.q{border:1px solid var(--line);border-radius:10px;background:var(--panel-2);margin-top:10px}
+  details.q summary{cursor:pointer;padding:11px 13px;font-weight:600;font-size:.9rem;list-style:none;display:flex;gap:8px;align-items:flex-start}
+  details.q summary::-webkit-details-marker{display:none}
+  details.q summary .qmark{color:var(--accent);font-weight:800;flex:0 0 auto}
+  details.q[open] summary{border-bottom:1px solid var(--line)}
+  details.q .ans{padding:11px 13px;font-size:.88rem;color:var(--ink)}
+  details.q .ans .work{font-family:var(--mono);font-size:.84rem;background:#0a1120;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin:8px 0;white-space:pre-wrap}
+  details.q .ans b{color:var(--accent)}
+  table.ref{width:100%;border-collapse:collapse;font-size:.84rem;margin-top:8px}
+  table.ref th,table.ref td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left;vertical-align:top}
+  table.ref th{color:var(--muted);font-weight:700}
+  table.ref td.k{font-family:var(--mono);color:var(--accent);font-weight:700;white-space:nowrap}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);border:0}
+  .footnote{color:var(--muted);font-size:.8rem;text-align:center;padding:14px 16px 0}
+</style>
+</head>
+<body>
+<!-- DEMO-DATA-NOTICE v1 -->
+<style>
+.demo-data-banner {
+  position: sticky;
+  top: 0;
+  z-index: 99999;
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #d97706;
+  padding: 9px 18px;
+  font: 600 0.88rem/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  letter-spacing: 0.01em;
+}
+.demo-data-banner .ddb-icon { display: inline-block; margin-right: 6px; transform: translateY(1px); }
+.demo-data-banner strong { font-weight: 800; }
+@media (max-width: 600px) { .demo-data-banner { font-size: 0.78rem; padding: 8px 12px; } }
+
+.demo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.demo-modal-overlay.demo-hidden { display: none; }
+.demo-modal-card {
+  background: #ffffff;
+  max-width: 540px;
+  width: 100%;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  color: #1a1a2e;
+  line-height: 1.55;
+  animation: demoModalIn 0.18s ease-out;
+}
+@keyframes demoModalIn { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.demo-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  background: #fef3c7;
+  border-radius: 12px;
+  font-size: 26px;
+  color: #d97706;
+  margin-bottom: 14px;
+}
+.demo-modal-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #1a1a2e;
+  letter-spacing: -0.01em;
+}
+.demo-modal-card p {
+  font-size: 0.95rem;
+  margin: 0 0 14px;
+  color: #374151;
+}
+.demo-modal-card p.demo-strong {
+  color: #78350f;
+  font-weight: 600;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+.demo-modal-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1a1a2e;
+  font-weight: 500;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.demo-modal-check:hover { border-color: #94a3b8; background: #f1f5f9; }
+.demo-modal-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #d97706;
+}
+.demo-modal-btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font: 600 0.98rem/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.demo-modal-btn:hover:not(:disabled) { background: #1e40af; }
+.demo-modal-btn:active:not(:disabled) { transform: translateY(1px); }
+.demo-modal-btn:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+</style>
+
+<div class="demo-data-banner" role="note" aria-label="Demonstration data notice">
+  <span class="ddb-icon" aria-hidden="true">&#9888;</span><strong>Demonstration data only.</strong> No real child is represented. All names, grades and figures are fabricated for illustration.
+</div>
+
+<div id="demoAckModal" class="demo-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="demoModalTitle">
+  <div class="demo-modal-card">
+    <div class="demo-modal-icon" aria-hidden="true">&#9888;</div>
+    <h2 id="demoModalTitle">Before you continue</h2>
+    <p>This app is a demonstration tool. The student records, names, grades, attendance figures and any other information you will see have been <strong>completely fabricated for illustrative purposes</strong>.</p>
+    <p class="demo-strong">No real child is represented anywhere in this app.</p>
+    <label class="demo-modal-check">
+      <input type="checkbox" id="demoModalAck">
+      <span>I acknowledge that the data shown in this app is fabricated and does not represent any real child.</span>
+    </label>
+    <button id="demoModalContinue" class="demo-modal-btn" type="button" disabled>Continue</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'westDemoDataAck.v1';
+  var modal = document.getElementById('demoAckModal');
+  var ack = document.getElementById('demoModalAck');
+  var btn = document.getElementById('demoModalContinue');
+  if (!modal || !ack || !btn) return;
+  try {
+    if (sessionStorage.getItem(KEY) === '1') {
+      modal.classList.add('demo-hidden');
+      return;
+    }
+  } catch (e) {}
+  var prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  ack.addEventListener('change', function(){ btn.disabled = !ack.checked; });
+  btn.addEventListener('click', function(){
+    if (!ack.checked) return;
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    modal.classList.add('demo-hidden');
+    document.body.style.overflow = prevOverflow;
+  });
+  modal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && ack.checked) { btn.click(); }
+  });
+})();
+</script>
+
+<header class="app">
+  <span class="eyebrow">Computing · GCSE · OCR J277 · Data Representation</span>
+  <h1>Sound Sampling: Digitising Analogue Sound</h1>
+  <p class="aim">Teaching aim: understand how a continuous <b>analogue</b> sound wave is converted into a digital signal by <b>sampling</b>, how <b>sample rate</b> and <b>sample resolution (bit depth)</b> affect playback quality and file size, and how to calculate a sound <b>file size</b> using the formula <b>sample rate &times; bit depth &times; duration</b>.</p>
+</header>
+
+<div class="wrap">
+
+  <!-- LEFT: signature interaction -->
+  <section class="card" aria-labelledby="scope-h">
+    <h2 id="scope-h">Sampling Scope <span class="tag">interactive</span></h2>
+
+    <div class="canvas-shell">
+      <canvas id="scope" width="720" height="360"
+        role="img" aria-label="Oscilloscope view. A smooth blue analogue sound wave is overlaid with pink sample points taken at the current sample rate, and a yellow stepped wave shows how the sound is reconstructed after each sample is rounded to the nearest level allowed by the current bit depth.">
+      </canvas>
+    </div>
+
+    <div class="legend" aria-hidden="true">
+      <span><span class="swatch line" style="background:var(--analogue)"></span>Original analogue wave</span>
+      <span><span class="swatch" style="background:var(--sample);border-radius:50%"></span>Samples taken</span>
+      <span><span class="swatch line" style="background:var(--recon)"></span>Reconstructed (quantised) wave</span>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl">
+        <div class="ctrl-head">
+          <label for="sr">Sample rate</label>
+          <span class="ctrl-val" id="srVal">8000 Hz</span>
+        </div>
+        <input type="range" id="sr" min="1000" max="48000" step="1000" value="8000"
+          aria-describedby="srSub" aria-valuetext="8000 hertz">
+        <div class="ctrl-sub" id="srSub">Samples taken per second. Higher rate captures rapid changes in the wave more faithfully.</div>
+      </div>
+
+      <div class="ctrl">
+        <div class="ctrl-head">
+          <label for="bd">Sample resolution (bit depth)</label>
+          <span class="ctrl-val" id="bdVal">4 bits (16 levels)</span>
+        </div>
+        <input type="range" id="bd" min="2" max="16" step="1" value="4"
+          aria-describedby="bdSub" aria-valuetext="4 bits, 16 levels">
+        <div class="ctrl-sub" id="bdSub">Bits stored per sample. More bits give more amplitude levels, so each sample is rounded less.</div>
+      </div>
+
+      <div class="ctrl">
+        <div class="ctrl-head">
+          <label for="dur">Duration</label>
+          <span class="ctrl-val" id="durVal">10 s</span>
+        </div>
+        <input type="range" id="dur" min="1" max="300" step="1" value="10"
+          aria-describedby="durSub" aria-valuetext="10 seconds">
+        <div class="ctrl-sub" id="durSub">Length of the recording. Used only in the file-size calculation, not the scope view.</div>
+      </div>
+
+      <div class="ctrl">
+        <div class="ctrl-head">
+          <label for="ch">Channels</label>
+          <span class="ctrl-val" id="chVal">Mono (1)</span>
+        </div>
+        <div class="seg" role="group" aria-label="Number of channels">
+          <button type="button" id="chMono" class="active" aria-pressed="true">Mono (1)</button>
+          <button type="button" id="chStereo" aria-pressed="false">Stereo (2)</button>
+        </div>
+        <input type="hidden" id="ch" value="1">
+        <div class="ctrl-sub">Stereo stores two channels, doubling the data.</div>
+      </div>
+
+      <div class="ctrl">
+        <div class="ctrl-head">
+          <label for="freq">Sound: wave frequency</label>
+          <span class="ctrl-val" id="freqVal">3 cycles</span>
+        </div>
+        <input type="range" id="freq" min="1" max="8" step="1" value="3"
+          aria-describedby="freqSub" aria-valuetext="3 cycles on screen">
+        <div class="ctrl-sub" id="freqSub">Change the source sound. Faster waves need a higher sample rate to capture them.</div>
+      </div>
+
+      <div class="ctrl">
+        <div class="ctrl-head"><label for="shapeSine">Sound: waveform shape</label></div>
+        <div class="seg" role="group" aria-label="Waveform shape">
+          <button type="button" id="shapeSine" class="active" aria-pressed="true">Sine</button>
+          <button type="button" id="shapeTri" aria-pressed="false">Triangle</button>
+          <button type="button" id="shapeComplex" aria-pressed="false">Complex</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button type="button" class="primary" id="resetBtn">Reset to defaults</button>
+      <button type="button" id="cdBtn">CD quality preset</button>
+      <button type="button" id="phoneBtn">Telephone preset</button>
+    </div>
+
+    <div class="meter-wrap" aria-hidden="true">
+      <div class="meter-label"><span>Reconstruction fidelity (how closely the stepped wave matches the original)</span><span id="fidPct">--</span></div>
+      <div class="meter"><div class="fill" id="fidFill"></div></div>
+    </div>
+  </section>
+
+  <!-- RIGHT: readouts, formula, explainer, questions -->
+  <section class="card" aria-labelledby="calc-h">
+    <h2 id="calc-h">Live Readout &amp; File Size <span class="tag">updates as you slide</span></h2>
+
+    <div class="readout" aria-live="polite">
+      <div class="line"><span class="k">Sample rate</span><span class="v" id="rSr">8000 Hz</span></div>
+      <div class="line"><span class="k">Bit depth</span><span class="v" id="rBd">4 bits / sample</span></div>
+      <div class="line"><span class="k">Amplitude levels (2^bits)</span><span class="v" id="rLevels">16</span></div>
+      <div class="line"><span class="k">Duration</span><span class="v" id="rDur">10 s</span></div>
+      <div class="line"><span class="k">Channels</span><span class="v" id="rCh">1 (mono)</span></div>
+      <div class="line"><span class="k">Total samples (rate &times; dur &times; ch)</span><span class="v" id="rTotal">80,000</span></div>
+    </div>
+
+    <div class="formula">
+      <div class="title">File size formula (OCR J277)</div>
+      <div class="eq" aria-live="polite">
+        <span class="step">file size (bits) = sample rate &times; bit depth &times; duration &times; channels</span>
+        <span class="step" id="fSub">= <b>8000</b> &times; <b>4</b> &times; <b>10</b> &times; <b>1</b></span>
+        <span class="step" id="fBits">= <span class="res">320,000 bits</span></span>
+        <span class="step" id="fBytes">&divide; 8 = <span class="res">40,000 bytes</span></span>
+        <span class="step" id="fHuman">&asymp; <span class="res">39.06 KB</span> (&divide; 1024)</span>
+      </div>
+    </div>
+
+    <div class="note">
+      <p><b>Why it matters: the quality vs size trade-off.</b> Every extra unit of quality costs storage and bandwidth.</p>
+      <p>Raising the <b>sample rate</b> takes more snapshots each second, so fast changes in the wave are captured and high notes are not lost. Raising the <b>bit depth</b> gives more amplitude <span class="pill">levels</span>, so each sample is rounded by a smaller amount and quiet detail survives. Both make the reconstructed wave hug the original more closely, but the file size grows in direct proportion to each.</p>
+      <p>That is the engineering decision: a podcast can use a low rate and depth to keep files small, while a music master uses CD quality (44,100 Hz, 16-bit) or higher because the listener will notice. Try the presets and watch the file size jump.</p>
+    </div>
+
+    <h3>How sampling works (the four steps)</h3>
+    <div class="note" style="margin-top:0">
+      <p><b>1. Capture:</b> a microphone produces a continuous <b>analogue</b> voltage that mirrors the sound pressure.</p>
+      <p><b>2. Sample:</b> an analogue-to-digital converter measures the amplitude at fixed intervals set by the <b>sample rate</b>.</p>
+      <p><b>3. Quantise:</b> each measurement is rounded to the nearest level allowed by the <b>bit depth</b>, then stored as a binary number.</p>
+      <p><b>4. Reconstruct:</b> on playback the stored values rebuild a <b>stepped</b> approximation of the wave. The closer it matches the original, the better the sound.</p>
+    </div>
+
+    <h3>Exam-style questions <span style="font-weight:400;color:var(--muted);font-size:.8rem">(reveal the model answer)</span></h3>
+
+    <details class="q">
+      <summary><span class="qmark">Q1</span><span>Define the term <i>sample rate</i> and state its unit. [2]</span></summary>
+      <div class="ans">
+        <p>The sample rate is the <b>number of samples taken per second</b> when an analogue signal is recorded. It is measured in <b>hertz (Hz)</b>; for example CD audio uses 44,100 Hz.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qmark">Q2</span><span>Explain how increasing the sample resolution (bit depth) affects the recording. [3]</span></summary>
+      <div class="ans">
+        <p>A higher bit depth gives <b>more possible amplitude levels</b> (2 to the power of the bit depth). Each sample can therefore be rounded to a value <b>closer to the true amplitude</b>, reducing quantisation error. This makes playback quality more accurate, but <b>increases the file size</b> because more bits are stored per sample.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qmark">Q3</span><span>A 30 second mono clip is sampled at 44,100 Hz with a bit depth of 16. Calculate the file size in megabytes. [4]</span></summary>
+      <div class="ans">
+        <div class="work">file size (bits) = sample rate &times; bit depth &times; duration
+              = 44100 &times; 16 &times; 30
+              = 21,168,000 bits
+
+bytes = 21,168,000 &divide; 8 = 2,646,000 bytes
+
+MB    = 2,646,000 &divide; 1,048,576 &asymp; 2.52 MB</div>
+        <p>Answer: approximately <b>2.52 MB</b> (or 2.65 MB if 1 MB is treated as 1,000,000 bytes). Always check which convention the question expects.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qmark">Q4</span><span>A sound engineer wants smaller files for a spoken-word podcast. Suggest two changes and the trade-off. [4]</span></summary>
+      <div class="ans">
+        <p>Sensible changes: <b>lower the sample rate</b> (for example to 22,050 Hz, as speech has no very high frequencies) and <b>reduce the bit depth</b> (for example to 8 bits), and record in <b>mono</b> rather than stereo. Each change reduces the data stored, so the file is smaller.</p>
+        <p>The <b>trade-off</b> is reduced quality: a lower rate cannot capture high frequencies and a lower bit depth introduces more quantisation noise, but for speech this loss is usually acceptable.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qmark">Q5</span><span>Why does a stereo file take more storage than a mono file of the same length and settings? [2]</span></summary>
+      <div class="ans">
+        <p>Stereo stores <b>two separate channels</b> (left and right) instead of one, so twice as many samples are recorded. The file size formula is multiplied by the <b>number of channels</b>, doubling the storage compared with mono.</p>
+      </div>
+    </details>
+
+    <h3>Key terms (OCR J277)</h3>
+    <table class="ref">
+      <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Analogue</td><td>A continuous signal that can take any value, such as a real sound wave.</td></tr>
+        <tr><td class="k">Sampling</td><td>Measuring the amplitude of an analogue signal at regular intervals.</td></tr>
+        <tr><td class="k">Sample rate</td><td>How many samples are taken per second, measured in hertz (Hz).</td></tr>
+        <tr><td class="k">Sample resolution</td><td>The number of bits used to store each sample; also called bit depth.</td></tr>
+        <tr><td class="k">Quantisation</td><td>Rounding each sample to the nearest available amplitude level.</td></tr>
+        <tr><td class="k">Reconstruction</td><td>Rebuilding a stepped approximation of the wave from the stored samples.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</div>
+
+<p class="footnote">WeST Computing &middot; OCR J277 Data Representation &middot; A teaching model: amplitude levels and the on-screen scope are simplified for clarity, but the file-size formula is exact.</p>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---- state ----
+  var state = {
+    sampleRate: 8000,   // Hz
+    bitDepth: 4,        // bits per sample
+    duration: 10,       // seconds
+    channels: 1,        // 1 mono, 2 stereo
+    freq: 3,            // cycles drawn across the canvas
+    shape: "sine"       // sine | tri | complex
+  };
+  var DEFAULTS = { sampleRate:8000, bitDepth:4, duration:10, channels:1, freq:3, shape:"sine" };
+
+  // ---- elements ----
+  var canvas = document.getElementById("scope");
+  var ctx = canvas.getContext("2d");
+
+  var els = {
+    sr: document.getElementById("sr"),
+    bd: document.getElementById("bd"),
+    dur: document.getElementById("dur"),
+    ch: document.getElementById("ch"),
+    freq: document.getElementById("freq"),
+    srVal: document.getElementById("srVal"),
+    bdVal: document.getElementById("bdVal"),
+    durVal: document.getElementById("durVal"),
+    chVal: document.getElementById("chVal"),
+    freqVal: document.getElementById("freqVal"),
+    chMono: document.getElementById("chMono"),
+    chStereo: document.getElementById("chStereo"),
+    shapeSine: document.getElementById("shapeSine"),
+    shapeTri: document.getElementById("shapeTri"),
+    shapeComplex: document.getElementById("shapeComplex"),
+    resetBtn: document.getElementById("resetBtn"),
+    cdBtn: document.getElementById("cdBtn"),
+    phoneBtn: document.getElementById("phoneBtn"),
+    // readout
+    rSr: document.getElementById("rSr"),
+    rBd: document.getElementById("rBd"),
+    rLevels: document.getElementById("rLevels"),
+    rDur: document.getElementById("rDur"),
+    rCh: document.getElementById("rCh"),
+    rTotal: document.getElementById("rTotal"),
+    fSub: document.getElementById("fSub"),
+    fBits: document.getElementById("fBits"),
+    fBytes: document.getElementById("fBytes"),
+    fHuman: document.getElementById("fHuman"),
+    fidFill: document.getElementById("fidFill"),
+    fidPct: document.getElementById("fidPct")
+  };
+
+  function fmt(n){ return Math.round(n).toLocaleString("en-GB"); }
+
+  // ---- the source analogue wave, as a function of phase t in [0,1) ----
+  // returns amplitude in [-1, 1]
+  function waveAt(t){
+    var cycles = state.freq;
+    var x = t * cycles * 2 * Math.PI;
+    if(state.shape === "sine"){
+      return Math.sin(x);
+    } else if(state.shape === "tri"){
+      // triangle wave from a sawtooth fold
+      var p = (t * cycles) % 1;             // 0..1 within a cycle
+      return p < 0.5 ? (4*p - 1) : (3 - 4*p);
+    } else { // complex: fundamental + harmonics
+      var v = Math.sin(x) + 0.45*Math.sin(2*x + 0.6) + 0.28*Math.sin(3*x);
+      return v / 1.73; // normalise roughly into [-1,1]
+    }
+  }
+
+  // ---- canvas geometry ----
+  var W = canvas.width, H = canvas.height;
+  var PAD_L = 46, PAD_R = 16, PAD_T = 22, PAD_B = 26;
+  var plotW = W - PAD_L - PAD_R;
+  var plotH = H - PAD_T - PAD_B;
+  var midY = PAD_T + plotH/2;
+
+  function ampToY(a){ return midY - a * (plotH/2 - 4); } // a in [-1,1]
+  function tToX(t){ return PAD_L + t * plotW; }
+
+  // How many samples to display across the screen window.
+  // The screen represents a fixed short window; we map sample rate to an
+  // on-screen sample count so the educational effect (rate vs wave speed) shows.
+  // Window shows ~ a slice scaled so 48000 Hz gives many samples, 1000 Hz gives few.
+  function onScreenSamples(){
+    // Map 1000..48000 Hz to 4..96 visible samples (proportional, clamped).
+    var n = Math.round(state.sampleRate / 500);
+    if(n < 3) n = 3;
+    if(n > 120) n = 120;
+    return n;
+  }
+
+  function quantise(a, levels){
+    // a in [-1,1] -> nearest of `levels` evenly spaced steps -> back to [-1,1]
+    var norm = (a + 1) / 2;            // 0..1
+    var idx = Math.round(norm * (levels - 1));
+    if(idx < 0) idx = 0;
+    if(idx > levels - 1) idx = levels - 1;
+    return (idx / (levels - 1)) * 2 - 1;
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+
+    // background
+    ctx.fillStyle = "#0a1120";
+    ctx.fillRect(0,0,W,H);
+
+    // grid: amplitude levels for current bit depth (faint)
+    var levels = Math.pow(2, state.bitDepth);
+    ctx.strokeStyle = "rgba(45,212,191,0.10)";
+    ctx.lineWidth = 1;
+    var maxGrid = Math.min(levels, 33); // avoid clutter at high bit depths
+    if(levels <= maxGrid){
+      for(var L=0; L<levels; L++){
+        var a = (L/(levels-1))*2 - 1;
+        var gy = ampToY(a);
+        ctx.beginPath();
+        ctx.moveTo(PAD_L, gy);
+        ctx.lineTo(W - PAD_R, gy);
+        ctx.stroke();
+      }
+    }
+
+    // axes
+    ctx.strokeStyle = "rgba(159,176,204,0.5)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(PAD_L, PAD_T);
+    ctx.lineTo(PAD_L, H - PAD_B);     // y axis
+    ctx.lineTo(W - PAD_R, H - PAD_B); // x axis
+    ctx.stroke();
+    // zero line
+    ctx.strokeStyle = "rgba(159,176,204,0.28)";
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    ctx.moveTo(PAD_L, midY);
+    ctx.lineTo(W - PAD_R, midY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // axis labels
+    ctx.fillStyle = "#9fb0cc";
+    ctx.font = "12px 'JetBrains Mono', monospace";
+    ctx.save();
+    ctx.translate(14, midY);
+    ctx.rotate(-Math.PI/2);
+    ctx.textAlign = "center";
+    ctx.fillText("amplitude", 0, 0);
+    ctx.restore();
+    ctx.textAlign = "center";
+    ctx.fillText("time", PAD_L + plotW/2, H - 7);
+
+    // 1) original analogue wave (smooth)
+    ctx.strokeStyle = "#63b3ed";
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    var steps = 400;
+    for(var i=0;i<=steps;i++){
+      var t = i/steps;
+      var x = tToX(t);
+      var y = ampToY(waveAt(t));
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+
+    // compute samples
+    var n = onScreenSamples();
+    var samples = []; // {t, aTrue, aQuant}
+    for(var s=0;s<n;s++){
+      var st = (n===1) ? 0 : s/(n-1);
+      var aTrue = waveAt(st);
+      var aQ = quantise(aTrue, levels);
+      samples.push({ t:st, aTrue:aTrue, aQuant:aQ });
+    }
+
+    // 2) reconstructed stepped wave (yellow) from quantised samples
+    ctx.strokeStyle = "#fbbf24";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for(var r=0;r<samples.length;r++){
+      var sx = tToX(samples[r].t);
+      var sy = ampToY(samples[r].aQuant);
+      if(r===0){
+        ctx.moveTo(sx, sy);
+      } else {
+        var px = tToX(samples[r-1].t);
+        ctx.lineTo(sx, ampToY(samples[r-1].aQuant)); // hold previous level
+        ctx.lineTo(sx, sy);                          // step to new level
+      }
+    }
+    ctx.stroke();
+
+    // 3) sample points (pink) with vertical stems to the true amplitude
+    for(var p=0;p<samples.length;p++){
+      var px2 = tToX(samples[p].t);
+      var pyTrue = ampToY(samples[p].aTrue);
+      var pyQ = ampToY(samples[p].aQuant);
+      // stem from quantised level to true value (shows quantisation error)
+      ctx.strokeStyle = "rgba(246,135,179,0.4)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px2, pyQ);
+      ctx.lineTo(px2, pyTrue);
+      ctx.stroke();
+      // dot at the true sampled value
+      ctx.fillStyle = "#f687b3";
+      ctx.beginPath();
+      ctx.arc(px2, pyTrue, n > 60 ? 2 : 3.2, 0, 2*Math.PI);
+      ctx.fill();
+    }
+
+    // legend label of sample count on canvas
+    ctx.fillStyle = "#9fb0cc";
+    ctx.font = "12px 'JetBrains Mono', monospace";
+    ctx.textAlign = "right";
+    ctx.fillText(n + " samples shown · " + levels + " levels", W - PAD_R, PAD_T - 7);
+
+    // fidelity = 1 - mean abs quantisation+sampling error (rough teaching metric)
+    updateFidelity(samples);
+  }
+
+  function updateFidelity(samples){
+    // Mean absolute error between reconstructed step and the true wave,
+    // sampled densely; lower error -> higher fidelity.
+    var levels = Math.pow(2, state.bitDepth);
+    var dense = 200, errSum = 0;
+    // build a quick lookup of reconstructed value at any t (zero-order hold)
+    function reconAt(t){
+      // find last sample whose t <= current t
+      var val = samples[0] ? samples[0].aQuant : 0;
+      for(var k=0;k<samples.length;k++){
+        if(samples[k].t <= t) val = samples[k].aQuant; else break;
+      }
+      return val;
+    }
+    for(var i=0;i<dense;i++){
+      var t = i/(dense-1);
+      errSum += Math.abs(waveAt(t) - reconAt(t));
+    }
+    var meanErr = errSum/dense;        // range roughly 0..1.2
+    var fid = Math.max(0, Math.min(1, 1 - meanErr/1.2));
+    var pct = Math.round(fid*100);
+    els.fidFill.style.width = pct + "%";
+    els.fidPct.textContent = pct + "%";
+  }
+
+  // ---- file size readout ----
+  function updateReadout(){
+    var sr = state.sampleRate;
+    var bd = state.bitDepth;
+    var dur = state.duration;
+    var ch = state.channels;
+    var levels = Math.pow(2, bd);
+    var totalSamples = sr * dur * ch;
+    var bits = sr * bd * dur * ch;
+    var bytes = bits/8;
+
+    els.rSr.textContent = fmt(sr) + " Hz";
+    els.rBd.textContent = bd + " bits / sample";
+    els.rLevels.textContent = fmt(levels);
+    els.rDur.textContent = dur + " s";
+    els.rCh.textContent = ch + (ch===1 ? " (mono)" : " (stereo)");
+    els.rTotal.textContent = fmt(totalSamples);
+
+    els.fSub.innerHTML = "= <b>" + fmt(sr) + "</b> &times; <b>" + bd + "</b> &times; <b>" + dur + "</b> &times; <b>" + ch + "</b>";
+    els.fBits.innerHTML = "= <span class='res'>" + fmt(bits) + " bits</span>";
+    els.fBytes.innerHTML = "&divide; 8 = <span class='res'>" + fmt(bytes) + " bytes</span>";
+
+    var human, KB = bytes/1024, MB = bytes/1048576;
+    if(MB >= 1){
+      human = "&asymp; <span class='res'>" + MB.toFixed(2) + " MB</span> (&divide; 1,048,576)";
+    } else {
+      human = "&asymp; <span class='res'>" + KB.toFixed(2) + " KB</span> (&divide; 1024)";
+    }
+    els.fHuman.innerHTML = human;
+  }
+
+  // ---- label sync ----
+  function syncLabels(){
+    els.srVal.textContent = fmt(state.sampleRate) + " Hz";
+    els.bdVal.textContent = state.bitDepth + " bits (" + fmt(Math.pow(2,state.bitDepth)) + " levels)";
+    els.durVal.textContent = state.duration + " s";
+    els.chVal.textContent = state.channels===1 ? "Mono (1)" : "Stereo (2)";
+    els.freqVal.textContent = state.freq + (state.freq===1 ? " cycle" : " cycles");
+    // ARIA value text
+    els.sr.setAttribute("aria-valuetext", fmt(state.sampleRate) + " hertz");
+    els.bd.setAttribute("aria-valuetext", state.bitDepth + " bits, " + fmt(Math.pow(2,state.bitDepth)) + " levels");
+    els.dur.setAttribute("aria-valuetext", state.duration + " seconds");
+    els.freq.setAttribute("aria-valuetext", state.freq + " cycles on screen");
+  }
+
+  function refresh(){
+    syncLabels();
+    updateReadout();
+    draw();
+  }
+
+  // ---- events ----
+  els.sr.addEventListener("input", function(){ state.sampleRate = parseInt(this.value,10); refresh(); });
+  els.bd.addEventListener("input", function(){ state.bitDepth = parseInt(this.value,10); refresh(); });
+  els.dur.addEventListener("input", function(){ state.duration = parseInt(this.value,10); refresh(); });
+  els.freq.addEventListener("input", function(){ state.freq = parseInt(this.value,10); refresh(); });
+
+  function setChannels(ch){
+    state.channels = ch;
+    els.ch.value = ch;
+    var mono = ch===1;
+    els.chMono.classList.toggle("active", mono);
+    els.chStereo.classList.toggle("active", !mono);
+    els.chMono.setAttribute("aria-pressed", mono ? "true":"false");
+    els.chStereo.setAttribute("aria-pressed", !mono ? "true":"false");
+    refresh();
+  }
+  els.chMono.addEventListener("click", function(){ setChannels(1); });
+  els.chStereo.addEventListener("click", function(){ setChannels(2); });
+
+  function setShape(shape){
+    state.shape = shape;
+    var map = { sine: els.shapeSine, tri: els.shapeTri, complex: els.shapeComplex };
+    Object.keys(map).forEach(function(k){
+      var on = (k===shape);
+      map[k].classList.toggle("active", on);
+      map[k].setAttribute("aria-pressed", on ? "true":"false");
+    });
+    refresh();
+  }
+  els.shapeSine.addEventListener("click", function(){ setShape("sine"); });
+  els.shapeTri.addEventListener("click", function(){ setShape("tri"); });
+  els.shapeComplex.addEventListener("click", function(){ setShape("complex"); });
+
+  function applyState(s){
+    state.sampleRate = s.sampleRate;
+    state.bitDepth = s.bitDepth;
+    state.duration = s.duration;
+    state.freq = s.freq;
+    state.shape = s.shape;
+    els.sr.value = s.sampleRate;
+    els.bd.value = s.bitDepth;
+    els.dur.value = s.duration;
+    els.freq.value = s.freq;
+    setShape(s.shape);          // refreshes
+    setChannels(s.channels);    // refreshes
+  }
+
+  els.resetBtn.addEventListener("click", function(){ applyState(Object.assign({}, DEFAULTS)); });
+  els.cdBtn.addEventListener("click", function(){
+    applyState({ sampleRate:44000, bitDepth:16, duration:state.duration, channels:2, freq:state.freq, shape:state.shape });
+  });
+  els.phoneBtn.addEventListener("click", function(){
+    applyState({ sampleRate:8000, bitDepth:8, duration:state.duration, channels:1, freq:state.freq, shape:state.shape });
+  });
+
+  // initial paint
+  refresh();
+})();
+</script>
+</body>
+</html>
