@@ -82,6 +82,9 @@
 
   .theorem-pick { margin-bottom: 12px; }
   .theorem-pick label { font-size: 0.82rem; color: var(--muted); font-weight: 600; display: block; margin-bottom: 6px; }
+  .theorem-option { margin: 10px 0 4px; }
+  .theorem-option label { font-size: 0.85rem; color: var(--ink); font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .theorem-option input { width: 16px; height: 16px; accent-color: var(--accent); }
   select.theorem-select {
     font: inherit; font-size: 0.92rem; font-weight: 600; padding: 9px 11px; width: 100%;
     border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink);
@@ -386,6 +389,10 @@
       <div class="modebar" role="group" aria-label="Working mode">
         <button id="modeExplore" type="button" aria-pressed="true">Explore the theorem</button>
         <button id="modePractise" type="button" aria-pressed="false">Find the missing angle</button>
+      </div>
+
+      <div class="theorem-option" id="bothASTRow" hidden>
+        <label><input type="checkbox" id="bothASTToggle"> Show both alternate-segment angles around T (<span style="color:var(--arcB)">&#x25CF; angle TPA</span>, <span style="color:var(--arcA)">&#x25CF; angle TAP</span>)</label>
       </div>
 
       <div class="canvas-shell">
@@ -1065,18 +1072,34 @@
       var tEndPos = { x: T.x + t.x * L, y: T.y + t.y * L };
       var tEndNeg = { x: T.x - t.x * L, y: T.y - t.y * L };
       line(tEndNeg.x, tEndNeg.y, tEndPos.x, tEndPos.y, getCss("--tangent"), 2.5);
-      // chord TA
-      line(T.x, T.y, A.x, A.y, getCss("--chord"), 2.5);
-      // triangle in alternate segment: T-A and T-... actually angle TPA at P, chord TA subtends it
-      line(P.x, P.y, T.x, T.y, getCss("--arcB"), 2.5);
-      line(P.x, P.y, A.x, A.y, getCss("--arcB"), 2.5);
-      // angle between tangent and chord TA, on the side of the alternate segment (where P is NOT)
-      // pick the tangent end on the opposite side to A relative to chord direction
-      var alt = angleAtVertex(P.x, P.y, T.x, T.y, A.x, A.y);
-      // tangent-chord angle: between chord TA and tangent. Choose the tangent ray that gives the angle in the segment NOT containing P.
-      var endA = pickTangentRay(T, A, P, tEndPos, tEndNeg);
-      angleMark(T.x, T.y, A.x, A.y, endA.x, endA.y, getCss("--arcA"), fmt(angleAtVertex(T.x, T.y, A.x, A.y, endA.x, endA.y)) + "°", 24);
-      angleMark(P.x, P.y, T.x, T.y, A.x, A.y, getCss("--arcB"), fmt(alt) + "°", 24);
+
+      if (showBothAST) {
+        // Both relationships around T, each pair in its own colour.
+        var cGreen = getCss("--arcB"), cOrange = getCss("--arcA");
+        // triangle T-A-P
+        line(T.x, T.y, A.x, A.y, getCss("--chord"), 2.5);
+        line(T.x, T.y, P.x, P.y, getCss("--chord"), 2.5);
+        line(A.x, A.y, P.x, P.y, getCss("--chord"), 2.5);
+        // GREEN: tangent-chord angle with chord TA  ==  angle TPA at P
+        var rayTA = pickTangentRay(T, A, P, tEndPos, tEndNeg);
+        angleMark(T.x, T.y, A.x, A.y, rayTA.x, rayTA.y, cGreen, fmt(angleAtVertex(T.x, T.y, A.x, A.y, rayTA.x, rayTA.y)) + "°", 22);
+        angleMark(P.x, P.y, T.x, T.y, A.x, A.y, cGreen, fmt(angleAtVertex(P.x, P.y, T.x, T.y, A.x, A.y)) + "°", 24);
+        // ORANGE: tangent-chord angle with chord TP  ==  angle TAP at A
+        var rayTP = pickTangentRay(T, P, A, tEndPos, tEndNeg);
+        angleMark(T.x, T.y, P.x, P.y, rayTP.x, rayTP.y, cOrange, fmt(angleAtVertex(T.x, T.y, P.x, P.y, rayTP.x, rayTP.y)) + "°", 36);
+        angleMark(A.x, A.y, T.x, T.y, P.x, P.y, cOrange, fmt(angleAtVertex(A.x, A.y, T.x, T.y, P.x, P.y)) + "°", 24);
+      } else {
+        // chord TA
+        line(T.x, T.y, A.x, A.y, getCss("--chord"), 2.5);
+        // triangle in alternate segment: angle TPA at P, chord TA subtends it
+        line(P.x, P.y, T.x, T.y, getCss("--arcB"), 2.5);
+        line(P.x, P.y, A.x, A.y, getCss("--arcB"), 2.5);
+        var alt = angleAtVertex(P.x, P.y, T.x, T.y, A.x, A.y);
+        // tangent-chord angle equal to angle TPA: the ray opening away from P (alternate segment)
+        var endA = pickTangentRay(T, A, P, tEndPos, tEndNeg);
+        angleMark(T.x, T.y, A.x, A.y, endA.x, endA.y, getCss("--arcA"), fmt(angleAtVertex(T.x, T.y, A.x, A.y, endA.x, endA.y)) + "°", 24);
+        angleMark(P.x, P.y, T.x, T.y, A.x, A.y, getCss("--arcB"), fmt(alt) + "°", 24);
+      }
       dot(O.x, O.y, getCss("--centre"), 5);
       dot(T.x, T.y, getCss("--circle")); label(T.x + lo(T).x, T.y + lo(T).y, "T", getCss("--ink"));
       dot(A.x, A.y, getCss("--circle")); label(A.x + lo(A).x, A.y + lo(A).y, "A", getCss("--ink"));
@@ -1094,6 +1117,21 @@
     },
     compute: function () {
       var v = this._vals();
+      if (showBothAST) {
+        var T = onCircle(state.T), A = onCircle(state.A), P = onCircle(state.P);
+        var tpa = angleAtVertex(P.x, P.y, T.x, T.y, A.x, A.y);
+        var tap = angleAtVertex(A.x, A.y, T.x, T.y, P.x, P.y);
+        return {
+          statement: "Alternate segment theorem, both angles: each tangent-chord angle at T equals the inscribed angle in its alternate segment.",
+          explain: "Green: the tangent-chord angle with chord TA equals angle TPA at P. Orange: the tangent-chord angle with chord TP equals angle TAP at A. Drag T, A or P and both pairs stay equal.",
+          cards: [
+            card("Tangent-chord (TA) = angle TPA", fmt(tpa) + "°", "--arcB"),
+            card("Tangent-chord (TP) = angle TAP", fmt(tap) + "°", "--arcA"),
+            card("Triangle angle sum", fmt(tpa + tap + angleAtVertex(T.x, T.y, A.x, A.y, P.x, P.y)) + "°", "--accent", true)
+          ],
+          reasoning: "Tangent-chord angle with TA = angle TPA, and tangent-chord angle with TP = angle TAP (alternate segment theorem)."
+        };
+      }
       return {
         statement: "Alternate segment theorem: the angle between a tangent and a chord equals the angle in the alternate segment.",
         explain: "TA is a chord and the line through T is the tangent. The orange tangent-chord angle equals the green inscribed angle APT in the segment on the other side of the chord.",
@@ -1132,7 +1170,10 @@
     // with the tangent-chord angle on the same side as P. Choose ray giving angle whose bisector points toward P's segment.
     var bis1 = bisectorDir(T, A, e1), bis2 = bisectorDir(T, A, e2);
     var s1 = sideOfLine(T, A, { x: T.x + bis1.x, y: T.y + bis1.y });
-    return (s1 === sideP) ? e1 : e2;
+    // The tangent-chord angle that EQUALS the inscribed angle (alternate segment
+    // theorem) sits on the opposite side of the chord to P, so choose the ray whose
+    // angle opens away from P. Picking the same side as P gives the supplement.
+    return (s1 === sideP) ? e2 : e1;
   }
   function bisectorDir(V, P, Q) {
     var u1 = norm(P.x - V.x, P.y - V.y), u2 = norm(Q.x - V.x, Q.y - V.y);
@@ -1207,6 +1248,7 @@
   var current = "centre";
   var mode = "explore"; // or "practise"
   var activeQuestion = null;
+  var showBothAST = false; // alternate segment theorem: show both relationships around T
 
   function activeTheorem() { return theorems[current]; }
 
@@ -1297,6 +1339,16 @@
     current = key;
     activeTheorem().init();
     selectedHandle = 0;
+    // "Show both" control only applies to the alternate segment theorem
+    var bothRow = document.getElementById("bothASTRow");
+    var bothToggle = document.getElementById("bothASTToggle");
+    if (key === "alternate") {
+      bothRow.hidden = false;
+    } else {
+      bothRow.hidden = true;
+      showBothAST = false;
+      bothToggle.checked = false;
+    }
     if (mode === "practise") newQuestion();
     render();
   }
@@ -1409,6 +1461,7 @@
   document.getElementById("modeExplore").addEventListener("click", function () { setMode("explore"); render(); });
   document.getElementById("modePractise").addEventListener("click", function () { setMode("practise"); render(); });
   document.getElementById("theoremSelect").addEventListener("change", function (e) { setTheorem(e.target.value); });
+  document.getElementById("bothASTToggle").addEventListener("change", function (e) { showBothAST = e.target.checked; render(); });
   document.getElementById("checkBtn").addEventListener("click", checkAnswer);
   document.getElementById("answerInput").addEventListener("keydown", function (e) { if (e.key === "Enter") checkAnswer(); });
   document.getElementById("revealBtn").addEventListener("click", function () {

@@ -370,7 +370,11 @@
       <button class="scen-btn" id="b-inverse" data-key="inverse" aria-pressed="false">
         <span class="ico" aria-hidden="true">&#x1F468;&#x200D;&#x1F527;</span> Inverse lab
       </button>
+      <button class="scen-btn" id="b-rates" data-key="rates" aria-pressed="false">
+        <span class="ico" aria-hidden="true">&#x1F3CE;&#xFE0F;</span> Compound rates
+      </button>
     </div>
+    <p class="sub" style="margin-top:8px">Compound rates models <b>speed = distance &#xF7; time</b>, <b>density = mass &#xF7; volume</b> and <b>pressure = force &#xF7; area</b> as ratio tables. Scaling the bottom quantity to 1 reveals the rate.</p>
   </section>
 
   <!-- WORK PANEL -->
@@ -462,6 +466,12 @@
     <p><b>Inverse proportion</b> is different. When one quantity goes up, the other goes <em>down</em>
     so that the product stays the same (for example, workers and time: more workers, less time).
     Here you multiply one row and <em>divide</em> the other by the same factor.</p>
+    <p><b>Compound measures are rates.</b> Speed, density and pressure are each one quantity per another:
+    speed = distance &#xF7; time, density = mass &#xF7; volume, pressure = force &#xF7; area. Put the
+    pair in a ratio table and scale the "per" row (time, volume, area) down to 1: the matching value on
+    the other row is the rate itself. So a car covering 20 m in 4 s is, scaled to 1 s, doing 5 m in 1 s,
+    i.e. 5 m/s. The same ratio-table and double-number-line moves that solve recipes also unlock S=D/T
+    and its cousins, which is why they belong together.</p>
     <ul>
       <li>Find the multiplier: divide the target known value by the starting known value.</li>
       <li>Apply the same multiplier to the partner row (direct) or its reciprocal (inverse).</li>
@@ -581,6 +591,61 @@
         product:product,
         prompt:base+" "+s.labelA.toLowerCase()+" take "+bGivenVal+" "+s.labelB.toLowerCase()+" "+
                s.task+". Working at the same rate, how long would "+aTarget+" "+s.labelA.toLowerCase()+" take?"
+      };
+    },
+    rates: function(){
+      // Compound measures as ratio tables. Row A is the "per" quantity (time / volume / area),
+      // Row B is the total (distance / mass / force). The unit rate (Row A scaled to 1) IS the
+      // compound measure: speed, density or pressure. All three are direct proportion.
+      var sets=[
+        {
+          measure:"Speed", rateUnit:"m/s",
+          labelA:"Time (s)", labelB:"Distance (m)", bWord:"metres",
+          rates:[3,4,5,6,8], bases:[2,4],
+          ask:function(t,d,n,findRate){
+            var lead="A delivery drone flies at a steady speed: it travels "+d+" m in "+t+" s. ";
+            return findRate
+              ? lead+"Scale the table down to 1 second to find the speed (the distance it covers each second). Speed = distance ÷ time. What is the speed in m/s?"
+              : lead+"At the same speed, how far does it travel in "+n+" seconds? Give your answer in metres.";
+          }
+        },
+        {
+          measure:"Density", rateUnit:"g/cm³",
+          labelA:"Volume (cm³)", labelB:"Mass (g)", bWord:"grams",
+          rates:[2,3,4,5,8], bases:[2,4],
+          ask:function(v,m,n,findRate){
+            var lead="A block of alloy has a constant density: "+m+" g of it has a volume of "+v+" cm³. ";
+            return findRate
+              ? lead+"Scale the table down to 1 cm³ to find the density (the mass of each cm³). Density = mass ÷ volume. What is the density in g/cm³?"
+              : lead+"At the same density, what is the mass of "+n+" cm³? Give your answer in grams.";
+          }
+        },
+        {
+          measure:"Pressure", rateUnit:"N/cm²",
+          labelA:"Area (cm²)", labelB:"Force (N)", bWord:"newtons",
+          rates:[2,3,4,5,6], bases:[2,4],
+          ask:function(a,fN,n,findRate){
+            var lead="A flat press pushes with a constant pressure: a force of "+fN+" N acts on "+a+" cm². ";
+            return findRate
+              ? lead+"Scale the table down to 1 cm² to find the pressure (the force on each cm²). Pressure = force ÷ area. What is the pressure in N/cm²?"
+              : lead+"At the same pressure, what force acts on "+n+" cm²? Give your answer in newtons.";
+          }
+        }
+      ];
+      var s=pick(sets);
+      var rate=pick(s.rates);
+      var base=pick(s.bases);          // Row A known (the "per" quantity)
+      var bGivenVal=rate*base;         // Row B known (the total)
+      var findRate=Math.random()<0.5;
+      var aTarget;
+      if(findRate){ aTarget=1; }
+      else { aTarget=randInt(2,9); while(aTarget===base) aTarget=randInt(2,9); }
+      return {
+        labelA:s.labelA, labelB:s.labelB,
+        aGiven:base, bGiven:bGivenVal, aTarget:aTarget,
+        mode:"direct", qtypeTxt:s.measure,
+        unit: findRate ? s.rateUnit : s.bWord,
+        prompt: s.ask(base, bGivenVal, aTarget, findRate)
       };
     }
   };
@@ -849,11 +914,13 @@
           "Find the multiplier first: "+q.aTarget+" ÷ "+q.aGiven+" = "+fmt(f)+
           ", then "+fmt(q.bGiven)+" × "+fmt(f)+".";
       }
-      // error 2: scaled the wrong way (divided instead of multiplied)
+      // error 2: scaled the wrong way (applied the reciprocal multiplier)
       var inverseScale=round2(q.bGiven/f);
-      if(Math.abs(val-inverseScale)<0.01){
-        return "<b>Close, wrong direction.</b> You scaled <em>down</em>. Here Row A grows from "+
-          fmt(q.aGiven)+" to "+fmt(q.aTarget)+", so Row B must grow too. Multiply by "+fmt(f)+", do not divide.";
+      if(Math.abs(val-inverseScale)<0.01 && Math.abs(inverseScale-truth)>0.01){
+        var grew=q.aTarget>q.aGiven;
+        return "<b>Wrong direction.</b> Row A goes from "+fmt(q.aGiven)+" to "+fmt(q.aTarget)+
+          ", which is "+(grew?"bigger":"smaller")+", so Row B must get "+(grew?"bigger":"smaller")+
+          " too. Apply the same multiplier to Row B: "+fmt(q.bGiven)+" × "+fmt(f)+" = <b>"+fmt(truth)+"</b>.";
       }
       // error 3: used the wrong multiplier (e.g. just multiplied by the target count)
       var byTarget=round2(q.bGiven*q.aTarget);
@@ -901,7 +968,7 @@
   }
 
   // ---------- scenario buttons ----------
-  var scenButtons=[["b-recipe","recipe"],["b-share","share"],["b-buy","buy"],["b-inverse","inverse"]];
+  var scenButtons=[["b-recipe","recipe"],["b-share","share"],["b-buy","buy"],["b-inverse","inverse"],["b-rates","rates"]];
   scenButtons.forEach(function(pair){
     el(pair[0]).addEventListener("click",function(){
       scenarioKey=pair[1];
