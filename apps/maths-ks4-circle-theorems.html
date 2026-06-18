@@ -615,6 +615,62 @@
     return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
   }
 
+  // Is angle m on the increasing (counter-parameter) arc from aT to aA?
+  function arcContains(aT, aA, m) {
+    var d = clampAngle(aA - aT), dm = clampAngle(m - aT);
+    return dm <= d;
+  }
+  // Fill one circular segment: the region bounded by chord T->A and the arc
+  // swept from aT to aA. ccwInc true sweeps the increasing-angle arc.
+  function fillSegment(aT, aA, ccwInc, colour, alpha) {
+    var T = onCircle(aT);
+    ctx.beginPath();
+    ctx.moveTo(T.x, T.y);
+    ctx.arc(O.x, O.y, R, aT, aA, !ccwInc);
+    ctx.closePath();
+    ctx.fillStyle = hexToRgba(colour, alpha);
+    ctx.fill();
+  }
+  // Midpoint angle of the arc from aT to aA in the chosen direction.
+  function arcMid(aT, aA, ccwInc) {
+    var d = ccwInc ? clampAngle(aA - aT) : -clampAngle(aT - aA);
+    return aT + d / 2;
+  }
+  // A point comfortably inside a segment, along its arc's mid-angle.
+  function segLabelPos(midAng, arcLen) {
+    var rChord = R * Math.cos(arcLen / 2);
+    var r = Math.max(R * 0.34, (rChord + R) / 2);
+    return { x: O.x + r * Math.cos(midAng), y: O.y + r * Math.sin(midAng) };
+  }
+  // Small multi-line label with a white halo (for segment names).
+  function segLabel(x, y, lines, colour) {
+    ctx.font = "700 12.5px Inter, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (var i = 0; i < lines.length; i++) {
+      var yy = y + (i - (lines.length - 1) / 2) * 16;
+      ctx.lineWidth = 4; ctx.strokeStyle = "rgba(255,255,255,0.95)";
+      ctx.strokeText(lines[i], x, yy);
+      ctx.fillStyle = colour; ctx.fillText(lines[i], x, yy);
+    }
+  }
+  // Shade the two segments cut by chord aT->aA. The segment containing P is the
+  // "alternate segment" (it holds the inscribed angle); shade it to match P's
+  // angle colour, the other to match the tangent-chord angle colour.
+  function shadeAlternateSegments(aT, aA, aP, withLabels) {
+    var pCcw = arcContains(aT, aA, aP);
+    var pArc = pCcw ? clampAngle(aA - aT) : clampAngle(aT - aA);
+    var otherArc = TAU - pArc;
+    var green = getCss("--arcB"), orange = getCss("--arcA");
+    fillSegment(aT, aA, pCcw, green, 0.16);    // alternate segment (contains P)
+    fillSegment(aT, aA, !pCcw, orange, 0.16);  // tangent-chord side
+    if (!withLabels) return;
+    var pMinor = pArc < Math.PI;
+    var pMid = arcMid(aT, aA, pCcw), oMid = arcMid(aT, aA, !pCcw);
+    var pPos = segLabelPos(pMid, pArc), oPos = segLabelPos(oMid, otherArc);
+    segLabel(pPos.x, pPos.y, ["Alternate segment", "(" + (pMinor ? "minor" : "major") + ")"], green);
+    segLabel(oPos.x, oPos.y, [(pMinor ? "Major" : "Minor") + " segment"], orange);
+  }
+
   // ============================================================
   // THEOREM 1: angle at centre = 2 x angle at circumference
   // ============================================================
@@ -1066,6 +1122,10 @@
     setAngle: function (key, a) { state[key] = a; },
     draw: function () {
       var T = onCircle(state.T), A = onCircle(state.A), P = onCircle(state.P);
+      // shade the two segments cut by chord TA so the "alternate segment" is obvious
+      shadeAlternateSegments(state.T, state.A, state.P, !showBothAST);
+      // redraw the circle outline on top of the shading so the rim stays crisp
+      drawCircle();
       // tangent at T
       var u = norm(T.x - O.x, T.y - O.y); var t = { x: -u.y, y: u.x };
       var L = R * 1.2;

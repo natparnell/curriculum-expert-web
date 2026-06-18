@@ -461,6 +461,208 @@
     <div class="body" id="explainerBody"></div>
   </details>
 
+<!-- WeST practice generator v1 -->
+<style>
+  .wpx-panel{margin-top:16px;border:1px solid #d8dee9;border-radius:14px;background:#f7f9fc;padding:16px 18px;font-family:Inter,system-ui,sans-serif}
+  .wpx-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+  .wpx-head h2{margin:0;font-size:1.05rem;color:#1a2230}
+  .wpx-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .wpx-seg{display:inline-flex;border:1px solid #2f5fd0;border-radius:9px;overflow:hidden}
+  .wpx-seg-btn{border:0;background:#fff;color:#2f5fd0;font-weight:700;font-size:.85rem;padding:7px 12px;cursor:pointer}
+  .wpx-seg-btn+.wpx-seg-btn{border-left:1px solid #2f5fd0}
+  .wpx-seg-btn.is-active{background:#2f5fd0;color:#fff}
+  .wpx-btn{border:1px solid #2f5fd0;border-radius:9px;background:#2f5fd0;color:#fff;font-weight:700;font-size:.85rem;padding:7px 12px;cursor:pointer}
+  .wpx-btn.ghost{background:#fff;color:#2f5fd0}
+  .wpx-btn:focus-visible,.wpx-seg-btn:focus-visible{outline:3px solid #9bb6f0;outline-offset:2px}
+  .wpx-hint{margin:8px 0 12px;font-size:.85rem;color:#5a667a}
+  .wpx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:820px){.wpx-grid{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:560px){.wpx-grid{grid-template-columns:1fr}}
+  .wpx-card{display:flex;flex-direction:column;gap:10px;border:1px solid #e1e7f0;border-radius:12px;background:#fff;padding:14px;min-height:140px}
+  .wpx-cat{display:flex;align-items:center;gap:8px;font-weight:700;color:#2f5fd0;font-size:.9rem}
+  .wpx-badge{flex:none;width:26px;height:26px;border-radius:50%;background:#2f5fd0;color:#fff;font-size:.82rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+  .wpx-q{flex:1;font-size:1rem;font-weight:600;line-height:1.45;color:#1a2230}
+  .wpx-q code{font-family:"Roboto Mono",ui-monospace,monospace;font-weight:600;background:#eef2fb;padding:1px 5px;border-radius:5px}
+  .wpx-a{border-radius:8px;padding:8px 10px;font-size:.96rem;font-weight:800;background:#ecf8f1;border:1px solid #b7e0c8;color:#155f3a}
+  .wpx-a code{font-family:"Roboto Mono",ui-monospace,monospace}
+  .wpx-svg{width:100%;height:auto;display:block;margin:2px 0}
+  .wpx-panel:fullscreen{padding:30px 36px;overflow:auto;background:#f7f9fc}
+  .wpx-panel:fullscreen .wpx-q{font-size:1.4rem}
+  .wpx-panel:fullscreen .wpx-cat{font-size:1.25rem}
+  .wpx-panel:fullscreen .wpx-a{font-size:1.35rem}
+  .wpx-panel:fullscreen .wpx-badge{width:36px;height:36px;font-size:1.05rem}
+</style>
+<section class="wpx-panel" id="wpxPanel" aria-label="Practice questions of this type">
+  <div class="wpx-head">
+    <h2>Questions of this type</h2>
+    <div class="wpx-controls">
+      <div class="wpx-seg" role="group" aria-label="Number of questions">
+        <button class="wpx-seg-btn is-active" id="wpx3" type="button" aria-pressed="true">3 questions</button>
+        <button class="wpx-seg-btn" id="wpx6" type="button" aria-pressed="false">6 questions</button>
+      </div>
+      <button class="wpx-btn ghost" id="wpxNew" type="button">New set</button>
+      <button class="wpx-btn" id="wpxAns" type="button" aria-pressed="false">Show answers</button>
+      <button class="wpx-btn ghost" id="wpxFull" type="button">Full screen</button>
+    </div>
+  </div>
+  <p class="wpx-hint">Same skill, fresh numbers. Project full screen for a quick check; reveal the answers only when ready.</p>
+  <div class="wpx-grid" id="wpxGrid"></div>
+</section>
+<script>
+(function(){
+  "use strict";
+  // ---------- helpers available to question generators ----------
+  function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}      // inclusive int
+  function pick(a){return a[Math.floor(Math.random()*a.length)];}
+  function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a;}
+  function fmt(x){var r=Math.round(x*100)/100;return (Math.abs(r-Math.round(r))<1e-9)?String(Math.round(r)):String(r);}
+
+  // ====== TOPIC QUESTION BANK (the only part that changes per app) ======
+  // Each generator returns {cat, prompt, answer}. prompt MUST be fully
+  // self-contained: every number needed to answer it is in the prompt text.
+  // All networks are tiny and given entirely as a written edge list, so the
+  // pupil never needs to see a diagram. Edexcel A-level Further Maths, D1.
+
+  // distinct positive integer weights so MST/Prim/Kruskal order is unambiguous
+  function distinctW(n,lo,hi){
+    var s={}, out=[], guard=0;
+    while(out.length<n && guard<400){ guard++; var w=rnd(lo,hi); if(!s[w]){ s[w]=1; out.push(w); } }
+    return out;
+  }
+  // edge list -> written sentence "A to B weight w, ..."
+  function arcList(arcs){
+    return arcs.map(function(e){ return e[0]+" to "+e[1]+" ("+e[2]+")"; }).join(", ");
+  }
+  // Kruskal on a given arc list (arcs: [u,v,w]); returns {order:[arcs added], weight, rejected:[arcs]}
+  function kruskal(verts, arcs){
+    var parent={}; verts.forEach(function(v){parent[v]=v;});
+    function find(x){ while(parent[x]!==x){ parent[x]=parent[parent[x]]; x=parent[x]; } return x; }
+    var sorted=arcs.slice().sort(function(a,b){return a[2]-b[2];});
+    var order=[], rejected=[], total=0;
+    sorted.forEach(function(e){
+      var ra=find(e[0]), rb=find(e[1]);
+      if(ra!==rb){ parent[ra]=rb; order.push(e); total+=e[2]; }
+      else rejected.push(e);
+    });
+    return {order:order, weight:total, rejected:rejected};
+  }
+  // Prim from a start vertex on adjacency of arcs; returns {order:[arcs added], weight}
+  function prim(verts, arcs, start){
+    var inTree={}; inTree[start]=1; var order=[], total=0;
+    while(Object.keys(inTree).length<verts.length){
+      var best=null;
+      arcs.forEach(function(e){
+        var ai=inTree[e[0]], bi=inTree[e[1]];
+        if(ai && !bi || bi && !ai){ if(best===null || e[2]<best[2]) best=e; }
+      });
+      if(best===null) break;
+      inTree[best[0]]=1; inTree[best[1]]=1; order.push(best); total+=best[2];
+    }
+    return {order:order, weight:total};
+  }
+  function arcName(e){ return "<code>"+e[0]+e[1]+"</code>"; }
+
+  var QGEN = [
+    // 1. Shortest path: triangle, direct vs via a middle vertex
+    function(){
+      var ab=rnd(4,12), bc=rnd(4,12), ac=rnd(3,20);
+      while(ac===ab+bc) ac=rnd(3,20);            // avoid a tie
+      var viaB=ab+bc, best=Math.min(ac, viaB);
+      var route=(ac<viaB)?"<code>A &rarr; C</code>":"<code>A &rarr; B &rarr; C</code>";
+      return {
+        cat:"Shortest path",
+        prompt:"A network has three vertices A, B, C joined by arcs of these lengths: A to B is "+ab+", B to C is "+bc+", A to C is "+ac+". Find the length of the shortest route from A to C.",
+        answer:"Direct A to C = "+ac+"; via B = "+ab+" + "+bc+" = "+viaB+". Shortest = <code>"+best+"</code> ("+route+")."
+      };
+    },
+    // 2. Shortest path: square ABCD, two routes A to C
+    function(){
+      var ab=rnd(3,10), bc=rnd(3,10), ad=rnd(3,10), dc=rnd(3,10);
+      var top=ab+bc, bot=ad+dc;
+      while(top===bot){ dc=rnd(3,10); bot=ad+dc; }
+      var best=Math.min(top,bot);
+      var route=(top<bot)?"<code>A &rarr; B &rarr; C</code>":"<code>A &rarr; D &rarr; C</code>";
+      return {
+        cat:"Shortest path",
+        prompt:"In a network the only arcs are: A to B = "+ab+", B to C = "+bc+", A to D = "+ad+", D to C = "+dc+". Find the shortest distance from A to C.",
+        answer:"A&ndash;B&ndash;C = "+ab+" + "+bc+" = "+top+"; A&ndash;D&ndash;C = "+ad+" + "+dc+" = "+bot+". Shortest = <code>"+best+"</code> ("+route+")."
+      };
+    },
+    // 3. Minimum spanning tree weight on a 4-vertex single cycle A-B-C-D-A
+    function(){
+      var w=distinctW(4,5,18);
+      var ab=w[0], bc=w[1], cd=w[2], da=w[3];
+      var sum=ab+bc+cd+da, hi=Math.max(ab,bc,cd,da), mst=sum-hi;
+      return {
+        cat:"MST weight",
+        prompt:"A connected network has exactly four arcs forming one cycle: A to B = "+ab+", B to C = "+bc+", C to D = "+cd+", D to A = "+da+". Find the weight of the minimum spanning tree.",
+        answer:"A single cycle: drop the heaviest arc ("+hi+"). MST weight = "+sum+" &minus; "+hi+" = <code>"+mst+"</code>."
+      };
+    },
+    // 4. Kruskal: order arcs are added, plus the one rejected
+    function(){
+      // 4 vertices A B C D, 5 arcs: tree-ish plus an extra that closes a cycle
+      var w=distinctW(5,6,24);
+      var arcs=[["A","B",w[0]],["B","C",w[1]],["C","D",w[2]],["A","D",w[3]],["B","D",w[4]]];
+      var r=kruskal(["A","B","C","D"],arcs);
+      var added=r.order.map(arcName).join(", ");
+      var rej=r.rejected.map(arcName).join(", ");
+      return {
+        cat:"Kruskal order",
+        prompt:"Apply Kruskal's algorithm to this network. The arcs and weights are: "+arcList(arcs)+". List, in the order they are accepted, the arcs that form the minimum spanning tree.",
+        answer:"Accepted in order: "+added+". Arc "+rej+" is rejected (it would form a cycle). MST weight = <code>"+r.weight+"</code>."
+      };
+    },
+    // 5. Prim from a stated start vertex: order arcs are added
+    function(){
+      var w=distinctW(5,5,22);
+      var arcs=[["A","B",w[0]],["A","C",w[1]],["B","C",w[2]],["B","D",w[3]],["C","D",w[4]]];
+      var start=pick(["A","B","C","D"]);
+      var r=prim(["A","B","C","D"],arcs,start);
+      var added=r.order.map(arcName).join(", ");
+      return {
+        cat:"Prim order",
+        prompt:"Apply Prim's algorithm starting from vertex "+start+". The arcs and weights are: "+arcList(arcs)+". Give the arcs in the order Prim adds them.",
+        answer:"From "+start+", Prim adds: "+added+". Minimum spanning tree weight = <code>"+r.weight+"</code>."
+      };
+    },
+    // 6. Number of arcs in a spanning tree (n - 1) on a stated network
+    function(){
+      var n=rnd(5,9), m=rnd(n, n+5);
+      return {
+        cat:"Tree size",
+        prompt:"A connected network has "+n+" vertices and "+m+" arcs. How many arcs does any spanning tree of this network contain, and how many arcs are left out of the tree?",
+        answer:"Spanning tree has <code>n &minus; 1 = "+(n-1)+"</code> arcs. Arcs left out = "+m+" &minus; "+(n-1)+" = <code>"+(m-(n-1))+"</code>."
+      };
+    }
+  ];
+  // ====== END TOPIC QUESTION BANK ======
+
+  // ---------- engine (do not edit) ----------
+  var count=3;
+  function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+  function render(){
+    var grid=document.getElementById("wpxGrid"); if(!grid) return;
+    var gens=shuffle(QGEN), html="";
+    for(var i=0;i<count;i++){
+      var item=gens[i%gens.length]();
+      html+='<div class="wpx-card"><div class="wpx-cat"><span class="wpx-badge">'+(i+1)+'</span>'+item.cat+'</div>'+
+            '<div class="wpx-q">'+item.prompt+'</div>'+
+            '<div class="wpx-a" hidden>'+item.answer+'</div></div>';
+    }
+    grid.innerHTML=html; showAns(false);
+  }
+  function showAns(s){var b=document.getElementById("wpxAns");var els=document.querySelectorAll("#wpxGrid .wpx-a");for(var i=0;i<els.length;i++)els[i].hidden=!s;if(b){b.textContent=s?"Hide answers":"Show answers";b.setAttribute("aria-pressed",s?"true":"false");}}
+  function setCount(n){count=n;var b3=document.getElementById("wpx3"),b6=document.getElementById("wpx6");b3.classList.toggle("is-active",n===3);b3.setAttribute("aria-pressed",n===3);b6.classList.toggle("is-active",n===6);b6.setAttribute("aria-pressed",n===6);render();}
+  document.getElementById("wpx3").addEventListener("click",function(){setCount(3);});
+  document.getElementById("wpx6").addEventListener("click",function(){setCount(6);});
+  document.getElementById("wpxNew").addEventListener("click",render);
+  document.getElementById("wpxAns").addEventListener("click",function(){var h=document.querySelector("#wpxGrid .wpx-a");showAns(h?h.hidden:false);});
+  document.getElementById("wpxFull").addEventListener("click",function(){var el=document.getElementById("wpxPanel");if(!document.fullscreenElement){var rf=el.requestFullscreen||el.webkitRequestFullscreen;if(rf)rf.call(el);}else{document.exitFullscreen();}});
+  render();
+})();
+</script>
+
   <footer class="foot">
     WeST Further Mathematics &middot; Decision 1 &middot; Self-contained classroom visualiser. Algorithm outputs are computed live; values shown are illustrative teaching examples.
   </footer>

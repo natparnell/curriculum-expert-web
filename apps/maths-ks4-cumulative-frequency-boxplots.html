@@ -211,22 +211,25 @@
   .seg-btn + .seg-btn { border-left: 1px solid var(--accent); }
   .seg-btn.is-active { background: var(--accent); color: #fff; }
   .seg-btn:focus-visible { outline: 3px solid #9bb6f0; outline-offset: 2px; }
-  .practice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  @media (max-width: 820px) { .practice-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 560px) { .practice-grid { grid-template-columns: 1fr; } }
-  .practice-card {
-    display: flex; flex-direction: column; gap: 10px;
-    border: 1px solid var(--line); border-radius: 12px; background: #fff;
-    padding: 14px; min-height: 180px;
+  /* Each block is one fresh graph with its own questions underneath. */
+  .practice-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .practice-grid.two { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 820px) { .practice-grid.two { grid-template-columns: 1fr; } }
+  .pgraph-block {
+    display: flex; flex-direction: column; gap: 12px;
+    border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 14px 16px;
   }
-  .pc-cat { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent); font-size: 0.92rem; }
+  .pgraph-head { font-weight: 700; color: var(--ink); font-size: 0.96rem; }
+  .pgraph-head code { font-family: "Roboto Mono", monospace; font-weight: 700; color: var(--accent); }
+  .pgraph-svg { width: 100%; height: auto; display: block; }
+  .pq-list { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .pq-item { display: flex; flex-direction: column; gap: 6px; }
+  .pc-cat { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--accent); font-size: 0.9rem; }
   .pc-badge {
     flex: none; width: 26px; height: 26px; border-radius: 50%;
     background: var(--accent); color: #fff; font-size: 0.82rem; font-weight: 800;
     display: inline-flex; align-items: center; justify-content: center;
   }
-  .pc-q { flex: 1; font-size: 0.98rem; font-weight: 600; line-height: 1.4; }
-  .pc-q code { font-family: "Roboto Mono", monospace; font-weight: 600; }
   .pc-find {
     border: 2px dashed var(--warn); background: #fcf4e6; color: #8a5a14;
     border-radius: 8px; padding: 8px 10px; font-size: 0.92rem; font-weight: 700;
@@ -238,9 +241,9 @@
   }
   /* Larger, projector-friendly text when shown full screen */
   .practice-panel:fullscreen { padding: 28px 34px; overflow: auto; background: var(--paper); }
-  .practice-panel:fullscreen .practice-grid { gap: 20px; }
-  .practice-panel:fullscreen .pc-q { font-size: 1.35rem; }
-  .practice-panel:fullscreen .pc-cat { font-size: 1.25rem; }
+  .practice-panel:fullscreen .practice-grid { gap: 24px; }
+  .practice-panel:fullscreen .pgraph-head { font-size: 1.3rem; }
+  .practice-panel:fullscreen .pc-cat { font-size: 1.2rem; }
   .practice-panel:fullscreen .pc-find,
   .practice-panel:fullscreen .pa-answer { font-size: 1.3rem; }
   .practice-panel:fullscreen .pc-badge { width: 36px; height: 36px; font-size: 1.05rem; }
@@ -1074,50 +1077,107 @@
     return pts[pts.length - 1].cf;
   }
 
-  function makeQuestion() {
-    var key = pick(PRESET_KEYS);
-    var freq = randFreq(key);
-    var cf = buildCF(key, freq);
-    var s = summarise(cf, 50);
-    var p = PRESETS[key];
-    var type = pick(["median", "iqr", "above", "below", "percentile"]);
-    var intro = "A cumulative frequency graph shows <code>" + cf.total + "</code> " + p.noun + " (" + p.name + ").";
+  function shuffle(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
 
+  // One question of a given type, read off THIS dataset's curve.
+  function questionFromCF(cf, p, type) {
+    var s = summarise(cf, 50);
     if (type === "median") {
-      return { cat: "Estimate the median", q: intro, find: "Find: the median " + p.unit, ans: "median ≈ " + fmt(s.med) + " " + p.unit };
+      return { cat: "Estimate the median", find: "Find: the median " + p.unit, ans: "median ≈ " + fmt(s.med) + " " + p.unit };
     }
     if (type === "iqr") {
-      return { cat: "Find the IQR", q: intro + " The lower and upper quartiles are read at <code>n/4</code> and <code>3n/4</code>.", find: "Find: the interquartile range", ans: "IQR = " + fmt(s.q3) + " − " + fmt(s.q1) + " = " + fmt(s.q3 - s.q1) + " " + p.unit };
+      return { cat: "Find the IQR", find: "Find: the interquartile range (read off at n/4 and 3n/4)", ans: "IQR = " + fmt(s.q3) + " − " + fmt(s.q1) + " = " + fmt(s.q3 - s.q1) + " " + p.unit };
     }
     if (type === "percentile") {
       var pp = pick([10, 80, 90]);
       var v = valueAtCF(cf.pts, cf.total * (pp / 100));
-      return { cat: "Read a percentile", q: intro, find: "Find: the " + ord(pp) + " percentile", ans: ord(pp) + " percentile ≈ " + fmt(v) + " " + p.unit };
+      return { cat: "Read a percentile", find: "Find: the " + ord(pp) + " percentile", ans: ord(pp) + " percentile ≈ " + fmt(v) + " " + p.unit };
     }
-    // above / below a "nice" threshold taken from an interior class boundary
     var bounds = p.classes.slice(1, p.classes.length - 1).map(function (c) { return c.hi; });
     var thr = bounds.length ? pick(bounds) : p.classes[p.classes.length - 1].hi;
     var below = Math.round(cfAtValue(cf.pts, thr));
     if (type === "above") {
-      return { cat: "Read a frequency", q: intro, find: "Find: how many " + p.noun + " were more than " + thr + " " + p.unit, ans: "≈ " + (cf.total - below) + " " + p.noun };
+      return { cat: "Read a frequency", find: "Find: how many " + p.noun + " were more than " + thr + " " + p.unit, ans: "≈ " + (cf.total - below) + " " + p.noun };
     }
-    return { cat: "Read a frequency", q: intro, find: "Find: how many " + p.noun + " were less than " + thr + " " + p.unit, ans: "≈ " + below + " " + p.noun };
+    return { cat: "Read a frequency", find: "Find: how many " + p.noun + " were less than " + thr + " " + p.unit, ans: "≈ " + below + " " + p.noun };
+  }
+
+  // Draw the ogive for a dataset as a self-contained SVG so each question set
+  // shows the graph it actually refers to.
+  function ogiveSVG(cf, p) {
+    var BW = 360, BH = 230, L = 46, Rm = 14, T = 14, B = 42;
+    var pts = cf.pts;
+    var xmin = pts[0].x, xmax = pts[pts.length - 1].x, ymax = cf.total;
+    function X(v) { return L + (v - xmin) / (xmax - xmin) * (BW - L - Rm); }
+    function Y(c) { return BH - B - (c / ymax) * (BH - B - T); }
+    var i, parts = [];
+    // horizontal gridlines + y labels at 0, 25%, 50%, 75%, 100% of n
+    var yTicks = [0, 0.25, 0.5, 0.75, 1];
+    for (i = 0; i < yTicks.length; i++) {
+      var cval = Math.round(ymax * yTicks[i]);
+      var gy = Y(cval);
+      parts.push('<line x1="' + L + '" y1="' + gy.toFixed(1) + '" x2="' + (BW - Rm) + '" y2="' + gy.toFixed(1) + '" stroke="#e7ecf5" stroke-width="1"/>');
+      parts.push('<text x="' + (L - 6) + '" y="' + (gy + 4).toFixed(1) + '" font-size="11" fill="#5a6577" text-anchor="end">' + cval + '</text>');
+    }
+    // axes
+    parts.push('<line x1="' + L + '" y1="' + T + '" x2="' + L + '" y2="' + (BH - B) + '" stroke="#9aa6b8" stroke-width="1.5"/>');
+    parts.push('<line x1="' + L + '" y1="' + (BH - B) + '" x2="' + (BW - Rm) + '" y2="' + (BH - B) + '" stroke="#9aa6b8" stroke-width="1.5"/>');
+    // x ticks + labels at class boundaries
+    for (i = 0; i < pts.length; i++) {
+      var px = X(pts[i].x);
+      parts.push('<line x1="' + px.toFixed(1) + '" y1="' + (BH - B) + '" x2="' + px.toFixed(1) + '" y2="' + (BH - B + 4) + '" stroke="#9aa6b8" stroke-width="1.5"/>');
+      parts.push('<text x="' + px.toFixed(1) + '" y="' + (BH - B + 16) + '" font-size="11" fill="#5a6577" text-anchor="middle">' + pts[i].x + '</text>');
+    }
+    // ogive polyline + point markers
+    var poly = pts.map(function (q) { return X(q.x).toFixed(1) + "," + Y(q.cf).toFixed(1); }).join(" ");
+    parts.push('<polyline points="' + poly + '" fill="none" stroke="#2f5fd0" stroke-width="2.5"/>');
+    for (i = 0; i < pts.length; i++) {
+      parts.push('<circle cx="' + X(pts[i].x).toFixed(1) + '" cy="' + Y(pts[i].cf).toFixed(1) + '" r="3" fill="#2f5fd0"/>');
+    }
+    // axis titles
+    parts.push('<text x="' + ((L + BW - Rm) / 2) + '" y="' + (BH - 6) + '" font-size="11.5" fill="#3a4456" text-anchor="middle" font-weight="600">' + p.classLabel + '</text>');
+    parts.push('<text transform="translate(13,' + ((T + BH - B) / 2) + ') rotate(-90)" font-size="11.5" fill="#3a4456" text-anchor="middle" font-weight="600">Cumulative frequency</text>');
+    return '<svg class="pgraph-svg" viewBox="0 0 ' + BW + ' ' + BH + '" role="img" aria-label="Cumulative frequency curve for ' + p.name + '" preserveAspectRatio="xMidYMid meet">' + parts.join("") + '</svg>';
+  }
+
+  // A fresh graph with three distinct questions read from it.
+  function freshGraphBlock(startNum) {
+    var key = pick(PRESET_KEYS);
+    var cf = buildCF(key, randFreq(key));
+    var p = PRESETS[key];
+    var types = shuffle(["median", "iqr", "percentile", "above", "below"]).slice(0, 3);
+    var qHtml = "";
+    for (var i = 0; i < types.length; i++) {
+      var item = questionFromCF(cf, p, types[i]);
+      qHtml +=
+        '<li class="pq-item">' +
+          '<div class="pc-cat"><span class="pc-badge">' + (startNum + i) + '</span>' + item.cat + '</div>' +
+          '<div class="pc-find">' + item.find + '</div>' +
+          '<div class="pa-answer" hidden>' + item.ans + '</div>' +
+        '</li>';
+    }
+    return '<div class="pgraph-block">' +
+        '<div class="pgraph-head">A cumulative frequency graph of <code>' + cf.total + '</code> ' + p.noun + ' (' + p.name + '). Use it to answer all three questions.</div>' +
+        ogiveSVG(cf, p) +
+        '<ol class="pq-list">' + qHtml + '</ol>' +
+      '</div>';
   }
 
   function renderPracticeSet() {
     var grid = document.getElementById("practiceGrid");
     if (!grid) return;
+    // 3 questions = one fresh graph; 6 questions = two graphs, three questions each.
+    var blocks = practiceCount === 6 ? 2 : 1;
+    grid.classList.toggle("two", blocks === 2);
     var html = "";
-    for (var i = 0; i < practiceCount; i++) {
-      var item = makeQuestion();
-      html +=
-        '<div class="practice-card">' +
-          '<div class="pc-cat"><span class="pc-badge">' + (i + 1) + '</span>' + item.cat + '</div>' +
-          '<div class="pc-q">' + item.q + '</div>' +
-          '<div class="pc-find">' + item.find + '</div>' +
-          '<div class="pa-answer" hidden>' + item.ans + '</div>' +
-        '</div>';
-    }
+    for (var b = 0; b < blocks; b++) html += freshGraphBlock(b * 3 + 1);
     grid.innerHTML = html;
     setAnswersVisible(false);
   }
