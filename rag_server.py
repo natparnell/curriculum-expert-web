@@ -58,6 +58,61 @@ SESSION_TTL = 7200  # 2 hours
 app = Flask(__name__)
 CORS(app)
 
+# --- Security hardening: cost-DoS protection (added 2026-05-30) ---
+import os as _os
+import time as _time
+import hmac as _hmac
+from flask import request as _request, jsonify as _jsonify
+
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2 MB request-body cap
+
+APP_PASSWORD = _os.environ.get('APP_PASSWORD')
+MAX_INPUT_CHARS = 4000
+_PROTECTED_POST = {'/ask', '/ask-stream', '/visualise', '/upload', '/query', '/reindex'}
+_TEXT_ROUTES = {'/ask', '/ask-stream', '/visualise', '/query'}
+
+# Best-effort per-IP throttle (in-memory, per gunicorn worker)
+_RL = {}
+_RL_WINDOW = 60   # seconds
+_RL_MAX = 20      # protected POSTs per IP per window
+
+def _client_ip():
+    xff = _request.headers.get('X-Forwarded-For', '')
+    if xff:
+        return xff.split(',')[0].strip()
+    return _request.remote_addr or 'unknown'
+
+@app.before_request
+def _security_gate():
+    if _request.method == 'POST' and _request.path in _PROTECTED_POST:
+        # 1. Shared-password gate (fail closed). Accept header, query, or cookie.
+        if not APP_PASSWORD:
+            return _jsonify({"error": "Service not configured"}), 503
+        supplied = (_request.headers.get('X-App-Password', '')
+                    or _request.args.get('app_pw', '')
+                    or _request.cookies.get('ce_pw', ''))
+        if not _hmac.compare_digest(str(supplied), str(APP_PASSWORD)):
+            return _jsonify({"error": "Unauthorised"}), 401
+        # 2. Per-IP rate limit
+        now = _time.time()
+        ip = _client_ip()
+        bucket = [t for t in _RL.get(ip, []) if now - t < _RL_WINDOW]
+        if len(bucket) >= _RL_MAX:
+            return _jsonify({"error": "Too many requests, please slow down."}), 429
+        bucket.append(now)
+        _RL[ip] = bucket
+        # 3. Input-length cap on text routes (bounds per-call LLM cost)
+        if _request.path in _TEXT_ROUTES:
+            try:
+                data = _request.get_json(silent=True)
+                vals = list(data.values()) if isinstance(data, dict) else list(_request.form.values())
+                for v in vals:
+                    if isinstance(v, str) and len(v) > MAX_INPUT_CHARS:
+                        return _jsonify({"error": "Input too long (max %d characters)." % MAX_INPUT_CHARS}), 413
+            except Exception:
+                pass
+# --- end security hardening ---
+
 # Initialize pipeline once
 pipeline = RAGPipeline()
 

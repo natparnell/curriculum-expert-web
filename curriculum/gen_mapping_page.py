@@ -83,9 +83,10 @@ TEMPLATE = r"""<!DOCTYPE html>
   body{ font-family:'Inter',system-ui,-apple-system,sans-serif; background:#faf7f2; color:#3d2e1f; min-height:100vh; padding:2rem; }
   .wrap{ max-width:1400px; margin:0 auto; }
   header{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; margin-bottom:1.2rem; }
+  .header-left{ flex:1 1 300px; min-width:0; }
   .header-left h1{ font-size:1.5rem; font-weight:800; letter-spacing:-0.02em; }
-  .header-left p{ font-size:0.85rem; color:#8b7355; margin-top:0.2rem; max-width:680px; }
-  .header-actions{ display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap; }
+  .header-left p{ font-size:0.85rem; color:#8b7355; margin-top:0.2rem; max-width:620px; }
+  .header-actions{ display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap; flex-shrink:0; justify-content:flex-end; }
   .nav-link{ display:inline-flex; align-items:center; gap:0.35rem; background:#fff; color:#6b5744; font-size:0.8rem; font-weight:600; padding:0.4rem 0.9rem; border:1.5px solid #e0d5c5; border-radius:999px; text-decoration:none; transition:all 0.15s; white-space:nowrap; }
   .nav-link:hover{ border-color:#e07020; color:#e07020; }
   .nav-link.active{ background:#fbeee3; border-color:#e07020; color:#c96830; }
