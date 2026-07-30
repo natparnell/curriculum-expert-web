@@ -5,7 +5,7 @@ app collections (CPD, Data). Data-driven from coverage-master.json and the catal
 so it can be regenerated as apps are added."""
 import json, os
 
-REPO = '/Users/nathanaelparnell/CCP2/curriculum-expert-web'
+REPO = '/Users/nathanaelparnell/curriculum-expert-web'
 MASTER = os.path.join(REPO, 'curriculum/schema/coverage-master.json')
 CAT = os.path.join(REPO, 'edu-apps-catalogue.json')
 OUT = os.path.join(REPO, 'curriculum-map.html')

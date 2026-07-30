@@ -16,7 +16,11 @@ The edu apps menu exists in TWO places that MUST stay in sync:
 | File | Location | Purpose |
 |---|---|---|
 | `apps-portal.html` | This repo | Live site menu at curriculumexpert.co.uk/apps |
-| `menu.html` | Parent CCP2 repo (`ccp2-dashboard`) | Local dashboard menu |
+| `menu.html` | `~/menu.html` (home directory) | Local App Dashboard menu |
+
+Note the split: the launcher `menu.html` now lives at `~/menu.html`, but the mirrored app
+files still go to `~/CCP2/apps/` (CCP2 is the Firebase public dir for the west-edu-apps
+site). Two different roots. `integrate_apps.py` holds them as `HOME_DIR` and `APPS_PARENT`.
 
 Both contain an identical `eduApps[]` JavaScript array. **When you add or modify apps,
 update both.** The eduApps array shape: most subject groups use

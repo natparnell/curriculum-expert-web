@@ -11,7 +11,7 @@ Builds one app per strand whose coverage is 'none'.
 import sys, os, re, json
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-REPO = '/Users/nathanaelparnell/CCP2/curriculum-expert-web'
+REPO = '/Users/nathanaelparnell/curriculum-expert-web'
 MASTER = os.path.join(REPO, 'curriculum/schema/coverage-master.json')
 APPS = os.path.join(REPO, 'apps')
 

@@ -46,7 +46,7 @@ SKIP = {'data-daily-cashflow.html', 'data-idsr-analyser.html'}  # real-data tool
 
 def main():
     roots = [pathlib.Path('/Users/nathanaelparnell/CCP2/apps'),
-             pathlib.Path('/Users/nathanaelparnell/CCP2/curriculum-expert-web/apps')]
+             pathlib.Path('/Users/nathanaelparnell/curriculum-expert-web/apps')]
     counts = {}
     for root in roots:
         if not root.exists():

@@ -12,11 +12,15 @@ Idempotent: an app whose file is already present in a target is skipped there.
 """
 import sys, os, json, shutil, subprocess, tempfile
 
-REPO = '/Users/nathanaelparnell/CCP2/curriculum-expert-web'
-PARENT = '/Users/nathanaelparnell/CCP2'
+REPO = '/Users/nathanaelparnell/curriculum-expert-web'
+# The edu apps still live in CCP2 (it is the Firebase public dir for the
+# west-edu-apps site), but the launcher moved up to the home directory when the
+# projects were split out of CCP2, so these are two different roots now.
+APPS_PARENT = '/Users/nathanaelparnell/CCP2'
+HOME_DIR = '/Users/nathanaelparnell'
 CATALOGUE = os.path.join(REPO, 'edu-apps-catalogue.json')
 PORTAL = os.path.join(REPO, 'apps-portal.html')
-MENU = os.path.join(PARENT, 'menu.html')
+MENU = os.path.join(HOME_DIR, 'menu.html')
 
 # style for subjects that may need a new group created (new NC subjects)
 SUBJECT_STYLE = {
@@ -172,7 +176,7 @@ def update_catalogue(entries):
 
 
 def mirror_files(entries):
-    dst = os.path.join(PARENT, 'apps')
+    dst = os.path.join(APPS_PARENT, 'apps')
     n = 0
     if not os.path.isdir(dst):
         return 0

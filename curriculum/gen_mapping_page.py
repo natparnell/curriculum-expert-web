@@ -3,7 +3,7 @@
 assessment ref) -> app links view, styled to match the apps portal. Deep-link via ?app=<file>."""
 import json, os
 
-REPO = '/Users/nathanaelparnell/CCP2/curriculum-expert-web'
+REPO = '/Users/nathanaelparnell/curriculum-expert-web'
 MASTER = os.path.join(REPO, 'curriculum/schema/coverage-master.json')
 DOMAINS = os.path.join(REPO, 'curriculum/schema/domain-grouping.json')
 CAT = os.path.join(REPO, 'edu-apps-catalogue.json')
